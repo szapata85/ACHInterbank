@@ -1,0 +1,15 @@
+HTTP observado por Playwright, sin cuerpos ni cabeceras sensibles
+
+POST /auth/login: 200
+GET API /health/live: 200 application/json
+GET SPA /health/live: 200 application/json
+GET /api/nacha-security/certificates/management: 200
+POST /api/nacha-security/certificates/management/public: 200
+POST /api/nacha-security/certificates/management/private: 200
+POST private con password incorrecta: 400
+POST public duplicado: 409
+POST private duplicado: 409
+POST durante indisponibilidad real de API: 5xx
+Acceso a /nacha-security/certificates sin permiso: bloqueado por guard; la pantalla no se renderiza
+
+No se almacenaron payloads, tokens, password ni material binario en esta evidencia.

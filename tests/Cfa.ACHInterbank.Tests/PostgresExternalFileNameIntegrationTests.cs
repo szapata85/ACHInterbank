@@ -20,17 +20,48 @@ public class PostgresExternalFileNameIntegrationTests
         await using var harness = await PostgresHarness.CreateAsync();
         if (harness.IsDisabled) return;
 
-        var context = harness.NewExternalFileContext(ExternalFileType.NachaOut, ExternalFileFlow.Originacion, ExternalFileDirection.Outbound);
-        var tasks = Enumerable.Range(0, 20)
+        var context = CreateSequenceContext(harness.ClearingHouseId, harness.ProcessingDate, "CENIT");
+        var tasks = Enumerable.Range(0, 50)
             .Select(_ => ReserveSequenceWithFreshContextAsync(harness.ConnectionString, context))
             .ToArray();
 
         var values = await Task.WhenAll(tasks);
 
-        Assert.Equal(20, values.Length);
-        Assert.Equal(20, values.Distinct().Count());
+        Assert.Equal(50, values.Length);
+        Assert.Equal(50, values.Distinct().Count());
         Assert.Equal(1, values.Min());
-        Assert.Equal(20, values.Max());
+        Assert.Equal(50, values.Max());
+    }
+
+    [Fact]
+    public async Task PostgresExternalFileNameReservation_ShouldCollapseFiftyConcurrentRetries()
+    {
+        await using var harness = await PostgresHarness.CreateAsync();
+        if (harness.IsDisabled) return;
+
+        var request = new ExternalFileNameContext
+        {
+            ClearingHouseId = harness.ClearingHouseId,
+            ClearingHouseCode = "CENIT",
+            ClearingHouseOriginCode = "1234567",
+            ProcessingDate = harness.ProcessingDate,
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound,
+            RequestedBy = "postgres-integration",
+            IdempotencyKey = "synthetic-concurrent-retry"
+        };
+        var tasks = Enumerable.Range(0, 50)
+            .Select(_ => ReserveIdempotentWithFreshContextAsync(harness.ConnectionString, request))
+            .ToArray();
+
+        var reservations = await Task.WhenAll(tasks);
+
+        Assert.All(reservations, item => Assert.Equal(1, item.Sequence));
+        Assert.Single(reservations.Select(item => item.ReservationId).Distinct());
+        await using var verification = harness.CreateContext();
+        Assert.Equal(1, await verification.ExternalFileNameReservations.CountAsync());
+        Assert.Equal(1, (await verification.ExternalFileSequences.SingleAsync()).LastValue);
     }
 
     [Fact]
@@ -300,6 +331,23 @@ public class PostgresExternalFileNameIntegrationTests
         await using var context = new AchDbContext(options);
         var adapter = new PostgresExternalFileNameSequenceService(context);
         return await adapter.ReserveNextSequenceAsync(sequenceContext);
+    }
+
+    private static async Task<ExternalFileNameReservationResult> ReserveIdempotentWithFreshContextAsync(
+        string connectionString,
+        ExternalFileNameContext sequenceContext)
+    {
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseNpgsql(connectionString)
+            .Options;
+        await using var context = new AchDbContext(options);
+        var provider = new PostgresExternalFileNameSequenceService(context);
+        var resolver = new ExternalFileNameSequenceProviderResolver([provider]);
+        var sequence = new ExternalFileNameSequenceService(context, resolver);
+        var reservation = new ExternalFileNameReservationService(context, sequence);
+        var result = await reservation.ReserveAsync(sequenceContext, "synthetic-fingerprint-v1");
+        await reservation.CompleteAsync(result.ReservationId, "1234567.001.1", null);
+        return result;
     }
 
     private static string BuildNachaHeader(char fileId)

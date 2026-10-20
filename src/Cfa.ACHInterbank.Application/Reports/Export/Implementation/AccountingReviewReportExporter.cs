@@ -59,12 +59,58 @@ public sealed class AccountingReviewReportExporter : IAccountingReviewReportExpo
             report.Warnings.Count == 0 ? "Sin advertencias" : string.Join(" | ", report.Warnings.Select(SanitizeFormula)),
             "Frontera no contable"
         };
+        lines.AddRange(report.Rows.Take(20).Select(row =>
+            $"{RowTypeLabel(row.RowType)} | Transacción: {row.TransactionId?.ToString() ?? "Sin identificador"} | Estado: {row.Status ?? "Sin estado"} | Valor: {row.Amount:0.00}"));
+        lines.AddRange(report.Differences.Take(10).Select(item =>
+            $"Diferencia: {item.Description} | Valor: {item.DifferenceAmount:0.00}"));
 
-        var text = string.Join("\n", lines);
-        var escaped = text.Replace("\\", "\\\\").Replace("(", "\\(").Replace(")", "\\)");
-        var pdf = $"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length {escaped.Length + 40}>>stream\nBT /F1 10 Tf 40 740 Td ({escaped}) Tj ET\nendstream endobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \ntrailer<</Root 1 0 R/Size 6>>\nstartxref\n0\n%%EOF";
-        return Encoding.UTF8.GetBytes(pdf);
+        var content = new StringBuilder("BT /F1 10 Tf 40 750 Td 13 TL\n");
+        foreach (var line in lines.Take(48))
+        {
+            content.Append('(').Append(EscapePdfText(line)).Append(") Tj T*\n");
+        }
+        content.Append("ET");
+
+        var objects = new[]
+        {
+            "<</Type/Catalog/Pages 2 0 R>>",
+            "<</Type/Pages/Count 1/Kids[3 0 R]>>",
+            "<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>",
+            $"<</Length {Encoding.Latin1.GetByteCount(content.ToString())}>>stream\n{content}\nendstream",
+            "<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>"
+        };
+
+        using var stream = new MemoryStream();
+        void Write(string value)
+        {
+            var bytes = Encoding.Latin1.GetBytes(value);
+            stream.Write(bytes, 0, bytes.Length);
+        }
+
+        Write("%PDF-1.4\n%âãÏÓ\n");
+        var offsets = new List<long> { 0 };
+        for (var index = 0; index < objects.Length; index++)
+        {
+            offsets.Add(stream.Position);
+            Write($"{index + 1} 0 obj\n{objects[index]}\nendobj\n");
+        }
+
+        var xrefOffset = stream.Position;
+        Write($"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
+        foreach (var offset in offsets.Skip(1))
+        {
+            Write($"{offset:0000000000} 00000 n \n");
+        }
+        Write($"trailer\n<</Size {objects.Length + 1}/Root 1 0 R>>\nstartxref\n{xrefOffset}\n%%EOF\n");
+        return stream.ToArray();
     }
+
+    private static string EscapePdfText(string value) => value
+        .Replace("\\", "\\\\")
+        .Replace("(", "\\(")
+        .Replace(")", "\\)")
+        .Replace("\r", " ")
+        .Replace("\n", " ");
 
     private static byte[] BuildCsv(AccountingReviewReportResult report, AccountingReviewExportRequest request)
     {

@@ -133,16 +133,6 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             },
             new MenuItemPermission
             {
-                MenuItemId = MenuItemConfiguration.ClearingHouseTransactionRulesId,
-                PermissionId = PermissionConfiguration.ManageAchPermissionId
-            },
-            new MenuItemPermission
-            {
-                MenuItemId = MenuItemConfiguration.ClearingHouseTransactionRulesId,
-                PermissionId = PermissionConfiguration.ReadAchPermissionId
-            },
-            new MenuItemPermission
-            {
                 MenuItemId = MenuItemConfiguration.UatSimulatorsId,
                 PermissionId = PermissionConfiguration.ManageAchPermissionId
             },
@@ -164,12 +154,12 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             new MenuItemPermission
             {
                 MenuItemId = MenuItemConfiguration.SchedulerId,
-                PermissionId = PermissionConfiguration.ManageAchPermissionId
+                PermissionId = PermissionConfiguration.SchedulerViewPermissionId
             },
             new MenuItemPermission
             {
                 MenuItemId = MenuItemConfiguration.TaskDefinitionsId,
-                PermissionId = PermissionConfiguration.ManageAchPermissionId
+                PermissionId = PermissionConfiguration.SchedulerViewPermissionId
             },
             new MenuItemPermission
             {
@@ -205,6 +195,11 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             {
                 MenuItemId = MenuItemConfiguration.SoapIntegrationSettingsId,
                 PermissionId = PermissionConfiguration.ManageUsersPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.ClearingHousesAdminId,
+                PermissionId = PermissionConfiguration.ClearingHousesViewPermissionId
             });
     }
 }

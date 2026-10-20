@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
-import { forkJoin, finalize } from 'rxjs';
+import { catchError, forkJoin, finalize, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -12,9 +13,12 @@ import {
   NachaConfigProfileReadModel,
   NachaConfigProfilesDashboardReadModel,
   NachaConfigValidationResult
-} from '../models/nacha-config-admin.models';
+} from '../../../core/models/nacha-config.model';
 import { NachaConfigCommandService } from '../services/nacha-config-command.service';
 import { NachaConfigQueryService } from '../services/nacha-config-query.service';
+import { nachaConfigUserMessage } from '../services/nacha-config-user-message';
+
+type CatalogosEstado = 'pendientes' | 'cargando' | 'reintentando' | 'disponibles' | 'recuperados' | 'vacios' | 'fallidos';
 
 @Component({
   selector: 'app-nacha-config-profiles-page',
@@ -32,12 +36,17 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
-  readonly puedeGestionar = this.auth.hasPermission('CanManageAch');
+  readonly puedeGestionar = this.auth.hasPermission(['Config.Manage', 'CanManageAch']);
 
   cargando = false;
   creando = false;
   validando = false;
   errorCarga = false;
+  dashboardError = false;
+  perfilesError = false;
+  catalogosEstado: CatalogosEstado = 'pendientes';
+  catalogosErrorMessage = '';
+  catalogosReintentos = 0;
   dashboard: NachaConfigProfilesDashboardReadModel | null = null;
   perfiles: NachaConfigProfileReadModel[] = [];
   visibles: NachaConfigProfileReadModel[] = [];
@@ -54,9 +63,9 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     profileCode: ['', [Validators.required, Validators.minLength(6)]],
     nombreEs: ['', [Validators.required, Validators.minLength(3)]],
     descripcion: [''],
-    camaraCode: ['ACH', Validators.required],
-    flujoCode: ['ORIGINAL', Validators.required],
-    direccionCode: ['SALIDA', Validators.required],
+    camaraCode: ['', Validators.required],
+    flujoCode: ['', Validators.required],
+    direccionCode: ['', Validators.required],
     servicioCode: [''],
     effectiveFrom: [this.todayIsoDate(), Validators.required]
   });
@@ -69,14 +78,14 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   });
 
   readonly columnas: ColDef<NachaConfigProfileReadModel>[] = [
-    { field: 'profileCode', headerName: 'Codigo', minWidth: 160 },
+    { field: 'profileCode', headerName: 'Código', minWidth: 160 },
     { field: 'profileName', headerName: 'Nombre', minWidth: 240 },
-    { field: 'clearingHouseCode', headerName: 'Camara', minWidth: 120 },
-    { field: 'status', headerName: 'Estado', minWidth: 130 },
-    { field: 'version', headerName: 'Version', minWidth: 110 },
-    { field: 'layoutVariantCount', headerName: 'Variants', minWidth: 100 },
-    { field: 'fieldCount', headerName: 'Fields', minWidth: 100 },
-    { headerName: 'Records', minWidth: 140, valueGetter: (p) => (p.data?.recordTypes ?? []).join(', ') },
+    { field: 'clearingHouseCode', headerName: 'Cámara', minWidth: 190, valueGetter: (p) => this.camaraLabel(p.data?.clearingHouseCode) },
+    { field: 'status', headerName: 'Estado', minWidth: 150, valueGetter: (p) => this.estadoLabel(p.data?.status) },
+    { field: 'version', headerName: 'Versión', minWidth: 110 },
+    { field: 'layoutVariantCount', headerName: 'Variantes', minWidth: 110 },
+    { field: 'fieldCount', headerName: 'Campos', minWidth: 100 },
+    { headerName: 'Registros', minWidth: 140, valueGetter: (p) => (p.data?.recordTypes ?? []).join(', ') },
     {
       headerName: 'Vigencia',
       minWidth: 220,
@@ -93,7 +102,14 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   ];
 
   ngOnInit(): void {
+    this.bloquearCreacionPorCatalogos();
     this.cargar();
+    this.crearForm.controls.camaraCode.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.cargarCatalogos());
+    this.crearForm.controls.flujoCode.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.cargarCatalogos());
     this.filtrosForm.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.aplicarFiltros();
     });
@@ -102,35 +118,115 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   cargar(): void {
     this.cargando = true;
     this.errorCarga = false;
+    this.dashboardError = false;
+    this.perfilesError = false;
     this.dashboard = null;
     this.perfiles = [];
     this.visibles = [];
+    this.cargarCatalogos();
 
     forkJoin({
-      catalogos: this.query.catalogosFiltro(),
-      dashboard: this.query.dashboardReadOnly(),
-      perfiles: this.query.perfilesReadOnly()
+      dashboard: this.query.dashboardReadOnly().pipe(catchError(() => of(null))),
+      perfiles: this.query.perfilesReadOnly().pipe(catchError(() => of(null)))
     })
       .pipe(finalize(() => {
         this.cargando = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
-        next: ({ catalogos, dashboard, perfiles }) => {
-          this.catalogos = catalogos;
-          this.actualizarOpciones();
+        next: ({ dashboard, perfiles }) => {
+          this.dashboardError = !dashboard;
+          this.perfilesError = !perfiles;
+          this.errorCarga = this.perfilesError;
           this.dashboard = dashboard;
-          this.perfiles = perfiles;
+          this.perfiles = perfiles ?? [];
           this.aplicarFiltros();
+          if (this.dashboardError) {
+            this.notifications.warning('El resumen de configuración NACHA-M no está disponible. El listado puede seguir utilizándose.');
+          }
+          if (this.perfilesError) {
+            this.notifications.warning('El listado de perfiles de configuración NACHA-M no está disponible.');
+          }
+          this.cdr.markForCheck();
         },
         error: () => {
           this.errorCarga = true;
-          this.notifications.error('No fue posible cargar la informacion NACHA Config.');
+          this.notifications.error('No fue posible cargar la información de configuración NACHA-M.');
+          this.cdr.markForCheck();
         }
       });
   }
 
+  cargarCatalogos(esReintentoManual = false): void {
+    if (this.catalogosCargando) {
+      return;
+    }
+
+    const seRecuperaDeFallo = esReintentoManual || this.catalogosEstado === 'fallidos';
+    const camaraCode = this.crearForm.controls.camaraCode.value?.trim() || null;
+    const flujoCode = this.crearForm.controls.flujoCode.value?.trim() || null;
+    this.catalogosEstado = 'cargando';
+    this.catalogosErrorMessage = '';
+    this.catalogosReintentos = 0;
+    this.bloquearCreacionPorCatalogos(!(camaraCode || flujoCode || esReintentoManual));
+
+    this.query
+      .catalogosOperativos(camaraCode, flujoCode, (event) => {
+        this.catalogosEstado = 'reintentando';
+        this.catalogosReintentos = event.retryNumber;
+        this.cdr.detectChanges();
+      })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.cdr.markForCheck())
+      )
+      .subscribe({
+        next: (catalogos) => {
+          this.catalogos = catalogos;
+          this.actualizarOpciones();
+
+          if (!this.catalogosUtilizables(catalogos)) {
+            this.catalogosEstado = 'vacios';
+            this.catalogosErrorMessage =
+              'No existen cámaras, flujos y direcciones activas para crear perfiles. Puedes reintentar la carga.';
+            this.bloquearCreacionPorCatalogos(false);
+            return;
+          }
+
+          this.catalogosEstado =
+            seRecuperaDeFallo || this.catalogosReintentos > 0 ? 'recuperados' : 'disponibles';
+          this.crearForm.enable({ emitEvent: false });
+          this.actualizarDisponibilidadContextual();
+          if (this.catalogosEstado === 'recuperados') {
+            this.notifications.success('Los catálogos de configuración NACHA-M se recuperaron correctamente.');
+          }
+        },
+        error: (error: unknown) => {
+          this.catalogosEstado = 'fallidos';
+          this.catalogosErrorMessage = this.mensajeErrorCatalogos(error);
+          this.bloquearCreacionPorCatalogos(false);
+          console.warn('[NACHA Config] Catálogos no disponibles después de los reintentos.', {
+            status: error instanceof HttpErrorResponse ? error.status : 0,
+            retryAfter: error instanceof HttpErrorResponse ? error.headers.get('Retry-After') : null
+          });
+        }
+      });
+  }
+
+  reintentarCatalogos(): void {
+    this.cargarCatalogos(true);
+  }
+
+  get catalogosDisponibles(): boolean {
+    return this.catalogosEstado === 'disponibles' || this.catalogosEstado === 'recuperados';
+  }
+
+  get catalogosCargando(): boolean {
+    return this.catalogosEstado === 'cargando' || this.catalogosEstado === 'reintentando';
+  }
+
   crearBorrador(): void {
-    if (!this.puedeGestionar || this.creando) {
+    if (!this.puedeGestionar || this.creando || !this.catalogosDisponibles || this.crearForm.disabled) {
       return;
     }
 
@@ -144,9 +240,9 @@ export class NachaConfigProfilesPageComponent implements OnInit {
       profileCode: (form.profileCode ?? '').trim(),
       nombreEs: (form.nombreEs ?? '').trim(),
       descripcion: (form.descripcion ?? '').trim() || null,
-      camaraCode: form.camaraCode ?? 'ACH',
-      flujoCode: form.flujoCode ?? 'ORIGINAL',
-      direccionCode: form.direccionCode ?? 'SALIDA',
+      camaraCode: form.camaraCode ?? '',
+      flujoCode: form.flujoCode ?? '',
+      direccionCode: form.direccionCode ?? '',
       servicioCode: (form.servicioCode ?? '').trim() || null,
       effectiveFrom: form.effectiveFrom
     };
@@ -156,6 +252,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
       .crearBorrador(payload)
       .pipe(finalize(() => {
         this.creando = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
         next: (perfil) => {
@@ -168,15 +265,6 @@ export class NachaConfigProfilesPageComponent implements OnInit {
       });
   }
 
-  validarPrimerPerfil(): void {
-    const perfil = this.visibles[0];
-    if (!perfil) {
-      return;
-    }
-
-    this.validarPerfil(perfil);
-  }
-
   validarPerfil(perfil: NachaConfigProfileReadModel): void {
     if (!this.puedeGestionar || this.validando) {
       return;
@@ -187,6 +275,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
       .validar(perfil.profileId)
       .pipe(finalize(() => {
         this.validando = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
         next: (result) => {
@@ -259,10 +348,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   }
 
   private errorMessage(error: unknown, fallback: string): string {
-    if (error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
-      return (error as { message: string }).message;
-    }
-    return fallback;
+    return nachaConfigUserMessage(error, fallback);
   }
 
   private date(value?: string | null): string {
@@ -284,6 +370,103 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     ];
     this.opcionesDireccion = this.catalogos.direcciones.map((x) => ({ valor: x.code, etiqueta: `${x.code} - ${x.labelEs}` }));
     this.opcionesServicio = this.catalogos.servicios.map((x) => ({ valor: x.code, etiqueta: `${x.code} - ${x.labelEs}` }));
+
+    this.limpiarSeleccionInvalida('camaraCode', this.opcionesCamara.slice(1));
+    this.limpiarSeleccionInvalida('flujoCode', this.opcionesFlujo.slice(1));
+    this.limpiarSeleccionInvalida('direccionCode', this.opcionesDireccion);
+    if (this.crearForm.controls.flujoCode.value && !this.crearForm.controls.direccionCode.value && this.opcionesDireccion.length === 1) {
+      this.crearForm.controls.direccionCode.setValue(String(this.opcionesDireccion[0].valor), { emitEvent: false });
+    }
+    if (!this.opcionesServicio.some((opcion) => opcion.valor === this.crearForm.controls.servicioCode.value)) {
+      this.crearForm.controls.servicioCode.setValue('', { emitEvent: false });
+    }
+  }
+
+  private actualizarDisponibilidadContextual(): void {
+    if (this.crearForm.controls.flujoCode.value) {
+      this.crearForm.controls.direccionCode.enable({ emitEvent: false });
+    } else {
+      this.crearForm.controls.direccionCode.setValue('', { emitEvent: false });
+      this.crearForm.controls.direccionCode.disable({ emitEvent: false });
+    }
+
+    if (this.crearForm.controls.camaraCode.value) {
+      this.crearForm.controls.servicioCode.enable({ emitEvent: false });
+    } else {
+      this.crearForm.controls.servicioCode.setValue('', { emitEvent: false });
+      this.crearForm.controls.servicioCode.disable({ emitEvent: false });
+    }
+  }
+
+  private bloquearCreacionPorCatalogos(limpiar = true): void {
+    this.crearForm.disable({ emitEvent: false });
+    if (!limpiar) {
+      return;
+    }
+
+    this.catalogos = { estados: [], camaras: [], flujos: [], direcciones: [], servicios: [] };
+    this.opcionesEstado = [{ valor: 'TODOS', etiqueta: 'Todos' }];
+    this.opcionesCamara = [{ valor: 'TODAS', etiqueta: 'Todas' }];
+    this.opcionesFlujo = [{ valor: 'TODOS', etiqueta: 'Todos' }];
+    this.opcionesDireccion = [];
+    this.opcionesServicio = [];
+    this.crearForm.patchValue(
+      { camaraCode: '', flujoCode: '', direccionCode: '', servicioCode: '' },
+      { emitEvent: false }
+    );
+    this.filtrosForm.patchValue({ estado: 'TODOS', camara: 'TODAS', flujo: 'TODOS' }, { emitEvent: false });
+  }
+
+  private catalogosUtilizables(catalogos: NachaConfigFilterCatalogs): boolean {
+    return catalogos.camaras.length > 0 && catalogos.flujos.length > 0 && catalogos.direcciones.length > 0;
+  }
+
+  private mensajeErrorCatalogos(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 429) {
+        return 'El sistema está procesando varias solicitudes. Espera el tiempo recomendado o reintenta la carga de catálogos.';
+      }
+      if (error.status === 0) {
+        return 'No fue posible conectar con el servidor para cargar los catálogos.';
+      }
+      if (error.status === 401 || error.status === 403) {
+        return 'Tu sesión no permite consultar los catálogos de configuración NACHA-M.';
+      }
+      if (error.status >= 500) {
+        return 'El servidor no pudo cargar los catálogos de configuración NACHA-M.';
+      }
+    }
+
+    return 'Los catálogos de configuración NACHA-M no están disponibles. Reintenta la carga.';
+  }
+
+
+  estadoLabel(code?: string | null): string {
+    if (!code) {
+      return '-';
+    }
+
+    const catalogo = this.catalogos.estados.find((item) => item.code === code);
+    return catalogo?.labelEs || code;
+  }
+
+  camaraLabel(code?: string | null): string {
+    if (!code) {
+      return '-';
+    }
+
+    const catalogo = this.catalogos.camaras.find((item) => item.code === code);
+    return catalogo ? `${catalogo.code} - ${catalogo.labelEs}` : code;
+  }
+
+  private limpiarSeleccionInvalida(
+    controlName: 'camaraCode' | 'flujoCode' | 'direccionCode',
+    opciones: OpcionSelectorBuscable[]
+  ): void {
+    const control = this.crearForm.controls[controlName];
+    if (control.value && !opciones.some((opcion) => opcion.valor === control.value)) {
+      control.setValue('', { emitEvent: false });
+    }
   }
 
   private todayIsoDate(): string {

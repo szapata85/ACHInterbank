@@ -1,11 +1,10 @@
-<section class="nacha-config-profiles-page" data-testid="nacha-config-profiles-page">
-  <ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'NACHA Config' }]" />
-  <ui-encabezado-pagina titulo="Configuración NACHA-M" descripcion="Administración oficial de perfiles NACHA-M, en modo solo lectura y administración controlada"></ui-encabezado-pagina>
+<section class="nacha-config-profiles-page" data-testid="nacha-config-profiles-page" [attr.aria-busy]="cargando || catalogosCargando || creando || validando">
+  <ui-migas-pan [items]="[{ etiqueta: 'Inicio', ruta: '/dashboard' }, { etiqueta: 'Perfiles oficiales' }]" />
+  <ui-encabezado-pagina titulo="Perfiles oficiales" descripcion="Administra los perfiles técnicos de cada cámara compensadora."></ui-encabezado-pagina>
 
   <section class="banners">
-    <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: perfiles de configuración oficiales."></ui-alerta>
-    <ui-alerta tipo="advertencia" mensaje="Layouts/definitions legacy obsoletos: solo diagnóstico en lectura, no son la fuente oficial."></ui-alerta>
-    <ui-alerta tipo="error" mensaje="Productivo NO-GO: certificación/UAT formal pendiente; sin ejecución SOAP ni mutaciones."></ui-alerta>
+    <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: perfiles de configuración asociados a cada cámara."></ui-alerta>
+    <ui-alerta tipo="advertencia" mensaje="Las definiciones heredadas son solo de consulta; los perfiles son la fuente oficial de parametrización."></ui-alerta>
   </section>
 
   <section class="summary-grid" *ngIf="dashboard">
@@ -28,73 +27,109 @@
   </section>
 
   <ui-alerta *ngFor="let warning of dashboard?.warnings ?? []" tipo="advertencia" [mensaje]="warning"></ui-alerta>
+  <ui-alerta *ngIf="dashboardError" tipo="advertencia" mensaje="El resumen de configuración no está disponible; puedes seguir utilizando el listado."></ui-alerta>
 
   <ng-template #crearTpl>
-    <form [formGroup]="crearForm" class="crear-grid">
+    <ui-alerta
+      *ngIf="catalogosCargando"
+      tipo="info"
+      [mensaje]="catalogosEstado === 'reintentando' ? 'El servidor limitó temporalmente la lectura. Esperando el momento indicado para reintentar los catálogos…' : 'Cargando catálogos requeridos para crear perfiles…'"
+    ></ui-alerta>
+    <ui-alerta
+      *ngIf="catalogosEstado === 'fallidos' || catalogosEstado === 'vacios'"
+      [tipo]="catalogosEstado === 'fallidos' ? 'error' : 'advertencia'"
+      [mensaje]="catalogosErrorMessage"
+    ></ui-alerta>
+    <ui-alerta
+      *ngIf="catalogosEstado === 'recuperados'"
+      tipo="exito"
+      mensaje="Los catálogos se recuperaron y el formulario está disponible."
+    ></ui-alerta>
+    <div class="acciones-catalogos" *ngIf="catalogosEstado === 'fallidos' || catalogosEstado === 'vacios'">
+      <ui-boton
+        texto="Reintentar catálogos"
+        variante="contorno"
+        [cargando]="catalogosCargando"
+        (accion)="reintentarCatalogos()"
+      ></ui-boton>
+    </div>
+
+    <form [formGroup]="crearForm" class="crear-grid" [attr.aria-busy]="catalogosCargando">
       <ui-campo-texto etiqueta="Código del perfil" [control]="crearForm.controls.profileCode" placeholder="UAT-NACHA-CONFIG-..." />
       <ui-campo-texto etiqueta="Nombre" [control]="crearForm.controls.nombreEs" placeholder="Nombre descriptivo" />
       <ui-campo-textarea etiqueta="Descripción" [control]="crearForm.controls.descripcion" placeholder="Descripción opcional" [filas]="3" />
 
-      <label class="selector-campo">
-        <span>Cámara</span>
-        <select [formControl]="crearForm.controls.camaraCode">
-          <option *ngFor="let opcion of opcionesCamara.slice(1)" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
-        </select>
-        <ui-error-campo [control]="crearForm.controls.camaraCode"></ui-error-campo>
-      </label>
+      <mat-form-field appearance="outline">
+        <mat-label>Cámara</mat-label>
+        <mat-select [formControl]="crearForm.controls.camaraCode">
+          <mat-option value="" disabled>Selecciona una cámara</mat-option>
+          <mat-option *ngFor="let opcion of opcionesCamara.slice(1)" [value]="opcion.valor">{{ opcion.etiqueta }}</mat-option>
+        </mat-select>
+        <mat-error *ngIf="crearForm.controls.camaraCode.touched && crearForm.controls.camaraCode.invalid">Selecciona una cámara.</mat-error>
+      </mat-form-field>
 
-      <label class="selector-campo">
-        <span>Flujo</span>
-        <select [formControl]="crearForm.controls.flujoCode">
-          <option *ngFor="let opcion of opcionesFlujo.slice(1)" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
-        </select>
-        <ui-error-campo [control]="crearForm.controls.flujoCode"></ui-error-campo>
-      </label>
+      <mat-form-field appearance="outline">
+        <mat-label>Flujo</mat-label>
+        <mat-select [formControl]="crearForm.controls.flujoCode">
+          <mat-option value="" disabled>Selecciona un flujo</mat-option>
+          <mat-option *ngFor="let opcion of opcionesFlujo.slice(1)" [value]="opcion.valor">{{ opcion.etiqueta }}</mat-option>
+        </mat-select>
+        <mat-error *ngIf="crearForm.controls.flujoCode.touched && crearForm.controls.flujoCode.invalid">Selecciona un flujo.</mat-error>
+      </mat-form-field>
 
-      <label class="selector-campo">
-        <span>Dirección</span>
-        <select [formControl]="crearForm.controls.direccionCode">
-          <option *ngFor="let opcion of opcionesDireccion" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
-        </select>
-        <ui-error-campo [control]="crearForm.controls.direccionCode"></ui-error-campo>
-      </label>
+      <mat-form-field appearance="outline">
+        <mat-label>Dirección</mat-label>
+        <mat-select [formControl]="crearForm.controls.direccionCode">
+          <mat-option value="" disabled>Selecciona una dirección</mat-option>
+          <mat-option *ngFor="let opcion of opcionesDireccion" [value]="opcion.valor">{{ opcion.etiqueta }}</mat-option>
+        </mat-select>
+        <mat-error *ngIf="crearForm.controls.direccionCode.touched && crearForm.controls.direccionCode.invalid">Selecciona una dirección.</mat-error>
+      </mat-form-field>
 
-      <label class="selector-campo">
-        <span>Servicio</span>
-        <select [formControl]="crearForm.controls.servicioCode">
-          <option value="">Sin servicio</option>
-          <option *ngFor="let opcion of opcionesServicio" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
-        </select>
-      </label>
+      <mat-form-field appearance="outline">
+        <mat-label>Servicio</mat-label>
+        <mat-select [formControl]="crearForm.controls.servicioCode">
+          <mat-option value="">Sin servicio específico</mat-option>
+          <mat-option *ngFor="let opcion of opcionesServicio" [value]="opcion.valor">{{ opcion.etiqueta }}</mat-option>
+        </mat-select>
+      </mat-form-field>
 
       <ui-campo-fecha etiqueta="Vigencia inicial" [control]="crearForm.controls.effectiveFrom"></ui-campo-fecha>
     </form>
 
     <div class="acciones-crear">
-      <ui-boton texto="Crear borrador" variante="primario" [cargando]="creando" [deshabilitado]="crearForm.invalid" (accion)="crearBorrador()"></ui-boton>
-      <ui-boton texto="Validar" variante="contorno" [deshabilitado]="visibles.length === 0 || validando" (accion)="validarPrimerPerfil()"></ui-boton>
+      <ui-boton texto="Crear borrador" variante="primario" [cargando]="creando" [deshabilitado]="!catalogosDisponibles || crearForm.invalid" (accion)="crearBorrador()"></ui-boton>
     </div>
   </ng-template>
-  <ui-tarjeta *ngIf="puedeGestionar" titulo="Crear borrador" subtitulo="Solo perfiles BORRADOR/CLONE pueden editarse; create borra datos si el usuario confirma." [contenido]="crearTpl"></ui-tarjeta>
+  <details *ngIf="puedeGestionar" class="create-panel" data-testid="create-profile-panel">
+    <summary>Crear un perfil en borrador</summary>
+    <ui-tarjeta titulo="Datos del nuevo perfil" subtitulo="El borrador se asocia a la cámara seleccionada y puede completarse antes de publicarlo." [contenido]="crearTpl"></ui-tarjeta>
+  </details>
 
   <ng-template #filtrosTpl>
     <div class="filtros-grid" [formGroup]="filtrosForm">
       <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Código o nombre"></ui-campo-texto>
-      <label class="selector-campo">
-        <span>Estado</span>
-        <ui-selector-buscable [opciones]="opcionesEstado" [formControl]="filtrosForm.controls.estado" placeholderBusqueda="Buscar estado"></ui-selector-buscable>
-      </label>
-      <label class="selector-campo">
-        <span>Cámara</span>
-        <ui-selector-buscable [opciones]="opcionesCamara" [formControl]="filtrosForm.controls.camara" placeholderBusqueda="Buscar cámara"></ui-selector-buscable>
-      </label>
-      <label class="selector-campo">
-        <span>Flujo</span>
-        <ui-selector-buscable [opciones]="opcionesFlujo" [formControl]="filtrosForm.controls.flujo" placeholderBusqueda="Buscar flujo"></ui-selector-buscable>
-      </label>
+      <mat-form-field appearance="outline">
+        <mat-label>Estado</mat-label>
+        <mat-select [formControl]="filtrosForm.controls.estado">
+          <mat-option *ngFor="let opcion of opcionesEstado" [value]="opcion.valor">{{ opcion.etiqueta }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Cámara</mat-label>
+        <mat-select [formControl]="filtrosForm.controls.camara">
+          <mat-option *ngFor="let opcion of opcionesCamara" [value]="opcion.valor">{{ opcion.etiqueta }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Flujo</mat-label>
+        <mat-select [formControl]="filtrosForm.controls.flujo">
+          <mat-option *ngFor="let opcion of opcionesFlujo" [value]="opcion.valor">{{ opcion.etiqueta }}</mat-option>
+        </mat-select>
+      </mat-form-field>
     </div>
   </ng-template>
-  <ui-tarjeta titulo="Filtros solo lectura" subtitulo="Consulta oficial GET-only de perfiles, cámaras ACH Colombia/CENIT, registros 1/5/6/7/8/9, variantes y campos." [contenido]="filtrosTpl"></ui-tarjeta>
+  <ui-tarjeta titulo="Filtros de perfiles" subtitulo="Consulta por código, nombre, estado, cámara y flujo. Las cámaras se obtienen del catálogo activo." [contenido]="filtrosTpl"></ui-tarjeta>
 
   <ui-grilla-empresarial
     [columnas]="columnas"

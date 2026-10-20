@@ -1,25 +1,30 @@
 <app-page-header
-  title="Devolución de devolución"
+  title="Devolución de una devolución"
   description="Evalúe elegibilidad y genere archivos ROR en modo auditoría o NACHA-M productivo."
 ></app-page-header>
 
 <ui-tarjeta titulo="1) Evaluación de elegibilidad" subtitulo="Validación funcional en backend sin reglas duplicadas en UI.">
   <form [formGroup]="evaluateForm" class="form-grid" (ngSubmit)="evaluate()">
-    <label>
-      ID devolución origen
-      <input type="number" formControlName="sourceReturnTransactionId" />
-    </label>
+    <mat-form-field appearance="outline">
+      <mat-label>ID de la devolución de origen</mat-label>
+      <input matInput type="number" formControlName="sourceReturnTransactionId" />
+    </mat-form-field>
 
-    <label>
-      Nueva causal (Rxx/DEV14)
-      <input type="text" formControlName="newReturnReasonCode" maxlength="10" />
-    </label>
+    <mat-form-field appearance="outline">
+      <mat-label>Nueva causal (Rxx/DEV14)</mat-label>
+      <input matInput type="text" formControlName="newReturnReasonCode" maxlength="10" />
+    </mat-form-field>
 
     <div class="actions">
-      <ui-boton texto="Evaluar elegibilidad" variante="primario" [deshabilitado]="loadingEvaluate" (accion)="evaluate()"></ui-boton>
-      <ui-boton texto="Limpiar resultado" variante="contorno" [deshabilitado]="loadingEvaluate" (accion)="clearEligibility()"></ui-boton>
+      <button mat-flat-button type="submit" [disabled]="loadingEvaluate">Evaluar elegibilidad</button>
+      <button mat-stroked-button type="button" [disabled]="loadingEvaluate" (click)="clearEligibility()">Limpiar resultado</button>
     </div>
   </form>
+
+  <ui-estado-carga
+    *ngIf="loadingEvaluate"
+    mensaje="Evaluando elegibilidad…"
+  ></ui-estado-carga>
 
   <div *ngIf="eligibilityResult as res" class="result">
     <p><strong>Elegible:</strong> {{ res.isEligible ? 'Sí' : 'No' }}</p>
@@ -39,10 +44,10 @@
 
 <ui-tarjeta titulo="2) Generación de archivo" subtitulo="Separe modo de auditoría interna y modo productivo NACHA-M.">
   <form [formGroup]="generationForm" class="form-grid">
-    <label>
-      FlowIds (separados por coma)
-      <input type="text" formControlName="flowIds" placeholder="12,15,20" />
-    </label>
+    <mat-form-field appearance="outline">
+      <mat-label>IDs de flujo (separados por comas)</mat-label>
+      <input matInput type="text" formControlName="flowIds" placeholder="12,15,20" />
+    </mat-form-field>
 
     <div class="warning">
       <strong>Advertencia:</strong> La generación NACHA-M productiva crea archivo operativo para intercambio ACH/NACHA-M.
@@ -51,11 +56,29 @@
       Verifique que los flowIds correspondan a la devolución evaluada.
     </div>
 
-    <div class="actions">
-      <ui-boton texto="Generar archivo auditoría" variante="contorno" [deshabilitado]="loadingAudit || loadingNacha" (accion)="generateAudit()"></ui-boton>
-      <ui-boton texto="Generar archivo NACHA-M productivo" variante="primario" [deshabilitado]="!canGenerateNacha" (accion)="generateNacha()"></ui-boton>
+    <div class="actions" *ngIf="canGenerateFiles; else readOnlyGenerationNotice">
+      <button mat-stroked-button type="button" [disabled]="loadingAudit || loadingNacha" (click)="generateAudit()">
+        Generar archivo de auditoría
+      </button>
+      <button mat-flat-button type="button" [disabled]="!canGenerateNacha" (click)="generateNacha()">
+        Generar archivo NACHA-M productivo
+      </button>
     </div>
+    <ng-template #readOnlyGenerationNotice>
+      <div class="warning warning-info">
+        Su acceso permite evaluar elegibilidad, pero no generar archivos de devolución de devolución.
+      </div>
+    </ng-template>
   </form>
+
+  <ui-estado-carga
+    *ngIf="loadingAudit"
+    mensaje="Generando archivo de auditoría ROR…"
+  ></ui-estado-carga>
+  <ui-estado-carga
+    *ngIf="loadingNacha"
+    mensaje="Generando archivo NACHA-M productivo…"
+  ></ui-estado-carga>
 
   <div *ngIf="generationFailures.length > 0" class="result">
     <h4>Fallas de generación</h4>

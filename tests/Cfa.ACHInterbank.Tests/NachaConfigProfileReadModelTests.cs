@@ -31,7 +31,7 @@ public sealed class NachaConfigProfileReadModelTests
 
         var profiles = await new NachaConfigProfileReadModelService(context).GetProfilesAsync();
 
-        profiles.Should().Contain(x => x.ProfileCode == "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
+        profiles.Should().Contain(x => x.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
         profiles.Should().Contain(x => x.ProfileCode == "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
     }
 
@@ -41,7 +41,7 @@ public sealed class NachaConfigProfileReadModelTests
         await using var context = await SeedAsync();
 
         var detail = await new NachaConfigProfileReadModelService(context)
-            .GetProfileByCodeAsync("OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
+            .GetProfileByCodeAsync(AchColOfficialNachaLayout.OutboundOriginalProfileCode);
 
         detail!.Variants.Should().NotBeEmpty();
         detail.Fields.Should().NotBeEmpty();

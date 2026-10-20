@@ -6,37 +6,51 @@ import { AchResponseDetailPageComponent } from './pages/ach-response-detail-page
 import { AchResponseListPageComponent } from './pages/ach-response-list-page.component';
 import { AchResponseManualReviewPageComponent } from './pages/ach-response-manual-review-page.component';
 import { AchResponseStatusMappingsPageComponent } from './pages/ach-response-status-mappings-page.component';
+import { AchResponseAuditPageComponent } from './pages/ach-response-audit-page.component';
+import { permissionGuard } from '../../core/guards/permission.guard';
 
 export const ACH_RESPONSES_ROUTES: Routes = [
   {
     path: '',
     component: AchResponseListPageComponent,
-    data: { title: 'Respuestas ACH', breadcrumb: 'Bandeja' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Bandeja de respuestas', breadcrumb: 'Bandeja de respuestas' }
   },
   {
     path: 'manual-review',
     component: AchResponseManualReviewPageComponent,
-    data: { title: 'Revisión manual ACH', breadcrumb: 'Revisión manual' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Revisión manual', breadcrumb: 'Revisión manual' }
   },
   {
     path: 'status-mappings',
     component: AchResponseStatusMappingsPageComponent,
-    data: { title: 'Homologaciones ACH', breadcrumb: 'Homologaciones' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Homologación de estados', breadcrumb: 'Homologación de estados' }
   },
   {
     path: 'dashboard',
     component: AchResponseDashboardPageComponent,
-    data: { title: 'Panel de respuestas ACH', breadcrumb: 'Panel' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Resumen de respuestas', breadcrumb: 'Resumen de respuestas' }
+  },
+  {
+    path: 'audit',
+    component: AchResponseAuditPageComponent,
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Historial de respuestas', breadcrumb: 'Historial de respuestas' }
   },
   {
     path: ':id/notification-attempts',
     component: AchResponseAttemptsPageComponent,
-    data: { title: 'Intentos de notificación ACH', breadcrumb: 'Intentos' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Intentos de notificación ACH', breadcrumb: 'Intentos' }
   },
   {
     path: ':id',
     component: AchResponseDetailPageComponent,
-    data: { title: 'Detalle respuesta ACH', breadcrumb: 'Detalle' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Detalle respuesta ACH', breadcrumb: 'Detalle' }
   }
 ];
 

@@ -79,6 +79,27 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             .Take(MaxRows)
             .ToListAsync(cancellationToken);
 
+        var ingestionEvents = await _context.IncomingNachaProcessingEvents
+            .AsNoTracking()
+            .Include(x => x.Ingestion)
+            .Where(x => x.EventType == "NachaProfileSelection"
+                || x.EventType == "DuplicateUploadAttempt"
+                || x.EventType == "FileNameContentConflict")
+            .OrderByDescending(x => x.OccurredAtUtc)
+            .Take(MaxRows)
+            .ToListAsync(cancellationToken);
+
+        var clearingHouseIds = ingestionEvents
+            .Select(x => x.Ingestion.ResolvedClearingHouseId ?? x.Ingestion.DetectedClearingHouseId)
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .Distinct()
+            .ToArray();
+        var clearingHouseCodes = await _context.ClearingHouses
+            .AsNoTracking()
+            .Where(x => clearingHouseIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Code, cancellationToken);
+
         var transactionIds = responses
             .Select(x => ParseInt(x.IdTransaccion))
             .Concat(returns.Select(x => (int?)x.OriginalTransactionId))
@@ -114,6 +135,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
         items.AddRange(returns.Select(x => ProjectReturn(x, headers)));
         items.AddRange(ror.Select(ProjectRor));
         items.AddRange(classifications.Select(x => ProjectClassification(x, headers)));
+        items.AddRange(ingestionEvents.Select(x => ProjectIngestionEvent(x, clearingHouseCodes)));
 
         return items
             .GroupBy(x => x.ReconciliationId, StringComparer.OrdinalIgnoreCase)
@@ -241,7 +263,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             null,
             row.OriginalTransactionId,
             row.OriginalTransaction?.State.ToString() ?? "Returned",
-            "Conciliado",
+            "PendienteEvidencia",
             false,
             true,
             false,
@@ -251,7 +273,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             "RegistrarRespuestaTransaccion",
             ToOffset(row.GeneratedAtUtc),
             null,
-            "Archivo .RET no mueve dinero directamente.");
+            "Devolucion persistida; pendiente de evidencia externa canonica. Archivo .RET no mueve dinero directamente.");
     }
 
     private static AchReconciliationItemReadModel ProjectRor(ReturnOfReturnFlow row)
@@ -266,11 +288,11 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             row.ReasonCode,
             row.ReasonCode,
             row.ReturnOfReturnTransaction.TraceNumber,
-            row.SourceReturnTransaction.TraceNumber,
+            row.SourceReturnTransaction?.TraceNumber ?? row.OriginalTransaction?.TraceNumber ?? string.Empty,
             null,
             row.ReturnOfReturnTransactionId,
             row.Status,
-            row.Status.Contains("Registered", StringComparison.OrdinalIgnoreCase) ? "Pendiente" : "Conciliado",
+            "PendienteEvidencia",
             row.Status.Contains("Manual", StringComparison.OrdinalIgnoreCase),
             false,
             true,
@@ -280,7 +302,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             "RegistrarRespuestaTransaccion",
             ToOffset(row.OrchestratedAtUtc),
             row.UpdatedAt,
-            "ROR proyectado como conciliacion read-only.");
+            "ROR persistido; proyeccion provisional pendiente de evidencia externa canonica.");
 
     private static AchReconciliationItemReadModel ProjectClassification(IncomingNachaEntryClassification row, IReadOnlyList<NachaHeader> headers)
     {
@@ -317,6 +339,60 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             row.CreatedAt,
             row.UpdatedAt,
             "Clasificacion entrante persistida; no ejecuta SOAP ni mutaciones.");
+    }
+
+    private static AchReconciliationItemReadModel ProjectIngestionEvent(
+        IncomingNachaProcessingEvent row,
+        IReadOnlyDictionary<int, string> clearingHouseCodes)
+    {
+        var duplicate = row.EventType == "DuplicateUploadAttempt";
+        var conflict = row.EventType == "FileNameContentConflict";
+        var clearingHouseId = row.Ingestion.ResolvedClearingHouseId ?? row.Ingestion.DetectedClearingHouseId;
+        var clearingHouseCode = clearingHouseId.HasValue
+            && clearingHouseCodes.TryGetValue(clearingHouseId.Value, out var code)
+                ? code
+                : "N/A";
+        var selected = row.EventStatus == NachaProfileSelectionStatus.ProfileSelected.ToString();
+
+        return new AchReconciliationItemReadModel
+        {
+            ReconciliationId = $"ingestion-{row.IncomingNachaFileIngestionId:N}-event-{row.Id:N}",
+            CorrelationId = SafeCorrelation(row.Ingestion.CorrelationId, row.IncomingNachaFileIngestionId.ToString("N")),
+            FileId = $"ingestion-{row.IncomingNachaFileIngestionId:N}",
+            FileName = SanitizeFileName(row.Ingestion.FileName, row.IncomingNachaFileIngestionId.ToString("N")),
+            ClearingHouseCode = clearingHouseCode,
+            FlowType = duplicate || conflict ? "FileIngestion" : "DifferentialResponse",
+            ResponseType = duplicate
+                ? "Doble carga"
+                : conflict
+                    ? "Conflicto nombre/contenido"
+                    : "Seleccion de perfil NACHA-M",
+            ResponseCode = SafeText(row.EventStatus),
+            ResponseDescription = SafeText(row.Message),
+            ReasonCode = SafeText(row.EventType),
+            ReasonDescription = SafeText(row.Message),
+            TraceNumberMasked = "N/A",
+            OriginalTraceNumberMasked = "N/A",
+            EntryId = row.EntryDetailId,
+            TransactionId = row.AchTransactionId,
+            InternalStatus = row.Ingestion.IngestionStatus.ToString(),
+            ReconciliationStatus = duplicate ? "Conciliado" : selected ? "Pendiente" : "Inconsistente",
+            RequiresManualReview = !duplicate,
+            IsReturnFile = !duplicate && !conflict,
+            IsRor = false,
+            IsPrenotification = false,
+            IsNonMonetary = true,
+            IsMonetaryCandidate = false,
+            SoapOperationCandidate = "None",
+            CreatedAt = ToOffset(row.OccurredAtUtc),
+            UpdatedAt = row.UpdatedAt,
+            DataSource = Source,
+            IsPersisted = true,
+            IsDerived = true,
+            Warning = duplicate
+                ? "Carga duplicada auditada sin repetir parsing, evento funcional ni despacho."
+                : SafeText(row.Message)
+        };
     }
 
     private static AchReconciliationItemReadModel BaseItem(
@@ -407,7 +483,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
     private static int? ParseInt(string? value) => int.TryParse(value, out var parsed) ? parsed : null;
 
     private static string ResolveClearingHouse(NachaHeader header)
-        => header.ClearingHouse?.Code ?? header.ClearingHouseId switch { 1 => "ACH", 2 => "CENIT", _ => "NACHA" };
+        => header.ClearingHouse?.Code ?? "NACHA";
 
     private static DateTimeOffset ToOffset(DateTime value)
         => new(DateTime.SpecifyKind(value, DateTimeKind.Utc));

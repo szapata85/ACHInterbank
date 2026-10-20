@@ -20,6 +20,12 @@ public class AchResponseStatusMappingRepository : IAchResponseStatusMappingRepos
         _context = context;
     }
 
+    public Task<int?> ResolveClearingHouseIdAsync(string codigoCamaraCompensacion, CancellationToken cancellationToken = default)
+        => _context.ClearingHouses.AsNoTracking()
+            .Where(x => x.Code == Normalize(codigoCamaraCompensacion) && x.IsActive)
+            .Select(x => (int?)x.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyList<AchResponseStatusMappingModel>> FindCandidatesAsync(string codigoCamaraCompensacion, TipoRespuestaAch tipoRespuesta, string codigoEstadoExterno, CancellationToken cancellationToken = default)
     {
         var camara = Normalize(codigoCamaraCompensacion);
@@ -49,7 +55,7 @@ public class AchResponseStatusMappingRepository : IAchResponseStatusMappingRepos
             .ThenBy(x => x.TipoRespuesta)
             .ThenBy(x => x.CodigoEstadoExterno)
             .ThenBy(x => x.CodigoCausalExterna)
-            .Select(x => new AchResponseStatusMappingListItemModel(x.Id, x.CodigoCamaraCompensacion, x.TipoRespuesta.ToString(), x.CodigoEstadoExterno, x.CodigoCausalExterna, x.IdEstadoInterno, x.IdEstadoServicioExterno, x.EstadoInternoNombre, x.CausalNormalizada, x.DescripcionCausalNormalizada, x.RequiereCausal, x.PermiteNotificacion, x.Activo, x.FechaInicioVigencia, x.FechaFinVigencia))
+            .Select(x => new AchResponseStatusMappingListItemModel(x.Id, x.CodigoCamaraCompensacion, x.TipoRespuesta.ToString(), x.CodigoEstadoExterno, x.CodigoCausalExterna, x.IdEstadoInterno, x.IdEstadoServicioExterno, x.EstadoInternoNombre, x.CausalNormalizada, x.DescripcionCausalNormalizada, x.RequiereCausal, x.PermiteNotificacion, x.Activo, x.FechaInicioVigencia, x.FechaFinVigencia, x.ClearingHouseId ?? 0, x.Priority, x.Version))
             .ToListAsync(cancellationToken);
     }
 
@@ -59,6 +65,7 @@ public class AchResponseStatusMappingRepository : IAchResponseStatusMappingRepos
         => x => new AchResponseStatusMappingModel
         {
             Id = x.Id,
+            ClearingHouseId = x.ClearingHouseId ?? 0,
             CodigoCamaraCompensacion = x.CodigoCamaraCompensacion,
             TipoRespuesta = x.TipoRespuesta,
             CodigoEstadoExterno = x.CodigoEstadoExterno,
@@ -71,6 +78,7 @@ public class AchResponseStatusMappingRepository : IAchResponseStatusMappingRepos
             RequiereCausal = x.RequiereCausal,
             PermiteNotificacion = x.PermiteNotificacion,
             Activo = x.Activo,
+            Priority = x.Priority,
             FechaInicioVigencia = x.FechaInicioVigencia,
             FechaFinVigencia = x.FechaFinVigencia
         };

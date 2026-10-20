@@ -16,11 +16,15 @@ public class AchCauseCodePolicyTests
     {
         await using var c = await BuildContextAsync(); var (_, ach) = await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync();
         var sut = new AchCauseCodePolicy(c);
-        foreach (var code in new[] { "R07", "R10", "R29", "R31", "DEV14" })
+        foreach (var code in new[] { "R07", "R10", "R29", "R31" })
         {
             var result = await sut.EvaluateAsync(new(code, AchCauseCodeFlow.OutboundReturn, ach.Id, "ACH"));
             Assert.True(result.IsAllowed, $"Expected code {code} to be allowed. Issues: {string.Join(" | ", result.Issues.Select(i => $"{i.Code}:{i.Message}"))}");
         }
+        var dev14 = await sut.EvaluateAsync(new("DEV14", AchCauseCodeFlow.OutboundReturn, ach.Id, "ACH"));
+        Assert.False(dev14.IsAllowed);
+        Assert.Equal(AchCauseCodeKind.Unknown, dev14.Kind);
+        Assert.Contains(dev14.Issues, issue => issue.Code == "ACHCOL_DEV14_CLAIMS_ONLY");
     }
 
     [Fact]
@@ -94,7 +98,7 @@ public class AchCauseCodePolicyTests
     }
 
     [Fact]
-    public async Task AchCauseCodePolicy_ShouldRejectRxxDevxx_ForFileRejectFlows()
+    public async Task AchCauseCodePolicy_ShouldRejectRxxAndClaimsDev14_ForFileRejectFlows()
     {
         await using var c = await BuildContextAsync(); var (cenit, ach) = await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync();
         var sut = new AchCauseCodePolicy(c);
@@ -117,7 +121,7 @@ public class AchCauseCodePolicyTests
         Assert.True((await sut.EvaluateAsync(new("DXX-LIQ", AchCauseCodeFlow.InternalOnly))).IsAllowed);
     }
     [Fact] public async Task AchCauseCodePolicy_ShouldRejectCenitOnlyCode_ForAchRail() { await using var c = await BuildContextAsync(); var (_, ach)=await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync(); var r=await new AchCauseCodePolicy(c).EvaluateAsync(new("R01", AchCauseCodeFlow.OutboundReturn, ach.Id, "ACH")); Assert.False(r.IsAllowed); }
-    [Fact] public async Task AchCauseCodePolicy_ShouldRejectAchOnlyCode_ForCenitRail() { await using var c = await BuildContextAsync(); var (cenit,_)=await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync(); var r=await new AchCauseCodePolicy(c).EvaluateAsync(new("DEV14", AchCauseCodeFlow.OutboundReturn, cenit.Id, "CENIT")); Assert.False(r.IsAllowed); }
+    [Fact] public async Task AchCauseCodePolicy_ShouldRejectClaimsDev14_ForCenitReturnFlow() { await using var c = await BuildContextAsync(); var (cenit,_)=await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync(); var r=await new AchCauseCodePolicy(c).EvaluateAsync(new("DEV14", AchCauseCodeFlow.OutboundReturn, cenit.Id, "CENIT")); Assert.False(r.IsAllowed); }
 
     [Fact]
     public async Task AchCauseCodePolicy_ShouldClassifyDxxAsFileRejection_NotReturnReason()
@@ -147,7 +151,7 @@ public class AchCauseCodePolicyTests
     public async Task AchCauseCodePolicy_ShouldAllowReturnOfReturn_WhenCurrentCatalogPolicyAllows()
     {
         await using var c = await BuildContextAsync(); var (cenit, _) = await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync(); var sut = new AchCauseCodePolicy(c);
-        var r = await sut.EvaluateAsync(new("R02", AchCauseCodeFlow.ReturnOfReturn, cenit.Id, "CENIT", OriginalReasonCode: "R01"));
+        var r = await sut.EvaluateAsync(new("R60", AchCauseCodeFlow.ReturnOfReturn, cenit.Id, "CENIT", OriginalReasonCode: "R01"));
         Assert.True(r.IsAllowed);
     }
 

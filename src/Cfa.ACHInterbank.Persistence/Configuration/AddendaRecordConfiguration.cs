@@ -16,10 +16,13 @@ public class AddendaRecordConfiguration : IEntityTypeConfiguration<AddendaRecord
         builder.Property(x => x.CollectorId).HasMaxLength(13);
         builder.Property(x => x.ReceiverCustomerCode).HasMaxLength(30);
         builder.Property(x => x.ServiceDescription).HasMaxLength(15);
+        builder.Property(x => x.PaymentRelatedInformation).HasMaxLength(80);
         builder.Property(x => x.ReturnReasonCode).HasMaxLength(5);
         builder.Property(x => x.OriginalTraceNumber).HasMaxLength(15);
         builder.Property(x => x.NewTraceNumber).HasMaxLength(15);
         builder.Property(x => x.AddendumSequence).HasMaxLength(4);
         builder.Property(x => x.EntryDetailSequenceNumber).HasMaxLength(7);
+        builder.HasIndex(x => x.EntryDetailId);
+        builder.HasIndex(x => new { x.NachaID, x.EntryDetailSequenceNumber, x.AddendumSequence }).IsUnique();
     }
 }

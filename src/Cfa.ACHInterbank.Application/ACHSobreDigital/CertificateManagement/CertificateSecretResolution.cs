@@ -9,7 +9,8 @@ public enum CertificateSecretProviderType
     InMemory = 1,
     ExternalSecretReference = 2,
     KeyVault = 3,
-    Hsm = 4
+    Hsm = 4,
+    DatabaseEncrypted = 5
 }
 
 public sealed record CertificateSecretResolutionRequest(

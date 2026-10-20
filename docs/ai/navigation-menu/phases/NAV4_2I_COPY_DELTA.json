@@ -1,0 +1,98 @@
+{
+  "phase": "NAV4.2I",
+  "baseline": "NAV4.2H",
+  "baseline_src_app_sha256": "6e291cbba272a76baaec6979f3c163b62e51cb8c7e24af41ff8fbbe8544d1f83",
+  "changes": [
+    {
+      "file": "web/ach-interbank-ui/src/app/features/ach-colombia-file-exchange/ach-colombia-file-exchange.component.ts",
+      "old": "¿Desea enviar ahora los archivos oficiales del ciclo indicado?",
+      "new": "¿Deseas iniciar ahora el envío de los archivos oficiales del ciclo indicado?",
+      "action_context": "Ejecución manual de envío de archivos oficiales del ciclo",
+      "origin": "SPA_CONFIRMATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/ach-colombia-file-exchange/ach-colombia-file-exchange.component.ts",
+      "old": "¿Desea consultar y procesar ahora los archivos recibidos?",
+      "new": "¿Deseas iniciar ahora la consulta y el procesamiento de los archivos recibidos?",
+      "action_context": "Ejecución manual de recepción/procesamiento de archivos",
+      "origin": "SPA_CONFIRMATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/ach-colombia-file-exchange/ach-colombia-file-exchange.component.ts",
+      "old": "¿Desea reintentar esta operación?",
+      "new": "¿Deseas iniciar un reintento para este archivo?",
+      "action_context": "Reintento de transferencia del archivo seleccionado",
+      "origin": "SPA_CONFIRMATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/ach-colombia-file-exchange/ach-colombia-file-exchange.component.ts",
+      "old": "¿Desea archivar este archivo?",
+      "new": "¿Deseas archivar este archivo? El contenido se conservará en el archivo operativo.",
+      "action_context": "Archivado del archivo seleccionado",
+      "origin": "SPA_CONFIRMATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/catalogs/components/catalog-types-admin.component.ts",
+      "old": "¿Deseas eliminar el código ${row.code}?",
+      "new": "¿Deseas eliminar el código ${row.code} del catálogo?",
+      "action_context": "Eliminación de tipo de catálogo",
+      "origin": "SPA_CONFIRMATION_COMPOSED"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/catalogs/components/company-entry-description-admin.component.ts",
+      "old": "¿Deseas eliminar el término ${row.term}?",
+      "new": "¿Deseas eliminar el término ${row.term} del catálogo?",
+      "action_context": "Eliminación de término de descripción de empresa",
+      "origin": "SPA_CONFIRMATION_COMPOSED"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/clearing-houses/transaction-policies.component.ts",
+      "old": "Los cambios del formulario no se han guardado.",
+      "new": "Los cambios del formulario no se han guardado y se perderán al descartarlos.",
+      "action_context": "Descartar edición de política de transacción",
+      "origin": "SPA_CONFIRMATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/integrations/pages/mapping-publication-dialog.component.html",
+      "old": "Complete los datos requeridos informados por el backend.",
+      "new": "Completa los datos requeridos informados por el sistema.",
+      "action_context": "Bloqueo explicativo previo a publicar configuración CFA",
+      "origin": "SPA_CONFIRMATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/integrations/pages/soap-integration-settings.component.ts",
+      "old": "Confirmar comunicación externa",
+      "new": "Confirmar configuración de envío real",
+      "action_context": "Persistencia de configuración que habilita modo de envío real",
+      "origin": "SPA_CONFIRMATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/scheduler/components/task-definitions.component.ts",
+      "old": "Ejecutar tarea",
+      "new": "Solicitar ejecución de tarea",
+      "action_context": "Solicitud manual de ejecución extraordinaria de tarea programada",
+      "origin": "SPA_CONFIRMATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/scheduler/components/task-definitions.component.ts",
+      "old": "Está a punto de ejecutar «{{ data.task.name }}» antes de su próxima fecha programada.",
+      "new": "Vas a solicitar una ejecución extraordinaria de «{{ data.task.name }}» antes de su próxima fecha programada.",
+      "action_context": "Solicitud manual de ejecución extraordinaria de tarea programada",
+      "origin": "SPA_CONFIRMATION_COMPOSED"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/ach-return-of-return-management/ach-return-of-return-management.component.ts",
+      "old": "Este archivo corresponde al modo productivo NACHA-M de devolución de devolución. ",
+      "new": "Se solicitará la generación de un archivo NACHA-M productivo de devolución de una devolución. ",
+      "action_context": "Generación productiva de archivo NACHA-M de devolución de una devolución",
+      "origin": "SPA_CONFIRMATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/ach-return-of-return-management/ach-return-of-return-management.component.ts",
+      "old": "Confirme que los flowIds corresponden a la devolución evaluada; el backend validará nuevamente la elegibilidad. ¿Desea continuar?",
+      "new": "Confirma que los identificadores de flujo corresponden a la devolución evaluada; el sistema validará nuevamente la elegibilidad antes de generar el archivo. ¿Deseas continuar?",
+      "action_context": "Generación productiva de archivo NACHA-M de devolución de una devolución",
+      "origin": "SPA_CONFIRMATION"
+    }
+  ]
+}

@@ -145,7 +145,7 @@ public sealed class NachaOperationalReadModelService : INachaOperationalReadMode
             FileId = "demo-ach-in-001",
             FileName = "ACH_COL_IN_001.ach",
             ClearingHouseCode = "ACH",
-            ProfileCode = "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0",
+            ProfileCode = AchColOfficialNachaLayout.InboundOriginalProfileCode,
             FlowType = "IncomingCreditFromExternalOriginator",
             IsReturnFile = false,
             ValidationPassed = true,

@@ -51,16 +51,50 @@ export type SqlCommand = {
   values?: readonly unknown[];
 };
 
+export type G36PostgresOptions = {
+  connectionString?: string;
+  host?: string;
+  port?: number;
+  database?: string;
+  user?: string;
+  password?: string;
+  requireExplicitConfig?: boolean;
+};
+
 export class G36Postgres {
   private readonly pool: Pool;
 
-  constructor() {
+  constructor(options: G36PostgresOptions = {}) {
+    const connectionString = options.connectionString ?? process.env['ACH_E2E_POSTGRES_CONNECTION_STRING'];
+    if (connectionString) {
+      this.pool = new Pool({
+        ...parsePostgresConnectionString(connectionString),
+        max: 4,
+        connectionTimeoutMillis: 10_000,
+        idleTimeoutMillis: 10_000
+      });
+      return;
+    }
+
+    const host = options.host ?? process.env['ACH_E2E_POSTGRES_HOST'] ?? process.env['POSTGRES_HOST'];
+    const port = options.port ?? readNumberEnv('ACH_E2E_POSTGRES_PORT', 'POSTGRES_PORT');
+    const database = options.database ?? process.env['ACH_E2E_POSTGRES_DATABASE'] ?? process.env['POSTGRES_DB'];
+    const user = options.user ?? process.env['ACH_E2E_POSTGRES_USER'] ?? process.env['POSTGRES_USER'];
+    const password = options.password ?? process.env['ACH_E2E_POSTGRES_PASSWORD'] ?? process.env['POSTGRES_PASSWORD'];
+
+    if (!host || !port || !database || !user || !password) {
+      throw new Error([
+        'PostgreSQL E2E requiere ACH_E2E_POSTGRES_CONNECTION_STRING o ACH_E2E_POSTGRES_HOST/PORT/DATABASE/USER/PASSWORD.',
+        'Tambien puede reutilizar POSTGRES_* cargandolas desde .env local, sin commitear secretos.'
+      ].join(' '));
+    }
+
     this.pool = new Pool({
-      host: process.env['POSTGRES_HOST'] ?? '127.0.0.1',
-      port: Number(process.env['POSTGRES_PORT'] ?? 5432),
-      database: process.env['POSTGRES_DB'] ?? 'ACHInterbank',
-      user: process.env['POSTGRES_USER'] ?? 'example_user',
-      password: process.env['POSTGRES_PASSWORD'] ?? 'example_password_change_me',
+      host,
+      port,
+      database,
+      user,
+      password,
       max: 4,
       connectionTimeoutMillis: 10_000,
       idleTimeoutMillis: 10_000
@@ -91,6 +125,87 @@ export class G36Postgres {
     );
     expect(rows.map((row) => row.table_name).sort(), 'La base UAT debe estar provisionada antes de G3.6.')
       .toEqual([...requiredTables].sort());
+  }
+
+  async assertProcContrapartidasSchema(): Promise<void> {
+    const database = await this.scalar<string>('SELECT current_database();');
+    expect(database, 'PostgreSQL runtime debe estar disponible.').toBeTruthy();
+
+    const requiredTables = [
+      'AchCycles',
+      'AchTransactions',
+      'ContrapartidaDispatchBatches',
+      'ContrapartidaDispatchItems',
+      'ContrapartidaDispatchAttempts'
+    ];
+    const rows = await this.query<{ table_name: string }>(
+      `SELECT table_name
+       FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
+      [requiredTables]
+    );
+    expect(rows.map((row) => row.table_name).sort(), 'La base runtime PostgreSQL debe estar provisionada para Proc_Contrapartidas.')
+      .toEqual([...requiredTables].sort());
+  }
+
+  async assertIncomingProcTransaccionesSchema(): Promise<void> {
+    const requiredTables = [
+      'IncomingNachaFileIngestions',
+      'IncomingNachaDispatchQueue',
+      'IncomingNachaIntegrationExecution',
+      'IncomingNachaEntryClassifications',
+      'IncomingNachaTransactionLinks',
+      'NachaHeaders',
+      'EntryDetails',
+      'AddendaRecords',
+      'BatchHeaders',
+      'BatchControls',
+      'FileControls',
+      'TaskDefinition',
+      'FinancialInstitutions'
+    ];
+    const tables = await this.query<{ table_name: string }>(
+      `SELECT table_name
+       FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
+      [requiredTables]
+    );
+    expect(
+      tables.map((row) => row.table_name).sort(),
+      'Falta el schema de auditoria NACHA entrante en PostgreSQL. Aplique la migracion AddIncomingNachaProcTransaccionesSoapAudit antes de ejecutar este E2E.'
+    ).toEqual([...requiredTables].sort());
+
+    const requiredColumns = [
+      'DispatchQueueId',
+      'SoapMethodName',
+      'SoapEndpoint',
+      'ExecutionMode',
+      'RequestPayloadXml',
+      'ResponsePayloadXml',
+      'SoapResponseCode',
+      'SoapResponseDescription',
+      'SoapTechnicalStatus',
+      'IsSuccessful',
+      'IsFunctionalRejection',
+      'IsTechnicalFailure',
+      'TechnicalException',
+      'DurationMs',
+      'CorrelationId',
+      'StartedAtUtc',
+      'FinishedAtUtc'
+    ];
+    const columns = await this.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'IncomingNachaIntegrationExecution'
+         AND column_name = ANY($1::text[])`,
+      [requiredColumns]
+    );
+    expect(
+      columns.map((row) => row.column_name).sort(),
+      'IncomingNachaIntegrationExecution no contiene todas las columnas de auditoria requeridas. Aplique la migracion AddIncomingNachaProcTransaccionesSoapAudit.'
+    ).toEqual([...requiredColumns].sort());
   }
 
   async query<T>(sql: string, values: readonly unknown[] = []): Promise<T[]> {
@@ -390,4 +505,46 @@ export async function pollUntil<T>(
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function readNumberEnv(...names: string[]): number | undefined {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value) {
+      return Number(value);
+    }
+  }
+
+  return undefined;
+}
+
+function parsePostgresConnectionString(connectionString: string): {
+  connectionString?: string;
+  host?: string;
+  port?: number;
+  database?: string;
+  user?: string;
+  password?: string;
+} {
+  if (/^postgres(?:ql)?:\/\//i.test(connectionString)) {
+    return { connectionString };
+  }
+
+  const values = new Map<string, string>();
+  for (const part of connectionString.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator <= 0) {
+      continue;
+    }
+
+    values.set(part.slice(0, separator).trim().toLowerCase(), part.slice(separator + 1).trim());
+  }
+
+  return {
+    host: values.get('host') ?? values.get('server'),
+    port: values.get('port') ? Number(values.get('port')) : undefined,
+    database: values.get('database') ?? values.get('dbname'),
+    user: values.get('username') ?? values.get('user id') ?? values.get('user') ?? values.get('uid'),
+    password: values.get('password') ?? values.get('pwd')
+  };
 }

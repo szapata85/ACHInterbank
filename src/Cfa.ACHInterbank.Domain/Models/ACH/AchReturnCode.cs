@@ -10,6 +10,7 @@ public class AchReturnCode : AuditableEntity
     public string Code { get; set; } = string.Empty;
     public string FlowType { get; set; } = AchReturnFlowType.Any;
     public string Description { get; set; } = string.Empty;
+    public IncomingNachaBusinessOutcome BusinessOutcome { get; set; } = IncomingNachaBusinessOutcome.Returned;
     public bool AppliesToDebit { get; set; }
     public bool AppliesToCredit { get; set; }
     public bool AppliesToPrenotification { get; set; }

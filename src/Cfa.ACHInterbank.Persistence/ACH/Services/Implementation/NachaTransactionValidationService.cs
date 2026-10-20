@@ -1,4 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
+using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -10,22 +13,66 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class NachaTransactionValidationService : INachaTransactionValidationService
 {
     private readonly AchDbContext _context;
-    private readonly IBankHoliday _holidayService;
+    private readonly ITransactionPrerequisitePolicyService _prerequisitePolicyService;
+    private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
 
     private sealed record PrenoteLookupKey(int DestinationInstitutionId, string DestinationAccountNumber, string TransactionCode);
 
-    public NachaTransactionValidationService(AchDbContext context, IBankHoliday holidayService)
+    public NachaTransactionValidationService(
+        AchDbContext context,
+        IBankHoliday holidayService,
+        ITransactionPrerequisitePolicyService prerequisitePolicyService,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null)
     {
         _context = context;
-        _holidayService = holidayService;
+        _ = holidayService;
+        _prerequisitePolicyService = prerequisitePolicyService
+            ?? throw new ArgumentNullException(nameof(prerequisitePolicyService));
+        _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
+            new ClearingHouseToPaymentRailMapper(),
+            new CycleNumberResolver());
     }
 
     public async Task ValidateTransactionsForSendAsync(IReadOnlyList<AchTransaction> transactions, CancellationToken ct = default)
     {
+        var cycleIds = transactions
+            .Select(transaction => transaction.AchCycleId)
+            .Where(cycleId => !string.IsNullOrWhiteSpace(cycleId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var cycles = await _context.AchCycles
+            .AsNoTracking()
+            .Include(cycle => cycle.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
+            .Where(cycle => cycleIds.Contains(cycle.Id))
+            .ToDictionaryAsync(cycle => cycle.Id, StringComparer.Ordinal, ct);
         var prenoteLookup = await BuildPrenoteLookupAsync(transactions, ct);
 
         foreach (var tx in transactions)
         {
+            if (cycles.TryGetValue(tx.AchCycleId, out var cycle))
+            {
+                var regulatoryDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+                    cycle.ClearingHouseId,
+                    cycle.ClearingHouseCycleConfigId,
+                    cycle.ProcessingDate,
+                    cycle.ClearingHouse?.Code,
+                    cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+                    cycle.CycleName,
+                    tx.Type,
+                    tx.IsPrenotification,
+                    tx.ReturnReasonCode,
+                    tx.OriginalTraceRef,
+                    TransactionCode: tx.TransactionCode), ct);
+                if (!regulatoryDecision.IsAllowed)
+                {
+                    throw new NachaGenerationException(
+                        regulatoryDecision.ReasonCode,
+                        $"Transacción {tx.Id}; cámara {regulatoryDecision.RailCode}; ciclo {regulatoryDecision.CycleNumber}: {regulatoryDecision.Message}");
+                }
+            }
+
             if (tx.IsPrenotification && tx.Amount != 0)
             {
                 throw new InvalidOperationException($"La prenotificación {tx.Id} debe tener valor 0.");
@@ -34,27 +81,14 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
             if (!tx.IsPrenotification)
             {
                 var prenoteDate = GetPrenoteDate(tx, prenoteLookup);
-                if (!RequiresLegacyMandatoryPrenote(tx.TransactionCode))
+                var validation = await _prerequisitePolicyService.ValidateForNachaExportAsync(tx, prenoteDate, ct);
+                if (!validation.IsValid)
                 {
-                    continue;
-                }
-
-                if (prenoteDate is null)
-                {
-                    throw new InvalidOperationException($"La transacción {tx.Id} no tiene prenotificación previa.");
-                }
-
-                var minDate = AddBusinessDays(prenoteDate.Value.Date, 3);
-                if (tx.EffectiveEntryDate.Date < minDate)
-                {
-                    throw new InvalidOperationException($"La transacción {tx.Id} no cumple los 3 días hábiles desde la prenotificación.");
+                    throw new NachaGenerationException(validation.Code, validation.Message);
                 }
             }
         }
     }
-
-    private static bool RequiresLegacyMandatoryPrenote(string transactionCode)
-        => transactionCode is "27" or "37" or "55";
 
     private static DateTime? GetPrenoteDate(AchTransaction tx, IReadOnlyDictionary<PrenoteLookupKey, DateTime> prenoteLookup)
     {
@@ -133,47 +167,7 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
 
     private static string? ResolvePrenoteCode(string transactionCode)
     {
-        return transactionCode switch
-        {
-            "22" => "23",
-            "27" => "28",
-            "32" => "33",
-            "37" => "38",
-            "52" => "53",
-            "55" => "57",
-            _ => null
-        };
+        return NachaTransactionCodeTaxonomy.ResolvePrenotificationCode(transactionCode);
     }
 
-    private DateTime AddBusinessDays(DateTime start, int days)
-    {
-        var date = start;
-        var remaining = days;
-        var currentYear = date.Year;
-        var holidays = _holidayService.GetHolidays(currentYear)
-            .Select(h => h.Date)
-            .ToHashSet();
-
-        while (remaining > 0)
-        {
-            date = date.AddDays(1);
-
-            if (date.Year != currentYear)
-            {
-                currentYear = date.Year;
-                holidays = _holidayService.GetHolidays(currentYear)
-                    .Select(h => h.Date)
-                    .ToHashSet();
-            }
-
-            var isWeekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-            var isHoliday = holidays.Contains(DateOnly.FromDateTime(date));
-            if (!isWeekend && !isHoliday)
-            {
-                remaining--;
-            }
-        }
-
-        return date;
-    }
 }

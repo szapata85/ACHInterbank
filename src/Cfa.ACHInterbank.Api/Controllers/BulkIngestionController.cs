@@ -1,3 +1,4 @@
+using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -34,8 +35,13 @@ public class BulkIngestionController : ControllerBase
         _logger = logger;
     }
 
-    [EndpointSummary("Carga masiva de archivo para procesamiento por lotes")]
-    [EndpointDescription("Qué acción ejecuta: recibe un archivo de carga masiva, valida estructura básica y registra el lote para procesamiento. Quién lo usa: operación ACH, soporte de integración y equipos de backoffice con ventanas autorizadas. Permiso requerido: CanManageAch. Tipo: acción operativa con impacto en carga masiva, lote y transacciones derivadas. Auditoría/trazabilidad: debe registrar usuario solicitante, nombre de archivo, referencia de lote y clientRequestId para correlación. Riesgos: cargar archivo equivocado o fuera de ventana puede introducir errores operativos masivos. Errores esperados: 400 por archivo inválido/tamaño/formato; 401 no autenticado; 403 no autorizado; 500 error no controlado. Relación con NACHA-M/transacciones: habilita ingreso de datos de alto volumen que alimentan procesamiento ACH y conciliación posterior. Precaución operacional: validar origen, versión y corte operativo antes de subir. Advertencia: no modifica reglas regulatorias ni justifica alteración manual de archivos originales fuera de flujo controlado.")]
+    /// <summary>
+    /// Carga un archivo de transacciones para ingestión masiva.
+    /// </summary>
+    /// <param name="request">Formulario multipart con el archivo y las referencias opcionales del lote.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Cargar archivo de transacciones masivas")]
+    [EndpointDescription("Recibe multipart/form-data con File obligatorio y un tamaño máximo de 20 MB. El código admite JSON, CSV y Excel (.xlsx/.xlsm). El archivo se parsea y cada registro se valida estructuralmente; los registros inválidos se conservan con estado StructuralError. Si existe al menos un registro válido, el lote se encola y se despacha su procesamiento; cuando hay registros pero ninguno es válido, el lote queda Failed. Si ClientRequestId está informado y ya existe un lote con el mismo ClientRequestId y el mismo hash SHA-256 del archivo, se devuelve ese lote existente. ClientRequestId pertenece a este flujo y no corresponde al header Idempotency-Key.")]
     [HttpPost("upload")]
     [Authorize(Policy = P1Policies.BulkIngestionUpload)]
     [Consumes("multipart/form-data")]
@@ -43,9 +49,10 @@ public class BulkIngestionController : ControllerBase
     [RequestFormLimits(MultipartBodyLengthLimit = MaxUploadSizeBytes)]
     [ProducesResponseType(typeof(BulkFileUploadResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Lote registrado o lote existente devuelto por coincidencia de ClientRequestId y hash del archivo.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "El archivo falta, está vacío, supera el tamaño admitido, usa un formato no soportado o produce una validación estructural capturada.")]
+    [OpenApiResponseDescription(StatusCodes.Status500InternalServerError, "La acción capturó un error interno inesperado al registrar el lote.")]
     public async Task<IActionResult> Upload([FromForm] BulkFileUploadForm request, CancellationToken ct)
     {
         if (request.File is null || request.File.Length == 0)
@@ -92,15 +99,19 @@ public class BulkIngestionController : ControllerBase
         }
     }
 
-    [EndpointSummary("Consulta de estado general de lote masivo")]
-    [EndpointDescription("Qué consulta: retorna el estado consolidado de un lote de carga masiva por identificador. Quién lo usa: operación, soporte y auditoría para seguimiento de avance y resultado. Permiso requerido: CanManageAch. Tipo: consulta de seguimiento sin mutación de datos. Impacto operacional: permite confirmar si el lote avanza, falla o requiere intervención. Auditoría/trazabilidad: la consulta queda registrada y se correlaciona con eventos de procesamiento. Riesgos: interpretar estado sin revisar detalle puede generar acciones prematuras. Errores esperados: 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 500 error no controlado. Relación con carga masiva/lotes: punto principal de tracking del ciclo de lote. Precaución operacional: confirmar batchId y ventana de ejecución antes de escalar incidentes.")]
+    /// <summary>
+    /// Consulta el estado consolidado de un lote de ingestión masiva.
+    /// </summary>
+    /// <param name="batchId">Identificador del lote devuelto por la carga.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar estado de un lote")]
+    [EndpointDescription("Devuelve el estado consolidado y los contadores persistidos del lote indicado. Si el lote no existe, responde 404 con el cuerpo actual de mensaje simple.")]
     [HttpGet("{batchId:guid}")]
     [Authorize(Policy = P1Policies.BulkIngestionRead)]
     [ProducesResponseType(typeof(BulkBatchStatusDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Estado consolidado actual del lote.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe un lote con el identificador indicado.")]
     public async Task<IActionResult> GetBatch(Guid batchId, CancellationToken ct)
     {
         var batch = await _queryService.GetBatchAsync(batchId, ct);
@@ -109,16 +120,22 @@ public class BulkIngestionController : ControllerBase
             : Ok(batch);
     }
 
-    [EndpointSummary("Consulta paginada de ítems del lote masivo")]
-    [EndpointDescription("Qué consulta: lista ítems del lote con paginación y filtro por estado para diagnóstico detallado. Quién lo usa: soporte técnico, operación ACH y control de calidad de carga. Permiso requerido: CanManageAch. Tipo: consulta de seguimiento. Impacto operacional: facilita aislar transacciones con error o pendientes para definir reintento/cancelación. Auditoría/trazabilidad: deja evidencia de revisión por ítem y estado. Riesgos: filtros o paginación incorrecta pueden ocultar ítems críticos. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 500 error no controlado. Relación con carga masiva/transacciones: descompone el lote en unidades operativas para soporte y conciliación. Precaución operacional: revisar total de páginas y estado filtrado antes de decidir acciones operativas.")]
+    /// <summary>
+    /// Consulta los ítems de un lote con paginación y filtro opcional por estado.
+    /// </summary>
+    /// <param name="batchId">Identificador del lote consultado.</param>
+    /// <param name="page">Página solicitada. El valor por defecto es 1 y cualquier valor menor se normaliza a 1.</param>
+    /// <param name="pageSize">Cantidad de ítems por página. El valor por defecto es 100 y se limita al rango de 1 a 500.</param>
+    /// <param name="status">Estado opcional usado para filtrar los ítems del lote.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar ítems de un lote")]
+    [EndpointDescription("Devuelve los ítems del lote ordenados por ItemIndex. page usa 1 por defecto y se normaliza a un mínimo de 1; pageSize usa 100 por defecto y se limita al rango 1..500. status es un filtro opcional exacto por estado. Si el lote no existe, responde 404.")]
     [HttpGet("{batchId:guid}/items")]
     [Authorize(Policy = P1Policies.BulkIngestionRead)]
     [ProducesResponseType(typeof(BulkBatchItemsPageDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Página de ítems del lote después de aplicar la normalización de paginación y el filtro opcional por estado.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe un lote con el identificador indicado.")]
     public async Task<IActionResult> GetBatchItems(
         Guid batchId,
         [FromQuery] int page = 1,
@@ -136,15 +153,19 @@ public class BulkIngestionController : ControllerBase
         return Ok(result);
     }
 
-    [EndpointSummary("Resumen de procesamiento y errores del lote")]
-    [EndpointDescription("Qué consulta: entrega métricas agregadas de procesamiento del lote, incluyendo conteos de éxito, error y pendientes. Quién lo usa: operación, auditoría operativa y tecnología para evaluar salud de la carga. Permiso requerido: CanManageAch. Tipo: consulta de observabilidad. Impacto operacional: soporta decisiones de retry o cancelación sin modificar estado por sí misma. Auditoría/trazabilidad: consolida evidencia para reportes de incidente y cumplimiento. Riesgos: usar resumen sin contraste con ítems puede ocultar errores de alto impacto. Errores esperados: 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 500 error no controlado. Relación con lotes/NACHA-M/transacciones: resume comportamiento de la carga masiva que alimenta flujos ACH. Precaución operacional: correlacionar con detalle del lote antes de ejecutar acciones manuales.")]
+    /// <summary>
+    /// Consulta el resumen consolidado y el historial de intentos de procesamiento de un lote.
+    /// </summary>
+    /// <param name="batchId">Identificador del lote consultado.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar resumen de procesamiento")]
+    [EndpointDescription("Devuelve el estado consolidado del lote junto con su historial de intentos de procesamiento, ordenado del intento más reciente al más antiguo. Si el lote no existe, responde 404.")]
     [HttpGet("{batchId:guid}/summary")]
     [Authorize(Policy = P1Policies.BulkIngestionRead)]
     [ProducesResponseType(typeof(BulkBatchProcessingSummaryDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Resumen del lote con estado consolidado e historial de intentos de procesamiento.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe un lote con el identificador indicado.")]
     public async Task<IActionResult> GetBatchSummary(Guid batchId, CancellationToken ct)
     {
         var summary = await _queryService.GetBatchSummaryAsync(batchId, ct);
@@ -153,17 +174,22 @@ public class BulkIngestionController : ControllerBase
             : Ok(summary);
     }
 
-    [EndpointSummary("Reintento operativo de lote o subconjunto de ítems")]
-    [EndpointDescription("Qué acción ejecuta: solicita reintento de procesamiento para el lote según parámetros del request. Quién lo usa: operación autorizada y soporte senior durante recuperación de fallas. Permiso requerido: CanManageAch. Tipo: acción operativa con impacto directo en estado de lote/ítems y en la secuencia de intentos. Auditoría/trazabilidad: debe registrar usuario ejecutor, criterio de reintento y resultado del disparo. Riesgos: reintentar sin análisis puede duplicar cargas o aumentar backlog. Errores esperados: 400 solicitud inválida o estado no permitido; 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 409 estado inconsistente cuando aplique; 500 error no controlado. Relación con carga masiva/transacciones: habilita recuperación controlada de procesamiento masivo. Precaución operacional: validar idempotencia, ventana y causa raíz antes de reintentar. Advertencia: no autoriza modificación manual de archivos originales ni de reglas regulatorias.")]
+    /// <summary>
+    /// Reintenta el procesamiento de los ítems elegibles de un lote.
+    /// </summary>
+    /// <param name="batchId">Identificador del lote que se desea reintentar.</param>
+    /// <param name="request">Alcance del reintento: FailedOnly o Full.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Reintentar procesamiento de un lote")]
+    [EndpointDescription("Solicita un nuevo intento de procesamiento. Scope=FailedOnly selecciona únicamente ítems en ProcessingError; Scope=Full selecciona todos los ítems excepto StructuralError. Los ítems elegibles vuelven a Ready, se crea un nuevo intento y se despacha el procesamiento. El máximo actual es de 3 reintentos. La operación rechaza lotes con procesamiento en curso, lotes que alcanzaron el máximo o alcances sin ítems elegibles. StructuralError no se corrige automáticamente mediante este reintento.")]
     [HttpPost("{batchId:guid}/retry")]
     [Authorize(Policy = P1Policies.BulkIngestionRetry)]
     [ProducesResponseType(typeof(RetryBatchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Reintento creado y procesamiento despachado para los ítems elegibles.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "El lote no es reintentable en su estado actual, alcanzó el máximo de 3 reintentos o no tiene ítems elegibles para el alcance seleccionado.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe un lote con el identificador indicado.")]
     public async Task<IActionResult> Retry(Guid batchId, [FromBody] RetryBatchRequest request, CancellationToken ct)
     {
         try
@@ -185,17 +211,21 @@ public class BulkIngestionController : ControllerBase
         }
     }
 
-    [EndpointSummary("Solicitud operativa de cancelación de lote masivo")]
-    [EndpointDescription("Qué acción ejecuta: solicita cancelación del lote cuando su estado permite detener procesamiento pendiente. Quién lo usa: operación ACH y líderes de soporte con criterio de contención. Permiso requerido: CanManageAch. Tipo: acción operativa con impacto en continuidad del lote y procesamiento de transacciones pendientes. Auditoría/trazabilidad: debe quedar evidencia de usuario, momento y motivo de cancelación. Riesgos: cancelar lote incorrecto puede afectar SLA y compromisos de procesamiento. Errores esperados: 400 estado no cancelable; 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 409 estado inconsistente cuando aplique; 500 error no controlado. Relación con carga masiva/lote: controla detención de ejecución para mitigación de incidentes. Precaución operacional: confirmar alcance de impacto y comunicación a áreas dependientes antes de cancelar. Advertencia: no altera archivos de origen ni reglas regulatorias fuera de flujo controlado.")]
+    /// <summary>
+    /// Cancela un lote cuando su estado actual lo permite.
+    /// </summary>
+    /// <param name="batchId">Identificador del lote que se desea cancelar.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Cancelar lote de ingestión")]
+    [EndpointDescription("Cuando el lote existe y no está Completed, Failed ni Cancelled, el servicio actual marca su estado como Cancelled, registra el mensaje de cancelación y establece ProcessingFinishedAtUtc. Este comportamiento no demuestra una cancelación física de un job, worker o backplane que ya esté en ejecución.")]
     [HttpPost("{batchId:guid}/cancel")]
     [Authorize(Policy = P1Policies.BulkIngestionCancel)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "La cancelación fue aceptada y el servicio marcó el lote como Cancelled.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "El lote existe, pero su estado actual no permite cancelarlo.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe un lote con el identificador indicado.")]
     public async Task<IActionResult> Cancel(Guid batchId, CancellationToken ct)
     {
         var cancelled = await _lifecycleService.RequestCancellationAsync(
@@ -223,9 +253,17 @@ public class BulkIngestionController : ControllerBase
     }
 }
 
+/// <summary>
+/// Formulario multipart para cargar un archivo de ingestión masiva.
+/// </summary>
 public sealed class BulkFileUploadForm
 {
+    /// <summary>Archivo obligatorio de la carga. Debe contener datos, no superar 20 MB y usar JSON, CSV o Excel (.xlsx/.xlsm).</summary>
     public IFormFile File { get; set; } = null!;
+
+    /// <summary>Referencia opcional del lote. Si se omite o llega en blanco, el servicio genera una referencia para el lote.</summary>
     public string? BatchReference { get; set; }
+
+    /// <summary>Identificador opcional usado junto con el hash SHA-256 del archivo para devolver un lote previamente registrado. No corresponde al header Idempotency-Key.</summary>
     public string? ClientRequestId { get; set; }
 }

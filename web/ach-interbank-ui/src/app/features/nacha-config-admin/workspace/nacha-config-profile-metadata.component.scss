@@ -1,0 +1,14 @@
+:host { display: block; }
+.management-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.form-grid { display: grid; gap: .75rem; padding-top: 1rem; }
+.clone-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.clone-form mat-form-field:last-child { grid-column: 1 / -1; }
+@media (max-width: 900px) { .management-grid, .clone-form { grid-template-columns: minmax(0, 1fr); } .clone-form mat-form-field:last-child { grid-column: auto; } }
+.operation-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: .75rem;
+  border-inline-start: 4px solid var(--mat-sys-error);
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}

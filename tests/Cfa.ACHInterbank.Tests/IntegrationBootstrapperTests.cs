@@ -1,0 +1,980 @@
+using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Domain.Entities.Integrations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.Integrations.Services;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
+
+namespace Cfa.ACHInterbank.Tests;
+
+public sealed class IntegrationBootstrapperTests
+{
+    [Fact]
+    public async Task CatalogBootstrapper_ShouldSeedExpectedCatalog_AndBeIdempotent()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+
+        var bootstrapper = new IntegrationCatalogBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+        var firstCounts = await ReadCountsAsync(fixture.Context);
+
+        await bootstrapper.EnsureAsync();
+        var secondCounts = await ReadCountsAsync(fixture.Context);
+
+        Assert.Equal(3, firstCounts.Methods);
+        Assert.Equal(27, firstCounts.TransaccionesParameters);
+        Assert.Equal(22, firstCounts.ContrapartidasParameters);
+        Assert.Equal(7, firstCounts.RespuestaParameters);
+        Assert.Equal(69, firstCounts.TransaccionesSourceFields);
+        Assert.Equal(69, firstCounts.ContrapartidasSourceFields);
+        Assert.Equal(69, firstCounts.RespuestaSourceFields);
+        Assert.Equal(2, firstCounts.ResponseCodes);
+        AssertCountsEqual(firstCounts, secondCounts);
+    }
+
+    [Fact]
+    public async Task MappingBootstrapper_ShouldSeedPublishedBaseMappings_AndBeIdempotent()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+
+        var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+        var firstCounts = await ReadCountsAsync(fixture.Context);
+
+        await bootstrapper.EnsureAsync();
+        var secondCounts = await ReadCountsAsync(fixture.Context);
+
+        Assert.Equal(3, firstCounts.PublishedSets);
+        Assert.Equal(42, firstCounts.MappingRules);
+        Assert.Equal(2, firstCounts.ResponseStatusMappings);
+        Assert.Equal(18, firstCounts.TransaccionesPublishedRules);
+        Assert.Equal(17, firstCounts.ContrapartidasPublishedRules);
+        Assert.Equal(7, firstCounts.RespuestaPublishedRules);
+        Assert.Equal(0, firstCounts.ContrapartidasOptionalPublishedRules);
+        AssertCountsEqual(firstCounts, secondCounts);
+    }
+
+    [Fact]
+    public async Task ContractVersionBaseline_ShouldAttachCurrentParametersAndMappingsWithoutChangingLegacyIds()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+
+        var catalogBootstrapper = new IntegrationCatalogBootstrapper(fixture.Context);
+        await catalogBootstrapper.EnsureAsync();
+
+        var methods = await fixture.Context.IntegrationMethods
+            .ToDictionaryAsync(x => x.Code, x => x);
+        var originalParameterIds = await fixture.Context.IntegrationMethodParameters
+            .AsNoTracking()
+            .ToDictionaryAsync(x => (x.MethodId, x.ParameterPath), x => x.Id);
+
+        var baselines = new[]
+        {
+            Baseline(methods["WSCFAACH.Proc_Contrapartidas"].Id, new Guid("39b5693c-407b-505c-8e8a-e49e8558a82e"), "Proc_Contrapartidas", "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas"),
+            Baseline(methods["WSCFAACH.Proc_Transacciones"].Id, new Guid("9f3a13b6-eb79-5e43-803b-4c97b71a0f5d"), "Proc_Transacciones", "http://tempuri.org/IWSCFAACH/Proc_Transacciones"),
+            Baseline(methods["WSAXON.RegistrarRespuestaTransaccion"].Id, new Guid("4a093eb5-beed-5b15-bc7c-5768c0e0547e"), "RegistrarRespuestaTransaccion", "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion")
+        };
+        fixture.Context.IntegrationContractVersions.AddRange(baselines);
+        await fixture.Context.SaveChangesAsync();
+
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        foreach (var baseline in baselines)
+        {
+            var parameters = await fixture.Context.IntegrationMethodParameters
+                .AsNoTracking()
+                .Where(x => x.MethodId == baseline.MethodId)
+                .ToListAsync();
+            var mappingSets = await fixture.Context.IntegrationMappingSets
+                .AsNoTracking()
+                .Where(x => x.MethodId == baseline.MethodId)
+                .ToListAsync();
+
+            Assert.NotEmpty(parameters);
+            Assert.All(parameters, parameter =>
+            {
+                Assert.Equal(baseline.Id, parameter.ContractVersionId);
+                Assert.Equal(parameter.ParameterPath, parameter.XmlElementName);
+                Assert.False(string.IsNullOrWhiteSpace(parameter.XsdType));
+                Assert.Equal(parameter.Required ? 1 : 0, parameter.MinOccurs);
+                Assert.Equal(1, parameter.MaxOccurs);
+                Assert.Equal("Supported", parameter.SupportStatus);
+                Assert.Equal(originalParameterIds[(parameter.MethodId, parameter.ParameterPath)], parameter.Id);
+            });
+
+            Assert.NotEmpty(mappingSets);
+            Assert.All(mappingSets, mappingSet =>
+            {
+                Assert.Equal(baseline.Id, mappingSet.ContractVersionId);
+                Assert.True(mappingSet.Revision >= 1);
+            });
+        }
+
+        var registrarMethodId = methods["WSAXON.RegistrarRespuestaTransaccion"].Id;
+        Assert.Equal(7, await fixture.Context.IntegrationMethodParameters.CountAsync(x => x.MethodId == registrarMethodId));
+
+        static IntegrationContractVersion Baseline(int methodId, Guid id, string operationName, string soapAction)
+            => new()
+            {
+                Id = id,
+                MethodId = methodId,
+                VersionLabel = "baseline-v1",
+                Status = IntegrationContractVersionStatusEnum.Active,
+                OperationName = operationName,
+                TargetNamespace = "http://tempuri.org/",
+                SoapAction = soapAction,
+                SourceType = IntegrationContractSourceTypeEnum.BaselineMigration,
+                SourceReference = "CFA-SOAP-UX-MAP-001/P0",
+                Revision = 1,
+                ActivatedAtUtc = new DateTime(2026, 10, 12, 23, 10, 0, DateTimeKind.Utc),
+                ActivatedBy = "CFA-SOAP-UX-MAP-001/P1.2"
+            };
+    }
+
+    [Fact]
+    public async Task MappingBootstrapper_ShouldPersistCanonicalSnapshotHistory()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+
+        var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Transacciones");
+        var published = await fixture.Context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id
+            && x.Status == IntegrationMappingSetStatusEnum.Published
+            && x.Name == "ProcTransacciones Published NACHA desagregado");
+        var history = await fixture.Context.IntegrationMappingSetHistory.SingleAsync(x =>
+            x.MappingSetId == published.Id
+            && x.Action == "SeedPublishedReference");
+        var snapshot = await new IntegrationMappingSnapshotBuilder(fixture.Context).BuildAsync(published.Id);
+
+        Assert.Equal(snapshot.SnapshotJson, history.SnapshotJson);
+        Assert.Equal(snapshot.SnapshotHash, history.SnapshotHash);
+        Assert.Contains("\"MappingSetId\"", history.SnapshotJson);
+        Assert.Contains("\"Parameters\"", history.SnapshotJson);
+        Assert.DoesNotContain("\"mappingSet\"", history.SnapshotJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DbInitializer_Development_ShouldSeedDemoMappings_AndBeIdempotent()
+    {
+        await using var fixture = await ServiceFixture.CreateAsync("Development", registerScenarioSeeder: true);
+
+        await DbInitializer.SeedAllAsync(fixture.Provider);
+        var firstCounts = await fixture.ReadCountsAsync();
+
+        await DbInitializer.SeedAllAsync(fixture.Provider);
+        var secondCounts = await fixture.ReadCountsAsync();
+
+        Assert.Equal(6, firstCounts.MappingSets);
+        Assert.Equal(3, firstCounts.DemoSets);
+        Assert.Contains(firstCounts.MappingSetNames, x => x == "ProcContrapartidas Draft Valido");
+        Assert.Contains(firstCounts.MappingSetNames, x => x == "ProcContrapartidas Draft Invalido");
+        Assert.Contains(firstCounts.MappingSetNames, x => x == "ProcContrapartidas Clone Draft");
+        AssertCountsEqual(firstCounts, secondCounts);
+    }
+
+    [Fact]
+    public async Task DbInitializer_Testing_ShouldSeedDemoMappings()
+    {
+        await using var fixture = await ServiceFixture.CreateAsync("Testing", registerScenarioSeeder: true);
+
+        await DbInitializer.SeedAllAsync(fixture.Provider);
+        var counts = await fixture.ReadCountsAsync();
+
+        Assert.Equal(3, counts.DemoSets);
+        Assert.Contains(counts.MappingSetNames, x => x == "ProcContrapartidas Draft Valido");
+        Assert.Contains(counts.MappingSetNames, x => x == "ProcContrapartidas Draft Invalido");
+        Assert.Contains(counts.MappingSetNames, x => x == "ProcContrapartidas Clone Draft");
+    }
+
+    [Fact]
+    public async Task DbInitializer_Production_ShouldNotCreateDemoMappings()
+    {
+        await using var fixture = await ServiceFixture.CreateAsync("Production", registerScenarioSeeder: true);
+
+        await DbInitializer.SeedAllAsync(fixture.Provider);
+        var counts = await fixture.ReadCountsAsync();
+
+        Assert.Equal(3, counts.PublishedSets);
+        Assert.Equal(0, counts.DemoSets);
+        Assert.DoesNotContain(counts.MappingSetNames, x => x.Contains("Draft", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(counts.MappingSetNames, x => x == "ProcContrapartidas Published");
+        Assert.Contains(counts.MappingSetNames, x => x == "ProcTransacciones Published NACHA desagregado");
+        Assert.Contains(counts.MappingSetNames, x => x == "RegistrarRespuestaTransaccion Published respuesta diferencial");
+    }
+
+    [Fact]
+    public async Task ProcContrapartidas_BaseMapping_ShouldKeepFiveOptionalParametersReserved()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas");
+        var parameters = await fixture.Context.IntegrationMethodParameters.Where(x => x.MethodId == method.Id).ToListAsync();
+        var published = await fixture.Context.IntegrationMappingSets.SingleAsync(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published);
+        var rules = await fixture.Context.IntegrationMappingRules.Where(x => x.MappingSetId == published.Id).ToListAsync();
+
+        Assert.Equal(22, parameters.Count);
+        Assert.Equal(17, parameters.Count(x => x.Required));
+        Assert.Equal(5, parameters.Count(x => !x.Required));
+        Assert.Equal(17, rules.Count);
+        Assert.Equal(5, parameters.Count(x => !x.Required && !rules.Any(r => r.ParameterId == x.Id)));
+        Assert.Contains(parameters, x => x.ParameterPath == "ANSIDLOTE" && !x.Required && x.IsActive);
+        Assert.Contains(parameters, x => x.ParameterPath == "ANSST" && !x.Required && x.IsActive);
+        Assert.Contains(parameters, x => x.ParameterPath == "ANCLC" && !x.Required && x.IsActive);
+        Assert.Contains(parameters, x => x.ParameterPath == "ANSIDTX" && !x.Required && x.IsActive);
+        Assert.Contains(parameters, x => x.ParameterPath == "ANSIDREVER" && !x.Required && x.IsActive);
+
+        IntegrationMappingRule RuleFor(string path)
+        {
+            var parameterId = parameters.Single(x => x.ParameterPath == path).Id;
+            return rules.Single(x => x.ParameterId == parameterId);
+        }
+
+        Assert.Equal("transaction.amount", RuleFor("OFMONDEB").SourceFieldPath, ignoreCase: true);
+        Assert.Null(RuleFor("OFMONDEB").DefaultValue);
+        Assert.Equal("transaction.debitCreditIndicator", RuleFor("OFDD").SourceFieldPath, ignoreCase: true);
+        Assert.Null(RuleFor("OFDD").DefaultValue);
+        Assert.Equal("transaction.reference", RuleFor("OFIDTX").SourceFieldPath, ignoreCase: true);
+        Assert.Null(RuleFor("OFIDTX").DefaultValue);
+        Assert.Equal("transaction.id", RuleFor("OFIDEBAPLI").SourceFieldPath, ignoreCase: true);
+    }
+
+    [Fact]
+    public async Task ProcContrapartidas_Bootstrapper_ShouldRepairSeedMappingInPlace_AndRemainIdempotent()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas");
+        var obsolete = await fixture.Context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        var accountParameterId = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.ParameterPath == "OFCTA")
+            .Select(x => x.Id)
+            .SingleAsync();
+        var accountRule = await fixture.Context.IntegrationMappingRules
+            .SingleAsync(x => x.MappingSetId == obsolete.Id && x.ParameterId == accountParameterId);
+        var originalRuleId = accountRule.Id;
+        accountRule.SourceFieldPath = "transaction.originatingdfi";
+        accountRule.DefaultValue = "000010070";
+        await fixture.Context.SaveChangesAsync();
+
+        await bootstrapper.EnsureAsync();
+        var repaired = await fixture.Context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        var repairedRule = await fixture.Context.IntegrationMappingRules
+            .SingleAsync(x => x.MappingSetId == repaired.Id && x.ParameterId == accountParameterId);
+
+        Assert.Equal(obsolete.Id, repaired.Id);
+        Assert.Equal(IntegrationMappingSetStatusEnum.Published, obsolete.Status);
+        Assert.True(obsolete.IsActive);
+        Assert.Equal(originalRuleId, repairedRule.Id);
+        Assert.Equal("transaction.sourceAccountNumber", repairedRule.SourceFieldPath);
+        Assert.Null(repairedRule.DefaultValue);
+
+        await bootstrapper.EnsureAsync();
+        await bootstrapper.EnsureAsync();
+        var finalPublishedId = await fixture.Context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive)
+            .Select(x => x.Id)
+            .SingleAsync();
+        Assert.Equal(repaired.Id, finalPublishedId);
+    }
+
+    [Fact]
+    public async Task ProcContrapartidas_Bootstrapper_ShouldPreservePublishedUserMapping()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas");
+        var published = await fixture.Context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        var referenceParameterId = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.ParameterPath == "OFIDTX")
+            .Select(x => x.Id)
+            .SingleAsync();
+        var referenceRule = await fixture.Context.IntegrationMappingRules
+            .SingleAsync(x => x.MappingSetId == published.Id && x.ParameterId == referenceParameterId);
+        published.PublishedBy = "operador-uat";
+        published.Name = "Mapping publicado por usuario";
+        referenceRule.SourceFieldPath = "transaction.transactionExternalId";
+        await fixture.Context.SaveChangesAsync();
+
+        await bootstrapper.EnsureAsync();
+        await bootstrapper.EnsureAsync();
+
+        var preserved = await fixture.Context.IntegrationMappingSets.SingleAsync(x => x.Id == published.Id);
+        var preservedRule = await fixture.Context.IntegrationMappingRules.SingleAsync(x => x.Id == referenceRule.Id);
+        Assert.Equal("operador-uat", preserved.PublishedBy);
+        Assert.Equal("Mapping publicado por usuario", preserved.Name);
+        Assert.Equal("transaction.transactionExternalId", preservedRule.SourceFieldPath);
+        Assert.Single(await fixture.Context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive)
+            .ToListAsync());
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_BaseMapping_ShouldKeepObservedOptionalInputsAndResponseOutputs()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Transacciones");
+        var parameters = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync();
+        var published = await fixture.Context.IntegrationMappingSets.SingleAsync(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published);
+        var rules = await fixture.Context.IntegrationMappingRules.Where(x => x.MappingSetId == published.Id).ToListAsync();
+
+        Assert.Equal(27, parameters.Count);
+        Assert.Contains(parameters, x => x.ParameterPath == "NCTAORIG" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
+        Assert.Contains(parameters, x => x.ParameterPath == "DISCRE" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
+        Assert.DoesNotContain(parameters, x => x.ParameterPath == "ILR");
+        Assert.All(new[] { "TREG", "CONV", "PROD", "REGLOTE", "LIBRE", "DIRECCIONIP", "LIBRE1" },
+            path => Assert.Contains(parameters, x => x.ParameterPath == path && !x.Required));
+        Assert.DoesNotContain(rules, x => string.Equals(x.DefaultValue, "SEED", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(parameters, x => x.ParameterPath == "MONTO" && x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
+        Assert.Contains(parameters, x => x.ParameterPath == "RTAACH" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Output);
+        Assert.Contains(parameters, x => x.ParameterPath == "RTALOC" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Output);
+        Assert.DoesNotContain(rules, x => parameters.Any(p => p.Id == x.ParameterId && p.Direction == IntegrationParameterDirectionEnum.Output));
+        var sourceCatalog = await fixture.Context.IntegrationSourceCatalogFields
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .ToListAsync();
+        Assert.Contains(sourceCatalog, x => x.FieldPath == "entrydetails.accountnumber" && x.DisplayName == "Número de cuenta del detalle de entrada");
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_Catalog_ShouldUseRealWsdlParameters_AndExcludeNonWsdlAns()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSAXON.RegistrarRespuestaTransaccion");
+        var parameters = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .Select(x => new { x.ParameterPath, x.Required })
+            .ToListAsync();
+
+        Assert.Equal(
+            ["idCanal", "nombreCanal", "idTransaccion", "idEstado", "causal", "idTransaccionAxon", "descripcionCausal"],
+            parameters.Select(x => x.ParameterPath).ToArray());
+        Assert.Equal(["idCanal", "nombreCanal", "idTransaccion", "idEstado", "idTransaccionAxon"], parameters.Where(x => x.Required).Select(x => x.ParameterPath).ToArray());
+        Assert.DoesNotContain(parameters, x => x.ParameterPath.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
+        Assert.False(await fixture.Context.IntegrationMethods.AnyAsync(x => x.Code.Contains("PLValidarUsuarioBV")));
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_PublishedMapping_ShouldUseExactDifferentialSourcesWithoutFallbacks_AndBeIdempotent()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
+
+        await bootstrapper.EnsureAsync();
+        var firstState = await ReadRegistrarPublishedMappingStateAsync(fixture.Context);
+
+        await bootstrapper.EnsureAsync();
+        var secondState = await ReadRegistrarPublishedMappingStateAsync(fixture.Context);
+
+        AssertCanonicalRegistrarPublishedMapping(firstState);
+        AssertCanonicalRegistrarPublishedMapping(secondState);
+        Assert.Equal(firstState.ActiveSetId, secondState.ActiveSetId);
+        Assert.Equal(firstState.TotalSets, secondState.TotalSets);
+        Assert.Equal(firstState.TotalRules, secondState.TotalRules);
+    }
+
+    [Theory]
+    [InlineData("ObsoleteDefault")]
+    [InlineData("FixedValue")]
+    [InlineData("WrongSourceKind")]
+    [InlineData("WrongSourcePath")]
+    [InlineData("MissingRule")]
+    [InlineData("ExtraRule")]
+    [InlineData("DuplicateRule")]
+    [InlineData("DisabledRule")]
+    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldReplaceEveryIncompatiblePublishedMapping_AndRemainIdempotent(
+        string incompatibility)
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods
+            .SingleAsync(x => x.Code == "WSAXON.RegistrarRespuestaTransaccion");
+        var obsoleteSet = await fixture.Context.IntegrationMappingSets
+            .SingleAsync(x => x.MethodId == method.Id
+                && x.Status == IntegrationMappingSetStatusEnum.Published
+                && x.IsActive);
+        var parameters = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .ToDictionaryAsync(x => x.ParameterPath);
+        var rules = await fixture.Context.IntegrationMappingRules
+            .Where(x => x.MappingSetId == obsoleteSet.Id)
+            .ToListAsync();
+
+        switch (incompatibility)
+        {
+            case "ObsoleteDefault":
+                rules.Single(x => x.ParameterId == parameters["causal"].Id).DefaultValue = "SEED";
+                rules.Single(x => x.ParameterId == parameters["descripcionCausal"].Id).DefaultValue = "SEED";
+                break;
+            case "FixedValue":
+                rules.Single(x => x.ParameterId == parameters["causal"].Id).FixedValue = "0";
+                break;
+            case "WrongSourceKind":
+                rules.Single(x => x.ParameterId == parameters["idCanal"].Id).SourceKind = IntegrationSourceKindEnum.Constant;
+                break;
+            case "WrongSourcePath":
+                rules.Single(x => x.ParameterId == parameters["nombreCanal"].Id).SourceFieldPath = "differentialResponse.idCanal";
+                break;
+            case "MissingRule":
+                fixture.Context.IntegrationMappingRules.Remove(
+                    rules.Single(x => x.ParameterId == parameters["idEstado"].Id));
+                break;
+            case "ExtraRule":
+            {
+                var extraParameter = InvalidRegistrarSeedParameter(
+                    method.Id,
+                    "ANSIDTX",
+                    "Id transaccion adicional no WSDL",
+                    "string",
+                    false,
+                    99);
+                extraParameter.IsActive = false;
+                fixture.Context.IntegrationMethodParameters.Add(extraParameter);
+                fixture.Context.IntegrationMappingRules.Add(new IntegrationMappingRule
+                {
+                    MappingSetId = obsoleteSet.Id,
+                    MethodId = method.Id,
+                    Parameter = extraParameter,
+                    SourceKind = IntegrationSourceKindEnum.DifferentialResponse,
+                    SourceFieldPath = "differentialResponse.idTransaccion",
+                    Priority = 1,
+                    Enabled = true
+                });
+                break;
+            }
+            case "DuplicateRule":
+            {
+                var original = rules.Single(x => x.ParameterId == parameters["idTransaccionAxon"].Id);
+                fixture.Context.IntegrationMappingRules.Add(new IntegrationMappingRule
+                {
+                    MappingSetId = obsoleteSet.Id,
+                    MethodId = method.Id,
+                    ParameterId = original.ParameterId,
+                    SourceKind = original.SourceKind,
+                    SourceFieldPath = original.SourceFieldPath,
+                    Priority = 2,
+                    Enabled = true
+                });
+                break;
+            }
+            case "DisabledRule":
+                rules.Single(x => x.ParameterId == parameters["descripcionCausal"].Id).Enabled = false;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(incompatibility), incompatibility, null);
+        }
+
+        await fixture.Context.SaveChangesAsync();
+        await bootstrapper.EnsureAsync();
+        var correctedState = await ReadRegistrarPublishedMappingStateAsync(fixture.Context);
+
+        AssertCanonicalRegistrarPublishedMapping(correctedState);
+        Assert.NotEqual(obsoleteSet.Id, correctedState.ActiveSetId);
+        Assert.Contains(await fixture.Context.IntegrationMappingSets.ToListAsync(), x =>
+            x.Id == obsoleteSet.Id
+            && x.Status == IntegrationMappingSetStatusEnum.Archived
+            && !x.IsActive);
+        Assert.Contains(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x =>
+            x.MappingSetId == obsoleteSet.Id
+            && x.Action == "ArchivedInvalidSeedContract");
+
+        await bootstrapper.EnsureAsync();
+        var secondState = await ReadRegistrarPublishedMappingStateAsync(fixture.Context);
+
+        AssertCanonicalRegistrarPublishedMapping(secondState);
+        Assert.Equal(correctedState.ActiveSetId, secondState.ActiveSetId);
+        Assert.Equal(correctedState.TotalSets, secondState.TotalSets);
+        Assert.Equal(correctedState.TotalRules, secondState.TotalRules);
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldArchiveIncorrectSeedMapping_WithoutDeletingHistory()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var method = new IntegrationMethod
+        {
+            Code = "WSAXON.RegistrarRespuestaTransaccion",
+            DisplayName = "RegistrarRespuestaTransaccion",
+            SoapClientCode = "WsAxonRespuestaTransaccionesSoapClient",
+            IsActive = true
+        };
+        fixture.Context.IntegrationMethods.Add(method);
+        await fixture.Context.SaveChangesAsync();
+
+        var invalidSeedParameters = new[]
+        {
+            InvalidRegistrarSeedParameter(method.Id, "ANSIDLOTE", "Id lote no WSDL", "int", true, 1),
+            InvalidRegistrarSeedParameter(method.Id, "ANSST", "Estado no WSDL", "string", true, 2),
+            InvalidRegistrarSeedParameter(method.Id, "ANCLC", "Codigo no WSDL", "string", false, 3),
+            InvalidRegistrarSeedParameter(method.Id, "ANSIDTX", "Id transaccion no WSDL", "string", true, 4),
+            InvalidRegistrarSeedParameter(method.Id, "ANSIDREVER", "Id reverso no WSDL", "int", false, 5)
+        };
+        var invalidSeedSet = new IntegrationMappingSet
+        {
+            MethodId = method.Id,
+            Name = "RegistrarRespuestaTransaccion Published respuesta diferencial",
+            Version = 1,
+            Status = IntegrationMappingSetStatusEnum.Published,
+            IsActive = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            PublishedBy = "seed"
+        };
+        fixture.Context.IntegrationMethodParameters.AddRange(invalidSeedParameters);
+        fixture.Context.IntegrationMappingSets.Add(invalidSeedSet);
+        await fixture.Context.SaveChangesAsync();
+
+        fixture.Context.IntegrationMappingRules.AddRange(invalidSeedParameters.Select((parameter, index) => new IntegrationMappingRule
+        {
+            MappingSetId = invalidSeedSet.Id,
+            MethodId = method.Id,
+            ParameterId = parameter.Id,
+            SourceKind = IntegrationSourceKindEnum.DifferentialResponse,
+            SourceFieldPath = index switch
+            {
+                0 => "batchHeaders.batchNumber",
+                1 => "differentialResponse.codigoEstadoExterno",
+                2 => "differentialResponse.codigoCausalExterna",
+                3 => "entryDetails.sequenceNumber",
+                _ => "addendaRecords.originalTraceNumber"
+            },
+            Priority = 1,
+            Enabled = true
+        }));
+        fixture.Context.IntegrationMappingSetHistory.Add(new IntegrationMappingSetHistory
+        {
+            MappingSetId = invalidSeedSet.Id,
+            MethodId = method.Id,
+            Version = invalidSeedSet.Version,
+            Status = invalidSeedSet.Status,
+            Action = "SeedPublishedReference",
+            PerformedBy = "seed",
+            SnapshotJson = "{}",
+            SnapshotHash = "incorrect-seed"
+        });
+        await fixture.Context.SaveChangesAsync();
+
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        var sets = await fixture.Context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id)
+            .OrderBy(x => x.Version)
+            .ToListAsync();
+        var activeParameters = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .Select(x => x.ParameterPath)
+            .ToListAsync();
+
+        Assert.Contains(sets, x => x.Id == invalidSeedSet.Id && x.Status == IntegrationMappingSetStatusEnum.Archived && !x.IsActive);
+        Assert.Contains(sets, x => x.Id != invalidSeedSet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        Assert.DoesNotContain(activeParameters, x => x.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == invalidSeedSet.Id && x.Action == "ArchivedInvalidSeedContract");
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldArchiveManualNonWsdlMapping()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var method = new IntegrationMethod
+        {
+            Code = "WSAXON.RegistrarRespuestaTransaccion",
+            DisplayName = "RegistrarRespuestaTransaccion",
+            SoapClientCode = "WsAxonRespuestaTransaccionesSoapClient",
+            IsActive = true
+        };
+        fixture.Context.IntegrationMethods.Add(method);
+        await fixture.Context.SaveChangesAsync();
+
+        var nonWsdlParameter = new IntegrationMethodParameter
+        {
+            MethodId = method.Id,
+            ParameterPath = "ANSIDTX",
+            DisplayName = "Id transaccion no WSDL manual",
+            DescriptionEs = "Parametro manual fuera del WSDL vigente.",
+            Category = "Contrato no WSDL",
+            ExampleValue = "TX-1",
+            UiHelpText = "No corresponde al WSDL de RegistrarRespuestaTransaccion.",
+            DataType = "string",
+            Direction = IntegrationParameterDirectionEnum.Input,
+            Cardinality = IntegrationParameterCardinalityEnum.Scalar,
+            Required = true,
+            SortOrder = 1,
+            IsActive = true
+        };
+        var manualSet = new IntegrationMappingSet
+        {
+            MethodId = method.Id,
+            Name = "RegistrarRespuestaTransaccion Manual publicado",
+            Version = 7,
+            Status = IntegrationMappingSetStatusEnum.Published,
+            IsActive = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            PublishedBy = "operador-uat"
+        };
+        fixture.Context.IntegrationMethodParameters.Add(nonWsdlParameter);
+        fixture.Context.IntegrationMappingSets.Add(manualSet);
+        await fixture.Context.SaveChangesAsync();
+
+        fixture.Context.IntegrationMappingRules.Add(new IntegrationMappingRule
+        {
+            MappingSetId = manualSet.Id,
+            MethodId = method.Id,
+            ParameterId = nonWsdlParameter.Id,
+            SourceKind = IntegrationSourceKindEnum.DifferentialResponse,
+            SourceFieldPath = "differentialResponse.idTransaccion",
+            Priority = 1,
+            Enabled = true
+        });
+        await fixture.Context.SaveChangesAsync();
+
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        var sets = await fixture.Context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id)
+            .ToListAsync();
+        var activeParameters = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .Select(x => x.ParameterPath)
+            .ToListAsync();
+
+        Assert.Equal(2, sets.Count);
+        Assert.Contains(sets, x => x.Id == manualSet.Id && x.Status == IntegrationMappingSetStatusEnum.Archived && !x.IsActive);
+        Assert.Contains(sets, x => x.Id != manualSet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        Assert.Equal(
+            ["idCanal", "nombreCanal", "idTransaccion", "idEstado", "causal", "idTransaccionAxon", "descripcionCausal"],
+            activeParameters);
+        Assert.Contains(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == manualSet.Id && x.Action == "ArchivedInvalidSeedContract");
+    }
+
+    private sealed record SeedCounts(
+        int Methods,
+        int TransaccionesParameters,
+        int ContrapartidasParameters,
+        int RespuestaParameters,
+        int TransaccionesSourceFields,
+        int ContrapartidasSourceFields,
+        int RespuestaSourceFields,
+        int MappingSets,
+        int PublishedSets,
+        int DemoSets,
+        int MappingRules,
+        int TransaccionesPublishedRules,
+        int ContrapartidasPublishedRules,
+        int RespuestaPublishedRules,
+        int ContrapartidasOptionalPublishedRules,
+        int ResponseStatusMappings,
+        int ResponseCodes,
+        IReadOnlyCollection<string> MappingSetNames);
+
+    private static void AssertCountsEqual(SeedCounts expected, SeedCounts actual)
+    {
+        Assert.Equal(expected.Methods, actual.Methods);
+        Assert.Equal(expected.TransaccionesParameters, actual.TransaccionesParameters);
+        Assert.Equal(expected.ContrapartidasParameters, actual.ContrapartidasParameters);
+        Assert.Equal(expected.RespuestaParameters, actual.RespuestaParameters);
+        Assert.Equal(expected.TransaccionesSourceFields, actual.TransaccionesSourceFields);
+        Assert.Equal(expected.ContrapartidasSourceFields, actual.ContrapartidasSourceFields);
+        Assert.Equal(expected.RespuestaSourceFields, actual.RespuestaSourceFields);
+        Assert.Equal(expected.MappingSets, actual.MappingSets);
+        Assert.Equal(expected.PublishedSets, actual.PublishedSets);
+        Assert.Equal(expected.DemoSets, actual.DemoSets);
+        Assert.Equal(expected.MappingRules, actual.MappingRules);
+        Assert.Equal(expected.TransaccionesPublishedRules, actual.TransaccionesPublishedRules);
+        Assert.Equal(expected.ContrapartidasPublishedRules, actual.ContrapartidasPublishedRules);
+        Assert.Equal(expected.RespuestaPublishedRules, actual.RespuestaPublishedRules);
+        Assert.Equal(expected.ContrapartidasOptionalPublishedRules, actual.ContrapartidasOptionalPublishedRules);
+        Assert.Equal(expected.ResponseStatusMappings, actual.ResponseStatusMappings);
+        Assert.Equal(expected.ResponseCodes, actual.ResponseCodes);
+        Assert.Equal(expected.MappingSetNames.OrderBy(x => x), actual.MappingSetNames.OrderBy(x => x));
+    }
+
+    private static async Task<SeedCounts> ReadCountsAsync(AchDbContext context)
+    {
+        var methods = await context.IntegrationMethods.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id);
+        var parameters = await context.IntegrationMethodParameters.AsNoTracking().ToListAsync();
+        var sources = await context.IntegrationSourceCatalogFields.AsNoTracking().ToListAsync();
+        var mappingSets = await context.IntegrationMappingSets.AsNoTracking().ToListAsync();
+        var mappingRules = await context.IntegrationMappingRules.AsNoTracking().ToListAsync();
+        var responseMappings = await context.AchResponseStatusMappings.AsNoTracking().CountAsync();
+        var responseCodes = await context.IntegrationResponseCodes.AsNoTracking().CountAsync();
+
+        int CountParams(string code)
+            => methods.TryGetValue(code, out var id)
+                ? parameters.Count(x => x.MethodId == id)
+                : 0;
+
+        int CountSources(string code)
+            => methods.TryGetValue(code, out var id)
+                ? sources.Count(x => x.MethodId == id)
+                : 0;
+
+        int CountRules(string code)
+            => methods.TryGetValue(code, out var id)
+                ? mappingRules.Count(x => x.MethodId == id && mappingSets.Any(s => s.Id == x.MappingSetId && s.Status == IntegrationMappingSetStatusEnum.Published))
+                : 0;
+
+        var contrapartidasOptionalPublishedRules = methods.TryGetValue("WSCFAACH.Proc_Contrapartidas", out var contrapartidasId)
+            ? parameters.Count(x => x.MethodId == contrapartidasId && !x.Required && mappingRules.Any(r =>
+                r.ParameterId == x.Id
+                && mappingSets.Any(s => s.Id == r.MappingSetId && s.Status == IntegrationMappingSetStatusEnum.Published)))
+            : 0;
+
+        var demoContrapartidasId = methods.TryGetValue("WSCFAACH.Proc_Contrapartidas", out var demoMethodId)
+            ? demoMethodId
+            : -1;
+
+        return new SeedCounts(
+            Methods: methods.Count,
+            TransaccionesParameters: CountParams("WSCFAACH.Proc_Transacciones"),
+            ContrapartidasParameters: CountParams("WSCFAACH.Proc_Contrapartidas"),
+            RespuestaParameters: CountParams("WSAXON.RegistrarRespuestaTransaccion"),
+            TransaccionesSourceFields: CountSources("WSCFAACH.Proc_Transacciones"),
+            ContrapartidasSourceFields: CountSources("WSCFAACH.Proc_Contrapartidas"),
+            RespuestaSourceFields: CountSources("WSAXON.RegistrarRespuestaTransaccion"),
+            MappingSets: mappingSets.Count,
+            PublishedSets: mappingSets.Count(x => x.Status == IntegrationMappingSetStatusEnum.Published),
+            DemoSets: demoContrapartidasId > 0
+                ? mappingSets.Count(x => x.MethodId == demoContrapartidasId && x.Name.Contains("Draft", StringComparison.OrdinalIgnoreCase))
+                : 0,
+            MappingRules: mappingRules.Count,
+            TransaccionesPublishedRules: CountRules("WSCFAACH.Proc_Transacciones"),
+            ContrapartidasPublishedRules: CountRules("WSCFAACH.Proc_Contrapartidas"),
+            RespuestaPublishedRules: CountRules("WSAXON.RegistrarRespuestaTransaccion"),
+            ContrapartidasOptionalPublishedRules: contrapartidasOptionalPublishedRules,
+            ResponseStatusMappings: responseMappings,
+            ResponseCodes: responseCodes,
+            MappingSetNames: mappingSets.Select(x => x.Name).ToList());
+    }
+
+    private static IntegrationMethodParameter InvalidRegistrarSeedParameter(
+        int methodId,
+        string parameterPath,
+        string displayName,
+        string dataType,
+        bool required,
+        int sortOrder)
+        => new()
+        {
+            MethodId = methodId,
+            ParameterPath = parameterPath,
+            DisplayName = displayName,
+            DescriptionEs = "Parametro de seed incorrecto fuera del WSDL validado.",
+            Category = "Contrato no WSDL",
+            ExampleValue = "SEED",
+            UiHelpText = "Se conserva solo para probar normalizacion del seed incorrecto.",
+            DataType = dataType,
+            Direction = IntegrationParameterDirectionEnum.Input,
+            Cardinality = IntegrationParameterCardinalityEnum.Scalar,
+            Required = required,
+            SortOrder = sortOrder,
+            IsActive = true
+        };
+
+    private static async Task<RegistrarPublishedMappingState> ReadRegistrarPublishedMappingStateAsync(AchDbContext context)
+    {
+        var method = await context.IntegrationMethods
+            .AsNoTracking()
+            .SingleAsync(x => x.Code == "WSAXON.RegistrarRespuestaTransaccion");
+        var parameters = await context.IntegrationMethodParameters
+            .AsNoTracking()
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .ToDictionaryAsync(x => x.Id, x => x.ParameterPath);
+        var activeSets = await context.IntegrationMappingSets
+            .AsNoTracking()
+            .Where(x => x.MethodId == method.Id
+                && x.Status == IntegrationMappingSetStatusEnum.Published
+                && x.IsActive)
+            .ToListAsync();
+        var activeSetIds = activeSets.Select(x => x.Id).ToArray();
+        var persistedRules = await context.IntegrationMappingRules
+            .AsNoTracking()
+            .Where(x => activeSetIds.Contains(x.MappingSetId))
+            .OrderBy(x => x.ParameterId)
+            .ToListAsync();
+        var rules = persistedRules
+            .Select(x => new RegistrarRuleState(
+                parameters[x.ParameterId],
+                x.SourceKind,
+                x.SourceFieldPath,
+                x.FixedValue,
+                x.DefaultValue,
+                x.Enabled))
+            .ToList();
+
+        return new RegistrarPublishedMappingState(
+            activeSets.Count,
+            activeSets.SingleOrDefault()?.Id,
+            await context.IntegrationMappingSets.CountAsync(x => x.MethodId == method.Id),
+            await context.IntegrationMappingRules.CountAsync(x => x.MethodId == method.Id),
+            rules);
+    }
+
+    private static void AssertCanonicalRegistrarPublishedMapping(RegistrarPublishedMappingState state)
+    {
+        var expectedSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["idCanal"] = "differentialResponse.idCanal",
+            ["nombreCanal"] = "differentialResponse.nombreCanal",
+            ["idTransaccion"] = "differentialResponse.idTransaccion",
+            ["idEstado"] = "differentialResponse.idEstado",
+            ["causal"] = "differentialResponse.codigoCausalExterna",
+            ["idTransaccionAxon"] = "differentialResponse.idTransaccionServicioExterno",
+            ["descripcionCausal"] = "differentialResponse.descripcionCausalExterna"
+        };
+
+        Assert.Equal(1, state.ActivePublishedSets);
+        Assert.NotNull(state.ActiveSetId);
+        Assert.Equal(7, state.Rules.Count);
+        Assert.Equal(expectedSources.Keys.OrderBy(x => x), state.Rules.Select(x => x.ParameterPath).OrderBy(x => x));
+        Assert.All(state.Rules, rule =>
+        {
+            Assert.Equal(IntegrationSourceKindEnum.DifferentialResponse, rule.SourceKind);
+            Assert.Equal(expectedSources[rule.ParameterPath], rule.SourceFieldPath);
+            Assert.Null(rule.FixedValue);
+            Assert.Null(rule.DefaultValue);
+            Assert.True(rule.Enabled);
+        });
+    }
+
+    private sealed record RegistrarPublishedMappingState(
+        int ActivePublishedSets,
+        Guid? ActiveSetId,
+        int TotalSets,
+        int TotalRules,
+        IReadOnlyCollection<RegistrarRuleState> Rules);
+
+    private sealed record RegistrarRuleState(
+        string ParameterPath,
+        IntegrationSourceKindEnum SourceKind,
+        string SourceFieldPath,
+        string? FixedValue,
+        string? DefaultValue,
+        bool Enabled);
+
+    private sealed class ContextFixture : IAsyncDisposable
+    {
+        private readonly SqliteConnection _connection;
+
+        private ContextFixture(SqliteConnection connection, AchDbContext context)
+        {
+            _connection = connection;
+            Context = context;
+        }
+
+        public AchDbContext Context { get; }
+
+        public static async Task<ContextFixture> CreateAsync()
+        {
+            var connection = new SqliteConnection("DataSource=:memory:");
+            await connection.OpenAsync();
+
+            var options = new DbContextOptionsBuilder<AchDbContext>()
+                .UseSqlite(connection)
+                .Options;
+            var context = new AchDbContext(options);
+            await context.Database.EnsureCreatedAsync();
+
+            return new ContextFixture(connection, context);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Context.DisposeAsync();
+            await _connection.DisposeAsync();
+        }
+    }
+
+    private sealed class ServiceFixture : IAsyncDisposable
+    {
+        private readonly SqliteConnection _connection;
+
+        private ServiceFixture(SqliteConnection connection, ServiceProvider provider)
+        {
+            _connection = connection;
+            Provider = provider;
+        }
+
+        public ServiceProvider Provider { get; }
+
+        public static async Task<ServiceFixture> CreateAsync(string environmentName, bool registerScenarioSeeder)
+        {
+            var connection = new SqliteConnection("DataSource=:memory:");
+            await connection.OpenAsync();
+
+            var services = new ServiceCollection();
+            services.AddSingleton<IHostEnvironment>(new TestHostEnvironment(environmentName));
+            services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SoapIntegrationBootstrap:Enabled"] = "false"
+                })
+                .Build());
+            services.AddDbContext<AchDbContext>(options => options.UseSqlite(connection));
+
+            if (registerScenarioSeeder)
+            {
+                services.AddScoped<IDbSeeder, IntegrationMappingScenarioSeeder>();
+            }
+
+            var provider = services.BuildServiceProvider();
+            using (var scope = provider.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+                await context.Database.EnsureCreatedAsync();
+                return new ServiceFixture(connection, (ServiceProvider)provider);
+            }
+        }
+
+        public async Task<SeedCounts> ReadCountsAsync()
+        {
+            using var scope = Provider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+            return await IntegrationBootstrapperTests.ReadCountsAsync(context);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Provider.DisposeAsync();
+            await _connection.DisposeAsync();
+        }
+    }
+
+    private sealed class TestHostEnvironment : IHostEnvironment
+    {
+        public TestHostEnvironment(string environmentName)
+        {
+            EnvironmentName = environmentName;
+            ApplicationName = nameof(IntegrationBootstrapperTests);
+            ContentRootPath = AppContext.BaseDirectory;
+        }
+
+        public string EnvironmentName { get; set; }
+        public string ApplicationName { get; set; }
+        public string ContentRootPath { get; set; }
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+}

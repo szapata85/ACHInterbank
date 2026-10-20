@@ -8,7 +8,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("api/ach/nacha/soap-uat-console")]
-[Authorize]
+[Authorize(Policy = FineGrainedPermissions.TestTools.Access)]
 public sealed class NachaSoapUatConsoleController : ControllerBase
 {
     private readonly INachaSoapUatConsoleReadModelService _service;
@@ -19,19 +19,16 @@ public sealed class NachaSoapUatConsoleController : ControllerBase
     }
 
     [HttpGet("dashboard")]
-    [Authorize(Policy = P1Policies.NachaRead)]
     [ProducesResponseType(typeof(NachaSoapUatConsoleDashboardReadModel), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDashboard(CancellationToken cancellationToken)
         => Ok(await _service.GetDashboardAsync(cancellationToken));
 
     [HttpGet("candidates")]
-    [Authorize(Policy = P1Policies.NachaRead)]
     [ProducesResponseType(typeof(IReadOnlyList<NachaSoapUatCandidateReadModel>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCandidates(CancellationToken cancellationToken)
         => Ok(await _service.GetCandidatesAsync(cancellationToken));
 
     [HttpGet("candidates/{correlationId}")]
-    [Authorize(Policy = P1Policies.NachaRead)]
     [ProducesResponseType(typeof(NachaSoapUatCandidateReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetCandidate(string correlationId, CancellationToken cancellationToken)
@@ -43,7 +40,6 @@ public sealed class NachaSoapUatConsoleController : ControllerBase
     }
 
     [HttpGet("audit")]
-    [Authorize(Policy = P1Policies.NachaRead)]
     [ProducesResponseType(typeof(IReadOnlyList<NachaSoapUatAuditReadModel>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAudit(CancellationToken cancellationToken)
         => Ok(await _service.GetAuditAsync(cancellationToken));

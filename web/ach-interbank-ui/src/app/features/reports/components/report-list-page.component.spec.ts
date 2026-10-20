@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
-import { ReportsApiService } from '../services/reports-api.service';
+import { ReportsApiService } from '../../../core/services/reports-api.service';
 import { ReportListPageComponent } from './report-list-page.component';
 
 describe('ReportListPageComponent', () => {
@@ -40,7 +40,7 @@ describe('ReportListPageComponent', () => {
           provide: ActivatedRoute,
           useValue: {
             snapshot: {
-              data: { title: 'Enviados', reportKey: 'sent', permissions: ['CanReadAch'] }
+              data: { title: 'Transacciones enviadas', reportKey: 'sent', permissions: ['CanReadAch'] }
             }
           }
         }
@@ -59,22 +59,22 @@ describe('ReportListPageComponent', () => {
   it('ReportButtons_ShouldRenderPrimarySearchButton', () => {
     const search = button('report-search-button');
 
-    expect(search.textContent?.trim()).toBe('Buscar');
-    expect(search.classList).toContain('report-action-primary');
+    expect(search.textContent).toContain('Consultar');
+    expect(search.getAttribute('type')).toBe('submit');
   });
 
   it('ReportButtons_ShouldRenderSecondaryClearButton', () => {
     const clear = button('report-clear-button');
 
-    expect(clear.textContent?.trim()).toBe('Limpiar');
-    expect(clear.classList).toContain('report-action-secondary');
+    expect(clear.textContent).toContain('Limpiar filtros');
+    expect(clear.getAttribute('type')).toBe('button');
   });
 
   it('ReportButtons_ShouldRenderExportPdfButton', () => {
     const exportButton = button('report-export-pdf-button');
 
-    expect(exportButton.textContent?.trim()).toBe('Exportar PDF');
-    expect(exportButton.classList).toContain('report-action-export');
+    expect(exportButton.textContent).toContain('Descargar PDF');
+    expect(exportButton.getAttribute('type')).toBe('button');
   });
 
   it('ReportButtons_ShouldNotRenderCriticalButtonsAsPlainWhite', () => {
@@ -82,10 +82,9 @@ describe('ReportListPageComponent', () => {
     const clear = button('report-clear-button');
     const exportButton = button('report-export-pdf-button');
 
-    expect(search.className).toContain('report-action-primary');
-    expect(clear.className).toContain('report-action-secondary');
-    expect(exportButton.className).toContain('report-action-export');
-    expect(exportButton.className).not.toContain('btn-primary');
+    expect(search.hasAttribute('mat-flat-button')).toBeTrue();
+    expect(clear.hasAttribute('mat-stroked-button')).toBeTrue();
+    expect(exportButton.hasAttribute('mat-stroked-button')).toBeTrue();
   });
 
   it('ReportFilters_ShouldKeepButtonsAccessible', () => {

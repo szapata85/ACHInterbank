@@ -54,6 +54,53 @@ Database__ApplyMigrations: ${DATABASE_APPLY_MIGRATIONS:-false}
 
 No habilitar migraciones desde este README. Cualquier cambio de esquema requiere aprobacion y procedimiento DBA separado.
 
+### Levantamiento limpio con SQL Server 2025
+
+Si se ejecuta:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml down -v --remove-orphans
+```
+
+la base local `ACHInterbank` queda eliminada. En ese caso, antes de ejecutar el seed la API debe levantarse con:
+
+```powershell
+$env:DATABASE_APPLY_MIGRATIONS="true"
+```
+
+En Bash/Linux:
+
+```bash
+export DATABASE_APPLY_MIGRATIONS=true
+```
+
+Flujo recomendado:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml build achinterbank-api achinterbank-spa
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml up -d
+curl -i http://localhost:843/health/ready
+curl -i -X POST http://localhost:843/Maintenance/seed
+```
+
+Si se omite migraciones luego de `down -v`, el síntoma esperado es:
+
+- `health/ready = 503`
+- login falla
+- `/Maintenance/seed` falla
+- error `Cannot open database "ACHInterbank"`
+
+Validaciones esperadas:
+
+- SQL Server 2025 `healthy`.
+- API `health/live` y `health/ready` OK.
+- SPA OK.
+- `/Maintenance/seed` 200.
+- `RegistrarRespuestaTransaccion` con 7 parametros WSDL activos.
+- `RegistrarRespuestaTransaccion` sin ANS* activos.
+- `Proc_Contrapartidas` conserva ANS* donde corresponde.
+- `PLValidarUsuarioBV` no catalogado.
+
 ## 6. SPA Angular
 
 ```bash
@@ -225,3 +272,24 @@ Resultados del commit `e5721150`:
 - Angular: 347/347.
 
 G3.6B demuestra correlacion por `AchCycleId`, no causalidad NachaExport -> Proc_Contrapartidas. Productivo permanece **NO-GO**.
+
+## 17. ACH Colombia — pendiente antes de homologación/producción
+
+Estado del frente FASE 1–8: **IMPLEMENTACIÓN COMPLETADA / VALIDACIÓN EJECUTABLE FINAL PENDIENTE**. No usar este estado como `GO`, `RELEASE_READY`, homologación o aceptación de usuario.
+
+Antes de homologar o promover a un ambiente productivo debe existir evidencia del artefacto exacto para:
+
+- [ ] build Release y pruebas backend .NET;
+- [ ] build y pruebas frontend completas;
+- [ ] FASE 8 controlada con PostgreSQL persistente, dos instancias y Quartz cluster;
+- [ ] una sola ejecución lógica con dos nodos, reschedule sin restart y recuperación después de caída;
+- [ ] SFTP CFA en ambiente autorizado, con rutas INPUT/OUTPUT acordadas;
+- [ ] usuario/credencial de homologación y procedimiento de rotación;
+- [ ] huella del servidor validada por canal autorizado;
+- [ ] firewall/lista blanca e IP de origen acordados con infraestructura/ACH Colombia;
+- [ ] horarios operativos definitivos C2-C6, sin inferencia desde regulación;
+- [ ] `EffectiveFrom` oficial de siete ciclos y resolución oficial del inicio de C4;
+- [ ] homologación ACH Colombia/GoAnywhere con evidencia de transporte/recepción acordada;
+- [ ] UAT del usuario y aceptación formal.
+
+El harness para el control interno está documentado en `docs/certification/ACH_COLOMBIA_PHASE8_CONTROLLED_E2E.md`. El handoff corto del frente está en `docs/ACH_COLOMBIA_INTERNAL_CLOSURE.md`.

@@ -7,7 +7,7 @@ namespace Cfa.ACHInterbank.Tests;
 
 internal static class ReturnOutExternalFileNamePolicyFactory
 {
-    public static IExternalFileNamePolicy Create(string externalFileName = "0101006.001.RET")
+    public static IExternalFileNamePolicy Create(string externalFileName = "0101006.001.1")
     {
         var policy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
         policy.Setup(x => x.GenerateExternalNameAsync(
@@ -18,6 +18,11 @@ internal static class ReturnOutExternalFileNamePolicyFactory
             .ReturnsAsync(new ExternalFileNamePolicyResult
             {
                 ExternalFileName = externalFileName,
+                Components = new ExternalFileNameComponents
+                {
+                    FullName = externalFileName,
+                    FileIdModifier = 'A'
+                },
                 Validation = new ExternalFileNameValidationResult
                 {
                     Disposition = ExternalFileValidationDisposition.Warning,

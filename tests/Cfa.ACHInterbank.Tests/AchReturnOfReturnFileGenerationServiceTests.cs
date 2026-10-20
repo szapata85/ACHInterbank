@@ -1,7 +1,9 @@
 using System.Text;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -48,7 +50,7 @@ public class AchReturnOfReturnFileGenerationServiceTests
         var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 130 }, DateTime.UtcNow), CancellationToken.None);
 
         Assert.False(result.IsGenerated);
-        Assert.Contains(result.Failures, x => x.Code == "RETURN_OF_RETURN_FLOW_NOT_FOUND");
+        Assert.Contains(result.Failures, x => x.Code == "SOURCE_RETURN_TRANSACTION_NOT_FOUND");
         Assert.Null(result.ContentText);
         Assert.Null(result.Content);
     }
@@ -690,7 +692,369 @@ public class AchReturnOfReturnFileGenerationServiceTests
         Assert.Contains(result.Failures, x => x.Code == "EXTERNAL_FILENAME_VALIDATION_FAILED");
     }
 
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldAllowContextualRor_WhenSourceReturnIsPreviousBusinessDay()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8101;
+        var targetDate = new DateTime(2026, 9, 16);
+        var flowId = SeedCenitCycle1RorFlow(context, 201, clearingHouseId, targetDate.AddDays(-1), targetDate);
+        var cyclePolicy = BuildCenitCycle1BlockedPolicy();
+        var sut = new AchReturnOfReturnFileGenerationService(
+            context,
+            cycleTransactionPolicy: cyclePolicy.Object,
+            operationalCalendarService: new OperationalCalendarService(context));
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, targetDate.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.DoesNotContain(result.Failures, x => x.Code == "CYCLE_TRANSACTION_NOT_ALLOWED");
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_OPTION_C_REQUIRED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldRejectRor_WhenSourceReturnIsSameDay()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8102;
+        var targetDate = new DateTime(2026, 9, 16);
+        var flowId = SeedCenitCycle1RorFlow(context, 202, clearingHouseId, targetDate, targetDate);
+        var sut = CreateCenitCycle1PolicySut(context);
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, targetDate.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_CYCLE1_PREVIOUS_BUSINESS_DAY_REQUIRED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldRejectRor_WhenSourceReturnIsOlderThanPreviousBusinessDay()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8103;
+        var targetDate = new DateTime(2026, 9, 16);
+        var flowId = SeedCenitCycle1RorFlow(context, 203, clearingHouseId, targetDate.AddDays(-2), targetDate);
+        var sut = CreateCenitCycle1PolicySut(context);
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, targetDate.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_CYCLE1_PREVIOUS_BUSINESS_DAY_REQUIRED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldUseOperationalCalendar_ForFridayToMonday()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8104;
+        var friday = new DateTime(2026, 9, 11);
+        var monday = new DateTime(2026, 9, 14);
+        var flowId = SeedCenitCycle1RorFlow(context, 204, clearingHouseId, friday, monday);
+        var sut = CreateCenitCycle1PolicySut(context);
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, monday.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.DoesNotContain(result.Failures, x => x.Code == "CENIT_ROR_CYCLE1_PREVIOUS_BUSINESS_DAY_REQUIRED");
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_OPTION_C_REQUIRED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldUseOperationalCalendar_WhenIntermediateDayIsClearingHouseHoliday()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8105;
+        var friday = new DateTime(2026, 9, 11);
+        var tuesday = new DateTime(2026, 9, 15);
+        SeedCenitCycle1RorFlow(context, 205, clearingHouseId, friday, tuesday);
+        context.ClearingHouseSpecialDates.Add(new ClearingHouseSpecialDate
+        {
+            ClearingHouseId = clearingHouseId,
+            Date = new DateOnly(2026, 9, 14),
+            Description = "Cierre operativo CENIT de prueba",
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+        var sut = CreateCenitCycle1PolicySut(context);
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { 205 }, tuesday.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.DoesNotContain(result.Failures, x => x.Code == "CENIT_ROR_CYCLE1_PREVIOUS_BUSINESS_DAY_REQUIRED");
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_OPTION_C_REQUIRED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldFailClosed_WhenOperationalCalendarIsMissing()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8106;
+        var targetDate = new DateTime(2026, 9, 16);
+        var flowId = SeedCenitCycle1RorFlow(context, 206, clearingHouseId, targetDate.AddDays(-1), targetDate);
+        var cyclePolicy = BuildCenitCycle1BlockedPolicy();
+        var sut = new AchReturnOfReturnFileGenerationService(context, cycleTransactionPolicy: cyclePolicy.Object);
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, targetDate.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_PREVIOUS_BUSINESS_DAY_UNRESOLVED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldRejectWholeFile_WhenAnySourceReturnIsOutsidePreviousBusinessDay()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8107;
+        var targetDate = new DateTime(2026, 9, 16);
+        var validFlowId = SeedCenitCycle1RorFlow(context, 207, clearingHouseId, targetDate.AddDays(-1), targetDate);
+        var invalidFlowId = SeedCenitCycle1RorFlow(context, 208, clearingHouseId, targetDate, targetDate);
+        var sut = CreateCenitCycle1PolicySut(context);
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { validFlowId, invalidFlowId }, targetDate.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_CYCLE1_PREVIOUS_BUSINESS_DAY_REQUIRED");
+        Assert.Null(result.Content);
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldNotOverrideUnresolvedCyclePolicy()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8108;
+        var targetDate = new DateTime(2026, 9, 16);
+        var flowId = SeedCenitCycle1RorFlow(context, 209, clearingHouseId, targetDate.AddDays(-1), targetDate);
+        var cyclePolicy = new Mock<ICycleTransactionPolicy>();
+        cyclePolicy.Setup(x => x.EvaluateAsync(It.IsAny<CycleTransactionPolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CycleTransactionPolicyResult(
+                false,
+                "CYCLE_POLICY_UNRESOLVED",
+                "No fue posible resolver la política.",
+                "CENIT",
+                1,
+                "ReturnOfReturn"));
+        var sut = new AchReturnOfReturnFileGenerationService(
+            context,
+            cycleTransactionPolicy: cyclePolicy.Object,
+            operationalCalendarService: new OperationalCalendarService(context));
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, targetDate.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CYCLE_POLICY_UNRESOLVED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldFailClosed_WhenCyclePolicyIsMissing()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8109;
+        var targetDate = new DateTime(2026, 9, 16);
+        var flowId = SeedCenitCycle1RorFlow(context, 210, clearingHouseId, targetDate.AddDays(-1), targetDate);
+        var sut = new AchReturnOfReturnFileGenerationService(
+            context,
+            operationalCalendarService: new OperationalCalendarService(context));
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, targetDate.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CYCLE_POLICY_UNRESOLVED");
+        Assert.DoesNotContain(result.Failures, x => x.Code == "CENIT_ROR_OPTION_C_REQUIRED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_ShouldFailClosed_WhenFileMixesCycle1AndAnotherCycle()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8110;
+        var targetDate = new DateTime(2026, 9, 16);
+        var cycle2FlowId = SeedCenitCycle1RorFlow(
+            context,
+            211,
+            clearingHouseId,
+            targetDate,
+            targetDate,
+            2);
+        var cycle1FlowId = SeedCenitCycle1RorFlow(
+            context,
+            212,
+            clearingHouseId,
+            targetDate.AddDays(-1),
+            targetDate,
+            1);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { cycle2FlowId, cycle1FlowId }, targetDate.AddHours(8), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_CYCLE1_TARGET_CONTEXT_MISMATCH");
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public async Task GenerateNachaAsync_CenitCycles2To5_ShouldPreserveExistingRorPolicyBehavior(int cycleNumber)
+    {
+        await using var context = BuildContext();
+        var clearingHouseId = 8200 + cycleNumber;
+        var targetDate = new DateTime(2026, 9, 16);
+        var flowId = SeedCenitCycle1RorFlow(
+            context,
+            220 + cycleNumber,
+            clearingHouseId,
+            targetDate,
+            targetDate,
+            cycleNumber);
+        var cyclePolicy = BuildCenitAllowedPolicy(cycleNumber);
+        var sut = new AchReturnOfReturnFileGenerationService(
+            context,
+            cycleTransactionPolicy: cyclePolicy.Object);
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, targetDate.AddHours(12), "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.DoesNotContain(result.Failures, x => x.Code.StartsWith("CENIT_ROR_CYCLE1_", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.Failures, x => x.Code == "CENIT_ROR_PREVIOUS_BUSINESS_DAY_UNRESOLVED");
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_OPTION_C_REQUIRED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_AchColombiaCycle1_ShouldNotUseCenitContextualException()
+    {
+        await using var context = BuildContext();
+        const int clearingHouseId = 8301;
+        EnsureClearingHouse(context, clearingHouseId, "ACHCOL");
+        var flowId = SeedFlow(context, 231, clearingHouseId);
+        var cyclePolicy = new Mock<ICycleTransactionPolicy>();
+        cyclePolicy.Setup(x => x.EvaluateAsync(It.IsAny<CycleTransactionPolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CycleTransactionPolicyResult(
+                false,
+                CycleTransactionPolicy.NotAllowedReasonCode,
+                "La política ACH Colombia no permite ReturnOfReturn en este ciclo.",
+                "ACHCOL",
+                1,
+                "ReturnOfReturn"));
+        var sut = new AchReturnOfReturnFileGenerationService(
+            context,
+            cycleTransactionPolicy: cyclePolicy.Object);
+
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "api"),
+            CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == CycleTransactionPolicy.NotAllowedReasonCode);
+        Assert.DoesNotContain(result.Failures, x => x.Code.StartsWith("CENIT_", StringComparison.Ordinal));
+    }
+
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+    static AchReturnOfReturnFileGenerationService CreateCenitCycle1PolicySut(AchDbContext context)
+    {
+        var cyclePolicy = BuildCenitCycle1BlockedPolicy();
+        return new AchReturnOfReturnFileGenerationService(
+            context,
+            cycleTransactionPolicy: cyclePolicy.Object,
+            operationalCalendarService: new OperationalCalendarService(context));
+    }
+
+    static Mock<ICycleTransactionPolicy> BuildCenitCycle1BlockedPolicy()
+    {
+        var cyclePolicy = new Mock<ICycleTransactionPolicy>();
+        cyclePolicy.Setup(x => x.EvaluateAsync(It.IsAny<CycleTransactionPolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CycleTransactionPolicyResult(
+                false,
+                "CYCLE_TRANSACTION_NOT_ALLOWED",
+                "La política vigente no permite ReturnOfReturn en Ciclo 1.",
+                "CENIT",
+                1,
+                "ReturnOfReturn"));
+        return cyclePolicy;
+    }
+
+    static Mock<ICycleTransactionPolicy> BuildCenitAllowedPolicy(int cycleNumber)
+    {
+        var cyclePolicy = new Mock<ICycleTransactionPolicy>();
+        cyclePolicy.Setup(x => x.EvaluateAsync(It.IsAny<CycleTransactionPolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CycleTransactionPolicyResult(
+                true,
+                "ALLOWED",
+                "La política vigente permite ReturnOfReturn en el ciclo.",
+                "CENIT",
+                cycleNumber,
+                "ReturnOfReturn"));
+        return cyclePolicy;
+    }
+
+    static int SeedCenitCycle1RorFlow(
+        AchDbContext context,
+        int flowId,
+        int clearingHouseId,
+        DateTime sourceReturnProcessingDate,
+        DateTime targetProcessingDate,
+        int targetCycleNumber = 1)
+    {
+        EnsureClearingHouse(context, clearingHouseId, "CENIT");
+        var sourceCycleId = $"CENIT-SRC-{flowId}";
+        var targetCycleId = $"CENIT-C{targetCycleNumber}-{flowId}";
+        context.AchCycles.AddRange(
+            new AchCycle
+            {
+                Id = sourceCycleId,
+                CycleName = "Ciclo 5 - CENIT",
+                ProcessingDate = sourceReturnProcessingDate.Date,
+                CutoffTime = TimeSpan.FromHours(18),
+                ClearingHouseId = clearingHouseId
+            },
+            new AchCycle
+            {
+                Id = targetCycleId,
+                CycleName = $"Ciclo {targetCycleNumber} - CENIT",
+                ProcessingDate = targetProcessingDate.Date,
+                CutoffTime = TimeSpan.FromHours(10.5),
+                ClearingHouseId = clearingHouseId
+            });
+
+        var sourceReturn = BuildTx(flowId * 10 + 1, sourceCycleId, $"CSRC{flowId}");
+        sourceReturn.EffectiveEntryDate = sourceReturnProcessingDate.Date;
+        var ror = BuildTx(flowId * 10 + 2, targetCycleId, $"CROR{flowId}");
+        ror.EffectiveEntryDate = targetProcessingDate.Date;
+        context.AchTransactions.AddRange(sourceReturn, ror);
+        context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow
+        {
+            Id = flowId,
+            OriginalTransactionId = sourceReturn.Id,
+            OriginalTransaction = sourceReturn,
+            ReturnOfReturnTransactionId = ror.Id,
+            ReturnOfReturnTransaction = ror,
+            ReasonCode = "R60",
+            Direction = "Out"
+        });
+        context.SaveChanges();
+        return flowId;
+    }
 
     static int SeedFlow(AchDbContext context, int flowId, int clearingHouseId)
     {

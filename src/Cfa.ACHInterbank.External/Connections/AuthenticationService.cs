@@ -7,7 +7,6 @@ namespace Cfa.ACHInterbank.External.Connections;
 public class AuthenticationService : IAuthenticationService
 {
     private readonly IHttpClientService _httpClientService;
-    private readonly AppSettings appSettings = AppSettings.Settings;
 
     public AuthenticationService(IHttpClientService httpClientService)
     {

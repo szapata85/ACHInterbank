@@ -1,12 +1,11 @@
-using Cfa.ACHInterbank.Application.ACH.Configuration;
+using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
-using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
-using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Models.ACH;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -15,16 +14,28 @@ public class TransactionPolicyService : ITransactionPolicyService
 {
     private readonly AchDbContext _context;
     private readonly IRoutingStrategyService _routingStrategyService;
-    private readonly TransactionPolicyOptions _options;
+    private readonly ICfaOperationalTransactionRestrictionResolver _operationalRestrictionResolver;
+    private readonly TimeProvider _timeProvider;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
 
     public TransactionPolicyService(
         AchDbContext context,
         IRoutingStrategyService routingStrategyService,
-        IOptions<TransactionPolicyOptions> options)
+        ICfaOperationalTransactionRestrictionResolver operationalRestrictionResolver,
+        TimeProvider? timeProvider = null,
+        IOperationalCycleWindowResolver? windowResolver = null,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null)
     {
         _context = context;
         _routingStrategyService = routingStrategyService;
-        _options = options.Value ?? new TransactionPolicyOptions();
+        _operationalRestrictionResolver = operationalRestrictionResolver;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
+            new ClearingHouseToPaymentRailMapper(),
+            new CycleNumberResolver());
     }
 
     public async Task<TransactionPolicyPreview> PreviewAsync(TransactionPolicyPreviewRequest request, CancellationToken ct = default)
@@ -44,34 +55,89 @@ public class TransactionPolicyService : ITransactionPolicyService
             return Reject("La cuenta destino es obligatoria para validar políticas ACH.");
         }
 
-        var now = DateTime.Now;
-        var cycleId = await _routingStrategyService.ResolveClearingHouseForTransactionAsync(request.DestinationInstitutionId, now, ct);
+        // 1. Resolve the operational cycle first. The resolved cycle carries the versioned
+        // ClearingHouseCycleConfigId that isolates both regulatory and CFA operational rules.
+        var nowInstant = _timeProvider.GetUtcNow();
+        var cycleId = await _routingStrategyService.ResolveClearingHouseForTransactionAsync(
+            request.DestinationInstitutionId,
+            nowInstant.UtcDateTime,
+            ct);
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .Include(c => c.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .FirstOrDefaultAsync(c => c.Id == cycleId, ct)
             ?? throw new InvalidOperationException("No se encontró el ciclo ACH resuelto para la transacción.");
 
-        var window = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
-        var isWithinProcessingWindow = now >= window.Start && now <= window.End;
+        var idempotencyKey = BuildIdempotencyKey(request, cycle.Id);
+
+        // 2-3. Regulation is the absolute first business-policy gate. CFA operational
+        // restrictions can only tighten an ALLOW; they can never override a regulatory DENY.
+        var regulatoryDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+            cycle.ClearingHouseId,
+            cycle.ClearingHouseCycleConfigId,
+            cycle.ProcessingDate,
+            cycle.ClearingHouse?.Code,
+            cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+            cycle.CycleName,
+            request.Type,
+            request.IsPrenotification), ct);
+        if (!regulatoryDecision.IsAllowed)
+        {
+            return Reject(
+                $"{regulatoryDecision.ReasonCode}: {regulatoryDecision.Message}",
+                cycle,
+                idempotencyKey: idempotencyKey);
+        }
+
+        // 4. Apply persisted CFA operational restrictions using the versioned cycle-config id.
+        var restriction = await _operationalRestrictionResolver.ResolveAsync(
+            new CfaOperationalTransactionRestrictionRequest(
+                cycle.ClearingHouseId,
+                cycle.ClearingHouseCycleConfigId,
+                request.Type,
+                request.IsPrenotification,
+                request.AccountType,
+                DateTime.SpecifyKind(cycle.ProcessingDate.Date, DateTimeKind.Utc)),
+            ct);
+
+        if (restriction.IsOperationallyDenied)
+        {
+            return Reject(
+                restriction.DenyReason
+                    ?? $"El tipo de producto {request.AccountType} no está habilitado por las restricciones operacionales CFA.",
+                cycle,
+                idempotencyKey: idempotencyKey,
+                restriction: restriction);
+        }
+
+        // 5. Existing operational controls continue after regulation + CFA restriction resolution.
+        var resolvedWindow = _windowResolver.Resolve(
+            cycle.ProcessingDate,
+            cycle.StartTime,
+            cycle.CutoffTime,
+            ClearingHouseOperationalTimeZone.Resolve(cycle),
+            nowInstant);
+        var window = (Start: resolvedWindow.LocalStart, End: resolvedWindow.LocalEnd);
+        var isWithinProcessingWindow = resolvedWindow.IsInside;
         if (!isWithinProcessingWindow)
         {
             return Reject(
-                $"La transacción está fuera de la ventana operativa del ciclo {cycle.CycleName} ({window.Start:yyyy-MM-dd HH:mm} - {window.End:yyyy-MM-dd HH:mm}).",
+                $"La transacción está fuera de la ventana de entrada del ciclo {cycle.CycleName} ({window.Start:yyyy-MM-dd HH:mm} - {window.End:yyyy-MM-dd HH:mm}).",
                 cycle,
                 window,
-                idempotencyKey: BuildIdempotencyKey(request, cycle.Id));
+                idempotencyKey,
+                restriction);
         }
 
-        var rule = ResolveRule(cycle.ClearingHouseId, cycle.CycleName, request.Type, request.AccountType, request.IsPrenotification);
-        if (rule.AllowedAccountTypes.Count > 0 && !rule.AllowedAccountTypes.Contains(request.AccountType))
+        if (restriction.MaxAmountPerTransaction.HasValue && request.Amount > restriction.MaxAmountPerTransaction.Value)
         {
-            return Reject($"El tipo de producto {request.AccountType} no está habilitado para {request.Type} en {cycle.CycleName}.", cycle, window, BuildIdempotencyKey(request, cycle.Id));
-        }
-
-        if (rule.MaxAmountPerTransaction.HasValue && request.Amount > rule.MaxAmountPerTransaction.Value)
-        {
-            return Reject($"El monto excede el límite por transacción de {rule.MaxAmountPerTransaction.Value:N2}.", cycle, window, BuildIdempotencyKey(request, cycle.Id), rule);
+            return Reject(
+                $"El monto excede el límite por transacción de {restriction.MaxAmountPerTransaction.Value:N2}.",
+                cycle,
+                window,
+                idempotencyKey,
+                restriction);
         }
 
         var cycleTransactions = await _context.AchTransactions
@@ -82,17 +148,31 @@ public class TransactionPolicyService : ITransactionPolicyService
         var existingCount = cycleTransactions.Count;
         var existingAmount = cycleTransactions.Sum(t => t.Amount);
 
-        if (rule.MaxTransactionsPerCycle.HasValue && existingCount >= rule.MaxTransactionsPerCycle.Value)
+        if (restriction.MaxTransactionsPerCycle.HasValue && existingCount >= restriction.MaxTransactionsPerCycle.Value)
         {
-            return Reject($"El ciclo alcanzó el máximo de {rule.MaxTransactionsPerCycle.Value} transacciones para {request.Type}.", cycle, window, BuildIdempotencyKey(request, cycle.Id), rule, existingCount, existingAmount);
+            return Reject(
+                $"El ciclo alcanzó el máximo de {restriction.MaxTransactionsPerCycle.Value} transacciones para {request.Type}.",
+                cycle,
+                window,
+                idempotencyKey,
+                restriction,
+                existingCount,
+                existingAmount);
         }
 
-        if (rule.MaxAmountPerCycle.HasValue && existingAmount + request.Amount > rule.MaxAmountPerCycle.Value)
+        if (restriction.MaxAmountPerCycle.HasValue && existingAmount + request.Amount > restriction.MaxAmountPerCycle.Value)
         {
-            return Reject($"El ciclo no tiene cupo suficiente. Disponible restante: {Math.Max(0, rule.MaxAmountPerCycle.Value - existingAmount):N2}.", cycle, window, BuildIdempotencyKey(request, cycle.Id), rule, existingCount, existingAmount);
+            return Reject(
+                $"El ciclo no tiene cupo suficiente. Disponible restante: {Math.Max(0, restriction.MaxAmountPerCycle.Value - existingAmount):N2}.",
+                cycle,
+                window,
+                idempotencyKey,
+                restriction,
+                existingCount,
+                existingAmount);
         }
 
-        var idempotencyKey = BuildIdempotencyKey(request, cycle.Id);
+        // 6. Duplicate detection and the rest of the existing preview contract remain unchanged.
         var operationalId = ResolveOperationalId(request.TransactionExternalId, request.Reference);
         var wouldDuplicate = await _context.AchTransactions
             .AsNoTracking()
@@ -115,27 +195,11 @@ public class TransactionPolicyService : ITransactionPolicyService
             cycle.ClearingHouseId,
             $"{window.Start:yyyy-MM-dd HH:mm} - {window.End:yyyy-MM-dd HH:mm}",
             isWithinProcessingWindow,
-            rule.MaxAmountPerTransaction,
-            rule.MaxAmountPerCycle.HasValue ? Math.Max(0, rule.MaxAmountPerCycle.Value - existingAmount) : null,
-            rule.MaxTransactionsPerCycle.HasValue ? Math.Max(0, rule.MaxTransactionsPerCycle.Value - existingCount) : null,
+            restriction.MaxAmountPerTransaction,
+            restriction.MaxAmountPerCycle.HasValue ? Math.Max(0, restriction.MaxAmountPerCycle.Value - existingAmount) : null,
+            restriction.MaxTransactionsPerCycle.HasValue ? Math.Max(0, restriction.MaxTransactionsPerCycle.Value - existingCount) : null,
             idempotencyKey,
             wouldDuplicate);
-    }
-
-    private TransactionLimitRule ResolveRule(int clearingHouseId, string cycleName, TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification)
-    {
-        return _options.Limits
-            .Where(rule => !rule.ClearingHouseId.HasValue || rule.ClearingHouseId == clearingHouseId)
-            .Where(rule => string.IsNullOrWhiteSpace(rule.CycleName) || string.Equals(rule.CycleName, cycleName, StringComparison.OrdinalIgnoreCase))
-            .Where(rule => !rule.TransactionType.HasValue || rule.TransactionType == type)
-            .Where(rule => !rule.IsPrenotification.HasValue || rule.IsPrenotification == isPrenotification)
-            .Where(rule => rule.AllowedAccountTypes.Count == 0 || rule.AllowedAccountTypes.Contains(accountType))
-            .OrderByDescending(rule => rule.ClearingHouseId.HasValue)
-            .ThenByDescending(rule => !string.IsNullOrWhiteSpace(rule.CycleName))
-            .ThenByDescending(rule => rule.TransactionType.HasValue)
-            .ThenByDescending(rule => rule.IsPrenotification.HasValue)
-            .FirstOrDefault()
-            ?? _options.Defaults;
     }
 
     private static TransactionPolicyPreview Reject(
@@ -143,7 +207,7 @@ public class TransactionPolicyService : ITransactionPolicyService
         AchCycle? cycle = null,
         (DateTime Start, DateTime End)? window = null,
         string? idempotencyKey = null,
-        TransactionLimitRule? rule = null,
+        CfaOperationalTransactionRestrictionResolution? restriction = null,
         int? existingCount = null,
         decimal? existingAmount = null)
     {
@@ -157,21 +221,15 @@ public class TransactionPolicyService : ITransactionPolicyService
             cycle?.ClearingHouseId,
             window.HasValue ? $"{window.Value.Start:yyyy-MM-dd HH:mm} - {window.Value.End:yyyy-MM-dd HH:mm}" : null,
             false,
-            rule?.MaxAmountPerTransaction,
-            rule?.MaxAmountPerCycle.HasValue == true && existingAmount.HasValue ? Math.Max(0, rule.MaxAmountPerCycle.Value - existingAmount.Value) : null,
-            rule?.MaxTransactionsPerCycle.HasValue == true && existingCount.HasValue ? Math.Max(0, rule.MaxTransactionsPerCycle.Value - existingCount.Value) : null,
+            restriction?.MaxAmountPerTransaction,
+            restriction?.MaxAmountPerCycle.HasValue == true && existingAmount.HasValue
+                ? Math.Max(0, restriction.MaxAmountPerCycle.Value - existingAmount.Value)
+                : null,
+            restriction?.MaxTransactionsPerCycle.HasValue == true && existingCount.HasValue
+                ? Math.Max(0, restriction.MaxTransactionsPerCycle.Value - existingCount.Value)
+                : null,
             idempotencyKey,
             false);
-    }
-
-    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
-    {
-        if (startTime <= endTime)
-        {
-            return (processingDate.Date + startTime, processingDate.Date + endTime);
-        }
-
-        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
     }
 
     private static string BuildIdempotencyKey(TransactionPolicyPreviewRequest request, string cycleId)

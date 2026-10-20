@@ -30,15 +30,19 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
 
         var now = DateTimeOffset.UtcNow;
         var effectiveFrom = new DateTime(2026, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var cenitEffectiveFrom = new DateTime(2026, 05, 07, 0, 0, 0, DateTimeKind.Utc);
 
         await UpsertRuleAsync(
             achClearingHouse.Id,
             source.Id,
             "ACH Colombia",
-            "MAN-004 ACH Colombia V32",
-            "ACH-Colombia-V32",
+            "DDS-DIS-MAN-004 ACH Colombia V35, sección 6.1.10.1",
+            "ACH-Colombia-V35",
             "6.1.10.1 / 6.1.10.3",
             "Regla outbound oficial ACH Colombia. ReturnOut reutiliza esta regla con scope separado de secuencia.",
+            "RRRRTTT.ZZZ.N",
+            ".ach",
+            36,
             now,
             effectiveFrom);
 
@@ -46,12 +50,15 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
             cenitClearingHouse.Id,
             source.Id,
             "CENIT",
-            "CENIT-DSP-152-Anexo-2",
-            "CENIT-DSP-152-Anexo-2",
-            "Homologacion operativa actual",
-            "Regla outbound homologada para CENIT mientras no exista naming distinto documentado. ReturnOut reutiliza esta regla con scope separado de secuencia.",
+            "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            "6.1 / 6.2",
+            "Convencion de nombre oficial CENIT mayo 2026",
+            "Regla outbound CENIT sin extension; ZZZ usa el consecutivo diario 001..999 y el identificador del Registro 1 cicla A-Z,0-9.",
+            "RRRRTTT.ZZZ.1",
+            string.Empty,
+            999,
             now,
-            effectiveFrom);
+            cenitEffectiveFrom);
 
         await _context.SaveChangesAsync();
     }
@@ -118,14 +125,16 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
         string normativeReference,
         string notesHeading,
         string notes,
+        string namePattern,
+        string extension,
+        int dailySequenceMax,
         DateTimeOffset now,
         DateTime effectiveFrom)
     {
         var existing = await _context.NachaFileNamingRules
             .SingleOrDefaultAsync(x =>
                 x.ClearingHouseId == clearingHouseId &&
-                x.FileDirection == NachaFileDirection.Outbound &&
-                x.NamePattern == "RRRRTTT.ZZZ.N");
+                x.FileDirection == NachaFileDirection.Outbound);
 
         if (existing is null)
         {
@@ -134,10 +143,10 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
                 ClearingHouseId = clearingHouseId,
                 SourceFinancialInstitutionId = sourceFinancialInstitutionId,
                 FileDirection = NachaFileDirection.Outbound,
-                NamePattern = "RRRRTTT.ZZZ.N",
-                Extension = ".ach",
+                NamePattern = namePattern,
+                Extension = extension,
                 DailySequenceMin = 1,
-                DailySequenceMax = 36,
+                DailySequenceMax = dailySequenceMax,
                 InternalFileIdMappingMode = InternalFileIdMappingMode.Alphanumeric36,
                 RequiresNameHeaderEntityMatch = true,
                 IsActive = true,
@@ -154,10 +163,10 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
 
         existing.SourceFinancialInstitutionId = sourceFinancialInstitutionId;
         existing.FileDirection = NachaFileDirection.Outbound;
-        existing.NamePattern = "RRRRTTT.ZZZ.N";
-        existing.Extension = ".ach";
+        existing.NamePattern = namePattern;
+        existing.Extension = extension;
         existing.DailySequenceMin = 1;
-        existing.DailySequenceMax = 36;
+        existing.DailySequenceMax = dailySequenceMax;
         existing.InternalFileIdMappingMode = InternalFileIdMappingMode.Alphanumeric36;
         existing.RequiresNameHeaderEntityMatch = true;
         existing.IsActive = true;

@@ -1,24 +1,19 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Injectable, computed, signal } from '@angular/core';
 
 @Injectable({ providedIn: 'root' })
 export class LoadingService {
-  private readonly counter = new BehaviorSubject<number>(0);
-
-  readonly pending$: Observable<number> = this.counter.asObservable();
-  readonly isLoading$: Observable<boolean> = this.pending$.pipe(map((value) => value > 0));
+  private readonly counter = signal(0);
+  readonly isLoading = computed(() => this.counter() > 0);
 
   show(): void {
-    this.counter.next(this.counter.value + 1);
+    this.counter.update(value => value + 1);
   }
 
   hide(): void {
-    const next = this.counter.value - 1;
-    this.counter.next(next < 0 ? 0 : next);
+    this.counter.update(value => Math.max(0, value - 1));
   }
 
   reset(): void {
-    this.counter.next(0);
+    this.counter.set(0);
   }
 }

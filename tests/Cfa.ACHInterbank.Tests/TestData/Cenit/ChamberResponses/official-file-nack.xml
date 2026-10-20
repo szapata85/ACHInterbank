@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FileNack xmlns="urn:xs:FileNack">
+  <GroupHeader>
+    <GroupId>NACK-20260831-1</GroupId>
+    <Status>NACK</Status>
+    <IndvItemsTotalNo>1</IndvItemsTotalNo>
+    <CreationDate>2026-08-31T12:06:00-05:00</CreationDate>
+  </GroupHeader>
+  <AdditionalRefs>
+    <RelatedRef>REF-1</RelatedRef>
+    <OrigSender>0001001</OrigSender>
+  </AdditionalRefs>
+  <FileErrorHandling>
+    <AdditionalDesc>El nombre de archivo no tiene la extensión requerida</AdditionalDesc>
+    <Status>NACK</Status>
+    <ErrorCode>ERR_FILENAME_EXTENSION</ErrorCode>
+  </FileErrorHandling>
+</FileNack>

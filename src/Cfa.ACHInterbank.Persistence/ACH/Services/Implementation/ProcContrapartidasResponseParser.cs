@@ -10,12 +10,17 @@ public sealed class ProcContrapartidasResponseParser : IProcContrapartidasRespon
 {
     private static readonly HashSet<string> SuccessCodes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "R96", "00", "OK", "SUCCESS"
+        "00", "OK", "SUCCESS"
     };
 
     private static readonly HashSet<string> RetryableCodes = new(StringComparer.OrdinalIgnoreCase)
     {
         "TIMEOUT", "TEMP", "TEMPORARY", "R98", "R99", "E500", "UNKNOWN"
+    };
+
+    private static readonly HashSet<string> TechnicalAnomalyCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "RE", "0", "SOAP_FAULT", "PARSER_ERROR", "EMPTY_RESPONSE", "SOAP_EXCEPTION"
     };
 
     public ProcContrapartidasParsedResponse Parse(string responseXml)
@@ -52,13 +57,19 @@ public sealed class ProcContrapartidasResponseParser : IProcContrapartidasRespon
                     }
                     : new Dictionary<int, ProcContrapartidasParsedItemResponse>();
 
+                var isTechnicalAnomaly = !successByContract && TechnicalAnomalyCodes.Contains(normalized);
+
                 return new ProcContrapartidasParsedResponse(
                     IsSuccess: successByContract,
                     IsSoapFault: false,
                     IsRetryable: !successByContract && RetryableCodes.Contains(normalized),
-                    IsFunctionalRejection: !successByContract,
+                    IsFunctionalRejection: !successByContract && !isTechnicalAnomaly,
                     ErrorCode: successByContract ? string.Empty : (ansCode ?? normalized),
-                    ErrorMessage: successByContract ? string.Empty : $"Proc_Contrapartidas rechazo: ANSST={ansStatus}, ANCLC={ansCode}",
+                    ErrorMessage: successByContract
+                        ? string.Empty
+                        : isTechnicalAnomaly
+                            ? $"Proc_Contrapartidas respuesta tecnica/anomala: ANSST={ansStatus}, ANCLC={ansCode}"
+                            : $"Proc_Contrapartidas rechazo: ANSST={ansStatus}, ANCLC={ansCode}",
                     RawResponse: raw,
                     ResponseCode: normalized,
                     ItemResults: item);
@@ -90,7 +101,11 @@ public sealed class ProcContrapartidasResponseParser : IProcContrapartidasRespon
                 : SuccessCodes.Contains(responseCode);
 
             bool anyRetryableItem = items.Values.Any(i => i.IsRetryable);
-            bool isFunctionalRejection = !isSuccess && !hasItems && !RetryableCodes.Contains(responseCode) && !responseCode.Equals("UNKNOWN", StringComparison.OrdinalIgnoreCase);
+            bool isFunctionalRejection = !isSuccess
+                && !hasItems
+                && !RetryableCodes.Contains(responseCode)
+                && !TechnicalAnomalyCodes.Contains(responseCode)
+                && !responseCode.Equals("UNKNOWN", StringComparison.OrdinalIgnoreCase);
             bool isRetryable = !isSuccess && (anyRetryableItem || RetryableCodes.Contains(responseCode));
 
             var errorCode = isSuccess ? string.Empty : responseCode;

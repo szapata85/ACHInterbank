@@ -4,8 +4,9 @@
 ></app-page-header>
 
 <div class="acciones-header">
-  <ui-boton texto="Volver" variante="contorno" (accion)="backToList()"></ui-boton>
-  <ui-boton *ngIf="detail" texto="Ver intentos" variante="primario" (accion)="goToAttempts()"></ui-boton>
+  <button mat-stroked-button type="button" (click)="backToList()">Volver</button>
+  <button *ngIf="detail" mat-flat-button color="primary" type="button" (click)="goToAttempts()">Ver intentos</button>
+  <button *ngIf="detail" mat-stroked-button type="button" (click)="toggleAudit()">Auditoría</button>
 </div>
 
 <ui-estado-carga *ngIf="loading" [mensaje]="'Cargando detalle de respuesta ACH...'"></ui-estado-carga>
@@ -17,6 +18,72 @@
 ></ui-estado-error>
 
 <div *ngIf="!loading && !error && detail" class="detalle-layout">
+  <section class="card" *ngIf="canReprocess()">
+    <h3>Reproceso gobernado</h3>
+    <mat-form-field appearance="outline" class="reproceso-justificacion">
+      <mat-label>Justificación obligatoria</mat-label>
+      <textarea
+        matInput
+        rows="2"
+        [value]="reprocessReason"
+        [disabled]="reprocessing"
+        (input)="reprocessReason = $any($event.target).value"
+      ></textarea>
+    </mat-form-field>
+    <button mat-flat-button color="primary" type="button" [disabled]="reprocessing" (click)="requestReprocess()">
+      Solicitar reproceso
+    </button>
+  </section>
+
+  <section class="card" *ngIf="auditVisible">
+    <h3>Auditoría inmutable</h3>
+    <p *ngIf="auditEntries.length === 0">No hay eventos registrados.</p>
+    <details *ngFor="let event of auditEntries">
+      <summary>{{ event.action }} · {{ formatDate(event.occurredAtUtc) }}</summary>
+      <p>{{ event.previousState || '—' }} → {{ event.newState || '—' }}</p>
+      <p><strong>Actor:</strong> {{ event.actor }} · <strong>Motivo:</strong> {{ event.reason }}</p>
+      <pre *ngIf="event.sanitizedMetadata">{{ event.sanitizedMetadata }}</pre>
+    </details>
+  </section>
+
+  <section class="card">
+    <div class="acciones-header acciones-seccion">
+      <h3>Historial de reprocesos</h3>
+      <button mat-stroked-button type="button" (click)="loadReprocessAttempts(detail.id)">Actualizar</button>
+    </div>
+    <p *ngIf="reprocessAttempts.length === 0">No hay reprocesos registrados.</p>
+    <div class="tabla-wrapper" *ngIf="reprocessAttempts.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Intento</th><th>Estado</th><th>Solicitado por</th><th>Solicitud</th>
+            <th>Inicio</th><th>Terminación</th><th>Instancia</th><th>ID de correlación</th>
+            <th>Resultado</th><th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let attempt of reprocessAttempts">
+            <td>{{ attempt.attemptNumber }}</td>
+            <td>
+              <ui-etiqueta-estado
+                [estado]="getReprocessStatusState(attempt.status)"
+                [texto]="formatReprocessStatus(attempt.status)"
+              ></ui-etiqueta-estado>
+            </td>
+            <td>{{ formatValue(attempt.requestedBy) }}</td>
+            <td>{{ formatDate(attempt.requestedAtUtc) }}</td>
+            <td>{{ formatDate(attempt.startedAtUtc) }}</td>
+            <td>{{ formatDate(attempt.completedAtUtc) }}</td>
+            <td>{{ formatValue(attempt.claimedBy) }}</td>
+            <td>{{ formatValue(attempt.correlationId) }}</td>
+            <td>{{ formatValue(attempt.resultCode) }}</td>
+            <td>{{ formatValue(attempt.errorDetailSanitized || attempt.result) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="card">
     <h3>Datos principales</h3>
     <div class="grid-campos">
@@ -39,9 +106,10 @@
     <div class="grid-campos">
       <p>
         <strong>Estado procesamiento:</strong>
-        <span class="estado-pill" [ngClass]="getProcessingStatusClass(detail.estadoProcesamiento)">
-          {{ formatProcessingStatus(detail.estadoProcesamiento) }}
-        </span>
+        <ui-etiqueta-estado
+          [estado]="getProcessingStatusState(detail.estadoProcesamiento)"
+          [texto]="formatProcessingStatus(detail.estadoProcesamiento)"
+        ></ui-etiqueta-estado>
       </p>
       <p><strong>Id estado interno:</strong> {{ formatValue(detail.idEstadoInterno) }}</p>
       <p><strong>Id estado servicio externo:</strong> {{ formatValue(detail.idEstadoServicioExterno) }}</p>
@@ -69,27 +137,28 @@
         <table>
           <thead>
             <tr>
-              <th>Número intento</th>
-              <th>Estado notificación</th>
-              <th>IdCanal</th>
-              <th>Nombre canal</th>
-              <th>IdEstado</th>
+              <th>Número de intento</th>
+              <th>Estado de notificación</th>
+              <th>ID de canal</th>
+              <th>Nombre del canal</th>
+              <th>ID del estado</th>
               <th>Causal</th>
               <th>Existe error</th>
-              <th>Código error</th>
-              <th>Descripción error</th>
+              <th>Código de error</th>
+              <th>Descripción del error</th>
               <th>Error técnico</th>
-              <th>Fecha creación</th>
-              <th>Fecha envío</th>
+              <th>Fecha de creación</th>
+              <th>Fecha de envío</th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let attempt of detail.notificationAttempts">
               <td>{{ formatValue(attempt.numeroIntento) }}</td>
               <td>
-                <span class="estado-pill" [ngClass]="getNotificationStatusClass(attempt.estadoNotificacion)">
-                  {{ formatNotificationStatus(attempt.estadoNotificacion) }}
-                </span>
+                <ui-etiqueta-estado
+                  [estado]="getNotificationStatusState(attempt.estadoNotificacion)"
+                  [texto]="formatNotificationStatus(attempt.estadoNotificacion)"
+                ></ui-etiqueta-estado>
               </td>
               <td>{{ formatValue(attempt.idCanal) }}</td>
               <td>{{ formatValue(attempt.nombreCanal) }}</td>

@@ -1,0 +1,198 @@
+<main class="monitor" data-testid="outgoing-monitoring-page">
+  <ng-template #headerActions>
+    <button mat-stroked-button type="button" (click)="refresh()" [disabled]="loading()" aria-label="Actualizar transacciones de salida">
+      <mat-icon>refresh</mat-icon> Actualizar
+    </button>
+  </ng-template>
+
+  <app-page-header
+    title="Transacciones enviadas"
+    subtitle="Consulta operativa"
+    [actionsTemplate]="headerActions"
+  ></app-page-header>
+  <p class="page-description">Consulta el recorrido comprobable de las transacciones originadas por CFA, sin ejecutar acciones operativas.</p>
+
+  <mat-card class="filters-card">
+    <mat-card-header><mat-card-title>Filtros de búsqueda</mat-card-title></mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="form" class="filters" (ngSubmit)="search()">
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha inicial</mat-label>
+          <input matInput [matDatepicker]="fromPicker" formControlName="fromDate" aria-label="Fecha inicial">
+          <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha final</mat-label>
+          <input matInput [matDatepicker]="toPicker" formControlName="toDate" aria-label="Fecha final">
+          <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
+          @if (form.hasError('dateOrder') && (form.controls.fromDate.touched || form.controls.toDate.touched)) {
+            <mat-error>La fecha final debe ser igual o posterior a la fecha inicial.</mat-error>
+          } @else if (form.hasError('dateRangeExceeded') && (form.controls.fromDate.touched || form.controls.toDate.touched)) {
+            <mat-error>El rango consultado no puede superar 90 días.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Cámara compensadora</mat-label>
+          <mat-select formControlName="clearingHouseId">
+            <mat-option [value]="null">Todas las cámaras</mat-option>
+            @for (house of clearingHouses(); track house.id) { <mat-option [value]="house.id">{{ house.name }}{{ house.code ? ' (' + house.code + ')' : '' }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Ciclo</mat-label>
+          <mat-select formControlName="cycleId">
+            <mat-option [value]="null">Todos los ciclos</mat-option>
+            @if (cyclesLoading()) {
+              <mat-option disabled>Cargando ciclos…</mat-option>
+            } @else if (cyclesError()) {
+              <mat-option disabled>No fue posible consultar los ciclos.</mat-option>
+            } @else if (cycles().length === 0) {
+              <mat-option disabled>No hay ciclos disponibles.</mat-option>
+            } @else {
+              @for (cycle of cycles(); track cycle.id) {
+                <mat-option [value]="cycle.id">
+                  {{ cycle.cycleName }} — {{ cycle.clearingHouseName }} — {{ cycle.cutoffTime }}
+                </mat-option>
+              }
+            }
+          </mat-select>
+          @if (cyclesLoading()) {
+            <mat-hint>Cargando ciclos…</mat-hint>
+          } @else if (cyclesError()) {
+            <mat-hint>
+              No fue posible consultar los ciclos.
+              <button mat-button type="button" (click)="retryCycleCatalog()">Reintentar</button>
+            </mat-hint>
+          } @else if (cycles().length === 0) {
+            <mat-hint>No hay ciclos disponibles.</mat-hint>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Entidad destino</mat-label>
+          <mat-select formControlName="destinationInstitutionId">
+            <mat-option [value]="null">Todas las entidades</mat-option>
+            @for (institution of institutions(); track institution.id) {
+              <mat-option [value]="institution.id">{{ institution.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Identificador</mat-label>
+          <input matInput formControlName="transactionExternalId" maxlength="64" autocomplete="off">
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Número de seguimiento</mat-label>
+          <input matInput formControlName="traceNumber" maxlength="32" autocomplete="off">
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Código de respuesta</mat-label>
+          <input matInput formControlName="responseCode" maxlength="32" autocomplete="off">
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo de operación</mat-label>
+          <mat-select formControlName="transactionType">
+            <mat-option [value]="null">Todos</mat-option>
+            <mat-option [value]="1">Crédito</mat-option><mat-option [value]="2">Débito</mat-option>
+            <mat-option [value]="3">Prenotificación</mat-option><mat-option [value]="4">Reversión</mat-option>
+            <mat-option [value]="5">Devolución</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Estado del proceso</mat-label>
+          <mat-select formControlName="processStatus">
+            <mat-option value="">Todos</mat-option><mat-option value="Created">Creada</mat-option>
+            <mat-option value="Scheduled">Asignada a un ciclo futuro</mat-option>
+            <mat-option value="Processing">En procesamiento</mat-option><mat-option value="Processed">Procesada</mat-option>
+            <mat-option value="TechnicalError">Error técnico</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Resultado inicial</mat-label>
+          <mat-select formControlName="initialResult">
+            <mat-option value="">Todos</mat-option><mat-option value="Accepted">Aceptada</mat-option>
+            <mat-option value="Certified">Certificada</mat-option><mat-option value="Rejected">Rechazada</mat-option>
+            <mat-option value="IntegrationSuccessful">Integración exitosa</mat-option><mat-option value="NotDetermined">No determinado</mat-option>
+            <mat-option value="PendingResponse">Pendiente de respuesta</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Situación posterior</mat-label>
+          <mat-select formControlName="subsequentSituation">
+            <mat-option value="">Todas</mat-option><mat-option value="ReturnedLater">Devuelta posteriormente</mat-option>
+            <mat-option value="None">Sin novedad posterior</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Con devolución</mat-label>
+          <mat-select formControlName="hasReturn"><mat-option [value]="null">Todos</mat-option><mat-option [value]="true">Sí</mat-option><mat-option [value]="false">No</mat-option></mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Atención requerida</mat-label>
+          <mat-select formControlName="requiresAttention"><mat-option [value]="null">Todos</mat-option><mat-option [value]="true">Sí</mat-option><mat-option [value]="false">No</mat-option></mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Importe mínimo</mat-label><input matInput type="number" min="0" formControlName="minimumAmount">@if(form.controls.minimumAmount.hasError('min')){<mat-error>El importe mínimo no puede ser negativo.</mat-error>}</mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Importe máximo</mat-label><input matInput type="number" min="0" formControlName="maximumAmount">@if(form.controls.maximumAmount.hasError('min')){<mat-error>El importe máximo no puede ser negativo.</mat-error>}@if(form.hasError('amountOrder') && form.controls.maximumAmount.touched){<mat-error>El importe máximo debe ser igual o superior al mínimo.</mat-error>}</mat-form-field>
+        <div class="filter-actions">
+          <button mat-flat-button color="primary" type="submit" data-testid="outgoing-search" [disabled]="loading()">
+            <mat-icon>search</mat-icon> Buscar
+          </button>
+          <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="loading()">
+            <mat-icon>filter_alt_off</mat-icon> Limpiar filtros
+          </button>
+        </div>
+      </form>
+      <p class="filter-help">El rango máximo permitido es de 90 días. La consulta inicial muestra los últimos 7 días.</p>
+    </mat-card-content>
+  </mat-card>
+
+  @if (loading()) {
+    <ui-estado-carga mensaje="Consultando transacciones de salida…"></ui-estado-carga>
+  } @else if (error()) {
+    <ui-estado-error
+      [titulo]="errorMessage()"
+      mensaje="Puedes intentar nuevamente sin perder los filtros seleccionados."
+      textoReintentar="Reintentar"
+      (reintentar)="search(false)"
+    ></ui-estado-error>
+  } @else {
+    <section class="results" aria-live="polite">
+      <div class="results-summary"><strong>{{ page().totalItems | number }}</strong> transacciones encontradas</div>
+      @if (page().items.length === 0) {
+        <ui-estado-vacio
+          titulo="No encontramos transacciones de salida con los filtros seleccionados."
+          mensaje="Revisa el rango de fechas o limpia los filtros para ampliar la búsqueda."
+          sugerencia=""
+        ></ui-estado-vacio>
+      }
+        <div class="desktop-table" [hidden]="page().items.length === 0">
+          <table mat-table [dataSource]="dataSource" matSort matSortActive="createdAt" matSortDirection="desc" (matSortChange)="sortChanged($event)">
+            <caption class="visually-hidden">Transacciones de salida encontradas</caption>
+            <ng-container matColumnDef="createdAt"><th mat-header-cell *matHeaderCellDef mat-sort-header>Fecha</th><td mat-cell *matCellDef="let item">{{ item.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</td></ng-container>
+            <ng-container matColumnDef="identifier"><th mat-header-cell *matHeaderCellDef mat-sort-header>Identificador</th><td mat-cell *matCellDef="let item"><strong>{{ item.transactionExternalId }}</strong><small>{{ item.traceNumber || 'Sin número de seguimiento' }}</small></td></ng-container>
+            <ng-container matColumnDef="clearingHouse"><th mat-header-cell *matHeaderCellDef>Cámara</th><td mat-cell *matCellDef="let item">{{ item.clearingHouseDisplayName }}</td></ng-container>
+            <ng-container matColumnDef="cycle"><th mat-header-cell *matHeaderCellDef>Ciclo</th><td mat-cell *matCellDef="let item">{{ item.cycleDisplayName }}<small>{{ item.cycleProcessingDate | date:'dd/MM/yyyy' }}</small></td></ng-container>
+            <ng-container matColumnDef="destination"><th mat-header-cell *matHeaderCellDef>Entidad de destino</th><td mat-cell *matCellDef="let item">{{ item.destinationInstitutionDisplayName }}<small>{{ item.maskedDestinationAccount }}</small></td></ng-container>
+            <ng-container matColumnDef="amount"><th mat-header-cell *matHeaderCellDef mat-sort-header>Valor</th><td mat-cell *matCellDef="let item">{{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}</td></ng-container>
+            <ng-container matColumnDef="process"><th mat-header-cell *matHeaderCellDef>Proceso</th><td mat-cell *matCellDef="let item"><span class="status"><mat-icon>{{ statusIcon(item.processStatusCode) }}</mat-icon>{{ item.processStatusDisplayName }}</span></td></ng-container>
+            <ng-container matColumnDef="result"><th mat-header-cell *matHeaderCellDef>Resultado</th><td mat-cell *matCellDef="let item">{{ item.initialResultDisplayName }}</td></ng-container>
+            <ng-container matColumnDef="subsequent"><th mat-header-cell *matHeaderCellDef>Situación posterior</th><td mat-cell *matCellDef="let item"><span [class.attention]="item.hasReturn">{{ item.subsequentSituationDisplayName }}</span></td></ng-container>
+            <ng-container matColumnDef="updated"><th mat-header-cell *matHeaderCellDef mat-sort-header>Última actualización</th><td mat-cell *matCellDef="let item">{{ item.lastUpdatedAtUtc | date:'dd/MM/yyyy HH:mm' }}</td></ng-container>
+            <ng-container matColumnDef="action"><th mat-header-cell *matHeaderCellDef>Acción</th><td mat-cell *matCellDef="let item"><button mat-button type="button" (click)="viewDetail(item)" [attr.aria-label]="'Ver detalle de ' + item.transactionExternalId">Ver detalle</button></td></ng-container>
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr><tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          </table>
+        </div>
+        <div class="mobile-cards" data-testid="outgoing-mobile-list" [hidden]="page().items.length === 0">
+          @for (item of page().items; track item.id) {
+            <mat-card><mat-card-header><mat-card-title>{{ item.transactionExternalId }}</mat-card-title><mat-card-subtitle>{{ item.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</mat-card-subtitle></mat-card-header>
+              <mat-card-content><dl><div><dt>Cámara</dt><dd>{{ item.clearingHouseDisplayName }}</dd></div><div><dt>Ciclo</dt><dd>{{ item.cycleDisplayName }} · {{ item.cycleProcessingDate | date:'dd/MM/yyyy' }}</dd></div><div><dt>Valor</dt><dd>{{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}</dd></div><div><dt>Proceso</dt><dd>{{ item.processStatusDisplayName }}</dd></div><div><dt>Resultado</dt><dd>{{ item.initialResultDisplayName }}</dd></div>@if(item.hasReturn){<div><dt>Situación</dt><dd class="attention">{{ item.subsequentSituationDisplayName }}</dd></div>}</dl></mat-card-content>
+              <mat-card-actions align="end"><button mat-button type="button" (click)="viewDetail(item)" [attr.aria-label]="'Ver detalle de ' + item.transactionExternalId">Ver detalle</button></mat-card-actions></mat-card>
+          }
+        </div>
+        @if (page().items.length > 0) {
+          <mat-paginator [length]="page().totalItems" [pageIndex]="page().pageNumber - 1" [pageSize]="page().pageSize" [pageSizeOptions]="pageSizes" (page)="pageChanged($event)" aria-label="Paginación de transacciones"></mat-paginator>
+        }
+    </section>
+  }
+</main>

@@ -1,7 +1,9 @@
+using System.Globalization;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Tests.TestSupport;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -47,7 +49,7 @@ public class ClearingHouseCycleConfigServiceTests
             .ToListAsync();
 
         Assert.Equal(2, allConfigs.Count);
-        Assert.False(allConfigs[0].IsActive);
+        Assert.True(allConfigs[0].IsActive);
         Assert.Equal(new DateTime(2026, 1, 31), allConfigs[0].EffectiveTo!.Value.Date);
         Assert.True(allConfigs[1].IsActive);
         Assert.Equal(created.Id, allConfigs[1].Id);
@@ -187,6 +189,37 @@ public class ClearingHouseCycleConfigServiceTests
         Assert.Contains(current, c => c.CycleName == "CICLO-2");
     }
 
+    [Theory]
+    [InlineData("2026-02-09T23:59:59.9999999Z", 0)]
+    [InlineData("2026-02-10T00:00:00Z", 1)]
+    [InlineData("2026-02-11T00:00:00Z", 1)]
+    public async Task GetCurrentByClearingHouseAsync_UsesInjectedUtcDateAtEffectiveBoundary(string utcNow, int expectedCount)
+    {
+        using var context = CreateContext();
+        await SeedClearingHouseAsync(context);
+
+        context.ClearingHouseCycleConfigs.Add(new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = 1,
+            PolicyVersion = "V20260210",
+            CycleName = "CICLO-1",
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(10, 0, 0),
+            CutoffTime = new TimeSpan(10, 0, 0),
+            EffectiveFrom = new DateTime(2026, 2, 10),
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var instant = DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
+        var timeProvider = new FixedTimeProvider(instant, TimeZoneInfo.Utc);
+        var service = new ClearingHouseCycleConfigService(context, timeProvider: timeProvider);
+
+        var current = await service.GetCurrentByClearingHouseAsync(1, effectiveAt: null);
+
+        Assert.Equal(expectedCount, current.Count);
+    }
+
     [Fact]
     public async Task InactivateAsync_SetsInactiveAndEffectiveTo()
     {
@@ -234,6 +267,89 @@ public class ClearingHouseCycleConfigServiceTests
 
         Assert.Equal("CICLO-CLON", clone.CycleName);
         Assert.True(clone.IsActive);
+    }
+
+
+    [Fact]
+    public async Task CreateVersionAsync_PersistsExpandedStageWindowsAndKeepsLegacyReleaseTimeCompatible()
+    {
+        using var context = CreateContext();
+        await SeedClearingHouseAsync(context);
+
+        var service = new ClearingHouseCycleConfigService(context);
+        var created = await service.CreateVersionAsync(new UpsertClearingHouseCycleConfigDto
+        {
+            ClearingHouseId = 1,
+            CycleName = "CICLO-STAGES",
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(10, 0, 0),
+            CutoffTime = new TimeSpan(10, 0, 0),
+            CompensationStatementStartTime = new TimeSpan(10, 0, 0),
+            CompensationStatementEndTime = new TimeSpan(10, 30, 0),
+            CompensationPaymentStartTime = new TimeSpan(10, 30, 0),
+            CompensationPaymentEndTime = new TimeSpan(10, 45, 0),
+            OutputReleaseStartTime = new TimeSpan(10, 45, 0),
+            OutputReleaseEndTime = new TimeSpan(11, 0, 0),
+            EffectiveFrom = new DateTime(2026, 3, 1)
+        });
+
+        context.ChangeTracker.Clear();
+        var persisted = await context.ClearingHouseCycleConfigs.SingleAsync(c => c.Id == created.Id);
+
+        Assert.Equal(new TimeSpan(10, 0, 0), persisted.CompensationStatementStartTime);
+        Assert.Equal(new TimeSpan(10, 30, 0), persisted.CompensationStatementEndTime);
+        Assert.Equal(new TimeSpan(10, 30, 0), persisted.CompensationPaymentStartTime);
+        Assert.Equal(new TimeSpan(10, 45, 0), persisted.CompensationPaymentEndTime);
+        Assert.Equal(new TimeSpan(10, 45, 0), persisted.OutputReleaseStartTime);
+        Assert.Equal(new TimeSpan(11, 0, 0), persisted.OutputReleaseEndTime);
+        Assert.Equal(new TimeSpan(11, 0, 0), persisted.OutputReleaseTime);
+        Assert.Equal(persisted.OutputReleaseEndTime, created.OutputReleaseEndTime);
+    }
+
+    [Fact]
+    public async Task CreateVersionAsync_ClonesExpandedStageWindowsWhenTheyAreNotOverridden()
+    {
+        using var context = CreateContext();
+        await SeedClearingHouseAsync(context);
+
+        context.ClearingHouseCycleConfigs.Add(new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = 1,
+            PolicyVersion = "V1",
+            CycleName = "CICLO-1",
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(10, 0, 0),
+            CutoffTime = new TimeSpan(10, 0, 0),
+            OutputReleaseTime = new TimeSpan(10, 45, 0),
+            CompensationStatementStartTime = new TimeSpan(10, 0, 0),
+            CompensationStatementEndTime = new TimeSpan(10, 15, 0),
+            CompensationPaymentStartTime = new TimeSpan(10, 15, 0),
+            CompensationPaymentEndTime = new TimeSpan(10, 30, 0),
+            OutputReleaseStartTime = new TimeSpan(10, 30, 0),
+            OutputReleaseEndTime = new TimeSpan(10, 45, 0),
+            EffectiveFrom = new DateTime(2026, 1, 1),
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var service = new ClearingHouseCycleConfigService(context);
+        var clone = await service.CreateVersionAsync(new UpsertClearingHouseCycleConfigDto
+        {
+            ClearingHouseId = 1,
+            PolicyVersion = "V2",
+            CycleName = "CICLO-1",
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(10, 0, 0),
+            CutoffTime = new TimeSpan(10, 0, 0),
+            EffectiveFrom = new DateTime(2026, 2, 1)
+        });
+
+        Assert.Equal(new TimeSpan(10, 0, 0), clone.CompensationStatementStartTime);
+        Assert.Equal(new TimeSpan(10, 15, 0), clone.CompensationStatementEndTime);
+        Assert.Equal(new TimeSpan(10, 15, 0), clone.CompensationPaymentStartTime);
+        Assert.Equal(new TimeSpan(10, 30, 0), clone.CompensationPaymentEndTime);
+        Assert.Equal(new TimeSpan(10, 30, 0), clone.OutputReleaseStartTime);
+        Assert.Equal(new TimeSpan(10, 45, 0), clone.OutputReleaseEndTime);
     }
 
     private static AchDbContext CreateContext()

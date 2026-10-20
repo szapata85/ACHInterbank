@@ -1,4 +1,4 @@
-using Cfa.ACHInterbank.Application.Exceptions;
+using Cfa.ACHInterbank.Api.Exceptions;
 using Cfa.ACHInterbank.Application.External.ClientAssertion;
 using Cfa.ACHInterbank.Application.External.JwksService;
 using Cfa.ACHInterbank.Application.Features;

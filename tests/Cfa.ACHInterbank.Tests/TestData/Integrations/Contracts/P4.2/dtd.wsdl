@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE wsdl:definitions [<!ELEMENT wsdl:definitions ANY>]>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" targetNamespace="urn:cfa:p42:dtd" />

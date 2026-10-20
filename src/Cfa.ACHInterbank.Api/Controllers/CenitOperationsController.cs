@@ -1,3 +1,6 @@
+using Cfa.ACHInterbank.Api.OpenApi;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.AspNetCore.Authorization;
@@ -12,17 +15,123 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class CenitOperationsController : ControllerBase
 {
+    private const string CenitClearingHouseCode = "CENIT";
     private readonly AchDbContext _dbContext;
+    private readonly ICenitChamberResponseService? _chamberResponses;
 
-    public CenitOperationsController(AchDbContext dbContext)
+    public CenitOperationsController(
+        AchDbContext dbContext,
+        ICenitChamberResponseService? chamberResponses)
     {
         _dbContext = dbContext;
+        _chamberResponses = chamberResponses;
     }
 
+    /// <summary>Importa una respuesta recibida desde la cámara CENIT y devuelve su clasificación persistida.</summary>
+    /// <param name="command">Identificadores de origen, tipo de mensaje, contenido recibido y datos opcionales de correlación.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Importar respuesta de cámara CENIT")]
+    [EndpointDescription("Registra y clasifica la respuesta recibida mediante el servicio CENIT. Devuelve 201 cuando crea un registro sin problema operativo y 200 cuando recupera idempotentemente una respuesta ya registrada. Las validaciones de entrada traducidas por el controller devuelven 400; los resultados persistidos con conflicto, correlación ambigua o transición inválida devuelven 409; los demás resultados operativos controlados devuelven 422. Si el servicio no está disponible en el controller, devuelve 503.")]
+    [HttpPost("chamber-responses")]
+    [Authorize(Policy = "CanManageAch")]
+    [ProducesResponseType(typeof(CenitChamberResponseResult), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(CenitChamberResponseResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    [OpenApiResponseDescription(StatusCodes.Status201Created, "Respuesta de cámara CENIT registrada y ubicación canónica devuelta mediante CreatedAtAction.")]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Respuesta de cámara CENIT ya registrada recuperada idempotentemente sin crear un nuevo registro.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "La solicitud incumple una validación explícita del servicio, como identificadores obligatorios, fecha de recepción o nombre de archivo válido.")]
+    [OpenApiResponseDescription(StatusCodes.Status409Conflict, "La respuesta quedó registrada con conflicto, correlación ambigua o transición de estado no válida.")]
+    [OpenApiResponseDescription(StatusCodes.Status422UnprocessableEntity, "La respuesta quedó registrada con un resultado operativo controlado distinto de conflicto, ambigüedad o transición inválida.")]
+    [OpenApiResponseDescription(StatusCodes.Status503ServiceUnavailable, "El servicio de importación de respuestas de cámara CENIT no está disponible en el controller.")]
+    public async Task<IActionResult> ImportChamberResponseAsync(
+        [FromBody] CenitChamberResponseImportCommand command,
+        CancellationToken ct = default)
+    {
+        if (_chamberResponses is null)
+        {
+            return ProblemResult("CENIT_CHAMBER_RESPONSE_SERVICE_UNAVAILABLE", StatusCodes.Status503ServiceUnavailable, null);
+        }
+
+        CenitChamberResponseResult result;
+        try
+        {
+            result = await _chamberResponses.ImportAsync(command, ct);
+        }
+        catch (ArgumentException exception)
+        {
+            return ProblemResult("CENIT_RESPONSE_INVALID", StatusCodes.Status400BadRequest, exception.Message);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.ProblemCode))
+        {
+            var status = result.ProblemCode.Contains("AMBIGUOUS", StringComparison.Ordinal)
+                         || result.ProblemCode.Contains("CONFLICT", StringComparison.Ordinal)
+                         || result.ProblemCode.Contains("TRANSITION", StringComparison.Ordinal)
+                ? StatusCodes.Status409Conflict
+                : StatusCodes.Status422UnprocessableEntity;
+            return ProblemResult(result.ProblemCode, status, "La respuesta CENIT quedó registrada con resultado operativo controlado.", result);
+        }
+
+        return result.IsDuplicate
+            ? Ok(result)
+            : CreatedAtAction(nameof(GetChamberResponseAsync), new { id = result.Id }, result);
+    }
+
+    /// <summary>Consulta una respuesta de cámara CENIT por su identificador persistido.</summary>
+    /// <param name="id">Identificador de la respuesta de cámara.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Detalle de respuesta de cámara CENIT")]
+    [EndpointDescription("Busca la respuesta persistida por id mediante el servicio de respuestas de cámara. Devuelve 404 sin cuerpo cuando el servicio no está disponible o cuando no existe el identificador solicitado.")]
+    [HttpGet("chamber-responses/{id:guid}")]
+    [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(typeof(CenitChamberResponseResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Respuesta de cámara CENIT encontrada para el identificador solicitado.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe una respuesta de cámara CENIT con el identificador indicado o el servicio no está disponible; la respuesta no contiene cuerpo.")]
+    public async Task<IActionResult> GetChamberResponseAsync(Guid id, CancellationToken ct = default)
+    {
+        if (_chamberResponses is null) return NotFound();
+        var result = await _chamberResponses.GetAsync(id, ct);
+        return result is null ? NotFound() : Ok(result);
+    }
+
+    /// <summary>Lista respuestas de cámara CENIT y archivos pendientes de respuesta usando paginación.</summary>
+    /// <param name="page">Número de página; el servicio normaliza valores menores que 1 a 1.</param>
+    /// <param name="pageSize">Tamaño solicitado; el servicio lo limita al intervalo de 1 a 200.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar respuestas de cámara CENIT")]
+    [EndpointDescription("Devuelve una página que combina respuestas persistidas con archivos NACHA CENIT todavía pendientes de respuesta. page se normaliza a un mínimo de 1 y pageSize se limita entre 1 y 200; si el servicio no está disponible, devuelve una página vacía con esos valores normalizados.")]
+    [HttpGet("chamber-responses")]
+    [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(typeof(CenitChamberResponsePage), StatusCodes.Status200OK)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Página de respuestas de cámara CENIT y archivos pendientes de respuesta.")]
+    public async Task<IActionResult> ListChamberResponsesAsync(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        if (_chamberResponses is null)
+        {
+            return Ok(new CenitChamberResponsePage([], 0, Math.Max(1, page), Math.Clamp(pageSize, 1, 200)));
+        }
+        return Ok(await _chamberResponses.ListAsync(page, pageSize, ct));
+    }
+
+    /// <summary>Consulta elementos de la cola de ciclos CENIT.</summary>
+    /// <param name="status">Estado exacto opcional por el que se filtran los elementos de cola.</param>
+    /// <param name="targetAchCycleId">Identificador exacto opcional del ciclo ACH destino.</param>
+    /// <param name="page">Número de página; el controller normaliza valores menores que 1 a 1.</param>
+    /// <param name="pageSize">Tamaño solicitado; el controller lo limita al intervalo de 1 a 200.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
     [EndpointSummary("Cola de ejecución de ciclos CENIT")]
-    [EndpointDescription("Qué hace: consulta elementos en cola de ciclo CENIT con estado y contexto transaccional. Cuándo se usa: en monitoreo de encolamiento y despacho. Perfil consumidor: operación CENIT y soporte ACH. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por bitácoras y eventos de ejecución. Riesgos operativos: paginación/filtros inadecuados pueden ocultar cuellos de botella. Errores esperados: 400 por parámetros; 401/403. Relación ACH/CENIT/NACHA-M: observa interacción entre transacciones ACH y ciclo CENIT. Precauciones para desarrollo u operación: usar page/pageSize dentro de límites operativos.")]
+    [EndpointDescription("Consulta CenitCycleQueue sin seguimiento. Aplica igualdad exacta cuando se informan status o targetAchCycleId, normaliza la paginación, ordena por EnqueuedAtUtc descendente y devuelve un cuerpo anónimo con items, total, page y pageSize; cada item incluye datos de cola, ciclo destino y contexto de la transacción relacionada.")]
     [HttpGet("queues")]
     [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Página de elementos de la cola CENIT que cumplen los filtros solicitados.")]
     public async Task<IActionResult> GetQueueAsync(
         [FromQuery] string? status,
         [FromQuery] string? targetAchCycleId,
@@ -78,10 +187,17 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
+    /// <summary>Consulta posiciones netas asociadas a una ejecución de ciclo CENIT.</summary>
+    /// <param name="cenitCycleExecutionId">Identificador opcional de ejecución; si se omite, el controller usa la ejecución más reciente por StartedAtUtc.</param>
+    /// <param name="page">Número de página; el controller normaliza valores menores que 1 a 1.</param>
+    /// <param name="pageSize">Tamaño solicitado; el controller lo limita al intervalo de 1 a 200.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
     [EndpointSummary("Posiciones netas de liquidez por ejecución")]
-    [EndpointDescription("Qué hace: muestra débitos, créditos y liquidez por entidad financiera en una ejecución CENIT. Cuándo se usa: en conciliación de liquidez y priorización operativa. Perfil consumidor: tesorería operativa y operación ACH. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por consulta y trazas. Riesgos operativos: lectura fuera de ejecución correcta puede llevar a decisiones de liquidez erradas. Errores esperados: 401/403; resultados vacíos cuando no hay ejecución. Relación ACH/CENIT/NACHA-M: conecta neteo CENIT con operación ACH. Precauciones para desarrollo u operación: confirmar cenitCycleExecutionId antes de decisiones.")]
+    [EndpointDescription("Consulta posiciones netas de la ejecución indicada; cuando cenitCycleExecutionId no se informa, selecciona la ejecución más reciente por StartedAtUtc. Si no existe ninguna ejecución, devuelve items vacío, total 0 y cenitCycleExecutionId nulo. En caso contrario ordena las posiciones por NetAmount descendente y devuelve un cuerpo anónimo paginado con los importes y datos de liquidez persistidos.")]
     [HttpGet("net-positions")]
     [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Página de posiciones netas de la ejecución CENIT seleccionada, o resultado vacío cuando no existe una ejecución.")]
     public async Task<IActionResult> GetNetPositionsAsync(
         [FromQuery] long? cenitCycleExecutionId,
         [FromQuery] int page = 1,
@@ -132,10 +248,18 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize, cenitCycleExecutionId = latestExecutionId.Value });
     }
 
+    /// <summary>Consulta decisiones de optimización de liquidez persistidas.</summary>
+    /// <param name="cenitCycleExecutionId">Identificador opcional de ejecución CENIT usado como filtro exacto.</param>
+    /// <param name="decisionType">Tipo de decisión opcional usado como filtro exacto.</param>
+    /// <param name="page">Número de página; el controller normaliza valores menores que 1 a 1.</param>
+    /// <param name="pageSize">Tamaño solicitado; el controller lo limita al intervalo de 1 a 200.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
     [EndpointSummary("Decisiones de optimización de liquidez")]
-    [EndpointDescription("Qué hace: lista decisiones de optimización aplicadas sobre transacciones. Cuándo se usa: en análisis de por qué una transacción fue priorizada o movida de ciclo. Perfil consumidor: operación CENIT, riesgo y auditoría. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí. Riesgos operativos: interpretar decisiones fuera de contexto puede afectar post-mortem. Errores esperados: 400 por filtros inválidos; 401/403. Relación ACH/CENIT/NACHA-M: explica lógica operativa de neteo y enrutamiento ACH/CENIT. Precauciones para desarrollo u operación: correlacionar con estado de transacción y ciclo origen/destino.")]
+    [EndpointDescription("Consulta LiquidityOptimizationDecision sin seguimiento. Aplica filtros exactos por cenitCycleExecutionId y decisionType cuando se informan, normaliza la paginación, ordena por DecidedAtUtc descendente y devuelve un cuerpo anónimo con items, total, page y pageSize, incluyendo el contexto transaccional persistido para cada decisión.")]
     [HttpGet("optimization-decisions")]
     [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Página de decisiones de optimización que cumplen los filtros solicitados.")]
     public async Task<IActionResult> GetOptimizationDecisionsAsync(
         [FromQuery] long? cenitCycleExecutionId,
         [FromQuery] string? decisionType,
@@ -190,10 +314,18 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
+    /// <summary>Consulta trazabilidad de transacciones asociadas a la cámara con código CENIT.</summary>
+    /// <param name="state">Nombre textual opcional del estado de la transacción usado como filtro exacto.</param>
+    /// <param name="achCycleId">Identificador opcional de ciclo ACH usado como filtro exacto.</param>
+    /// <param name="page">Número de página; el controller normaliza valores menores que 1 a 1.</param>
+    /// <param name="pageSize">Tamaño solicitado; el controller lo limita al intervalo de 1 a 200.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
     [EndpointSummary("Trazabilidad CENIT de transacciones")]
-    [EndpointDescription("Qué hace: entrega vista trazable con causales de devolución/rechazo y estado. Cuándo se usa: en conciliación operativa y gestión de excepciones. Perfil consumidor: operación ACH/CENIT y auditoría. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí. Riesgos operativos: códigos normalizados incorrectamente pueden sesgar análisis. Errores esperados: 400 filtros inválidos; 401/403. Relación ACH/CENIT/NACHA-M: une catálogo regulatorio con ejecución transaccional ACH/CENIT. Precauciones para desarrollo u operación: validar estado y ciclo antes de emitir conclusiones.")]
+    [EndpointDescription("Resuelve la cámara cuyo código es CENIT y consulta únicamente sus transacciones. Aplica filtros exactos por state y achCycleId cuando se informan, ordena por StateChangedAtUtc descendente y devuelve un cuerpo anónimo paginado. La respuesta deriva CausalCode, CausalKind y CausalDescription de ReturnReasonCode o, en su ausencia, ContrapartidasResponseCode y de los catálogos activos consultados por el controller. Si la cámara CENIT no está configurada, devuelve una página vacía.")]
     [HttpGet("traceability")]
     [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Página de trazabilidad de transacciones pertenecientes a la cámara CENIT que cumplen los filtros solicitados.")]
     public async Task<IActionResult> GetTraceabilityAsync(
         [FromQuery] string? state,
         [FromQuery] string? achCycleId,
@@ -204,9 +336,20 @@ public class CenitOperationsController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
+        var cenitClearingHouseId = await _dbContext.ClearingHouses
+            .AsNoTracking()
+            .Where(x => x.Code == CenitClearingHouseCode)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync(ct);
+
+        if (!cenitClearingHouseId.HasValue)
+        {
+            return Ok(new { items = Array.Empty<object>(), total = 0, page, pageSize });
+        }
+
         var returnCodeRows = await _dbContext.Set<AchReturnCode>()
             .AsNoTracking()
-            .Where(x => x.IsActive)
+            .Where(x => x.IsActive && x.ClearingHouseId == cenitClearingHouseId.Value)
             .Select(x => new { x.Code, x.Description })
             .ToListAsync(ct);
 
@@ -239,6 +382,7 @@ public class CenitOperationsController : ControllerBase
             .Include(x => x.AchCycle)
                 .ThenInclude(x => x.ClearingHouse)
             .Include(x => x.AchBatch)
+            .Where(x => x.AchCycle.ClearingHouseId == cenitClearingHouseId.Value)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(state))
@@ -335,6 +479,19 @@ public class CenitOperationsController : ControllerBase
         }
 
         return code.Trim().ToUpperInvariant();
+    }
+
+    private static ObjectResult ProblemResult(string code, int status, string? detail, object? result = null)
+    {
+        var problem = new ProblemDetails
+        {
+            Title = code,
+            Detail = detail,
+            Status = status
+        };
+        problem.Extensions["code"] = code;
+        if (result is not null) problem.Extensions["result"] = result;
+        return new ObjectResult(problem) { StatusCode = status };
     }
 
     private static string ResolveRegulatoryDescription(string code, IReadOnlyDictionary<string, string> dictionary)

@@ -1,42 +1,55 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { permissionGuard } from '../../core/guards/permission.guard';
-import { IncomingNachaIngestionDetailPageComponent } from './pages/incoming-nacha-ingestion-detail-page.component';
-import { IncomingNachaIngestionsPageComponent } from './pages/incoming-nacha-ingestions-page.component';
+import { NachaOperationalDashboardComponent } from './pages/nacha-operational-dashboard.component';
+import { NachaOperationalFileDetailComponent } from './pages/nacha-operational-file-detail.component';
 import { IncomingNachaObservabilityPageComponent } from './pages/incoming-nacha-observability-page.component';
 import { IncomingNachaQueueDetailPageComponent } from './pages/incoming-nacha-queue-detail-page.component';
 import { IncomingNachaQueuePageComponent } from './pages/incoming-nacha-queue-page.component';
+import { IncomingNachaOrphansPageComponent } from './pages/incoming-nacha-orphans-page.component';
 
 const routes: Routes = [
   {
     path: '',
-    component: IncomingNachaIngestionsPageComponent,
+    component: NachaOperationalDashboardComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Inbound NACHA', title: 'Command Center inbound NACHA' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Seguimiento de archivos', title: 'Seguimiento de archivos' }
   },
   {
-    path: 'ingestions/:id',
-    component: IncomingNachaIngestionDetailPageComponent,
+    path: 'files/:fileId',
+    component: NachaOperationalFileDetailComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Detalle ingesta', title: 'Detalle de ingesta inbound NACHA' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Detalle del archivo', title: 'Trazabilidad del archivo NACHA-M' }
+  },
+  {
+    path: 'ingestions/:fileId',
+    component: NachaOperationalFileDetailComponent,
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Detalle del archivo', title: 'Trazabilidad del archivo NACHA-M' }
   },
   {
     path: 'observability',
     component: IncomingNachaObservabilityPageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Observabilidad', title: 'Observabilidad inbound NACHA' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Indicadores operativos', title: 'Indicadores operativos' }
+  },
+  {
+    path: 'orphan-resolution',
+    component: IncomingNachaOrphansPageComponent,
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Devoluciones sin relación', title: 'Devoluciones sin relación' }
   },
   {
     path: 'queue',
     component: IncomingNachaQueuePageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Cola dispatch', title: 'Cola dispatch inbound NACHA' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Cola de procesamiento', title: 'Cola de procesamiento' }
   },
   {
     path: 'queue/:id',
     component: IncomingNachaQueueDetailPageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Detalle cola', title: 'Detalle de item de cola inbound NACHA' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Detalle de procesamiento', title: 'Detalle de procesamiento NACHA-M' }
   }
 ];
 

@@ -53,18 +53,4 @@ public class CustomerThirdPartiesController : ControllerBase
         }
     }
 
-    [HttpPatch("{id:int}/status")]
-    [Authorize(Policy = "CanManageAch")]
-    public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateCustomerThirdPartyStatusRequest request, CancellationToken ct = default)
-    {
-        try
-        {
-            var updated = await _service.UpdateStatusAsync(id, request.Status, request.ValidationMessage, ct);
-            return Ok(updated);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            return StatusCode(StatusCodes.Status408RequestTimeout, new { Message = "La actualización fue cancelada." });
-        }
-    }
 }

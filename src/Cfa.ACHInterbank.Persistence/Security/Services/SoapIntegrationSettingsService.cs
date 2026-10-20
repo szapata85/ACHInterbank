@@ -1,73 +1,136 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Application.Security.Dtos;
+using Cfa.ACHInterbank.Application.Security.Exceptions;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Persistence.Security.Services;
 
 [Scoped]
 public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
 {
-    private const string DefaultWscfaachEndpoint = "http://esparta/WSCFAACH/WSCFAACH.svc";
-    private const string DefaultWsAxonEndpoint = "http://esparta/WSCFAACH/WSAxonRespuestaTransacciones.svc";
+    private const string EmptyRevision = "0";
+    private const string InvalidSanitizedEndpoint = "***invalid-endpoint***";
+
+    private static readonly HashSet<string> SupportedMethods = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Proc_Transacciones",
+        "Proc_Contrapartidas",
+        "RegistrarRespuestaTransaccion"
+    };
 
     private readonly AchDbContext _dbContext;
-    private readonly AppSettings _appSettings = AppSettings.Settings;
+    private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public SoapIntegrationSettingsService(AchDbContext dbContext)
+    public SoapIntegrationSettingsService(
+        AchDbContext dbContext,
+        IOptions<ProcTransaccionesDispatchOptions> procTransaccionesDispatchOptions,
+        IIntegrationMappingReadinessService? mappingReadinessService = null,
+        IOptions<ProcContrapartidasDispatchOptions>? procContrapartidasDispatchOptions = null)
     {
         _dbContext = dbContext;
+        _ = procTransaccionesDispatchOptions;
+        _ = procContrapartidasDispatchOptions;
+        _mappingReadinessService = mappingReadinessService;
     }
 
     public async Task<SoapIntegrationSettingsDto> GetAsync(CancellationToken ct = default)
     {
-        var settings = await _dbContext.Set<SoapIntegrationSetting>()
-            .OrderBy(x => x.Id)
-            .FirstOrDefaultAsync(ct);
+        var settings = await LoadSingleSettingsAsync(ct);
+        var raw = settings is null ? new SoapIntegrationSettingsDto { Revision = EmptyRevision } : MapRawDto(settings);
+        return await WithEffectiveProcTransaccionesSettingsAsync(raw, ct);
+    }
 
-        if (settings is null)
+    public async Task<SoapIntegrationSettingsDto> GetAdministrationAsync(CancellationToken ct = default)
+    {
+        var settings = await LoadSingleSettingsAsync(ct);
+        var raw = settings is null ? new SoapIntegrationSettingsDto { Revision = EmptyRevision } : MapRawDto(settings);
+        return await BuildClientResponseAsync(raw, ct);
+    }
+
+    public async Task<SoapIntegrationSettingsChangePreviewDto> PreviewChangeAsync(
+        SoapIntegrationSettingsChangePreviewRequestDto request,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var settings = await LoadSingleSettingsAsync(ct);
+        var raw = settings is null ? new SoapIntegrationSettingsDto { Revision = EmptyRevision } : MapRawDto(settings);
+        EnsureExpectedRevision(request.ExpectedRevision, raw.Revision);
+
+        var persisted = FindMethod(raw, request.MethodName);
+        if (persisted is null || !SupportedMethods.Contains(request.MethodName))
         {
-            var defaults = Normalize(BuildDefaultSettings());
-            settings = new SoapIntegrationSetting
+            return new SoapIntegrationSettingsChangePreviewDto
             {
-                WscfaachMappingsJson = JsonSerializer.Serialize(defaults.WscfaachMappings, JsonOptions),
-                WsAxonRespuestaTransaccionesMappingsJson = JsonSerializer.Serialize(defaults.WsAxonRespuestaTransaccionesMappings, JsonOptions)
+                MethodName = request.MethodName?.Trim() ?? string.Empty,
+                Revision = raw.Revision,
+                CurrentConfigurationState = "Unknown",
+                RequestedConfigurationState = BuildConfigurationState(request.OperatingMode, request.Enabled),
+                CanApply = false,
+                BlockingReason = "No fue posible determinar el servicio o su estado vigente."
             };
-
-            _dbContext.Set<SoapIntegrationSetting>().Add(settings);
-            await _dbContext.SaveChangesAsync(ct);
-
-            return defaults;
         }
 
-        var hydrated = MapToDto(settings);
-        var currentWscfaachJson = JsonSerializer.Serialize(hydrated.WscfaachMappings, JsonOptions);
-        var currentWsAxonJson = JsonSerializer.Serialize(hydrated.WsAxonRespuestaTransaccionesMappings, JsonOptions);
+        var endpoint = ResolveSensitiveValue(request.Endpoint, persisted.Endpoint, SanitizeEndpoint(persisted.Endpoint));
+        var soapAction = ResolveSensitiveValue(request.SoapAction, persisted.SoapAction, SanitizeTechnicalUri(persisted.SoapAction));
+        var sanitizedEndpoint = SanitizeEndpoint(endpoint);
+        var sanitizedSoapAction = SanitizeTechnicalUri(soapAction);
+        var requestedState = BuildConfigurationState(request.OperatingMode, request.Enabled);
+        var currentState = BuildConfigurationState(persisted.OperatingMode, persisted.Enabled);
+        var targetRealSend = IsRealSend(request.OperatingMode, request.Enabled);
+        var currentRealSend = IsRealSend(persisted.OperatingMode, persisted.Enabled);
+        var destinationKnown = IsSanitizedDestinationKnown(sanitizedEndpoint);
+        var actionKnown = !string.IsNullOrWhiteSpace(sanitizedSoapAction)
+            && !string.Equals(sanitizedSoapAction, InvalidSanitizedEndpoint, StringComparison.Ordinal);
+        var canApply = !targetRealSend || (destinationKnown && actionKnown);
 
-        if (settings.WscfaachMappingsJson != currentWscfaachJson
-            || settings.WsAxonRespuestaTransaccionesMappingsJson != currentWsAxonJson)
+        return new SoapIntegrationSettingsChangePreviewDto
         {
-            settings.WscfaachMappingsJson = currentWscfaachJson;
-            settings.WsAxonRespuestaTransaccionesMappingsJson = currentWsAxonJson;
-            await _dbContext.SaveChangesAsync(ct);
-        }
-
-        return hydrated;
+            MethodName = persisted.MethodName,
+            Revision = raw.Revision,
+            CurrentConfigurationState = currentState,
+            RequestedConfigurationState = requestedState,
+            SanitizedEndpoint = sanitizedEndpoint,
+            SanitizedSoapAction = sanitizedSoapAction,
+            WouldEnableRealSend = targetRealSend && !currentRealSend,
+            CanApply = canApply,
+            BlockingReason = canApply
+                ? null
+                : !destinationKnown
+                    ? "Backend no pudo determinar un destino sanitizado para la comunicación externa."
+                    : "Backend no pudo determinar la acción técnica vigente."
+        };
     }
 
     public async Task<SoapIntegrationSettingsDto> SaveAsync(SoapIntegrationSettingsDto request, CancellationToken ct = default)
     {
-        var settings = await _dbContext.Set<SoapIntegrationSetting>()
-            .OrderBy(x => x.Id)
-            .FirstOrDefaultAsync(ct);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var settings = await LoadSingleSettingsAsync(ct);
+        var persistedRaw = settings is null
+            ? new SoapIntegrationSettingsDto { Revision = EmptyRevision }
+            : MapRawDto(settings);
+
+        EnsureExpectedRevision(request.ExpectedRevision, persistedRaw.Revision);
+
+        var normalizedRequest = Normalize(request);
+        var merged = PreservePersistedSensitiveValues(normalizedRequest, persistedRaw);
+        merged = PreservePersistedTimeouts(merged, persistedRaw);
 
         if (settings is null)
         {
@@ -75,166 +138,152 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             _dbContext.Set<SoapIntegrationSetting>().Add(settings);
         }
 
-        var normalized = Normalize(request);
-
-        settings.WscfaachMappingsJson = JsonSerializer.Serialize(normalized.WscfaachMappings, JsonOptions);
-        settings.WsAxonRespuestaTransaccionesMappingsJson = JsonSerializer.Serialize(normalized.WsAxonRespuestaTransaccionesMappings, JsonOptions);
+        settings.WscfaachMappingsJson = SerializePersistedMappings(merged.WscfaachMappings);
+        settings.WsAxonRespuestaTransaccionesMappingsJson = SerializePersistedMappings(merged.WsAxonRespuestaTransaccionesMappings);
 
         await _dbContext.SaveChangesAsync(ct);
 
-        return normalized;
+        var savedRaw = MapRawDto(settings);
+        return await BuildClientResponseAsync(savedRaw, ct);
     }
 
-    private SoapIntegrationSettingsDto BuildDefaultSettings()
+    private async Task<SoapIntegrationSetting?> LoadSingleSettingsAsync(CancellationToken ct)
     {
-        var fallback = _appSettings.Integrations?.UrlAch;
-        var defaultWscfaachEndpoint = string.IsNullOrWhiteSpace(fallback) ? DefaultWscfaachEndpoint : fallback;
-        var defaultWsAxonEndpoint = string.IsNullOrWhiteSpace(fallback) ? DefaultWsAxonEndpoint : fallback;
+        var settingsRows = await _dbContext.Set<SoapIntegrationSetting>()
+            .OrderBy(x => x.Id)
+            .Take(2)
+            .ToListAsync(ct);
 
-        return new SoapIntegrationSettingsDto
-        {
-            WscfaachMappings =
-            [
-                new SoapEndpointMethodMappingDto
-                {
-                    MethodName = "Proc_Contrapartidas",
-                    Endpoint = defaultWscfaachEndpoint,
-                    SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
-                    Enabled = true,
-                    InputParameterMappings = BuildProcContrapartidasInputMappings()
-                },
-                new SoapEndpointMethodMappingDto
-                {
-                    MethodName = "Proc_Transacciones",
-                    Endpoint = defaultWscfaachEndpoint,
-                    SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
-                    Enabled = true,
-                    InputParameterMappings = BuildProcTransaccionesInputMappings()
-                }
-            ],
-            WsAxonRespuestaTransaccionesMappings =
-            [
-                new SoapEndpointMethodMappingDto
-                {
-                    MethodName = "RegistrarRespuestaTransaccion",
-                    Endpoint = defaultWsAxonEndpoint,
-                    SoapAction = "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion",
-                    Enabled = true,
-                    InputParameterMappings =
-                    [
-                        new SoapInputParameterMappingDto
-                        {
-                            InputName = "respuesta",
-                            SoapParameterName = "Respuesta",
-                            Required = true
-                        }
-                    ]
-                }
-            ]
-        };
+        EnsureUniqueSettingsRow(settingsRows);
+        return settingsRows.SingleOrDefault();
     }
 
-    private static List<SoapInputParameterMappingDto> BuildProcContrapartidasInputMappings()
-        =>
-        [
-            MapInput("OFNIT"), MapInput("OFEMP"), MapInput("OFCTA"), MapInput("OFDD"), MapInput("OFFECHEFEC"),
-            MapInput("OFMONDEB"), MapInput("OFMONCRE"), MapInput("OFIDARCH"), MapInput("OFIDLOT"), MapInput("OFST"),
-            MapInput("OFIDTX"), MapInput("OFIDREVER"), MapInput("OFIDEBAPLI"), MapInput("OFIDCAMCOMPE"), MapInput("OFDIRECCIONIP"),
-            MapInput("OFLIBRE"), MapInput("OFLIBRE1"), MapInput("ANSIDLOTE", required: false), MapInput("ANSST", required: false),
-            MapInput("ANCLC", required: false), MapInput("ANSIDTX", required: false), MapInput("ANSIDREVER", required: false)
-        ];
-
-    private static List<SoapInputParameterMappingDto> BuildProcTransaccionesInputMappings()
-        =>
-        [
-            MapInput("TREG"), MapInput("TIPTRAN"), MapInput("BCORECEP"), MapInput("BCOORIG"), MapInput("NORIG"),
-            MapInput("NCTAORIG"), MapInput("IDORIG"), MapInput("DESTRAN"), MapInput("FECEFEC"), MapInput("NCTARECEP"),
-            MapInput("MONTO"), MapInput("NRECEP"), MapInput("IDRECEP"), MapInput("DISCRE"), MapInput("CONV"),
-            MapInput("PROD"), MapInput("INFPAG"), MapInput("IDTRAN"), MapInput("IDLOTE"), MapInput("REGLOTE"),
-            MapInput("IREVER"), MapInput("LIBRE"), MapInput("IDCAMCOMPE"), MapInput("DIRECCIONIP"), MapInput("LIBRE1"),
-            MapInput("RTAACH", required: false), MapInput("RTALOC", required: false)
-        ];
-
-    private static SoapInputParameterMappingDto MapInput(string name, bool required = true)
-        => new()
-        {
-            InputName = name,
-            SoapParameterName = name,
-            Required = required
-        };
-
-    private SoapIntegrationSettingsDto MapToDto(SoapIntegrationSetting settings)
+    private SoapIntegrationSettingsDto MapRawDto(SoapIntegrationSetting settings)
     {
-        var defaults = BuildDefaultSettings();
-        var wscfaach = Deserialize(settings.WscfaachMappingsJson, defaults.WscfaachMappings);
-        var wsAxon = Deserialize(settings.WsAxonRespuestaTransaccionesMappingsJson, defaults.WsAxonRespuestaTransaccionesMappings);
+        var wscfaach = Deserialize(settings.WscfaachMappingsJson);
+        var wsAxon = Deserialize(settings.WsAxonRespuestaTransaccionesMappingsJson);
 
-        return Normalize(new SoapIntegrationSettingsDto
+        var normalized = Normalize(new SoapIntegrationSettingsDto
         {
-            WscfaachMappings = MergeDefaults(wscfaach, defaults.WscfaachMappings),
-            WsAxonRespuestaTransaccionesMappings = MergeDefaults(wsAxon, defaults.WsAxonRespuestaTransaccionesMappings)
+            WscfaachMappings = wscfaach,
+            WsAxonRespuestaTransaccionesMappings = wsAxon
         });
+
+        return normalized with { Revision = ComputeRevision(settings) };
     }
 
-    private static List<SoapEndpointMethodMappingDto> Deserialize(string json, List<SoapEndpointMethodMappingDto> fallback)
+    private async Task<SoapIntegrationSettingsDto> BuildClientResponseAsync(
+        SoapIntegrationSettingsDto raw,
+        CancellationToken ct)
+    {
+        var effective = await WithEffectiveProcTransaccionesSettingsAsync(raw, ct);
+        return effective with
+        {
+            ExpectedRevision = null,
+            WscfaachMappings = PrepareClientMappings(effective.WscfaachMappings),
+            WsAxonRespuestaTransaccionesMappings = PrepareClientMappings(effective.WsAxonRespuestaTransaccionesMappings),
+            ProcTransaccionesEffectiveSettings = effective.ProcTransaccionesEffectiveSettings is null
+                ? null
+                : effective.ProcTransaccionesEffectiveSettings with
+                {
+                    Endpoint = SanitizeEndpoint(effective.ProcTransaccionesEffectiveSettings.Endpoint)
+                }
+        };
+    }
+
+    private static List<SoapEndpointMethodMappingDto> PrepareClientMappings(
+        IEnumerable<SoapEndpointMethodMappingDto> mappings)
+        => mappings.Select(mapping =>
+        {
+            var sanitizedEndpoint = SanitizeEndpoint(mapping.Endpoint);
+            var sanitizedSoapAction = SanitizeTechnicalUri(mapping.SoapAction);
+            var knownMethod = SupportedMethods.Contains(mapping.MethodName);
+            var stateKnown = knownMethod && !string.IsNullOrWhiteSpace(mapping.MethodName);
+            var canRequestRealSend = stateKnown
+                && IsSanitizedDestinationKnown(sanitizedEndpoint)
+                && !string.IsNullOrWhiteSpace(sanitizedSoapAction)
+                && !string.Equals(sanitizedSoapAction, InvalidSanitizedEndpoint, StringComparison.Ordinal);
+
+            return mapping with
+            {
+                Endpoint = sanitizedEndpoint,
+                SoapAction = sanitizedSoapAction,
+                SanitizedEndpoint = sanitizedEndpoint,
+                SanitizedSoapAction = sanitizedSoapAction,
+                ConfigurationState = BuildConfigurationState(mapping.OperatingMode, mapping.Enabled),
+                Capabilities = new SoapEndpointMethodCapabilitiesDto
+                {
+                    ConfigurationStateKnown = stateKnown,
+                    CanRequestRealSend = canRequestRealSend,
+                    BlockingReason = stateKnown
+                        ? canRequestRealSend
+                            ? null
+                            : "Backend no pudo determinar destino y acción técnica suficientes para confirmar envío real."
+                        : "Backend no reconoce el servicio o su estado vigente."
+                }
+            };
+        }).ToList();
+
+    private static string SerializePersistedMappings(IEnumerable<SoapEndpointMethodMappingDto> mappings)
+        => JsonSerializer.Serialize(
+            mappings.Select(mapping => new
+            {
+                mapping.MethodName,
+                mapping.Endpoint,
+                mapping.SoapAction,
+                mapping.OperatingMode,
+                mapping.TimeoutSeconds,
+                mapping.Enabled,
+                mapping.InputParameterMappings
+            }),
+            JsonOptions);
+
+    private static List<SoapEndpointMethodMappingDto> Deserialize(string json)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            return fallback;
+            return [];
         }
 
         var values = JsonSerializer.Deserialize<List<SoapEndpointMethodMappingDto>>(json, JsonOptions);
-        return values is null || values.Count == 0 ? fallback : values;
-    }
-
-    private static List<SoapEndpointMethodMappingDto> MergeDefaults(
-        IEnumerable<SoapEndpointMethodMappingDto> current,
-        IEnumerable<SoapEndpointMethodMappingDto> defaults)
-    {
-        var currentByMethod = current.ToDictionary(x => x.MethodName, StringComparer.OrdinalIgnoreCase);
-
-        return defaults
-            .Select(defaultValue =>
-            {
-                if (!currentByMethod.TryGetValue(defaultValue.MethodName, out var mapping))
-                {
-                    return defaultValue;
-                }
-
-                return mapping with
-                {
-                    Endpoint = string.IsNullOrWhiteSpace(mapping.Endpoint) ? defaultValue.Endpoint : mapping.Endpoint,
-                    SoapAction = string.IsNullOrWhiteSpace(mapping.SoapAction) ? defaultValue.SoapAction : mapping.SoapAction,
-                    InputParameterMappings = (mapping.InputParameterMappings is null || mapping.InputParameterMappings.Count == 0)
-                        ? defaultValue.InputParameterMappings
-                        : mapping.InputParameterMappings
-                };
-            })
-            .ToList();
+        return values ?? [];
     }
 
     private static SoapIntegrationSettingsDto Normalize(SoapIntegrationSettingsDto request)
-    {
-        return new SoapIntegrationSettingsDto
+        => new()
         {
             WscfaachMappings = NormalizeMappings(request.WscfaachMappings),
             WsAxonRespuestaTransaccionesMappings = NormalizeMappings(request.WsAxonRespuestaTransaccionesMappings)
         };
-    }
 
     private static List<SoapEndpointMethodMappingDto> NormalizeMappings(IEnumerable<SoapEndpointMethodMappingDto> mappings)
-    {
-        return mappings
+        => mappings
             .Where(m => !string.IsNullOrWhiteSpace(m.MethodName))
             .Select(m => new SoapEndpointMethodMappingDto
             {
                 MethodName = m.MethodName.Trim(),
                 Endpoint = m.Endpoint?.Trim() ?? string.Empty,
                 SoapAction = m.SoapAction?.Trim() ?? string.Empty,
+                OperatingMode = NormalizeOperatingMode(m.OperatingMode),
+                TimeoutSeconds = m.TimeoutSeconds,
                 Enabled = m.Enabled,
                 InputParameterMappings = NormalizeParameterMappings(m.InputParameterMappings)
             })
             .ToList();
+
+    private static string NormalizeOperatingMode(string? mode)
+    {
+        if (string.Equals(mode, "Live", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Live";
+        }
+
+        if (string.Equals(mode, "Disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Disabled";
+        }
+
+        return "DryRun";
     }
 
     private static List<SoapInputParameterMappingDto> NormalizeParameterMappings(
@@ -257,4 +306,235 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             .ToList();
     }
 
+    private async Task<SoapIntegrationSettingsDto> WithEffectiveProcTransaccionesSettingsAsync(
+        SoapIntegrationSettingsDto settings,
+        CancellationToken ct)
+    {
+        var mapping = settings.WscfaachMappings
+            .FirstOrDefault(x => string.Equals(x.MethodName, "Proc_Transacciones", StringComparison.OrdinalIgnoreCase));
+        var endpoint = mapping?.Endpoint?.Trim() ?? string.Empty;
+        var enabled = mapping?.Enabled == true;
+        var effectiveMode = mapping is null
+            ? "Disabled"
+            : NormalizeOperatingMode(mapping.OperatingMode);
+        var runtimeConfigurationReady = enabled
+            && !string.IsNullOrWhiteSpace(endpoint)
+            && string.Equals(effectiveMode, "Live", StringComparison.OrdinalIgnoreCase)
+            && mapping!.TimeoutSeconds is >= 1 and <= 300;
+        var readiness = _mappingReadinessService is null
+            ? null
+            : await _mappingReadinessService.EvaluateAsync(
+                IntegrationGuaranteeConstants.Wscfaach,
+                IntegrationGuaranteeConstants.ProcTransacciones,
+                IntegrationGuaranteeConstants.MonetaryCreditRequest,
+                IntegrationGuaranteeConstants.OutboundRequest,
+                ct: ct);
+        var mappingReady = runtimeConfigurationReady
+            && readiness?.IsReady == true
+            && readiness.CanBuildPayload;
+        var blockingParameters = readiness is null
+            ? Array.Empty<string>()
+            : readiness.MissingRequiredMappings
+                .Concat(readiness.InactiveRequiredMappings)
+                .Concat(readiness.Errors.Select(TryReadBlockingParameter).OfType<string>())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        return settings with
+        {
+            ProcTransaccionesEffectiveSettings = new ProcTransaccionesEffectiveSettingsDto
+            {
+                Operation = "Proc_Transacciones",
+                EffectiveMode = effectiveMode,
+                Endpoint = endpoint,
+                TimeoutSeconds = mapping?.TimeoutSeconds ?? 0,
+                Enabled = enabled,
+                MappingReady = mappingReady,
+                MappingIssueCode = mappingReady
+                    ? null
+                    : runtimeConfigurationReady
+                        ? readiness?.Code ?? "FUNCTIONAL_MAPPING_INVALID"
+                        : "SOAP_RUNTIME_CONFIGURATION_INVALID",
+                BlockingParameters = blockingParameters
+            }
+        };
+    }
+
+    private static SoapIntegrationSettingsDto PreservePersistedSensitiveValues(
+        SoapIntegrationSettingsDto requested,
+        SoapIntegrationSettingsDto persisted)
+        => requested with
+        {
+            WscfaachMappings = PreservePersistedSensitiveValues(
+                requested.WscfaachMappings,
+                persisted.WscfaachMappings),
+            WsAxonRespuestaTransaccionesMappings = PreservePersistedSensitiveValues(
+                requested.WsAxonRespuestaTransaccionesMappings,
+                persisted.WsAxonRespuestaTransaccionesMappings)
+        };
+
+    private static List<SoapEndpointMethodMappingDto> PreservePersistedSensitiveValues(
+        IEnumerable<SoapEndpointMethodMappingDto> requested,
+        IEnumerable<SoapEndpointMethodMappingDto> persisted)
+    {
+        var persistedByMethod = persisted
+            .Where(x => !string.IsNullOrWhiteSpace(x.MethodName))
+            .GroupBy(x => x.MethodName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+
+        return requested.Select(mapping =>
+        {
+            if (!persistedByMethod.TryGetValue(mapping.MethodName, out var previous))
+            {
+                return mapping;
+            }
+
+            return mapping with
+            {
+                Endpoint = ResolveSensitiveValue(
+                    mapping.Endpoint,
+                    previous.Endpoint,
+                    SanitizeEndpoint(previous.Endpoint)),
+                SoapAction = ResolveSensitiveValue(
+                    mapping.SoapAction,
+                    previous.SoapAction,
+                    SanitizeTechnicalUri(previous.SoapAction))
+            };
+        }).ToList();
+    }
+
+    private static SoapIntegrationSettingsDto PreservePersistedTimeouts(
+        SoapIntegrationSettingsDto requested,
+        SoapIntegrationSettingsDto persisted)
+        => requested with
+        {
+            WscfaachMappings = PreservePersistedTimeouts(
+                requested.WscfaachMappings,
+                persisted.WscfaachMappings),
+            WsAxonRespuestaTransaccionesMappings = PreservePersistedTimeouts(
+                requested.WsAxonRespuestaTransaccionesMappings,
+                persisted.WsAxonRespuestaTransaccionesMappings)
+        };
+
+    private static List<SoapEndpointMethodMappingDto> PreservePersistedTimeouts(
+        IEnumerable<SoapEndpointMethodMappingDto> requested,
+        IEnumerable<SoapEndpointMethodMappingDto> persisted)
+    {
+        var persistedByMethod = persisted
+            .Where(x => !string.IsNullOrWhiteSpace(x.MethodName))
+            .GroupBy(x => x.MethodName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+
+        return requested
+            .Select(mapping => mapping.TimeoutSeconds > 0
+                ? mapping
+                : persistedByMethod.TryGetValue(mapping.MethodName, out var previous)
+                    ? mapping with { TimeoutSeconds = previous.TimeoutSeconds }
+                    : mapping)
+            .ToList();
+    }
+
+    private static SoapEndpointMethodMappingDto? FindMethod(
+        SoapIntegrationSettingsDto settings,
+        string? methodName)
+    {
+        if (string.IsNullOrWhiteSpace(methodName))
+        {
+            return null;
+        }
+
+        return settings.WscfaachMappings
+                   .Concat(settings.WsAxonRespuestaTransaccionesMappings)
+                   .FirstOrDefault(x => string.Equals(x.MethodName, methodName.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void EnsureExpectedRevision(string? expectedRevision, string currentRevision)
+    {
+        var expected = expectedRevision?.Trim() ?? string.Empty;
+        if (expected.Length == 0 || !string.Equals(expected, currentRevision, StringComparison.Ordinal))
+        {
+            throw new SoapIntegrationSettingsRevisionConflictException(expected, currentRevision);
+        }
+    }
+
+    private static string ComputeRevision(SoapIntegrationSetting settings)
+    {
+        var material = $"{settings.WscfaachMappingsJson}\n{settings.WsAxonRespuestaTransaccionesMappingsJson}";
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(material));
+        return Convert.ToHexString(digest).ToLowerInvariant();
+    }
+
+    private static string ResolveSensitiveValue(string? requested, string persisted, string sanitizedPersisted)
+    {
+        var value = requested?.Trim() ?? string.Empty;
+        return string.Equals(value, sanitizedPersisted, StringComparison.Ordinal)
+            ? persisted
+            : value;
+    }
+
+    private static string SanitizeEndpoint(string? endpoint)
+        => NachaSoapEndpointSafetyValidator.SanitizeEndpoint(endpoint ?? string.Empty);
+
+    private static string SanitizeTechnicalUri(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri))
+        {
+            return InvalidSanitizedEndpoint;
+        }
+
+        var builder = new UriBuilder(uri)
+        {
+            UserName = string.Empty,
+            Password = string.Empty,
+            Query = string.Empty,
+            Fragment = string.Empty
+        };
+
+        return builder.Uri.GetLeftPart(UriPartial.Path);
+    }
+
+    private static bool IsSanitizedDestinationKnown(string value)
+        => !string.IsNullOrWhiteSpace(value)
+           && !string.Equals(value, InvalidSanitizedEndpoint, StringComparison.Ordinal);
+
+    private static bool IsRealSend(string? operatingMode, bool enabled)
+        => enabled && string.Equals(NormalizeOperatingMode(operatingMode), "Live", StringComparison.OrdinalIgnoreCase);
+
+    private static string BuildConfigurationState(string? operatingMode, bool enabled)
+    {
+        var normalized = NormalizeOperatingMode(operatingMode);
+        if (!enabled || string.Equals(normalized, "Disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Disabled";
+        }
+
+        return string.Equals(normalized, "Live", StringComparison.OrdinalIgnoreCase)
+            ? "RealSendEnabled"
+            : "Simulation";
+    }
+
+    private static void EnsureUniqueSettingsRow(IReadOnlyCollection<SoapIntegrationSetting> settingsRows)
+    {
+        if (settingsRows.Count > 1)
+        {
+            throw new InvalidOperationException(
+                "SOAP_SETTINGS_NOT_UNIQUE: more than one SoapIntegrationSettings row exists.");
+        }
+    }
+
+    private static string? TryReadBlockingParameter(string error)
+    {
+        const string prefix = "Proc_Transacciones.";
+        var start = error.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+        if (start < 0) return null;
+        start += prefix.Length;
+        var end = error.IndexOf(':', start);
+        return end > start ? error[start..end].Trim() : null;
+    }
 }

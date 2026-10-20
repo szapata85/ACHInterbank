@@ -1,4 +1,5 @@
 import { ACH_RESPONSES_ROUTES } from './ach-responses-routing.module';
+import { permissionGuard } from '../../core/guards/permission.guard';
 
 describe('AchResponsesRoutingModule', () => {
   it('ShouldDefineExpectedRoutes', () => {
@@ -8,6 +9,7 @@ describe('AchResponsesRoutingModule', () => {
     expect(paths).toContain('manual-review');
     expect(paths).toContain('status-mappings');
     expect(paths).toContain('dashboard');
+    expect(paths).toContain('audit');
     expect(paths).toContain(':id/notification-attempts');
     expect(paths).toContain(':id');
   });
@@ -20,8 +22,24 @@ describe('AchResponsesRoutingModule', () => {
       'manual-review',
       'status-mappings',
       'dashboard',
+      'audit',
       ':id/notification-attempts',
       ':id'
     ]);
+  });
+
+
+  it('ShouldKeepManualReviewRouteOnCanReadAchForItsReadEntry', () => {
+    const manualReview = ACH_RESPONSES_ROUTES.find((route) => route.path === 'manual-review');
+
+    expect(manualReview?.canActivate).toContain(permissionGuard);
+    expect(manualReview?.data?.['permissions']).toEqual(['CanReadAch']);
+  });
+
+  it('ShouldProtectEveryResponseRouteWithReadPermission', () => {
+    ACH_RESPONSES_ROUTES.forEach((route) => {
+      expect(route.canActivate).withContext(`Falta guard en ${route.path}`).toContain(permissionGuard);
+      expect(route.data?.['permissions']).withContext(`Permiso incorrecto en ${route.path}`).toEqual(['CanReadAch']);
+    });
   });
 });

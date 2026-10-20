@@ -12,7 +12,7 @@ import { NachaSoapUatConsoleData, NachaSoapUatConsoleService } from '../services
   standalone: true,
   imports: [CommonModule, RouterModule, SharedModule],
   templateUrl: './nacha-soap-uat-console.component.html',
-  styleUrls: ['./nacha-operational-dashboard.component.scss'],
+  styleUrls: ['./nacha-operational-console.shared.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NachaSoapUatConsoleComponent implements OnInit {
@@ -25,12 +25,12 @@ export class NachaSoapUatConsoleComponent implements OnInit {
   selectedCandidate?: NachaSoapUatCandidate;
 
   readonly columnasCandidatos: ColDef<NachaSoapUatCandidate>[] = [
-    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },
+    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 180 },
     { field: 'fileName', headerName: 'Archivo', minWidth: 180 },
-    { field: 'entryTraceNumber', headerName: 'Trace', minWidth: 130 },
-    { field: 'decisionType', headerName: 'Decision', minWidth: 180 },
+    { field: 'entryTraceNumber', headerName: 'Número de rastreo', minWidth: 130 },
+    { field: 'decisionType', headerName: 'Decisión', minWidth: 180 },
     { field: 'operationCandidate', headerName: 'Operación', minWidth: 190 },
-    { field: 'requiresMonetaryMovement', headerName: 'Monetario', minWidth: 120 },
+    { field: 'requiresMonetaryMovement', headerName: 'Movimiento monetario', minWidth: 120 },
     { field: 'readinessStatus', headerName: 'Preparación', minWidth: 140 },
     { field: 'simulationStatus', headerName: 'Simulación', minWidth: 130 },
     { field: 'resilienceStatus', headerName: 'Resiliencia', minWidth: 130 },
@@ -39,7 +39,7 @@ export class NachaSoapUatConsoleComponent implements OnInit {
   ];
 
   readonly columnasAuditoria: ColDef<NachaSoapUatAudit>[] = [
-    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 190 },
+    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 190 },
     { field: 'phase', headerName: 'Fase', minWidth: 100 },
     { field: 'eventType', headerName: 'Evento', minWidth: 220 },
     { field: 'severity', headerName: 'Severidad', minWidth: 130 },

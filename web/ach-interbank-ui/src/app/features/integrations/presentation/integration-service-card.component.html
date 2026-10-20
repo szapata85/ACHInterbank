@@ -1,0 +1,75 @@
+<article class="service-card" [attr.aria-labelledby]="'integration-service-' + service.methodId">
+  <header class="service-card__header">
+    <div>
+      <h2 [id]="'integration-service-' + service.methodId">{{ service.functionalTitle }}</h2>
+      <p class="service-card__description">{{ service.functionalDescription || 'Descripción funcional no disponible.' }}</p>
+    </div>
+    <p class="service-card__technical">
+      <span>Nombre técnico</span>
+      <code>{{ service.technicalMethodName }}</code>
+    </p>
+  </header>
+
+  <dl class="service-card__status-list">
+    <div class="service-card__status-item">
+      <dt>Contrato del servicio</dt>
+      <dd>
+        <span class="service-card__value">{{ service.contractVersionLabel || 'Sin versión informada' }}</span>
+        <span
+          class="status-badge"
+          [attr.data-tone]="presentStatus(service.contractStatus).tone"
+        >{{ presentStatus(service.contractStatus).label }}</span>
+      </dd>
+    </div>
+
+    <div class="service-card__status-item">
+      <dt>Relación de información</dt>
+      <dd>
+        <span
+          class="status-badge"
+          [attr.data-tone]="presentStatus(service.mappingStatus).tone"
+        >{{ presentStatus(service.mappingStatus).label }}</span>
+        @if (service.mappingCoverage; as coverage) {
+          <span class="service-card__coverage">
+            {{ coverage.validParameters }} de {{ coverage.totalParameters }} datos validados
+          </span>
+        } @else {
+          <span class="service-card__coverage">Cobertura no disponible</span>
+        }
+      </dd>
+    </div>
+
+    <div class="service-card__status-item">
+      <dt>Conexión</dt>
+      <dd>
+        <span
+          class="status-badge"
+          [attr.data-tone]="presentStatus(service.connectionStatus).tone"
+        >{{ presentStatus(service.connectionStatus).label }}</span>
+      </dd>
+    </div>
+  </dl>
+
+  <nav class="service-card__actions" [attr.aria-label]="'Acciones para ' + service.functionalTitle">
+    <a
+      mat-stroked-button
+      [routerLink]="['/integraciones/contrato']"
+      [queryParams]="{ method: service.technicalMethodName }"
+      data-testid="service-contract-link"
+    >Ver contrato del servicio</a>
+    <a
+      mat-stroked-button
+      [routerLink]="['/integraciones/relacion-informacion']"
+      [queryParams]="{ method: service.technicalMethodName }"
+      data-testid="service-mapping-link"
+    >Ver relación de información</a>
+    @if (canManage) {
+      <a
+        mat-button
+        [routerLink]="['/integraciones/conexion']"
+        [queryParams]="{ method: service.technicalMethodName }"
+        data-testid="service-connection-link"
+      >Ver Conexión entidad participante</a>
+    }
+  </nav>
+</article>

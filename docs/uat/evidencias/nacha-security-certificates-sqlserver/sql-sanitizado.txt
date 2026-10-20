@@ -1,0 +1,38 @@
+Consulta SQL Server final sanitizada
+
+ACHCOL-OUTBOUND-ENCRYPTION
+  archivo: ACHcolombia.cer
+  camara: ACH Colombia
+  ambiente: Test
+  proposito: OutboundEncryption
+  titular: ClearingHouse
+  estado/version: Draft / 1
+  llave privada: false
+  algoritmo/tamano: RSA / 2048
+  huella SHA-256: presente, longitud 64
+  actor: admin
+
+CFA-OUTBOUND-SIGNING
+  archivo: CFA.pfx
+  camara: ACH Colombia
+  ambiente: Test
+  proposito: OutboundSigning
+  titular: Participant
+  estado/version: Draft / 1
+  llave privada: true
+  algoritmo/tamano: RSA / 2048
+  huella SHA-256: presente, longitud 64
+  actor: admin
+  material privado protegido: true
+  longitud blob protegido: 8308 bytes
+  referencia dbenc: true
+
+Auditorias de carga: 2
+Resultado de auditorias: SUCCESS
+Actor de auditorias: admin
+Tabla gestionada sin columna Password: true
+Filas en tabla heredada: 0
+Passwords no vacios en tabla heredada: 0
+Migracion SecureManagedCertificateMaterial aplicada: true
+
+La consulta no extrajo password, PFX, llave privada, blob protegido, serial ni huellas completas.

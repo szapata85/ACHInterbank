@@ -1,0 +1,341 @@
+{
+  "program": "TPA-GOV-001",
+  "generated_at": "2026-10-11",
+  "baseline_package": "ACHInterbank-R10-NACHA-CONFIG-UX-FINAL.zip",
+  "git_metadata_available": false,
+  "trees": {
+    "src": {
+      "file_count": 1561,
+      "sha256": "ccf7f1d806e6ffb543e5889756da68a1d0313e6410d9b517b34d8ac402fd1e55"
+    },
+    "tests": {
+      "file_count": 375,
+      "sha256": "9fc0266d0a7a65ad6606d99e03ded1764920d8b3e61917fa3cd9780d2639e40d"
+    },
+    "spa_src": {
+      "file_count": 682,
+      "sha256": "c91fe6597a724da0f1e0a0e707d8b941fcb6bebd2d5fa8d16a43217f8579130b"
+    }
+  },
+  "relevant_files": {
+    "src/Cfa.ACHInterbank.Domain/Models/ACH/CustomerThirdParty.cs": {
+      "sha256": "15144180f9f48f8595179604fbb84ce8af7cf6bf8f2a0b0175406d1d8f2bdccc",
+      "line_count": 96,
+      "byte_count": 3591
+    },
+    "src/Cfa.ACHInterbank.Domain/Entities/Transactions/Enums/CustomerThirdPartyStatusEnum.cs": {
+      "sha256": "57a59d5c204c2f13fcc9da0433de6ee86d7aefc529dc95d30d9861eeacd1450f",
+      "line_count": 9,
+      "byte_count": 158
+    },
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/PrenotificationHandler.cs": {
+      "sha256": "2965ba8ed9756df7a891f4c65f6325ed78a701d807f3ff29b6d26bdb5f5a6784",
+      "line_count": 77,
+      "byte_count": 2990
+    },
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchTransactionService.cs": {
+      "sha256": "3f616e000208d10b54691d258c6b856e1702474728e46b377be6cdbd30c16865",
+      "line_count": 536,
+      "byte_count": 22119
+    },
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchBulkTransactionService.cs": {
+      "sha256": "ccaa13a76490f0b5c2931839249694336238e2e05269c30f0c4fdb4b88084911",
+      "line_count": 605,
+      "byte_count": 27265
+    },
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchStateTransitionService.cs": {
+      "sha256": "8cc0408368d15084f5dab3083b5d252b2bb81b231e85ade1b9457d550e389495",
+      "line_count": 388,
+      "byte_count": 15023
+    },
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/PrenotificationQueryService.cs": {
+      "sha256": "f2b3d03a3fa784dcba923a8444a185f24308f36cbc52f8d6fbeb16a40624d292",
+      "line_count": 137,
+      "byte_count": 5962
+    },
+    "src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs": {
+      "sha256": "dd5687bb54cfad1c365a3c11fa1806e08d144c95f10ef160fbc1004050b9e6b1",
+      "line_count": 84,
+      "byte_count": 3198
+    },
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/TransactionPrerequisitePolicyService.cs": {
+      "sha256": "e4019bd3920d336fb0a3f2e507dbf29f8518365203a4c2c2fbdefa65c1cb359d",
+      "line_count": 204,
+      "byte_count": 8817
+    },
+    "src/Cfa.ACHInterbank.Domain/Models/ACH/ClearingHouseTransactionRule.cs": {
+      "sha256": "d3f35c5b3b729998594ec59bdeb628b67eadbf3d2265533f8b1de21f1f8b1c17",
+      "line_count": 33,
+      "byte_count": 1564
+    },
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/RegulatoryCatalogSeeder.cs": {
+      "sha256": "76b4996ffe8e5cef3b8922431d1d23bc4942e7788371fb9dcef739f33f7a22b9",
+      "line_count": 619,
+      "byte_count": 42213
+    },
+    "src/Cfa.ACHInterbank.Api/Controllers/CustomerThirdPartiesController.cs": {
+      "sha256": "12d7b14339a307325b8afb330d7c72889766e1fd747f22360ad5af5f5b79786d",
+      "line_count": 57,
+      "byte_count": 1946
+    },
+    "web/ach-interbank-ui/src/app/features/customer-third-parties/components/customer-third-parties.component.ts": {
+      "sha256": "7c95b24a58f2da34e4788dfb6e40a415aa539d326a26130af1984ccedc76b47f",
+      "line_count": 245,
+      "byte_count": 8200
+    },
+    "web/ach-interbank-ui/src/app/features/customer-third-parties/components/customer-third-parties.component.html": {
+      "sha256": "34c597e0e1b99cc574c680f20414e321f3ba21c2410c7b7085c788ca1eb7393f",
+      "line_count": 184,
+      "byte_count": 8302
+    },
+    "web/ach-interbank-ui/src/app/features/transactions/services/transactions-api.service.ts": {
+      "sha256": "fec6095cc3d037333703261b111dbd3ac8bc6e8db81ce45e57217f4d3abd442f",
+      "line_count": 162,
+      "byte_count": 6712
+    },
+    "tests/Cfa.ACHInterbank.Tests/PrenotificationHandlerTests.cs": {
+      "sha256": "484f705bfc0214fee963d1dcc38069fccada85186b854b33840576f9d9134d22",
+      "line_count": 216,
+      "byte_count": 8229
+    },
+    "tests/Cfa.ACHInterbank.Tests/CustomerThirdPartyGovernanceTests.cs": {
+      "sha256": "fafa32c82cdab9165afe48da48196001f9371bf06828b19e1fc2ebcf5af15bc3",
+      "line_count": 107,
+      "byte_count": 3524
+    },
+    "tests/Cfa.ACHInterbank.Tests/DifferentialPrenotificationResponseProcessorTests.cs": {
+      "sha256": "eeeeb20f01e98ae215fbde1a880ad7ed7349b324abe5807c2274465f77236374",
+      "line_count": 584,
+      "byte_count": 31736
+    }
+  },
+  "metrics": {
+    "CustomerThirdParty_literal": {
+      "count": 129,
+      "files": [
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/Configuration/CustomerThirdPartyConfiguration.cs",
+          "count": 3
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs",
+          "count": 1
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CustomerThirdPartyAppService.cs",
+          "count": 8
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPrenotificationResolver.cs",
+          "count": 1
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/PrenotificationHandler.cs",
+          "count": 7
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchStateTransitionService.cs",
+          "count": 4
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/ACH/Repositories/Implementation/CustomerThirdPartyRepository.cs",
+          "count": 5
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Application/ACH/Interfaces/ICustomerThirdPartyAppService.cs",
+          "count": 3
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Application/ACH/Interfaces/Repositories/ICustomerThirdPartyRepository.cs",
+          "count": 3
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Api/Controllers/CustomerThirdPartiesController.cs",
+          "count": 4
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Domain/Models/ACH/CustomerThirdParty.cs",
+          "count": 8
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Domain/Models/ACH/Customer.cs",
+          "count": 2
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Domain/Entities/Transactions/Dtos/CustomerThirdPartyDtos.cs",
+          "count": 4
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Domain/Entities/Transactions/Enums/CustomerThirdPartyStatusEnum.cs",
+          "count": 1
+        },
+        {
+          "path": "tests/Cfa.ACHInterbank.Tests/PrenotificationHandlerTests.cs",
+          "count": 7
+        },
+        {
+          "path": "tests/Cfa.ACHInterbank.Tests/DifferentialPrenotificationResponseProcessorTests.cs",
+          "count": 9
+        },
+        {
+          "path": "tests/Cfa.ACHInterbank.Tests/IncomingNachaPrenotificationResolverTests.cs",
+          "count": 11
+        },
+        {
+          "path": "tests/Cfa.ACHInterbank.Tests/CustomerThirdPartyGovernanceTests.cs",
+          "count": 8
+        },
+        {
+          "path": "tests/Cfa.ACHInterbank.Tests/AchTransactionNachaTests.cs",
+          "count": 2
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/components/customer-third-parties.component.spec.ts",
+          "count": 3
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/components/customer-third-parties.component.ts",
+          "count": 14
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/services/customer-third-parties.service.ts",
+          "count": 14
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/models/customer-third-party.model.ts",
+          "count": 5
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/transactions/services/transactions-api.service.ts",
+          "count": 2
+        }
+      ]
+    },
+    "PrenotificationHandler_literal": {
+      "count": 13,
+      "files": [
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/PrenotificationHandler.cs",
+          "count": 3
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchTransactionService.cs",
+          "count": 2
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchBulkTransactionService.cs",
+          "count": 2
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Application/ACH/Interfaces/IPrenotificationHandler.cs",
+          "count": 1
+        },
+        {
+          "path": "tests/Cfa.ACHInterbank.Tests/PrenotificationHandlerTests.cs",
+          "count": 3
+        },
+        {
+          "path": "tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs",
+          "count": 1
+        },
+        {
+          "path": "tests/Cfa.ACHInterbank.Tests/AchTransactionNachaTests.cs",
+          "count": 1
+        }
+      ]
+    },
+    "customer_third_parties_route_literal": {
+      "count": 20,
+      "files": [
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/Configuration/MenuItemConfiguration.cs",
+          "count": 1
+        },
+        {
+          "path": "src/Cfa.ACHInterbank.Api/Controllers/CustomerThirdPartiesController.cs",
+          "count": 1
+        },
+        {
+          "path": "tests/Cfa.ACHInterbank.Tests/OpenApiDocumentGenerationTests.cs",
+          "count": 1
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/app-routing.module.ts",
+          "count": 3
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/customer-third-parties-routing.module.ts",
+          "count": 1
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/customer-third-parties.module.ts",
+          "count": 2
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/components/customer-third-parties.component.spec.ts",
+          "count": 2
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/components/customer-third-parties.component.html",
+          "count": 1
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/components/customer-third-parties.component.ts",
+          "count": 4
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/services/customer-third-parties.service.ts",
+          "count": 1
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/customer-third-parties/services/customer-third-parties.service.spec.ts",
+          "count": 2
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/transactions/services/transactions-api.service.ts",
+          "count": 1
+        }
+      ]
+    },
+    "global_maturity_literal": {
+      "count": 1,
+      "files": [
+        {
+          "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/PrenotificationQueryService.cs",
+          "count": 1
+        }
+      ]
+    },
+    "legacy_active_selector_literal": {
+      "count": 2,
+      "files": [
+        {
+          "path": "web/ach-interbank-ui/src/app/features/nacha-security/components/nacha-certificate-manager.component.spec.ts",
+          "count": 1
+        },
+        {
+          "path": "web/ach-interbank-ui/src/app/features/transactions/services/transactions-api.service.ts",
+          "count": 1
+        }
+      ]
+    }
+  },
+  "baseline_findings": [
+    "CustomerThirdParty models one customer + destination institution + destination account + recipient id with Pending/Active/Rejected status.",
+    "AchTransactionService and AchBulkTransactionService silently create/enrich Customer and CustomerAccount records.",
+    "PrenotificationHandler silently creates/links CustomerThirdParty only for prenotification and only when source account resolves to an internal Customer.",
+    "AchStateTransitionService maps AppliedTacitly/Certified to Active and ReturnedByOperator/ReturnedByEpr to Rejected for the linked CustomerThirdParty.",
+    "CustomerThirdPartiesController exposes GET only in the baseline.",
+    "Transaction SPA requests status=Active from /api/customer-third-parties to populate destination accounts.",
+    "ClearingHouseTransactionRule already contains chamber-specific prenotification and receiver-identification policy fields.",
+    "PrenotificationQueryService contains a global +3 business-day maturity calculation.",
+    "AchTacitAcceptanceJobHandler uses SlaDeadlineAtUtc or effective-date fallback for pending prenotifications.",
+    "RegulatoryCatalogSeeder ACH Colombia ClearingHouseTransactionRule metadata references V32 and requires audit against V35."
+  ],
+  "design_revision": "TPA-DESIGN-R2",
+  "target_guardrails": {
+    "master_onboarding_clearing_house_agnostic": true,
+    "clearing_house_context_belongs_to_validation_and_eligibility": true,
+    "third_party_account_enrollment_removed_from_target_design": true
+  }
+}

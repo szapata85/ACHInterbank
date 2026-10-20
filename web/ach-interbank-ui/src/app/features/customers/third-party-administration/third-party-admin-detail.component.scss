@@ -1,0 +1,51 @@
+:host { display: block; }
+.header-actions, .form-actions, .pager, .section-heading, .validation-item header { display: flex; gap: .75rem; align-items: center; }
+.header-actions { flex-wrap: wrap; justify-content: flex-end; }
+.card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1.2rem; margin-bottom: 1rem; }
+.master-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; }
+.master-summary > div { display: grid; gap: .3rem; }
+.master-summary small, .muted, .form-note { color: var(--color-text-muted); }
+.eyebrow { color: var(--color-text-muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+.section-heading { justify-content: space-between; margin: 1rem 0 .75rem; }
+.section-heading h2, .section-heading h3 { margin: 0; }
+.section-heading p { margin: .25rem 0 0; color: var(--color-text-muted); max-width: 60rem; }
+.compact { margin: 0 0 .85rem; }
+.form-grid, .revalidation-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .85rem; align-items: end; }
+.inline-form { display: flex; gap: .75rem; align-items: end; flex-wrap: wrap; }
+.inline-form label { flex: 1 1 280px; }
+label { display: flex; flex-direction: column; gap: .35rem; font-size: .9rem; }
+input, select { min-height: var(--control-height); padding: .5rem .7rem; border-radius: var(--radius-md); border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); }
+.full-width { grid-column: 1 / -1; }
+.form-actions, .revalidation-actions { justify-content: flex-end; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 800px; }
+th, td { padding: .7rem .55rem; border-bottom: 1px solid var(--color-border); text-align: left; vertical-align: middle; }
+th { color: var(--color-text-muted); font-size: .82rem; }
+tr.selected { background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)); }
+.row-actions { display: flex; gap: .45rem; justify-content: flex-end; }
+.btn-sm { min-height: 32px; padding: .35rem .65rem; }
+.pager { justify-content: flex-end; margin-top: 1rem; }
+.detail-grid { display: grid; grid-template-columns: minmax(260px, .75fr) minmax(420px, 1.5fr); gap: 1rem; align-items: start; }
+dl { margin: 0; display: grid; gap: .6rem; }
+dl > div { display: grid; gap: .15rem; }
+dt { color: var(--color-text-muted); font-size: .8rem; }
+dd { margin: 0; overflow-wrap: anywhere; }
+.notice-inline { border-left: 3px solid var(--color-warning); background: var(--color-warning-surface); color: var(--color-warning-text); padding: .6rem .75rem; border-radius: var(--radius-sm); }
+.account-editor { margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--color-border); }
+.revalidation-form { border: 1px solid var(--color-border); background: var(--color-surface-muted); border-radius: var(--radius-md); padding: .9rem; margin-bottom: 1rem; }
+.validation-history { display: grid; gap: .85rem; }
+.validation-item { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .9rem; }
+.validation-item header { justify-content: space-between; align-items: flex-start; }
+.validation-item header > div { display: grid; gap: .2rem; }
+.validation-item header span { color: var(--color-text-muted); font-size: .85rem; }
+.validation-meta { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-top: .75rem; }
+.attempts { margin-top: .9rem; }
+.attempts h4 { margin: 0 0 .45rem; }
+.attempt { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .4rem .75rem; padding: .55rem 0; border-top: 1px solid var(--color-border); font-size: .85rem; }
+
+@media (max-width: 960px) { .detail-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .header-actions, .form-actions, .section-heading { align-items: stretch; flex-direction: column; }
+  .row-actions { flex-direction: column; }
+  .pager { justify-content: space-between; }
+}

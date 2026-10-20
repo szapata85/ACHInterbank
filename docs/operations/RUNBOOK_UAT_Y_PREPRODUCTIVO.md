@@ -309,6 +309,38 @@ Escenario vinculado: `UAT-REAL-014`.
 
 BRECHA: CENIT neteo/liquidez/CUD sin evidencia E2E homologada bloquea productivo si aplica al alcance.
 
+## 16A. Procedimiento ACH Colombia MFT/SFTP
+
+**Estado del paquete actual:** implementación completada; validación ejecutable final, homologación y UAT pendientes. Usar únicamente ambientes autorizados y credenciales de prueba.
+
+### Configuración
+
+1. Abrir la administración de ACH Colombia.
+2. Elegir **Carpeta compartida** o **SFTP**.
+3. En Carpeta compartida, configurar las carpetas autorizadas de envío/recepción.
+4. En SFTP, configurar servidor CFA, puerto, usuario, huella del servidor, carpetas y timeout.
+5. Establecer la credencial solo cuando corresponda. Después de guardarla, verificar únicamente `Credencial configurada: Sí`; nunca intentar recuperarla desde la UI.
+6. Ejecutar **Probar conexión**. La prueba debe validar conexión/autenticación/acceso a rutas y no debe enviar NACHA-M.
+
+### Horarios automáticos
+
+- Revisar la ventana regulatoria como información de solo lectura.
+- Configurar solo horarios operacionales aprobados. C1 soporta `06:30`; C7 soporta `17:50` como última hora permitida.
+- No completar C2-C6 por inferencia.
+- Un cambio operacional se persiste y resincroniza Quartz sin requerir reinicio; esta capacidad todavía debe pasar por el control final ejecutable del paquete exacto.
+
+### Seguimiento y recepción
+
+- **Publicado para envío** significa que el archivo quedó en la frontera CFA; no confirma recepción/aceptación por ACH Colombia.
+- Para inbound, revisar OUT/RET, hash, tamaño, ciclo, fecha operativa, intentos e historial.
+- **Duplicado**: no reprocesar por fuera de los controles del sistema; revisar trazabilidad antes de escalar.
+- **Reintento pendiente / No se pudo procesar**: revisar el historial y ejecutar solo el mecanismo autorizado.
+- **Recibido fuera del horario esperado**: conservar el archivo y la evidencia; no inventar un rechazo regulatorio.
+
+### Evidencia mínima para homologación
+
+Registrar, sin secretos: configuración sanitizada, host key/fingerprint aprobado, rutas acordadas, IDs de ejecución/transferencia, SHA-256, timestamps, resultado de prueba de conexión, evidencia de una sola ejecución lógica con dos nodos y evidencia OUT/RET. La recepción/aceptación por ACH Colombia solo puede afirmarse con evidencia externa formal.
+
 ## 17. Procedimiento conciliacion
 
 | Paso | Accion | Evidencia |

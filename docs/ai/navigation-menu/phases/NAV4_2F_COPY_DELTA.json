@@ -1,0 +1,679 @@
+{
+  "baseline": "NAV4.2E",
+  "baseline_app_tree_sha256": "62230bdde11661f6d55559e6077972a65646578c9ae9c015002d7f563291e3cb",
+  "files": 26,
+  "lines": 108,
+  "tabular_hooks_changed": 112,
+  "changes": [
+    {
+      "path": "features/ach-claims/ach-claims-detail.component.html",
+      "entries": [
+        {
+          "line": 66,
+          "old": "            <ng-container matColumnDef=\"source\"><th mat-header-cell *matHeaderCellDef>Entidad origen</th><td mat-cell *matCellDef=\"let row\">{{ row.sourceInstitution.name }}</td></ng-container>",
+          "new": "            <ng-container matColumnDef=\"source\"><th mat-header-cell *matHeaderCellDef>Entidad de origen</th><td mat-cell *matCellDef=\"let row\">{{ row.sourceInstitution.name }}</td></ng-container>"
+        },
+        {
+          "line": 67,
+          "old": "            <ng-container matColumnDef=\"destination\"><th mat-header-cell *matHeaderCellDef>Entidad destino</th><td mat-cell *matCellDef=\"let row\">{{ row.destinationInstitution.name }}</td></ng-container>",
+          "new": "            <ng-container matColumnDef=\"destination\"><th mat-header-cell *matHeaderCellDef>Entidad de destino</th><td mat-cell *matCellDef=\"let row\">{{ row.destinationInstitution.name }}</td></ng-container>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-attempts-page.component.html",
+      "entries": [
+        {
+          "line": 28,
+          "old": "      <th mat-header-cell *matHeaderCellDef>Número intento</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>Número de intento</th>"
+        },
+        {
+          "line": 33,
+          "old": "      <th mat-header-cell *matHeaderCellDef>Estado notificación</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>Estado de notificación</th>"
+        },
+        {
+          "line": 43,
+          "old": "      <th mat-header-cell *matHeaderCellDef>IdCanal</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>ID de canal</th>"
+        },
+        {
+          "line": 48,
+          "old": "      <th mat-header-cell *matHeaderCellDef>Nombre canal</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>Nombre del canal</th>"
+        },
+        {
+          "line": 53,
+          "old": "      <th mat-header-cell *matHeaderCellDef>Id transacción</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>ID de transacción</th>"
+        },
+        {
+          "line": 58,
+          "old": "      <th mat-header-cell *matHeaderCellDef>IdEstado</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>ID del estado</th>"
+        },
+        {
+          "line": 68,
+          "old": "      <th mat-header-cell *matHeaderCellDef>IdTransaccionServicioExterno</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>ID de transacción del servicio externo</th>"
+        },
+        {
+          "line": 73,
+          "old": "      <th mat-header-cell *matHeaderCellDef>Descripción causal</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>Descripción de la causal</th>"
+        },
+        {
+          "line": 83,
+          "old": "      <th mat-header-cell *matHeaderCellDef>Código error</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>Código de error</th>"
+        },
+        {
+          "line": 88,
+          "old": "      <th mat-header-cell *matHeaderCellDef>Descripción error</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>Descripción del error</th>"
+        },
+        {
+          "line": 98,
+          "old": "      <th mat-header-cell *matHeaderCellDef>Fecha creación</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>Fecha de creación</th>"
+        },
+        {
+          "line": 103,
+          "old": "      <th mat-header-cell *matHeaderCellDef>Fecha envío</th>",
+          "new": "      <th mat-header-cell *matHeaderCellDef>Fecha de envío</th>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-detail-page.component.html",
+      "entries": [
+        {
+          "line": 60,
+          "old": "            <th>Inicio</th><th>Terminación</th><th>Instancia</th><th>Correlation ID</th>",
+          "new": "            <th>Inicio</th><th>Terminación</th><th>Instancia</th><th>ID de correlación</th>"
+        },
+        {
+          "line": 140,
+          "old": "              <th>Número intento</th>",
+          "new": "              <th>Número de intento</th>"
+        },
+        {
+          "line": 141,
+          "old": "              <th>Estado notificación</th>",
+          "new": "              <th>Estado de notificación</th>"
+        },
+        {
+          "line": 142,
+          "old": "              <th>IdCanal</th>",
+          "new": "              <th>ID de canal</th>"
+        },
+        {
+          "line": 143,
+          "old": "              <th>Nombre canal</th>",
+          "new": "              <th>Nombre del canal</th>"
+        },
+        {
+          "line": 144,
+          "old": "              <th>IdEstado</th>",
+          "new": "              <th>ID del estado</th>"
+        },
+        {
+          "line": 147,
+          "old": "              <th>Código error</th>",
+          "new": "              <th>Código de error</th>"
+        },
+        {
+          "line": 148,
+          "old": "              <th>Descripción error</th>",
+          "new": "              <th>Descripción del error</th>"
+        },
+        {
+          "line": 150,
+          "old": "              <th>Fecha creación</th>",
+          "new": "              <th>Fecha de creación</th>"
+        },
+        {
+          "line": 151,
+          "old": "              <th>Fecha envío</th>",
+          "new": "              <th>Fecha de envío</th>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-list-page.component.ts",
+      "entries": [
+        {
+          "line": 78,
+          "old": "    { field: 'fechaRecepcionText', headerName: 'Fecha recepción', minWidth: 170 },",
+          "new": "    { field: 'fechaRecepcionText', headerName: 'Fecha de recepción', minWidth: 170 },"
+        },
+        {
+          "line": 79,
+          "old": "    { field: 'fechaCreacionText', headerName: 'Fecha creación', minWidth: 170 },",
+          "new": "    { field: 'fechaCreacionText', headerName: 'Fecha de creación', minWidth: 170 },"
+        },
+        {
+          "line": 81,
+          "old": "    { field: 'idTransaccion', headerName: 'Transacción', minWidth: 180 },",
+          "new": "    { field: 'idTransaccion', headerName: 'ID de transacción', minWidth: 180 },"
+        },
+        {
+          "line": 83,
+          "old": "    { field: 'codigoEntidadOrigen', headerName: 'Entidad origen', minWidth: 140 },",
+          "new": "    { field: 'codigoEntidadOrigen', headerName: 'Entidad de origen', minWidth: 140 },"
+        },
+        {
+          "line": 84,
+          "old": "    { field: 'codigoEntidadDestino', headerName: 'Entidad destino', minWidth: 140 },",
+          "new": "    { field: 'codigoEntidadDestino', headerName: 'Entidad de destino', minWidth: 140 },"
+        },
+        {
+          "line": 90,
+          "old": "      headerName: 'Estado procesamiento',",
+          "new": "      headerName: 'Estado de procesamiento',"
+        },
+        {
+          "line": 97,
+          "old": "    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },",
+          "new": "    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 180 },"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-manual-review-page.component.ts",
+      "entries": [
+        {
+          "line": 90,
+          "old": "    { field: 'fechaRecepcionText', headerName: 'Fecha recepción', minWidth: 170 },",
+          "new": "    { field: 'fechaRecepcionText', headerName: 'Fecha de recepción', minWidth: 170 },"
+        },
+        {
+          "line": 91,
+          "old": "    { field: 'fechaCreacionText', headerName: 'Fecha creación', minWidth: 170 },",
+          "new": "    { field: 'fechaCreacionText', headerName: 'Fecha de creación', minWidth: 170 },"
+        },
+        {
+          "line": 93,
+          "old": "    { field: 'idTransaccion', headerName: 'Transacción', minWidth: 180 },",
+          "new": "    { field: 'idTransaccion', headerName: 'ID de transacción', minWidth: 180 },"
+        },
+        {
+          "line": 95,
+          "old": "    { field: 'codigoEntidadOrigen', headerName: 'Entidad origen', minWidth: 140 },",
+          "new": "    { field: 'codigoEntidadOrigen', headerName: 'Entidad de origen', minWidth: 140 },"
+        },
+        {
+          "line": 96,
+          "old": "    { field: 'codigoEntidadDestino', headerName: 'Entidad destino', minWidth: 140 },",
+          "new": "    { field: 'codigoEntidadDestino', headerName: 'Entidad de destino', minWidth: 140 },"
+        },
+        {
+          "line": 107,
+          "old": "    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },",
+          "new": "    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 180 },"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-status-mappings-page.component.ts",
+      "entries": [
+        {
+          "line": 81,
+          "old": "    { field: 'tipoRespuesta', headerName: 'Tipo respuesta', minWidth: 130 },",
+          "new": "    { field: 'tipoRespuesta', headerName: 'Tipo de respuesta', minWidth: 130 },"
+        },
+        {
+          "line": 85,
+          "old": "    { field: 'idEstadoInterno', headerName: 'Id estado interno', minWidth: 140 },",
+          "new": "    { field: 'idEstadoInterno', headerName: 'ID del estado interno', minWidth: 140 },"
+        },
+        {
+          "line": 86,
+          "old": "    { field: 'idEstadoServicioExterno', headerName: 'Id estado servicio externo', minWidth: 170 },",
+          "new": "    { field: 'idEstadoServicioExterno', headerName: 'ID del estado del servicio externo', minWidth: 170 },"
+        },
+        {
+          "line": 89,
+          "old": "    { field: 'descripcionCausalNormalizada', headerName: 'Descripción causal', minWidth: 180 },",
+          "new": "    { field: 'descripcionCausalNormalizada', headerName: 'Descripción de la causal', minWidth: 180 },"
+        },
+        {
+          "line": 108,
+          "old": "    { field: 'fechaInicioVigenciaText', headerName: 'Inicio vigencia', minWidth: 160 },",
+          "new": "    { field: 'fechaInicioVigenciaText', headerName: 'Vigencia inicial', minWidth: 160 },"
+        },
+        {
+          "line": 109,
+          "old": "    { field: 'fechaFinVigenciaText', headerName: 'Fin vigencia', minWidth: 160 },",
+          "new": "    { field: 'fechaFinVigenciaText', headerName: 'Vigencia final', minWidth: 160 },"
+        }
+      ]
+    },
+    {
+      "path": "features/audit/components/audit-log.component.html",
+      "entries": [
+        {
+          "line": 211,
+          "old": "          <th mat-header-cell *matHeaderCellDef mat-sort-header>ID entidad</th>",
+          "new": "          <th mat-header-cell *matHeaderCellDef mat-sort-header>ID de entidad</th>"
+        },
+        {
+          "line": 217,
+          "old": "              [attr.aria-label]=\"'Identificador de entidad: ' + row.entityIdDisplay\"",
+          "new": "              [attr.aria-label]=\"'ID de entidad: ' + row.entityIdDisplay\""
+        }
+      ]
+    },
+    {
+      "path": "features/catalogs/components/company-entry-description-admin.component.ts",
+      "entries": [
+        {
+          "line": 29,
+          "old": "    { field: 'id', headerName: 'Id', sortable: true, filter: 'agNumberColumnFilter', maxWidth: 110 },",
+          "new": "    { field: 'id', headerName: 'ID', sortable: true, filter: 'agNumberColumnFilter', maxWidth: 110 },"
+        }
+      ]
+    },
+    {
+      "path": "features/catalogs/components/financial-institutions.component.ts",
+      "entries": [
+        {
+          "line": 82,
+          "old": "    { field: 'checkDigit', headerName: 'Dígito', minWidth: 105, maxWidth: 125 },",
+          "new": "    { field: 'checkDigit', headerName: 'Dígito de chequeo', minWidth: 105, maxWidth: 125 },"
+        }
+      ]
+    },
+    {
+      "path": "features/clearing-houses/transaction-policies.component.html",
+      "entries": [
+        {
+          "line": 130,
+          "old": "              <th mat-header-cell *matHeaderCellDef>Inicio</th><td mat-cell *matCellDef=\"let row\">{{ row.effectiveFrom | date:'mediumDate':'UTC' }}</td>",
+          "new": "              <th mat-header-cell *matHeaderCellDef>Vigencia inicial</th><td mat-cell *matCellDef=\"let row\">{{ row.effectiveFrom | date:'mediumDate':'UTC' }}</td>"
+        },
+        {
+          "line": 133,
+          "old": "              <th mat-header-cell *matHeaderCellDef>Fin</th><td mat-cell *matCellDef=\"let row\">{{ row.effectiveTo ? (row.effectiveTo | date:'mediumDate':'UTC') : 'Sin cierre' }}</td>",
+          "new": "              <th mat-header-cell *matHeaderCellDef>Vigencia final</th><td mat-cell *matCellDef=\"let row\">{{ row.effectiveTo ? (row.effectiveTo | date:'mediumDate':'UTC') : 'Sin cierre' }}</td>"
+        }
+      ]
+    },
+    {
+      "path": "features/customer-third-parties/components/customer-third-parties.component.ts",
+      "entries": [
+        {
+          "line": 55,
+          "old": "    { key: 'destinationInstitutionName', label: 'Entidad destino' },",
+          "new": "    { key: 'destinationInstitutionName', label: 'Entidad de destino' },"
+        },
+        {
+          "line": 56,
+          "old": "    { key: 'destinationAccountNumber', label: 'Cuenta destino' },",
+          "new": "    { key: 'destinationAccountNumber', label: 'Cuenta de destino' },"
+        },
+        {
+          "line": 57,
+          "old": "    { key: 'recipientIdNumber', label: 'Documento receptor' },",
+          "new": "    { key: 'recipientIdNumber', label: 'Documento del receptor' },"
+        },
+        {
+          "line": 59,
+          "old": "    { key: 'prenotificationTransactionId', label: 'ID prenotificación' },",
+          "new": "    { key: 'prenotificationTransactionId', label: 'ID de prenotificación' },"
+        },
+        {
+          "line": 60,
+          "old": "    { key: 'validationCycleId', label: 'Ciclo validación' },",
+          "new": "    { key: 'validationCycleId', label: 'Ciclo de validación' },"
+        },
+        {
+          "line": 61,
+          "old": "    { key: 'validationReceivedAtDisplay', label: 'Fecha validación' },",
+          "new": "    { key: 'validationReceivedAtDisplay', label: 'Fecha de validación' },"
+        }
+      ]
+    },
+    {
+      "path": "features/incoming-nacha-command-center/pages/incoming-nacha-observability-page.component.ts",
+      "entries": [
+        {
+          "line": 46,
+          "old": "    { field: 'errorCode', headerName: 'Código error', minWidth: 180 },",
+          "new": "    { field: 'errorCode', headerName: 'Código de error', minWidth: 180 },"
+        }
+      ]
+    },
+    {
+      "path": "features/incoming-nacha-command-center/pages/incoming-nacha-queue-page.component.ts",
+      "entries": [
+        {
+          "line": 48,
+          "old": "    { field: 'achTransactionId', headerName: 'Tx', minWidth: 100 },",
+          "new": "    { field: 'achTransactionId', headerName: 'ID de transacción ACH', minWidth: 100 },"
+        }
+      ]
+    },
+    {
+      "path": "features/nacha-operational/pages/ach-reconciliation-console.component.ts",
+      "entries": [
+        {
+          "line": 36,
+          "old": "    { field: 'reconciliationId', headerName: 'ID', minWidth: 170 },",
+          "new": "    { field: 'reconciliationId', headerName: 'ID de conciliación', minWidth: 170 },"
+        },
+        {
+          "line": 37,
+          "old": "    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },",
+          "new": "    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 180 },"
+        },
+        {
+          "line": 43,
+          "old": "    { field: 'traceNumberMasked', headerName: 'Trace', minWidth: 130 },",
+          "new": "    { field: 'traceNumberMasked', headerName: 'Número de rastreo', minWidth: 130 },"
+        },
+        {
+          "line": 46,
+          "old": "    { field: 'soapOperationCandidate', headerName: 'SOAP candidato', minWidth: 190 }",
+          "new": "    { field: 'soapOperationCandidate', headerName: 'Operación SOAP candidata', minWidth: 190 }"
+        }
+      ]
+    },
+    {
+      "path": "features/nacha-operational/pages/nacha-soap-uat-console.component.ts",
+      "entries": [
+        {
+          "line": 28,
+          "old": "    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },",
+          "new": "    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 180 },"
+        },
+        {
+          "line": 30,
+          "old": "    { field: 'entryTraceNumber', headerName: 'Trace', minWidth: 130 },",
+          "new": "    { field: 'entryTraceNumber', headerName: 'Número de rastreo', minWidth: 130 },"
+        },
+        {
+          "line": 31,
+          "old": "    { field: 'decisionType', headerName: 'Decision', minWidth: 180 },",
+          "new": "    { field: 'decisionType', headerName: 'Decisión', minWidth: 180 },"
+        },
+        {
+          "line": 33,
+          "old": "    { field: 'requiresMonetaryMovement', headerName: 'Monetario', minWidth: 120 },",
+          "new": "    { field: 'requiresMonetaryMovement', headerName: 'Movimiento monetario', minWidth: 120 },"
+        },
+        {
+          "line": 42,
+          "old": "    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 190 },",
+          "new": "    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 190 },"
+        }
+      ]
+    },
+    {
+      "path": "features/navigation-logs/components/navigation-log.component.ts",
+      "entries": [
+        {
+          "line": 45,
+          "old": "    { key: 'userAgent', label: 'User agent' }",
+          "new": "    { key: 'userAgent', label: 'User-Agent' }"
+        }
+      ]
+    },
+    {
+      "path": "features/operational-restrictions/operational-restrictions.component.html",
+      "entries": [
+        {
+          "line": 129,
+          "old": "        <table mat-table [dataSource]=\"dataSource\" matSort aria-label=\"Restricciones operacionales CFA\">",
+          "new": "        <table mat-table [dataSource]=\"dataSource\" matSort aria-label=\"Restricciones operativas\">"
+        },
+        {
+          "line": 231,
+          "old": "      aria-label=\"Paginación de restricciones operacionales CFA\"></mat-paginator>",
+          "new": "      aria-label=\"Paginación de restricciones operativas\"></mat-paginator>"
+        }
+      ]
+    },
+    {
+      "path": "features/payment-rail-capability-registry/pages/payment-rail-capability-registry-page.component.ts",
+      "entries": [
+        {
+          "line": 42,
+          "old": "    { field: 'capabilityCode', headerName: 'Capability', sortable: true, filter: 'agTextColumnFilter' },",
+          "new": "    { field: 'capabilityCode', headerName: 'Capacidad', sortable: true, filter: 'agTextColumnFilter' },"
+        },
+        {
+          "line": 45,
+          "old": "    { field: 'effectiveFromUtc', headerName: 'Vigencia desde (UTC)', sortable: true },",
+          "new": "    { field: 'effectiveFromUtc', headerName: 'Vigencia inicial (UTC)', sortable: true },"
+        },
+        {
+          "line": 46,
+          "old": "    { field: 'effectiveToUtc', headerName: 'Vigencia hasta (UTC)', sortable: true },",
+          "new": "    { field: 'effectiveToUtc', headerName: 'Vigencia final (UTC)', sortable: true },"
+        },
+        {
+          "line": 48,
+          "old": "    { field: 'changeSource', headerName: 'Fuente cambio', sortable: true },",
+          "new": "    { field: 'changeSource', headerName: 'Fuente del cambio', sortable: true },"
+        },
+        {
+          "line": 49,
+          "old": "    { field: 'changeTicket', headerName: 'Ticket cambio', sortable: true },",
+          "new": "    { field: 'changeTicket', headerName: 'Ticket de cambio', sortable: true },"
+        }
+      ]
+    },
+    {
+      "path": "features/reports/components/report-list-page.component.ts",
+      "entries": [
+        {
+          "line": 196,
+          "old": "        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }",
+          "new": "        { key: 'transactionId', label: 'ID de transacción' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }"
+        },
+        {
+          "line": 199,
+          "old": "        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }",
+          "new": "        { key: 'transactionId', label: 'ID de transacción' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }"
+        },
+        {
+          "line": 202,
+          "old": "        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }",
+          "new": "        { key: 'transactionId', label: 'ID de transacción' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }"
+        },
+        {
+          "line": 205,
+          "old": "        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }",
+          "new": "        { key: 'transactionId', label: 'ID de transacción' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }"
+        },
+        {
+          "line": 214,
+          "old": "        { key: 'user', label: 'Usuario' }, { key: 'action', label: 'Acción' }, { key: 'entity', label: 'Entidad' }, { key: 'entityId', label: 'Identificador de entidad' }, { key: 'dateUtc', label: 'Fecha y hora' }",
+          "new": "        { key: 'user', label: 'Usuario' }, { key: 'action', label: 'Acción' }, { key: 'entity', label: 'Entidad' }, { key: 'entityId', label: 'ID de entidad' }, { key: 'dateUtc', label: 'Fecha y hora' }"
+        },
+        {
+          "line": 217,
+          "old": "        { key: 'transactionId', label: 'Transacción' }, { key: 'fromState', label: 'Estado anterior' }, { key: 'toState', label: 'Estado nuevo' }, { key: 'source', label: 'Fuente' }, { key: 'reasonCode', label: 'Causal' }, { key: 'dateUtc', label: 'Fecha y hora' }",
+          "new": "        { key: 'transactionId', label: 'ID de transacción' }, { key: 'fromState', label: 'Estado anterior' }, { key: 'toState', label: 'Estado nuevo' }, { key: 'source', label: 'Fuente' }, { key: 'reasonCode', label: 'Causal' }, { key: 'dateUtc', label: 'Fecha y hora' }"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/ach-returns-management/ach-returns-management.component.ts",
+      "entries": [
+        {
+          "line": 321,
+          "old": "    { field: 'traceNumber', headerName: 'Traza', minWidth: 170 },",
+          "new": "    { field: 'traceNumber', headerName: 'Número de rastreo', minWidth: 170 },"
+        },
+        {
+          "line": 331,
+          "old": "      headerName: 'DFI origen',",
+          "new": "      headerName: 'DFI de origen',"
+        },
+        {
+          "line": 336,
+          "old": "      headerName: 'DFI destino',",
+          "new": "      headerName: 'DFI de destino',"
+        },
+        {
+          "line": 347,
+          "old": "    { field: 'transactionCode', headerName: 'Código Tx', minWidth: 125 },",
+          "new": "    { field: 'transactionCode', headerName: 'Código de transacción', minWidth: 125 },"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/bulk-ingestion-detail/bulk-ingestion-detail.component.ts",
+      "entries": [
+        {
+          "line": 51,
+          "old": "    { field: 'triggeredBy', headerName: 'Disparado por', minWidth: 150 },",
+          "new": "    { field: 'triggeredBy', headerName: 'Iniciado por', minWidth: 150 },"
+        },
+        {
+          "line": 59,
+          "old": "    { field: 'transactionId', headerName: 'ID transacción', minWidth: 140, valueGetter: (params) => params.data?.transactionId ?? '-' },",
+          "new": "    { field: 'transactionId', headerName: 'ID de transacción', minWidth: 140, valueGetter: (params) => params.data?.transactionId ?? '-' },"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/bulk-ingestion-tracking/bulk-ingestion-tracking.component.ts",
+      "entries": [
+        {
+          "line": 49,
+          "old": "    { field: 'uploadedAtUtc', headerName: 'Fecha carga', minWidth: 180, valueFormatter: (params) => params.value ? new Date(params.value).toLocaleString('es-CO') : '-' },",
+          "new": "    { field: 'uploadedAtUtc', headerName: 'Fecha de carga', minWidth: 180, valueFormatter: (params) => params.value ? new Date(params.value).toLocaleString('es-CO') : '-' },"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/nacha-upload/nacha-upload.component.ts",
+      "entries": [
+        {
+          "line": 45,
+          "old": "    { headerName: 'Nacha ID', valueGetter: (params) => params.data?.nachaId || '-' },",
+          "new": "    { headerName: 'ID del archivo NACHA-M', valueGetter: (params) => params.data?.nachaId || '-' },"
+        },
+        {
+          "line": 50,
+          "old": "    { headerName: 'Fecha archivo', valueGetter: (params) => params.data?.fileCreationDate || '-' },",
+          "new": "    { headerName: 'Fecha del archivo', valueGetter: (params) => params.data?.fileCreationDate || '-' },"
+        },
+        {
+          "line": 51,
+          "old": "    { headerName: 'Hora', valueGetter: (params) => params.data?.fileCreationTime || '-' },",
+          "new": "    { headerName: 'Hora del archivo', valueGetter: (params) => params.data?.fileCreationTime || '-' },"
+        },
+        {
+          "line": 55,
+          "old": "    { field: 'totalAmount', headerName: 'Total monto', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) },",
+          "new": "    { field: 'totalAmount', headerName: 'Monto total', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) },"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/transaction-bulk-create/transaction-bulk-create.component.ts",
+      "entries": [
+        {
+          "line": 43,
+          "old": "    { field: 'transactionExternalId', headerName: 'ID operación', valueGetter: (params) => params.data?.transactionExternalId || '-', minWidth: 150 },",
+          "new": "    { field: 'transactionExternalId', headerName: 'ID de operación', valueGetter: (params) => params.data?.transactionExternalId || '-', minWidth: 150 },"
+        },
+        {
+          "line": 44,
+          "old": "    { field: 'reference', headerName: 'Referencia legado', valueGetter: (params) => params.data?.reference || '-', minWidth: 170 },",
+          "new": "    { field: 'reference', headerName: 'Referencia heredada', valueGetter: (params) => params.data?.reference || '-', minWidth: 170 },"
+        },
+        {
+          "line": 46,
+          "old": "    { field: 'transactionId', headerName: 'ID transacción', valueGetter: (params) => params.data?.transactionId ?? '-', minWidth: 150 },",
+          "new": "    { field: 'transactionId', headerName: 'ID de transacción', valueGetter: (params) => params.data?.transactionId ?? '-', minWidth: 150 },"
+        },
+        {
+          "line": 47,
+          "old": "    { field: 'errorCode', headerName: 'Código error', valueGetter: (params) => params.data?.errorCode ?? '-', minWidth: 130 },",
+          "new": "    { field: 'errorCode', headerName: 'Código de error', valueGetter: (params) => params.data?.errorCode ?? '-', minWidth: 130 },"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/transaction-list/transaction-list.component.ts",
+      "entries": [
+        {
+          "line": 118,
+          "old": "    { field: 'transactionExternalId', headerName: 'ID operación', flex: 1, sortable: true, filter: 'agTextColumnFilter' },",
+          "new": "    { field: 'transactionExternalId', headerName: 'ID de operación', flex: 1, sortable: true, filter: 'agTextColumnFilter' },"
+        },
+        {
+          "line": 119,
+          "old": "    { field: 'reference', headerName: 'Referencia legado', flex: 1, sortable: true, filter: 'agTextColumnFilter' },",
+          "new": "    { field: 'reference', headerName: 'Referencia heredada', flex: 1, sortable: true, filter: 'agTextColumnFilter' },"
+        },
+        {
+          "line": 122,
+          "old": "    { field: 'returnManagementLabel', headerName: 'Gestión devolución', width: 220, filter: 'agTextColumnFilter' },",
+          "new": "    { field: 'returnManagementLabel', headerName: 'Gestión de devolución', width: 220, filter: 'agTextColumnFilter' },"
+        },
+        {
+          "line": 126,
+          "old": "    { field: 'sourceAccountNumber', headerName: 'Cuenta origen', filter: 'agTextColumnFilter' },",
+          "new": "    { field: 'sourceAccountNumber', headerName: 'Cuenta de origen', filter: 'agTextColumnFilter' },"
+        },
+        {
+          "line": 127,
+          "old": "    { field: 'destinationAccountNumber', headerName: 'Cuenta destino', filter: 'agTextColumnFilter' },",
+          "new": "    { field: 'destinationAccountNumber', headerName: 'Cuenta de destino', filter: 'agTextColumnFilter' },"
+        },
+        {
+          "line": 128,
+          "old": "    { field: 'destinationInstitutionName', headerName: 'Institución destino', filter: 'agTextColumnFilter', flex: 1 },",
+          "new": "    { field: 'destinationInstitutionName', headerName: 'Institución de destino', filter: 'agTextColumnFilter', flex: 1 },"
+        },
+        {
+          "line": 133,
+          "old": "    { field: 'transactionExternalId', label: 'ID operación' },",
+          "new": "    { field: 'transactionExternalId', label: 'ID de operación' },"
+        },
+        {
+          "line": 134,
+          "old": "    { field: 'reference', label: 'Referencia legado' },",
+          "new": "    { field: 'reference', label: 'Referencia heredada' },"
+        },
+        {
+          "line": 137,
+          "old": "    { field: 'returnManagementLabel', label: 'Gestión devolución' },",
+          "new": "    { field: 'returnManagementLabel', label: 'Gestión de devolución' },"
+        },
+        {
+          "line": 141,
+          "old": "    { field: 'sourceAccountNumber', label: 'Cuenta origen' },",
+          "new": "    { field: 'sourceAccountNumber', label: 'Cuenta de origen' },"
+        },
+        {
+          "line": 142,
+          "old": "    { field: 'destinationAccountNumber', label: 'Cuenta destino' },",
+          "new": "    { field: 'destinationAccountNumber', label: 'Cuenta de destino' },"
+        },
+        {
+          "line": 143,
+          "old": "    { field: 'destinationInstitutionName', label: 'Institución destino' },",
+          "new": "    { field: 'destinationInstitutionName', label: 'Institución de destino' },"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/outgoing-monitoring/outgoing-transaction-monitoring-list.component.html",
+      "entries": [
+        {
+          "line": 176,
+          "old": "            <ng-container matColumnDef=\"destination\"><th mat-header-cell *matHeaderCellDef>Entidad destino</th><td mat-cell *matCellDef=\"let item\">{{ item.destinationInstitutionDisplayName }}<small>{{ item.maskedDestinationAccount }}</small></td></ng-container>",
+          "new": "            <ng-container matColumnDef=\"destination\"><th mat-header-cell *matHeaderCellDef>Entidad de destino</th><td mat-cell *matCellDef=\"let item\">{{ item.destinationInstitutionDisplayName }}<small>{{ item.maskedDestinationAccount }}</small></td></ng-container>"
+        }
+      ]
+    }
+  ]
+}

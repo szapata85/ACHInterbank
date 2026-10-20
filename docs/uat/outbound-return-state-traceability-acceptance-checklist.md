@@ -71,7 +71,7 @@ Cobertura mínima:
 
 ## 5. Checklist funcional UAT
 Casos mínimos:
-1. ACH genera DEV14 correctamente.
+1. ACH rechaza DEV14 con `ACHCOL_DEV14_CLAIMS_ONLY`, sin archivo ReturnOut, sin fila `AchReturnGenerated` y sin evento Return.
 2. ACH multi-transacción en un archivo.
 3. CENIT genera R01 correctamente.
 4. Reintento del mismo request es rechazado.

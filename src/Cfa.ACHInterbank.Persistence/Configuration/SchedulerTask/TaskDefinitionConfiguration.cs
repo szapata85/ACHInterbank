@@ -15,5 +15,7 @@ public sealed class TaskDefinitionConfiguration : IEntityTypeConfiguration<TaskD
         builder.Property(x => x.Code).HasMaxLength(100).IsRequired();
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
         builder.Property(x => x.TimeZoneId).HasMaxLength(100);
+        builder.Property(x => x.SchedulerSynchronizationStatus).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.LastSchedulerSynchronizationError).HasMaxLength(2000);
     }
 }

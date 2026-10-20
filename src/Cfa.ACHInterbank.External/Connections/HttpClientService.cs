@@ -1,11 +1,11 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
-using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.External.Connections;
 
@@ -13,130 +13,107 @@ namespace Cfa.ACHInterbank.External.Connections;
 public class HttpClientService : IHttpClientService
 {
     private readonly ILoggerManager _logger;
-    private readonly AppSettings _appSettings = AppSettings.Settings;
+    private readonly Token _tokenSettings;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public HttpClientService(ILoggerManager logger)
+    public HttpClientService(
+        ILoggerManager logger,
+        IOptions<Token> tokenOptions,
+        IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
+        _tokenSettings = tokenOptions?.Value ?? throw new ArgumentNullException(nameof(tokenOptions));
+        _httpClientFactory = httpClientFactory;
     }
 
-    public async Task<T> SendPostRequestAsync<T>(string url, object content, HttpMethod method, TypeBody typeBody, string? token = null)
+    public async Task<T> SendPostRequestAsync<T>(
+        string url,
+        object content,
+        HttpMethod method,
+        TypeBody typeBody,
+        string? token = null,
+        CancellationToken cancellationToken = default)
     {
-        T dataobject = default!;
-
-        using var client = new HttpClient();
-        using var request = new HttpRequestMessage(method, $"{url}");
-
-        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
-
-        HttpContent? httpContent = null;
-
-        if (content != null)
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var endpoint)
+            || !string.IsNullOrEmpty(endpoint.UserInfo)
+            || !string.IsNullOrEmpty(endpoint.Fragment))
         {
-            switch (typeBody)
-            {
-                case TypeBody.Query:
-                    var fromData = ParseFormUrlEncodedContent(JsonSerializer.Serialize(content));
-                    httpContent = new FormUrlEncodedContent(fromData);
-                    break;
-                default:
-                    var json = JsonSerializer.Serialize(content);
-                    httpContent = new StringContent(json, Encoding.UTF8, "application/json");
-                    break;
-            }
+            throw new InvalidOperationException("External HTTP endpoint must be a safe absolute URI.");
         }
 
-        request.Content = httpContent;
-        if (!string.IsNullOrWhiteSpace(_appSettings.TokenManager?.x_api_key))
+        using var client = _httpClientFactory.CreateClient(ExternalHttpClientNames.GenericNoRetry);
+        using var request = new HttpRequestMessage(method, endpoint);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
+
+        if (content is not null)
         {
-            client.DefaultRequestHeaders.Add("x-api-key", _appSettings.TokenManager.x_api_key);
+            request.Content = typeBody switch
+            {
+                TypeBody.Query => new FormUrlEncodedContent(ParseFormUrlEncodedContent(JsonSerializer.Serialize(content))),
+                _ => new StringContent(JsonSerializer.Serialize(content), Encoding.UTF8, "application/json")
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(_tokenSettings.x_api_key))
+        {
+            request.Headers.TryAddWithoutValidation("x-api-key", _tokenSettings.x_api_key);
         }
 
         if (!string.IsNullOrWhiteSpace(token))
         {
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
-        var curlCommand = GenerateCurlCommand(request);
-        _logger.LogInfo($"Curl de la petición {curlCommand}");
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
-        if (response.Content != null)
+        var started = Stopwatch.GetTimestamp();
+        _logger.LogInfo(
+            $"External HTTP request; method={method.Method}; endpoint={ExternalLogSanitizer.Endpoint(endpoint)}; " +
+            $"contentType={request.Content?.Headers.ContentType?.MediaType ?? "none"}; retry=disabled.");
+
+        try
         {
-            var responseContent = await response.Content.ReadAsStringAsync();
-            if (!string.IsNullOrEmpty(responseContent))
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            var responseContent = response.Content is null
+                ? string.Empty
+                : await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+
+            _logger.LogInfo(
+                $"External HTTP response; method={method.Method}; endpoint={ExternalLogSanitizer.Endpoint(endpoint)}; " +
+                $"status={(int)response.StatusCode}; elapsedMs={elapsedMs:F0}; bodyLength={responseContent.Length}.");
+
+            if (string.IsNullOrEmpty(responseContent))
             {
-                _logger.LogInfo($"Este es la respuesta del servicio: {responseContent}");
-                if (response.IsSuccessStatusCode)
-                {
-                    dataobject = JsonSerializer.Deserialize<T>(responseContent)!;
-                }
-                else
-                {
-                    throw new Exception(responseContent);
-                }
-            }
-        }
-
-        return dataobject;
-    }
-
-    private HttpClient GetHttpClientWithMTLS(string serialNumberCertificate)
-    {
-        //Extraigo el certificado del almacen de llaves del sistema operativo
-        X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
-        store.Open(OpenFlags.ReadOnly);
-        X509Certificate2? cert = store.Certificates
-            .Find(X509FindType.FindBySerialNumber, serialNumberCertificate, validOnly: false)
-            .OfType<X509Certificate2>()
-            .FirstOrDefault();
-
-        if (cert is null || !cert.HasPrivateKey)
-        {
-            throw new InvalidOperationException("No se encontró un certificado válido con llave privada para mTLS.");
-        }
-
-        HttpClientHandler handler = new()
-        {
-            SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13
-        };
-
-        handler.ClientCertificates.Add(cert); //Agrega certificado con llave privada al objeto httpclient
-        return new HttpClient(handler);
-    }
-
-    // Método para convertir el contenido de FormUrlEncodedContent
-    private IEnumerable<KeyValuePair<string, string>> ParseFormUrlEncodedContent(string content)
-    {
-        //Deserializar JSON a un Diccionario y Convertir el Diccionario a un array de KeyValuePair<string, string>[]
-        return JsonSerializer.Deserialize<Dictionary<string, string>>(content)!.ToArray(); ;
-    }
-
-    private static string GenerateCurlCommand(HttpRequestMessage request)
-    {
-        var command = new StringBuilder("curl");
-
-        if (request.Method != HttpMethod.Get)
-        {
-            command.Append($" -X {request.Method.Method}");
-        }
-
-        if (request.Content != null)
-        {
-
-            foreach (var header in request.Headers)
-            {
-                command.Append($" -H '{header.Key}: {string.Join("; ", header.Value)}'");
+                // Preserve the legacy contract: an empty response body returns default even when the status is not successful.
+                return default!;
             }
 
-            var content = request.Content.ReadAsStringAsync().Result;
-            command.Append($" -d '{content}'");
-            foreach (var header in request.Content.Headers)
+            if (!response.IsSuccessStatusCode)
             {
-                command.Append($" -H '{header.Key}: {string.Join("; ", header.Value)}'");
+                // Preserve the legacy exception shape without echoing the potentially sensitive external response body.
+                throw new Exception(
+                    $"External HTTP request failed with status {(int)response.StatusCode} ({response.StatusCode}); response body redacted.");
             }
-        }
-        command.Append($" '{request.RequestUri}'");
 
-        return command.ToString();
+            return JsonSerializer.Deserialize<T>(responseContent)!;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarn(
+                $"External HTTP request cancelled by caller; method={method.Method}; endpoint={ExternalLogSanitizer.Endpoint(endpoint)}.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            _logger.LogError(
+                $"External HTTP request failed; method={method.Method}; endpoint={ExternalLogSanitizer.Endpoint(endpoint)}; " +
+                $"elapsedMs={elapsedMs:F0}; exception={ex.GetType().Name}; retry=disabled.");
+            throw;
+        }
     }
+
+    private static IEnumerable<KeyValuePair<string, string>> ParseFormUrlEncodedContent(string content)
+        => JsonSerializer.Deserialize<Dictionary<string, string>>(content)?.ToArray()
+           ?? Array.Empty<KeyValuePair<string, string>>();
 }

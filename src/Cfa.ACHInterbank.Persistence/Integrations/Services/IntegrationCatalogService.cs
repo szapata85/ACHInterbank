@@ -65,10 +65,22 @@ public class IntegrationCatalogService : IIntegrationCatalogService
     public async Task<IReadOnlyCollection<IntegrationMethodParameterDto>> GetMethodParametersAsync(int methodId, CancellationToken ct = default)
     {
         await EnsureSeedAsync(ct);
-        return await _context.Set<IntegrationMethodParameter>()
+        var activeContractId = await _context.IntegrationContractVersions
             .AsNoTracking()
-            .Where(x => x.MethodId == methodId && x.IsActive)
-            .OrderBy(x => x.SortOrder)
+            .Where(x => x.MethodId == methodId && x.Status == IntegrationContractVersionStatusEnum.Active)
+            .Select(x => (Guid?)x.Id)
+            .SingleOrDefaultAsync(ct);
+
+        var query = _context.Set<IntegrationMethodParameter>()
+            .AsNoTracking()
+            .Where(x => x.MethodId == methodId && x.IsActive);
+        query = activeContractId.HasValue
+            ? query.Where(x => x.ContractVersionId == activeContractId.Value || x.ContractVersionId == null)
+            : query.Where(x => x.ContractVersionId == null);
+
+        return await query
+            .OrderBy(x => x.ContractVersionId == activeContractId ? 0 : 1)
+            .ThenBy(x => x.SortOrder)
             .ThenBy(x => x.ParameterPath)
             .Select(x => new IntegrationMethodParameterDto(
                 x.Id,
@@ -117,37 +129,7 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         => Task.FromResult(Transformations);
 
     private async Task EnsureSeedAsync(CancellationToken ct)
-    {
-        var contrapartidas = await EnsureMethodAsync(
-            code: "WSCFAACH.Proc_Contrapartidas",
-            displayName: "Proc_Contrapartidas",
-            soapClientCode: "WscfaachSoapClient",
-            ct);
-
-        var transacciones = await EnsureMethodAsync(
-            code: "WSCFAACH.Proc_Transacciones",
-            displayName: "Proc_Transacciones",
-            soapClientCode: "WscfaachSoapClient",
-            ct);
-
-        var respuestasTransacciones = await EnsureMethodAsync(
-            code: "WSAXON.RegistrarRespuestaTransaccion",
-            displayName: "RegistrarRespuestaTransaccion",
-            soapClientCode: "WsAxonRespuestaTransaccionesSoapClient",
-            ct);
-
-        await EnsureParametersAsync(contrapartidas.Id, BuildProcContrapartidasTechnicalCatalog(), ct);
-        await EnsureParametersAsync(transacciones.Id, BuildProcTransaccionesTechnicalCatalog(), ct);
-        await EnsureParametersAsync(respuestasTransacciones.Id, BuildRegistrarRespuestaTransaccionTechnicalCatalog(), ct);
-        await EnsureSourceCatalogAsync(contrapartidas.Id, BuildBusinessSourceCatalog(contrapartidas.Id), ct);
-        await EnsureSourceCatalogAsync(transacciones.Id, BuildBusinessSourceCatalog(transacciones.Id), ct);
-        await EnsureSourceCatalogAsync(respuestasTransacciones.Id, BuildBusinessSourceCatalog(respuestasTransacciones.Id), ct);
-        await EnsureAdditionalSourceCatalogAsync(contrapartidas.Id, BuildNachaSourceCatalog(contrapartidas.Id), ct);
-        await EnsureAdditionalSourceCatalogAsync(transacciones.Id, BuildNachaSourceCatalog(transacciones.Id), ct);
-        await EnsureAdditionalSourceCatalogAsync(respuestasTransacciones.Id, BuildNachaSourceCatalog(respuestasTransacciones.Id), ct);
-
-        await _context.SaveChangesAsync(ct);
-    }
+        => await new IntegrationCatalogBootstrapper(_context).EnsureAsync(ct);
 
     private async Task<IntegrationMethod> EnsureMethodAsync(string code, string displayName, string soapClientCode, CancellationToken ct)
     {
@@ -319,12 +301,12 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         var i = 1;
         return
         [
-            Spec("TREG", "Tipo de registro", "Tipo de registro ACH transacción.", "Entrada transacción", "6", "Tipo de registro según layout ACH.", "string", true, i++),
+            Spec("TREG", "Tipo de registro", "Tipo de registro ACH transacción.", "Entrada transacción", "6", "Tipo de registro según layout ACH.", "string", false, i++),
             Spec("TIPTRAN", "Tipo transacción", "Código de tipo de transacción.", "Entrada transacción", "22", "Código según tabla operativa.", "int", true, i++),
             Spec("BCORECEP", "Banco receptor", "Código banco receptor.", "Entrada transacción", "1007", "Código bancario receptor.", "int", true, i++),
             Spec("BCOORIG", "Banco origen", "Código banco originador.", "Entrada transacción", "1001", "Código bancario origen.", "int", true, i++),
             Spec("NORIG", "Nombre origen", "Nombre del originador.", "Entrada transacción", "EMPRESA ORIGEN", "Nombre homologado del originador.", "string", true, i++),
-            Spec("NCTAORIG", "Cuenta origen", "Número de cuenta origen.", "Entrada transacción", "001234567890", "Cuenta origen validada.", "string", true, i++),
+            Spec("NCTAORIG", "Cuenta origen", "Número de cuenta origen.", "Entrada transacción", "001234567890", "Cuenta origen validada cuando venga informada.", "string", false, i++),
             Spec("IDORIG", "Id origen", "Identificación origen.", "Entrada transacción", "900123456", "Documento/NIT origen.", "string", true, i++),
             Spec("DESTRAN", "Descripción", "Descripción de transacción.", "Entrada transacción", "PAGO NOMINA", "Descripción visible de negocio.", "string", true, i++),
             Spec("FECEFEC", "Fecha efectiva", "Fecha efectiva en formato entero.", "Entrada transacción", "20260413", "Fecha efectiva según especificación.", "int", true, i++),
@@ -332,20 +314,20 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Spec("MONTO", "Monto", "Monto de la transacción.", "Entrada transacción", "250000.75", "Monto exacto con formato numérico válido.", "double", true, i++),
             Spec("NRECEP", "Nombre receptor", "Nombre del receptor.", "Entrada transacción", "JUAN PEREZ", "Nombre receptor en mayúsculas.", "string", true, i++),
             Spec("IDRECEP", "Id receptor", "Identificación del receptor.", "Entrada transacción", "1099001122", "Documento receptor.", "string", true, i++),
-            Spec("DISCRE", "Discrecional", "Campo discrecional receptor.", "Entrada transacción", "", "Campo opcional según operación.", "string", true, i++),
-            Spec("CONV", "Convenio", "Código de convenio.", "Entrada transacción", "CNV01", "Convenio aplicable a la operación.", "string", true, i++),
-            Spec("PROD", "Producto", "Código de producto.", "Entrada transacción", "ACH", "Producto financiero asociado.", "string", true, i++),
+            Spec("DISCRE", "Discrecional", "Campo discrecional receptor.", "Entrada transacción", "", "Campo opcional según operación.", "string", false, i++),
+            Spec("CONV", "Convenio", "Código de convenio.", "Entrada transacción", "CNV01", "Convenio aplicable a la operación.", "string", false, i++),
+            Spec("PROD", "Producto", "Código de producto.", "Entrada transacción", "ACH", "Producto financiero asociado.", "string", false, i++),
             Spec("INFPAG", "Información pago", "Información adicional de pago.", "Entrada transacción", "NOMINA ABRIL", "Texto informativo del pago.", "string", true, i++),
             Spec("IDTRAN", "Id transacción", "Identificador numérico de transacción.", "Entrada transacción", "9876543210", "Id único de transacción.", "long", true, i++),
             Spec("IDLOTE", "Id lote", "Identificador de lote.", "Entrada transacción", "LOTE-001", "Id de lote operacional.", "string", true, i++),
-            Spec("REGLOTE", "Registro lote", "Registro secuencial de lote.", "Entrada transacción", "1", "Número de registro en lote.", "long", true, i++),
+            Spec("REGLOTE", "Registro lote", "Registro secuencial de lote.", "Entrada transacción", "1", "Número de registro en lote.", "long", false, i++),
             Spec("IREVER", "Indicador reverso", "Indicador de reverso.", "Entrada transacción", "0", "0 normal, 1 reverso.", "int", true, i++),
-            Spec("LIBRE", "Campo libre", "Campo libre texto.", "Entrada transacción", "OBS", "Campo complementario opcional.", "string", true, i++),
+            Spec("LIBRE", "Campo libre", "Campo libre texto.", "Entrada transacción", "OBS", "Campo complementario opcional.", "string", false, i++),
             Spec("IDCAMCOMPE", "Id cámara", "Id cámara compensadora.", "Entrada transacción", "12", "Id de cámara vigente.", "int", true, i++),
-            Spec("DIRECCIONIP", "Dirección IP", "IP de origen.", "Entrada transacción", "10.10.10.1", "IP para trazabilidad.", "string", true, i++),
-            Spec("LIBRE1", "Campo libre numérico", "Campo libre numérico.", "Entrada transacción", "1", "Campo complementario numérico.", "int", true, i++),
-            Spec("RTAACH", "Respuesta ACH", "Campo contractual de respuesta ACH.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++),
-            Spec("RTALOC", "Respuesta local", "Campo contractual de respuesta local.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++)
+            Spec("DIRECCIONIP", "Dirección IP", "IP de origen.", "Entrada transacción", "10.10.10.1", "IP para trazabilidad.", "string", false, i++),
+            Spec("LIBRE1", "Campo libre numérico", "Campo libre numérico.", "Entrada transacción", "1", "Campo complementario numérico.", "int", false, i++),
+            Spec("RTAACH", "Respuesta ACH", "Campo contractual de respuesta ACH.", "Respuesta esperada", "", "Campo de salida reservado por contrato legado.", "string", false, i++, IntegrationParameterDirectionEnum.Output),
+            Spec("RTALOC", "Respuesta local", "Campo contractual de respuesta local.", "Respuesta esperada", "", "Campo de salida reservado por contrato legado.", "string", false, i, IntegrationParameterDirectionEnum.Output)
         ];
     }
 
@@ -354,11 +336,13 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         var i = 1;
         return
         [
-            Spec("ANSIDLOTE", "Id lote respuesta", "Identificador del lote informado por la respuesta ACH.", "Respuesta transacciÃ³n", "2001", "Mapee el id de lote de la respuesta recibida.", "int", true, i++),
-            Spec("ANSST", "Estado respuesta", "Estado funcional informado por la respuesta ACH.", "Respuesta transacciÃ³n", "APROBADA", "Use estado controlado de respuesta.", "string", true, i++),
-            Spec("ANCLC", "CÃ³digo local respuesta", "CÃ³digo local o causal informado por la respuesta.", "Respuesta transacciÃ³n", "00", "Mapee causal/cÃ³digo homologado cuando aplique.", "string", false, i++),
-            Spec("ANSIDTX", "Id transacciÃ³n respuesta", "Identificador de transacciÃ³n asociado a la respuesta.", "Respuesta transacciÃ³n", "TX-2026-0001", "Debe corresponder a una transacciÃ³n UAT existente.", "string", true, i++),
-            Spec("ANSIDREVER", "Id reverso respuesta", "Identificador de reverso si la respuesta corresponde a devoluciÃ³n/reverso.", "Respuesta transacciÃ³n", "0", "Use 0 si no aplica reverso.", "int", false, i++)
+            Spec("idCanal", "Id canal", "Identificador numerico del canal que registra la respuesta.", "Respuesta transaccion", "1", "Use el id de canal homologado para respuestas ACH.", "int", true, i++),
+            Spec("nombreCanal", "Nombre canal", "Nombre del canal que registra la respuesta.", "Respuesta transaccion", "ACH", "Use el nombre de canal homologado.", "string", true, i++),
+            Spec("idTransaccion", "Id transaccion", "Identificador de la transaccion notificada.", "Respuesta transaccion", "TX-2026-0001", "Debe corresponder a la transaccion diferencial recibida.", "string", true, i++),
+            Spec("idEstado", "Id estado", "Identificador interno/externo homologado del estado a registrar.", "Respuesta transaccion", "1", "Use el estado homologado por la tabla de respuestas.", "int", true, i++),
+            Spec("causal", "Causal", "Codigo causal asociado a la respuesta, si aplica.", "Respuesta transaccion", "R03", "Mapee causal/codigo homologado cuando aplique.", "string", false, i++),
+            Spec("idTransaccionAxon", "Id transaccion Axon", "Identificador de transaccion del servicio externo Axon.", "Respuesta transaccion", "1001", "Use el id de transaccion servicio externo recibido.", "int", true, i++),
+            Spec("descripcionCausal", "Descripcion causal", "Descripcion funcional de la causal, si aplica.", "Respuesta transaccion", "Cuenta no localizada", "Use la descripcion homologada o externa disponible.", "string", false, i++)
         ];
     }
 
@@ -371,13 +355,23 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.transactionExternalId", "Id operación cliente", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.reference", "Referencia transacción", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.amount", "Monto transacción", "decimal", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.transactionCode", "Código transacción", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.debitCreditIndicator", "Indicador débito/crédito", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceNumber", "Trazabilidad transacción", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceSequenceNumber", "Secuencia transacción D7", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.companyIdentification", "NIT/Id empresa origen", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.sourceAccountNumber", "Cuenta origen", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.destinationAccountNumber", "Cuenta receptora", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.effectiveEntryDate", "Fecha efectiva transacción", "datetime", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(FinancialInstitution), "sourceInstitution.transitCodeNormalized", "Código de tránsito normalizado banco originador", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(FinancialInstitution), "destinationInstitution.transitCodeNormalized", "Código de tránsito normalizado CFA receptora", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(FinancialInstitution), "sourceInstitution.name", "Nombre originador", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, "ProcTransacciones", "procTransacciones.paymentInformation", "Información pago homologada 77", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, "ProcTransacciones", "procTransacciones.functionalBatchId", "Lote funcional D6", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Batch, nameof(AchBatch), "batch.id", "Id lote", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.id", "Id ciclo", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.processingDate", "Fecha proceso ciclo", "datetime", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.clearingHouseId", "Id canónico cámara", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.ClearingHouse, nameof(ClearingHouse), "clearinghouse.id", "Id cámara", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.ClearingHouse, nameof(ClearingHouse), "clearinghouse.code", "Código cámara", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Cycle, "ExecutionContext", "execution.datetimeUtc", "Fecha/hora ejecución UTC", "datetime", false, order++),
@@ -405,7 +399,7 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Source(methodId, IntegrationSourceKindEnum.BatchHeader, nameof(BatchHeader), "batchHeaders.batchNumber", "Archivo NACHA-M > Lote > Numero lote", "int", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.transactionCode", "Archivo NACHA-M > Detalle > Codigo transaccion", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.receivingParticipantEntityCode", "Archivo NACHA-M > Detalle > Entidad receptora", "string", true, order++),
-            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.accountNumber", "Archivo NACHA-M > Detalle > Cuenta", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entrydetails.accountnumber", "Número de cuenta del detalle de entrada", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.amount", "Archivo NACHA-M > Detalle > Monto", "decimal", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.recipIdNumber", "Archivo NACHA-M > Detalle > Identificacion receptor", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.recipUserName", "Archivo NACHA-M > Detalle > Nombre receptor", "string", true, order++),
@@ -427,8 +421,13 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Source(methodId, IntegrationSourceKindEnum.Prenotification, nameof(AchTransaction), "prenotification.reference", "Prenotificacion > Referencia", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.Prenotification, nameof(AchTransaction), "prenotification.state", "Prenotificacion > Estado", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.idTransaccion", "Respuesta diferencial > Id transaccion", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.idCanal", "Respuesta diferencial > Id canal", "int", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.nombreCanal", "Respuesta diferencial > Nombre canal", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.idEstado", "Respuesta diferencial > Id estado", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.codigoEstadoExterno", "Respuesta diferencial > Estado externo", "string", true, order++),
-            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.codigoCausalExterna", "Respuesta diferencial > Causal externa", "string", true, order++)
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.codigoCausalExterna", "Respuesta diferencial > Causal externa", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.idTransaccionServicioExterno", "Respuesta diferencial > Id transaccion servicio externo", "int", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.descripcionCausalExterna", "Respuesta diferencial > Descripcion causal externa", "string", true, order++)
         ];
     }
 

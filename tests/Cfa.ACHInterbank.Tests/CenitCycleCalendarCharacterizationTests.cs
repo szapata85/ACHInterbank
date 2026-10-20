@@ -36,7 +36,7 @@ public class CenitCycleCalendarCharacterizationTests
     }
 
     [Fact]
-    public async Task CenitCycleSeeder_ShouldFreezeCurrentCenitCycleWindows_CurrentBehavior()
+    public async Task CenitCycleSeeder_ShouldUseDsp152OperationalWindows()
     {
         await using var context = await CreateSqliteContextAsync();
         SeedClearingHouse(context, 2, "CENIT");
@@ -49,11 +49,11 @@ public class CenitCycleCalendarCharacterizationTests
             .Where(x => x.ClearingHouseId == 2)
             .ToDictionaryAsync(x => x.CycleName, x => (x.StartTime, x.EndTime));
 
-        Assert.Equal((new TimeSpan(19, 1, 0), new TimeSpan(8, 30, 0)), byCycle["Ciclo 1"]);
-        Assert.Equal((new TimeSpan(8, 31, 0), new TimeSpan(11, 0, 0)), byCycle["Ciclo 2"]);
-        Assert.Equal((new TimeSpan(11, 1, 0), new TimeSpan(14, 0, 0)), byCycle["Ciclo 3"]);
-        Assert.Equal((new TimeSpan(14, 1, 0), new TimeSpan(16, 0, 0)), byCycle["Ciclo 4"]);
-        Assert.Equal((new TimeSpan(16, 1, 0), new TimeSpan(18, 0, 0)), byCycle["Ciclo 5"]);
+        Assert.Equal((new TimeSpan(7, 30, 0), new TimeSpan(10, 30, 0)), byCycle["Ciclo 1"]);
+        Assert.Equal((new TimeSpan(11, 0, 0), new TimeSpan(13, 0, 0)), byCycle["Ciclo 2"]);
+        Assert.Equal((new TimeSpan(13, 30, 0), new TimeSpan(15, 0, 0)), byCycle["Ciclo 3"]);
+        Assert.Equal((new TimeSpan(15, 30, 0), new TimeSpan(17, 15, 0)), byCycle["Ciclo 4"]);
+        Assert.Equal((new TimeSpan(17, 45, 0), new TimeSpan(18, 45, 0)), byCycle["Ciclo 5"]);
     }
 
     [Fact]
@@ -119,6 +119,7 @@ public class CenitCycleCalendarCharacterizationTests
         var services = new ServiceCollection();
         services.AddDbContext<AchDbContext>(o => o.UseInMemoryDatabase(nameof(BankHolidayService_ShouldIdentifyBusinessAndNonBusinessDays_CurrentBehavior)));
         services.AddScoped<IHolidayStrategyFactory, FakeHolidayStrategyFactory>();
+        services.AddScoped<IBankHolidayProvisioningService, BankHolidayProvisioningService>();
         services.AddSingleton<IBankHoliday, BankHoliday>();
         var provider = services.BuildServiceProvider();
 
@@ -178,11 +179,12 @@ public class CenitCycleCalendarCharacterizationTests
     }
 
     [Fact]
-    public void CycleWindow_ShouldCharacterizeCurrentDateTimeUsage()
+    public void CycleWindow_ShouldUseInjectedTimeProviderInsteadOfHostLocalTime()
     {
         var file = GetRepoFile("src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchCycleScheduler.cs");
         var content = File.ReadAllText(file);
-        Assert.Contains("DateTime.Now", content);
+        Assert.Contains("TimeProvider", content);
+        Assert.DoesNotContain("DateTime.Now", content);
     }
 
     [Fact]
@@ -273,11 +275,11 @@ public class CenitCycleCalendarCharacterizationTests
 
     private static List<ClearingHouseCycleConfig> BuildFiveConsecutiveActiveConfigs(int clearingHouseId, DateTime effectiveFrom) =>
     [
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 1", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(19,1,0), EndTime = new TimeSpan(8,30,0), CutoffTime = new TimeSpan(8,30,0) },
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 2", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(8,31,0), EndTime = new TimeSpan(11,0,0), CutoffTime = new TimeSpan(11,0,0) },
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 3", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(11,1,0), EndTime = new TimeSpan(14,0,0), CutoffTime = new TimeSpan(14,0,0) },
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 4", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(14,1,0), EndTime = new TimeSpan(16,0,0), CutoffTime = new TimeSpan(16,0,0) },
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 5", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(16,1,0), EndTime = new TimeSpan(18,0,0), CutoffTime = new TimeSpan(18,0,0) }
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 1", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(19,1,0), EndTime = new TimeSpan(8,30,0), CutoffTime = new TimeSpan(8,30,0), OutputReleaseTime = new TimeSpan(8,30,0) },
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 2", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(8,31,0), EndTime = new TimeSpan(11,0,0), CutoffTime = new TimeSpan(11,0,0), OutputReleaseTime = new TimeSpan(11,0,0) },
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 3", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(11,1,0), EndTime = new TimeSpan(14,0,0), CutoffTime = new TimeSpan(14,0,0), OutputReleaseTime = new TimeSpan(14,0,0) },
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 4", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(14,1,0), EndTime = new TimeSpan(16,0,0), CutoffTime = new TimeSpan(16,0,0), OutputReleaseTime = new TimeSpan(16,0,0) },
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 5", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(16,1,0), EndTime = new TimeSpan(18,0,0), CutoffTime = new TimeSpan(18,0,0), OutputReleaseTime = new TimeSpan(18,0,0) }
     ];
 
     private static void SeedClearingHouse(AchDbContext context, int clearingHouseId, string code)

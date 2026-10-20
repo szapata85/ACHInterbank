@@ -19,36 +19,9 @@ public class BankHoliday : IBankHoliday
 
     public async Task SeedHolidaysIfNotExistsAsync(int year)
     {
-        using (IServiceScope scope = _scopeFactory.CreateScope())
-        {
-            AchDbContext _context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-
-            if (await _context.BankHolidays.AnyAsync(h => h.Date.Year == year))
-                return;
-
-            var clearingHouseIds = await _context.ClearingHouses.Select(ch => ch.Id).ToListAsync();
-
-            IHolidayStrategyFactory _strategyFactory = scope.ServiceProvider.GetRequiredService<IHolidayStrategyFactory>();
-
-            foreach (var chId in clearingHouseIds)
-            {
-                var strategy = _strategyFactory.GetStrategyForClearingHouse(chId);
-                var holidays = strategy.GenerateHolidays(year);
-
-                var existingDates = await _context.BankHolidays
-                    .Where(h => h.Date.Year == year)
-                    .Select(h => h.Date)
-                    .ToListAsync();
-
-                var newHolidays = holidays
-                    .Where(h => !existingDates.Contains(h.Date))
-                    .ToList();
-
-                await _context.BankHolidays.AddRangeAsync(newHolidays);
-            }
-
-            await _context.SaveChangesAsync();
-        }
+        using var scope = _scopeFactory.CreateScope();
+        var provisioning = scope.ServiceProvider.GetRequiredService<IBankHolidayProvisioningService>();
+        await provisioning.EnsureYearsAsync([year]);
     }
 
 
@@ -58,8 +31,9 @@ public class BankHoliday : IBankHoliday
         {
             AchDbContext _context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
 
-            return await _context.BankHolidays
+            return await _context.BankHolidays.AsNoTracking()
             .Where(h => h.Date.Year == year)
+            .OrderBy(h => h.Date)
             .ToListAsync();
         }
     }
@@ -70,8 +44,9 @@ public class BankHoliday : IBankHoliday
         {
             AchDbContext _context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
 
-            return _context.BankHolidays
+            return _context.BankHolidays.AsNoTracking()
             .Where(h => h.Date.Year == year)
+            .OrderBy(h => h.Date)
             .ToList();
         }
     }

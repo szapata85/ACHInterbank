@@ -1,12 +1,27 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, TemplateRef, ViewChild, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTableModule } from '@angular/material/table';
 import { NotificationService } from '../../../core/services/notification.service';
-import { TableColumn } from '../../../shared/components/table.component';
-import { RolesApiService, UsersApiService } from '../services/users-api.service';
-import { RoleSummary, UserFilter, UserSummary } from '../models/user.model';
+import { UsersApiService } from '../services/users-api.service';
+import { RolesApiService } from '../../../core/services/roles-api.service';
+import { UserFilter, UserSummary } from '../models/user.model';
+import { RoleSummary } from '../../../core/models/role.model';
+import { UserPresentationService } from '../services/user-presentation.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, EMPTY } from 'rxjs';
+import { NavigationNamingService } from '../../../core/services/navigation-naming.service';
 
 @Component({
   selector: 'app-users-list',
@@ -14,18 +29,33 @@ import { RouterModule } from '@angular/router';
   styleUrls: ['./users-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [SharedModule, RouterModule]
+  imports: [
+    SharedModule,
+    RouterModule,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatMenuModule,
+    MatPaginatorModule,
+    MatProgressSpinnerModule,
+    MatSelectModule,
+    MatTableModule
+  ]
 })
 export class UsersListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly usersApi = inject(UsersApiService);
   private readonly rolesApi = inject(RolesApiService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly navigationNaming = inject(NavigationNamingService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
-
-  @ViewChild('rowActions', { static: true }) rowActionsTemplate!: TemplateRef<any>;
-  @ViewChild('headerActions', { static: true }) headerActionsTemplate!: TemplateRef<any>;
+  private readonly presentation = inject(UserPresentationService);
 
   readonly filterForm = this.fb.group({
     search: [''],
@@ -34,14 +64,7 @@ export class UsersListComponent implements OnInit {
     pageSize: [10]
   });
 
-  columns: TableColumn[] = [
-    { key: 'userName', label: 'Usuario' },
-    { key: 'fullName', label: 'Nombre' },
-    { key: 'email', label: 'Email' },
-    { key: 'phoneNumber', label: 'Teléfono' },
-    { key: 'rolesText', label: 'Roles' },
-    { key: 'statusText', label: 'Estado' }
-  ];
+  readonly displayedColumns = ['fullName', 'userName', 'email', 'roles', 'status', 'actions'];
 
   users: UserSummary[] = [];
   roles: RoleSummary[] = [];
@@ -50,10 +73,30 @@ export class UsersListComponent implements OnInit {
   hasLoaded = false;
   loadError: string | null = null;
   confirmUser: UserSummary | null = null;
+  isUpdatingStatus = false;
+  pageHeading = String(this.route.snapshot.data['title'] ?? '');
 
   ngOnInit(): void {
+    this.syncPageHeading();
     this.loadRoles();
     this.loadUsers();
+  }
+
+
+  private syncPageHeading(): void {
+    this.navigationNaming.menu$
+      .pipe(
+        catchError(() => EMPTY),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((menuItems) => {
+        this.pageHeading = this.navigationNaming.canonicalLabelForRoute(
+          menuItems,
+          this.router.url,
+          this.pageHeading
+        );
+        this.cdr.markForCheck();
+      });
   }
 
   loadUsers(): void {
@@ -90,8 +133,13 @@ export class UsersListComponent implements OnInit {
     });
   }
 
-  changePage(page: number): void {
-    this.filterForm.patchValue({ page });
+  changePage(event: PageEvent): void {
+    this.filterForm.patchValue({ page: event.pageIndex + 1, pageSize: event.pageSize });
+    this.loadUsers();
+  }
+
+  clearFilters(): void {
+    this.filterForm.patchValue({ search: '', roleId: '', page: 1 });
     this.loadUsers();
   }
 
@@ -115,19 +163,23 @@ export class UsersListComponent implements OnInit {
     this.confirmUser = user;
   }
 
+  roleLabel(role: RoleSummary): string {
+    return this.presentation.roleLabel(role);
+  }
+
   disableUser(): void {
     if (!this.confirmUser) {
       return;
     }
     this.usersApi.deactivateUser(this.confirmUser.id).subscribe({
       next: () => {
-        this.notifications.success('Usuario desactivado');
+        this.notifications.success('El usuario fue desactivado correctamente.');
         this.confirmUser = null;
         this.loadUsers();
         this.cdr.markForCheck();
       },
       error: () => {
-        this.notifications.error('No fue posible desactivar al usuario');
+        this.notifications.error('No fue posible desactivar el usuario. Inténtalo nuevamente.');
         this.confirmUser = null;
         this.cdr.markForCheck();
       }

@@ -14,6 +14,7 @@ public sealed class NachaConfigMenuSeeder : IDbSeeder
     private const string ProfilesLabel = "Perfiles oficiales";
     private const string RecordsLabel = "Registros oficiales";
     private const string VariantsFieldsLabel = "Variantes y campos";
+    private const string GroupRoute = "/nacha-config-admin";
     private const string ProfilesRoute = "/nacha-config-admin/perfiles";
     private const string RecordsRoute = "/nacha-config-admin/records";
     private const string VariantsFieldsRoute = "/nacha-config-admin/variants-fields";
@@ -36,7 +37,7 @@ public sealed class NachaConfigMenuSeeder : IDbSeeder
             MenuItemConfiguration.NachaLayoutsId,
             parentId: null,
             label: GroupLabel,
-            route: ProfilesRoute,
+            route: GroupRoute,
             icon: "tune",
             order: 2);
 

@@ -2,14 +2,17 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, injec
 import { SharedModule } from '../../../shared/shared.module';
 import { BrandingService } from '../../../core/services/branding.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { BrandingSettings } from '../../../core/models/branding.model';
+import { BrandingSettings, DEFAULT_BRANDING_SETTINGS } from '../../../core/models/branding.model';
 import { finalize } from 'rxjs/operators';
 import { Subscription } from 'rxjs';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 @Component({
   selector: 'app-branding-settings',
   standalone: true,
-  imports: [SharedModule],
+  imports: [SharedModule, MatButtonModule, MatCardModule, MatProgressSpinnerModule],
   templateUrl: './branding-settings.component.html',
   styleUrls: ['./branding-settings.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -22,10 +25,10 @@ export class BrandingSettingsComponent implements OnDestroy {
   readonly branding$ = this.brandingService.branding$;
   private readonly brandingSubscription: Subscription;
 
-  private readonly defaultPublicBackground = '#0ea5e9';
-  private readonly defaultPrivateBackground = '#f8fafc';
-  private readonly defaultSidebarBackground = '#0f172a';
-  private readonly defaultButtonColor = '#0ea5e9';
+  private readonly defaultPublicBackground = DEFAULT_BRANDING_SETTINGS.publicBackground;
+  private readonly defaultPrivateBackground = DEFAULT_BRANDING_SETTINGS.privateBackground;
+  private readonly defaultSidebarBackground = DEFAULT_BRANDING_SETTINGS.sidebarBackground;
+  private readonly defaultButtonColor = DEFAULT_BRANDING_SETTINGS.buttonColor;
   private readonly maxLogoBytes = 300 * 1024;
   private readonly allowedLogoTypes = ['image/png', 'image/svg+xml'];
 
@@ -50,7 +53,7 @@ export class BrandingSettingsComponent implements OnDestroy {
   }
 
   get publicBackgroundPreview(): string {
-    return this.publicBackground ?? 'linear-gradient(135deg, #0ea5e9, #0f172a)';
+    return this.publicBackground ?? this.defaultPublicBackground;
   }
 
   get privateBackgroundPreview(): string {
@@ -79,6 +82,10 @@ export class BrandingSettingsComponent implements OnDestroy {
 
   get buttonColorPreview(): string {
     return this.buttonColor ?? this.defaultButtonColor;
+  }
+
+  get buttonContrastPreview(): string {
+    return this.brandingService.getContrastColor(this.buttonColorPreview);
   }
 
   onFileSelected(event: Event, type: 'public' | 'private'): void {

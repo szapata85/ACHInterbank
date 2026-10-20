@@ -3,6 +3,8 @@
   description="Visibilidad completa del estado de procesamiento, errores agregados e ítems de transacción."
 ></app-page-header>
 
+<ui-estado-carga *ngIf="isLoading() && !summary()" mensaje="Cargando detalle del lote…"></ui-estado-carga>
+
 <section class="card" *ngIf="summary() as data">
   <div class="summary-grid">
     <article>
@@ -32,12 +34,12 @@
     <article><small>Reintentos</small><strong>{{ data.status.retryCount }}</strong></article>
   </div>
 
-  <div class="form-actions" *ngIf="canRetry()">
-    <ui-boton texto="Reintentar fallidos" variante="primario" (accion)="retry(2)"></ui-boton>
-    <ui-boton texto="Reintentar lote completo" variante="secundario" (accion)="retry(1)"></ui-boton>
+  <div class="form-actions" *ngIf="canRetryBatchAction && canRetry()">
+    <button mat-flat-button type="button" [disabled]="isLoading()" (click)="retry(2)">Reintentar fallidos</button>
+    <button mat-stroked-button type="button" [disabled]="isLoading()" (click)="retry(1)">Reintentar lote completo</button>
   </div>
-  <div class="form-actions" *ngIf="canCancel()">
-    <ui-boton texto="Cancelar lote" variante="peligro" (accion)="cancelBatch()"></ui-boton>
+  <div class="form-actions" *ngIf="canCancelBatchAction && canCancel()">
+    <button mat-flat-button type="button" class="danger-action" [disabled]="isLoading()" (click)="cancelBatch()">Cancelar lote</button>
   </div>
 </section>
 
@@ -62,19 +64,16 @@
 <section class="card">
   <div class="toolbar">
     <h3>Ítems del lote</h3>
-    <div class="field">
-      <label for="itemStatus">Estado ítem</label>
-      <ui-selector-buscable
-        [opciones]="[
-          { valor: '1', etiqueta: 'Listo' },
-          { valor: '2', etiqueta: 'Error estructural' },
-          { valor: '3', etiqueta: 'Error funcional' },
-          { valor: '4', etiqueta: 'Procesado' }
-        ]"
-        [formControl]="itemStatusControl"
-        placeholderBusqueda="Buscar estado de ítem"
-      ></ui-selector-buscable>
-    </div>
+    <mat-form-field appearance="outline" class="status-field">
+      <mat-label>Estado ítem</mat-label>
+      <mat-select id="itemStatus" [formControl]="itemStatusControl">
+        <mat-option value="">Todos</mat-option>
+        <mat-option value="1">Listo</mat-option>
+        <mat-option value="2">Error estructural</mat-option>
+        <mat-option value="3">Error funcional</mat-option>
+        <mat-option value="4">Procesado</mat-option>
+      </mat-select>
+    </mat-form-field>
   </div>
 
   <ui-grilla-empresarial
@@ -88,8 +87,8 @@
   ></ui-grilla-empresarial>
 
   <div class="pagination">
-    <ui-boton texto="Anterior" variante="contorno" [deshabilitado]="page() <= 1 || isLoading()" (accion)="changePage(-1)"></ui-boton>
+    <button mat-stroked-button type="button" [disabled]="page() <= 1 || isLoading()" (click)="changePage(-1)">Anterior</button>
     <span>Página {{ page() }} de {{ totalPages() }}</span>
-    <ui-boton texto="Siguiente" variante="contorno" [deshabilitado]="page() >= totalPages() || isLoading()" (accion)="changePage(1)"></ui-boton>
+    <button mat-stroked-button type="button" [disabled]="page() >= totalPages() || isLoading()" (click)="changePage(1)">Siguiente</button>
   </div>
 </section>

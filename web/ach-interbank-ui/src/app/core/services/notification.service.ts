@@ -60,6 +60,14 @@ export class NotificationService {
     this.messagesSubject.next(this.messagesSubject.value.filter((x) => x.id !== id));
   }
 
+  dismissType(type: NotificationType): void {
+    const matchingIds = this.messagesSubject.value
+      .filter((message) => message.type === type)
+      .map((message) => message.id);
+    matchingIds.forEach((id) => this.clearTimer(id));
+    this.messagesSubject.next(this.messagesSubject.value.filter((message) => message.type !== type));
+  }
+
   private scheduleDismiss(id: number, autoCloseMs: number): void {
     this.clearTimer(id);
     if (autoCloseMs <= 0) {

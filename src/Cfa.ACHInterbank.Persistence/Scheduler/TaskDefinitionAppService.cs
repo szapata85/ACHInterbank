@@ -87,6 +87,7 @@ public class TaskDefinitionAppService : ITaskDefinitionAppService
             Id = entity.Id,
             Code = entity.Code,
             Name = entity.Name,
+            Description = entity.Description,
             Status = entity.Status,
             CalendarPolicy = entity.CalendarPolicy,
             TimeZoneId = entity.TimeZoneId,
@@ -94,6 +95,10 @@ public class TaskDefinitionAppService : ITaskDefinitionAppService
             RetryOnFailure = entity.RetryOnFailure,
             MaxRetries = entity.MaxRetries,
             RetryBackoffSeconds = entity.RetryBackoffSeconds,
+            MisfirePolicy = entity.MisfirePolicy,
+            RequestsRecovery = entity.RequestsRecovery,
+            ManualExecutionEnabled = entity.ManualExecutionEnabled,
+            Paused = entity.Paused,
             PeriodicityType = entity.PeriodicityType,
             N = entity.N,
             Minute = entity.Minute,
@@ -119,6 +124,7 @@ public class TaskDefinitionAppService : ITaskDefinitionAppService
     {
         entity.Code = request.Code.Trim();
         entity.Name = request.Name.Trim();
+        entity.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         entity.Status = request.Status;
         entity.CalendarPolicy = request.CalendarPolicy;
         entity.TimeZoneId = string.IsNullOrWhiteSpace(request.TimeZoneId) ? null : request.TimeZoneId.Trim();
@@ -126,6 +132,10 @@ public class TaskDefinitionAppService : ITaskDefinitionAppService
         entity.RetryOnFailure = request.RetryOnFailure;
         entity.MaxRetries = request.MaxRetries;
         entity.RetryBackoffSeconds = request.RetryBackoffSeconds;
+        entity.MisfirePolicy = request.MisfirePolicy;
+        entity.RequestsRecovery = request.RequestsRecovery;
+        entity.ManualExecutionEnabled = request.ManualExecutionEnabled;
+        entity.Paused = request.Paused;
         entity.PeriodicityType = request.PeriodicityType;
         entity.N = request.N;
         entity.Minute = request.Minute;

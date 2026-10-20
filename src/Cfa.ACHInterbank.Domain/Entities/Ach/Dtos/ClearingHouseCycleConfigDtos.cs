@@ -5,10 +5,24 @@ public class ClearingHouseCycleConfigDto
     public int Id { get; set; }
     public int ClearingHouseId { get; set; }
     public string? ClearingHouseName { get; set; }
+    public string PolicyVersion { get; set; } = null!;
     public string CycleName { get; set; } = null!;
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
     public TimeSpan CutoffTime { get; set; }
+    public TimeSpan OutputReleaseTime { get; set; }
+    public TimeSpan? CompensationStatementStartTime { get; set; }
+    public TimeSpan? CompensationStatementEndTime { get; set; }
+    public TimeSpan? CompensationPaymentStartTime { get; set; }
+    public TimeSpan? CompensationPaymentEndTime { get; set; }
+    public TimeSpan? OutputReleaseStartTime { get; set; }
+    public TimeSpan? OutputReleaseEndTime { get; set; }
+    public bool AllowsMonetaryCredit { get; set; }
+    public bool AllowsMonetaryDebit { get; set; }
+    public bool AllowsCreditPrenotification { get; set; }
+    public bool AllowsDebitPrenotification { get; set; }
+    public bool AllowsReturn { get; set; }
+    public bool AllowsReturnOfReturn { get; set; }
     public bool IsActive { get; set; }
     public DateTime EffectiveFrom { get; set; }
     public DateTime? EffectiveTo { get; set; }
@@ -18,14 +32,34 @@ public class ClearingHouseCycleConfigDto
 public class UpsertClearingHouseCycleConfigDto
 {
     public int ClearingHouseId { get; set; }
+    public string? PolicyVersion { get; set; }
     public string CycleName { get; set; } = null!;
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
     public TimeSpan CutoffTime { get; set; }
+    public TimeSpan? OutputReleaseTime { get; set; }
+    public TimeSpan? CompensationStatementStartTime { get; set; }
+    public TimeSpan? CompensationStatementEndTime { get; set; }
+    public TimeSpan? CompensationPaymentStartTime { get; set; }
+    public TimeSpan? CompensationPaymentEndTime { get; set; }
+    public TimeSpan? OutputReleaseStartTime { get; set; }
+    public TimeSpan? OutputReleaseEndTime { get; set; }
+    public bool? AllowsMonetaryCredit { get; set; }
+    public bool? AllowsMonetaryDebit { get; set; }
+    public bool? AllowsCreditPrenotification { get; set; }
+    public bool? AllowsDebitPrenotification { get; set; }
+    public bool? AllowsReturn { get; set; }
+    public bool? AllowsReturnOfReturn { get; set; }
     public DateTime EffectiveFrom { get; set; }
 }
 
 public class InactivateClearingHouseCycleConfigDto
 {
     public DateTime EffectiveTo { get; set; }
+}
+
+public class ChangeClearingHouseCycleStatusDto
+{
+    public bool IsActive { get; set; }
+    public DateTime? EffectiveTo { get; set; }
 }

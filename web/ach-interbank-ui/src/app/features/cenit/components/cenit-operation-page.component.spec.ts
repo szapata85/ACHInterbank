@@ -11,7 +11,8 @@ describe('CenitOperationPageComponent', () => {
     'getNetPositions',
     'getOptimizationDecisions',
     'getReturns',
-    'getOperationalTraceability'
+    'getOperationalTraceability',
+    'getChamberResponses'
   ]);
 
   function create(
@@ -25,6 +26,7 @@ describe('CenitOperationPageComponent', () => {
     api.getOptimizationDecisions.and.returnValue(of({ items: [] }));
     api.getReturns.and.returnValue(of([]));
     api.getOperationalTraceability.and.returnValue(of({ items: [] }));
+    api.getChamberResponses.and.returnValue(of({ items: [] }));
     configure?.(api);
 
     TestBed.configureTestingModule({
@@ -76,6 +78,49 @@ describe('CenitOperationPageComponent', () => {
     const api = service();
     create('trazabilidad', api);
     expect(api.getOperationalTraceability).toHaveBeenCalledWith(1, 50);
+  });
+
+  it('Operation_ShouldRepresentEveryChamberStateAndCorrelationProblem', () => {
+    const api = service();
+    const states = [
+      ['Pending', 'Unknown', 'Pending', null],
+      ['Accepted', 'Ack', 'Matched', null],
+      ['Rejected', 'Nack', 'Matched', null],
+      ['OperatorRejected', 'OperatorRejected', 'Matched', null],
+      ['Reconciliation', 'Reconciliation', 'Matched', null],
+      ['NoActivity', 'NoActivity', 'Matched', null],
+      ['Pending', 'Unknown', 'Ambiguous', 'CENIT_CORRELATION_AMBIGUOUS']
+    ] as const;
+    const component = create('respuestas-camara', api, (mock) => {
+      mock.getChamberResponses.and.returnValue(of({
+        items: states.map(([state, responseType, correlationOutcome, problemCode], index) => ({
+          id: `response-${index}`,
+          isDuplicate: false,
+          sourceResponseId: `source-${index}`,
+          sourceFileName: `response-${index}.xml`,
+          rawTechnicalReference: `response-${index}.xml#source-${index}`,
+          responseType,
+          state,
+          correlationOutcome,
+          relatedFileName: `file-${index}`,
+          receivedAtUtc: '2026-08-31T12:00:00Z',
+          isApplied: correlationOutcome === 'Matched',
+          problemCode
+        }))
+      }));
+    }).componentInstance;
+
+    expect(api.getChamberResponses).toHaveBeenCalledWith(1, 50);
+    expect(component.rows.map((row) => row['Estado cámara'])).toEqual([
+      'Pendiente',
+      'ACK aceptado',
+      'NACK rechazado',
+      'Rechazo definitivo del operador',
+      'Reconciliación',
+      'Sin actividad',
+      'Pendiente'
+    ]);
+    expect(component.rows[6]['Correlación']).toContain('CENIT_CORRELATION_AMBIGUOUS');
   });
 
   it('Operation_ShouldRenderRowsWhenCyclesArrive', () => {

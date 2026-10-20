@@ -1,8 +1,11 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -84,6 +87,62 @@ public class InMemoryCertificateSecretProvider : ICertificateSecretProvider
         catch
         {
             return Task.FromResult(new CertificateSecretResolutionResult(false, ProviderType, null, "SECRET_MATERIAL_INVALID", "El material secreto no es un PKCS#12 válido.", masked));
+        }
+    }
+}
+
+[Scoped]
+public class DatabaseEncryptedCertificateSecretProvider : ICertificateSecretProvider
+{
+    private readonly AchDbContext _context;
+    private readonly ICertificatePrivateMaterialProtector _protector;
+
+    public DatabaseEncryptedCertificateSecretProvider(
+        AchDbContext context,
+        ICertificatePrivateMaterialProtector protector)
+    {
+        _context = context;
+        _protector = protector;
+    }
+
+    public CertificateSecretProviderType ProviderType => CertificateSecretProviderType.DatabaseEncrypted;
+    public bool Supports(CertificateStorageMode storageMode) => storageMode == CertificateStorageMode.DatabaseEncrypted;
+
+    public async Task<CertificateSecretResolutionResult> ResolveAsync(
+        CertificateSecretResolutionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var version = await _context.DigitalCertificateVersions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == request.CertificateVersionId, cancellationToken);
+        var masked = CertificateSecretMasker.Mask(request.SecretRef);
+
+        if (version?.EncryptedPrivateMaterial is not { Length: > 0 })
+        {
+            return new CertificateSecretResolutionResult(false, ProviderType, null, "ENCRYPTED_MATERIAL_NOT_FOUND", "No existe material privado protegido para la versión.", masked);
+        }
+
+        try
+        {
+            var certificate = _protector.Unprotect(version.EncryptedPrivateMaterial);
+            if (!certificate.HasPrivateKey
+                || !string.Equals(certificate.Thumbprint, version.Thumbprint, StringComparison.OrdinalIgnoreCase))
+            {
+                certificate.Dispose();
+                return new CertificateSecretResolutionResult(false, ProviderType, null, "ENCRYPTED_MATERIAL_MISMATCH", "El material protegido no corresponde a la versión registrada.", masked);
+            }
+
+            var material = new CertificateSecretMaterial(
+                certificate,
+                certificate.Thumbprint ?? string.Empty,
+                certificate.SerialNumber,
+                certificate.Subject,
+                true);
+            return new CertificateSecretResolutionResult(true, ProviderType, material, null, null, masked);
+        }
+        catch (CryptographicException)
+        {
+            return new CertificateSecretResolutionResult(false, ProviderType, null, "ENCRYPTED_MATERIAL_INVALID", "No fue posible abrir el material privado protegido.", masked);
         }
     }
 }

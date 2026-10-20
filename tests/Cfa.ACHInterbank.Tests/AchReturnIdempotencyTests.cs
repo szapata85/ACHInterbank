@@ -17,7 +17,7 @@ public class AchReturnIdempotencyTests
         await using var ctx = BuildContext();
         SeedScenario(ctx);
         var eligibility = new Mock<IAchReturnEligibilityService>();
-        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "R01"), new ReturnSelectionItemDto(10, "R01")]), CancellationToken.None));
         Assert.Contains("repetida", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -44,9 +44,9 @@ public class AchReturnIdempotencyTests
         SeedScenario(ctx);
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchReturnEligibilityResult(false, "R01", 7, "Credit", "Pending", [new AchReturnEligibilityFailure("RETURN_ALREADY_PROCESSED", "La transacción ya fue devuelta o ya tiene una devolución procesada.")]));
+            .ReturnsAsync(new AchReturnEligibilityResult(false, "R01", 7002, "Debit", "Pending", [new AchReturnEligibilityFailure("RETURN_ALREADY_PROCESSED", "La transacción ya fue devuelta o ya tiene una devolución procesada.")]));
 
-        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "R01")]), CancellationToken.None));
         Assert.Contains("ya fue devuelta", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -58,9 +58,9 @@ public class AchReturnIdempotencyTests
         await using var ctx = BuildContext();
         SeedScenario(ctx);
         var eligibility = new Mock<IAchReturnEligibilityService>();
-        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "R01"), new ReturnSelectionItemDto(10, "R02")]), CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "R01"), new ReturnSelectionItemDto(10, "R03")]), CancellationToken.None));
         Assert.Empty(ctx.Set<AchReturnGenerated>());
     }
 
@@ -71,9 +71,9 @@ public class AchReturnIdempotencyTests
         SeedScenario(ctx);
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchReturnEligibilityResult(true, "R01", 7, "Credit", "Pending", []));
+            .ReturnsAsync(new AchReturnEligibilityResult(true, "R01", 7002, "Debit", "Pending", []));
 
-        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "R01")]), CancellationToken.None);
         Assert.NotNull(response);
@@ -99,9 +99,9 @@ public class AchReturnIdempotencyTests
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
     static void SeedScenario(AchDbContext c, AchTransferStateEnum state = AchTransferStateEnum.Pending)
     {
-        c.ClearingHouses.Add(new ClearingHouse { Id = 7, Name = "CH", Code = "CENIT", OriginCode = "000101006" });
-        c.AchCycles.Add(new AchCycle { Id = "C1", CycleName = "C1", ProcessingDate = DateTime.UtcNow.Date, CutoffTime = new TimeSpan(8, 0, 0), ClearingHouseId = 7 });
-        c.AchTransactions.Add(new AchTransaction { Id = 10, AchCycleId = "C1", Type = TransactionTypeEnum.Credit, State = state, EffectiveEntryDate = DateTime.UtcNow.Date, TransactionCode = "22", TraceNumber = "123456780000010", ReceivingDFI = "12345678", OriginatingDFI = "12345678", Amount = 100m, Reference = "R", SourceAccountNumber = "1", DestinationAccountNumber = "2" });
+        c.ClearingHouses.Add(new ClearingHouse { Id = 7002, Name = "ACH Colombia", Code = "ACH", OriginCode = "000101006" });
+        c.AchCycles.Add(new AchCycle { Id = "C1", CycleName = "C1", ProcessingDate = DateTime.UtcNow.Date, CutoffTime = new TimeSpan(8, 0, 0), ClearingHouseId = 7002 });
+        c.AchTransactions.Add(new AchTransaction { Id = 10, AchCycleId = "C1", Type = TransactionTypeEnum.Debit, State = state, EffectiveEntryDate = DateTime.UtcNow.Date, TransactionCode = "27", TraceNumber = "123456780000010", ReceivingDFI = "12345678", OriginatingDFI = "12345678", Amount = 100m, Reference = "R", SourceAccountNumber = "1", DestinationAccountNumber = "2" });
         c.SaveChanges();
     }
 }

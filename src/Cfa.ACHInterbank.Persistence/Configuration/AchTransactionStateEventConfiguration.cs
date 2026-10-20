@@ -32,11 +32,26 @@ public class AchTransactionStateEventConfiguration : IEntityTypeConfiguration<Ac
 
         builder.Property(x => x.PayloadJson);
 
+        builder.Property(x => x.IdempotencyKey).HasMaxLength(128);
+        builder.Property(x => x.ResolvedReasonDescription).HasMaxLength(300);
+        builder.Property(x => x.OccurredAtUtc).IsRequired();
+
         builder.HasIndex(x => x.AchTransactionId);
+        builder.HasIndex(x => new { x.AchTransactionId, x.OccurredAtUtc });
 
         builder.HasOne(x => x.AchTransaction)
             .WithMany(x => x.StateEvents)
             .HasForeignKey(x => x.AchTransactionId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.ClearingHouse)
+            .WithMany()
+            .HasForeignKey(x => x.ClearingHouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.AchReturnCode)
+            .WithMany()
+            .HasForeignKey(x => x.AchReturnCodeId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

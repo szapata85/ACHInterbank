@@ -1,0 +1,93 @@
+<mat-card class="field-editor" data-testid="nacha-config-field-editor" [attr.aria-busy]="loading || saving">
+  <mat-card-header>
+    <mat-card-title>Editor del campo</mat-card-title>
+    <mat-card-subtitle>{{ editor?.field?.fieldNameEs || 'Selecciona un campo' }}</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <div class="editor-state" *ngIf="loading" role="status" aria-live="polite"><mat-spinner diameter="28"></mat-spinner><span>Cargando editor…</span></div>
+    <div class="editor-state error" *ngIf="loadError" role="alert">{{ loadError }}</div>
+    <div class="editor-state" *ngIf="!fieldId && !loading">Selecciona un campo para configurarlo.</div>
+
+    <form *ngIf="editor && !loading" [formGroup]="form" (ngSubmit)="save()">
+      <p class="protection-note" *ngIf="!canEdit" role="status">Esta versión es de solo consulta. Crea un borrador para modificarla.</p>
+
+      <section class="editor-section" aria-labelledby="field-general-title">
+        <h3 id="field-general-title">Definición del campo</h3>
+        <mat-form-field appearance="outline" class="full"><mat-label>Nombre funcional</mat-label><input matInput formControlName="fieldNameEs" /></mat-form-field>
+        <div class="form-grid three">
+          <mat-form-field appearance="outline"><mat-label>Posición inicial</mat-label><input matInput type="number" formControlName="startPosition" /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Longitud</mat-label><input matInput type="number" formControlName="length" /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Carácter de relleno</mat-label><input matInput maxlength="1" formControlName="padChar" /></mat-form-field>
+        </div>
+        <div class="form-grid two">
+          <mat-form-field appearance="outline"><mat-label>Alineación</mat-label><mat-select formControlName="justification"><mat-option *ngFor="let option of editor.alignments" [value]="option.code">{{ option.labelEs }}</mat-option></mat-select></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Formato</mat-label><mat-select formControlName="formatMask"><mat-option value="">Sin formato especial</mat-option><mat-option *ngFor="let option of editor.formats" [value]="option.code">{{ option.labelEs }}</mat-option></mat-select></mat-form-field>
+        </div>
+        <mat-slide-toggle formControlName="isEnabled">Campo habilitado</mat-slide-toggle>
+      </section>
+
+      <section class="editor-section" aria-labelledby="field-source-title">
+        <h3 id="field-source-title">Origen del valor</h3>
+        <mat-form-field appearance="outline" class="full">
+          <mat-label>¿De dónde sale el valor?</mat-label>
+          <mat-select formControlName="sourceTypeCode" (selectionChange)="sourceTypeChanged()">
+            <mat-option *ngFor="let option of editor.sourceTypes" [value]="option.code">{{ option.labelEs }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field *ngIf="selectedSourceType?.usesFixedValue" appearance="outline" class="full">
+          <mat-label>Valor fijo</mat-label><input matInput formControlName="fixedValue" />
+        </mat-form-field>
+
+        <mat-form-field *ngIf="selectedSourceType?.requiresDefinitionSelection" appearance="outline" class="full">
+          <mat-label>Dato o cálculo autorizado</mat-label>
+          <mat-select formControlName="sourceDefinitionId">
+            <mat-option *ngFor="let option of sourceOptions" [value]="option.sourceDefinitionId">
+              {{ option.labelEs }}<span *ngIf="option.descriptionEs"> · {{ option.descriptionEs }}</span>
+            </mat-option>
+          </mat-select>
+          <mat-hint *ngIf="!sourceOptions.length">No hay opciones compatibles configuradas para esta cámara.</mat-hint>
+        </mat-form-field>
+        <p class="shared-note" *ngIf="editor.sourceReferenceCount > 1">El origen actual se comparte con {{ editor.sourceReferenceCount }} campos. Si cambias un valor propio, el servidor aislará este campo sin alterar los demás.</p>
+      </section>
+
+      <section class="editor-section" aria-labelledby="field-rules-title">
+        <h3 id="field-rules-title">Validaciones y comportamiento ante error</h3>
+        <p class="section-help" *ngIf="!rules.length">Este campo no tiene validaciones editables configuradas.</p>
+        <div formArrayName="rules" class="rules-list">
+          <div *ngFor="let control of rules.controls; let i = index" [formGroupName]="i" class="rule-card">
+            <div class="rule-heading">
+              <strong>{{ ruleDefinitions[i]?.ruleTypeName || 'Validación' }}</strong>
+              <mat-slide-toggle formControlName="isEnabled">Aplicar</mat-slide-toggle>
+            </div>
+            <mat-form-field appearance="outline" class="full"><mat-label>Mensaje para Operaciones</mat-label><input matInput formControlName="errorMessageEs" /></mat-form-field>
+            <mat-form-field appearance="outline" class="full"><mat-label>Comportamiento ante error</mat-label><mat-select formControlName="severity"><mat-option *ngFor="let option of editor.severities" [value]="option.code">{{ option.labelEs }}</mat-option></mat-select></mat-form-field>
+          </div>
+        </div>
+      </section>
+
+      <mat-expansion-panel class="advanced-panel">
+        <mat-expansion-panel-header><mat-panel-title>Información avanzada</mat-panel-title><mat-panel-description>Solo lectura</mat-panel-description></mat-expansion-panel-header>
+        <dl class="technical-grid" data-technical-value="true">
+          <div><dt>Código del campo</dt><dd>{{ editor.field.fieldCode }}</dd></div>
+          <div><dt>Tipo persistido</dt><dd>{{ editor.field.sourceTypeName || editor.field.sourceType || '-' }}</dd></div>
+          <div><dt>Ruta interna</dt><dd>{{ editor.field.propertyPath || '-' }}</dd></div>
+          <div><dt>Entidad</dt><dd>{{ editor.field.entityName || '-' }}</dd></div>
+          <div><dt>Objeto SQL</dt><dd>{{ editor.field.sqlObjectName || '-' }}</dd></div>
+          <div><dt>Catálogo externo</dt><dd>{{ editor.field.externalCatalogCode || '-' }}</dd></div>
+          <div><dt>Expresión</dt><dd>{{ editor.field.expressionDsl || '-' }}</dd></div>
+          <div><dt>Política de respaldo</dt><dd>{{ editor.field.fallbackPolicyJson || '-' }}</dd></div>
+        </dl>
+        <div class="advanced-rules" data-technical-value="true" *ngFor="let rule of editor.field.reglas">
+          <strong>{{ rule.ruleTypeName }}</strong>
+          <span>Código: {{ rule.ruleCode }}</span>
+          <span>Condición: {{ rule.conditionDsl || '-' }}</span>
+          <span>Configuración: {{ rule.ruleConfigJson || '-' }}</span>
+        </div>
+      </mat-expansion-panel>
+
+      <p class="save-error" *ngIf="saveError" role="alert" aria-live="assertive">{{ saveError }}</p>
+      <div class="actions" *ngIf="canEdit"><button mat-flat-button type="submit" [disabled]="saving">{{ saving ? 'Guardando…' : 'Guardar campo' }}</button><button mat-stroked-button type="button" [disabled]="saving" (click)="reset()">Cancelar cambios</button></div>
+    </form>
+  </mat-card-content>
+</mat-card>

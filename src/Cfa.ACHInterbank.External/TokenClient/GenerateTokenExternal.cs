@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Application.External.TokenClient;
 using Cfa.ACHInterbank.Application.Services.TokenClient.Model;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 
 
 namespace Cfa.ACHInterbank.External.TokenClient;
@@ -12,19 +13,24 @@ namespace Cfa.ACHInterbank.External.TokenClient;
 [Transient]
 public class GenerateTokenExternal : IGenerateTokenExternal
 {
-    private readonly AppSettings _appSettings = AppSettings.Settings;
+    private readonly Token _tokenSettings;
+
+    public GenerateTokenExternal(IOptions<Token> tokenOptions)
+    {
+        _tokenSettings = tokenOptions?.Value ?? throw new ArgumentNullException(nameof(tokenOptions));
+    }
 
     public GetTokenResponseModel GenerateToken(TokenModelClient model)
     {
-        var accessExpiration = _appSettings.TokenManager!.accessExpiration;
-        var expirationType = _appSettings.TokenManager!.expirationType;
+        var accessExpiration = _tokenSettings.accessExpiration;
+        var expirationType = _tokenSettings.expirationType;
         // authentication successful so generate jwt token
         var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(_appSettings.TokenManager.secretKetJwt!);
+        var key = Encoding.UTF8.GetBytes(_tokenSettings.secretKetJwt!);
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Issuer = _appSettings.TokenManager.issuerJwt,
-            Audience = _appSettings.TokenManager.audienceJwt,
+            Issuer = _tokenSettings.issuerJwt,
+            Audience = _tokenSettings.audienceJwt,
             Subject = new ClaimsIdentity(new Claim[]
             {
                     new Claim(ClaimTypes.Name, model.client_id!),

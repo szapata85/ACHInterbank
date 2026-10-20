@@ -1,3 +1,5 @@
+using Cfa.ACHInterbank.Application.Integrations.Models;
+
 namespace Cfa.ACHInterbank.Application.ACH.Models;
 
 /// <summary>
@@ -27,6 +29,7 @@ public sealed record ProcContrapartidasRequestContract
     public required string ANCLC { get; init; }
     public required string ANSIDTX { get; init; }
     public required int ANSIDREVER { get; init; }
+    public ResolvedIntegrationRequest? ContractDrivenRequest { get; init; }
 }
 
 /// <summary>

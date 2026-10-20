@@ -43,13 +43,14 @@ public class ExternalFileNameSequenceProviderTests
     }
 
     [Fact]
-    public async Task SqlServerAdapter_Throws_NotSupportedException_ClearMessage()
+    public async Task SqlServerAdapter_Enforces_AchDailyLimit_36()
     {
-        var adapter = new SqlServerExternalFileNameSequenceService();
+        await using var harness = await CreateHarnessAsync();
+        var adapter = new TestSqlServerAdapter(harness.Context, 37);
 
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(() => adapter.ReserveNextSequenceAsync(CreateContext()));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => adapter.ReserveNextSequenceAsync(CreateContext()));
 
-        Assert.Contains("not implemented", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("36 archivos", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -61,6 +62,23 @@ public class ExternalFileNameSequenceProviderTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => adapter.ReserveNextSequenceAsync(CreateContext()));
 
         Assert.Contains("36 archivos", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("postgres")]
+    [InlineData("sqlserver")]
+    public async Task DatabaseAdapters_Enforce_CenitDailyLimit_999(string provider)
+    {
+        await using var harness = await CreateHarnessAsync();
+        IExternalFileNameSequenceProvider adapter = provider == "postgres"
+            ? new TestPostgresAdapter(harness.Context, 1000)
+            : new TestSqlServerAdapter(harness.Context, 1000);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            adapter.ReserveNextSequenceAsync(CreateCenitContext()));
+
+        Assert.Contains("CENIT_DAILY_SEQUENCE_EXHAUSTED", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("999", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -117,6 +135,16 @@ public class ExternalFileNameSequenceProviderTests
         Direction = ExternalFileDirection.Outbound
     };
 
+    private static ExternalFileNameContext CreateCenitContext() => new()
+    {
+        ClearingHouseId = 2,
+        ClearingHouseCode = "CENIT",
+        ProcessingDate = new DateTime(2026, 5, 24),
+        ExternalFileType = ExternalFileType.NachaOut,
+        Flow = ExternalFileFlow.Originacion,
+        Direction = ExternalFileDirection.Outbound
+    };
+
     private sealed class FakeProvider(string kind) : IExternalFileNameSequenceProvider
     {
         public bool CanHandle(string? providerName)
@@ -138,6 +166,19 @@ public class ExternalFileNameSequenceProviderTests
         }
 
         protected override Task<int> ExecuteUpsertAsync(ExternalFileNameContext context, CancellationToken ct)
+            => Task.FromResult(_next);
+    }
+
+    private sealed class TestSqlServerAdapter : SqlServerExternalFileNameSequenceService
+    {
+        private readonly int _next;
+
+        public TestSqlServerAdapter(AchDbContext context, int next) : base(context)
+        {
+            _next = next;
+        }
+
+        protected override Task<int> ExecuteReservationAsync(ExternalFileNameContext context, CancellationToken ct)
             => Task.FromResult(_next);
     }
 

@@ -18,8 +18,13 @@ public class RegulatoryCatalogsController : ControllerBase
 
     [HttpGet("return-codes")]
     [Authorize(Policy = "CanReadAch")]
-    public async Task<IActionResult> GetReturnCodes(CancellationToken ct)
-        => Ok(await _catalogService.GetReturnCodesAsync(ct));
+    public async Task<IActionResult> GetReturnCodes(
+        [FromQuery] int? clearingHouseId = null,
+        [FromQuery] string? clearingHouseCode = null,
+        CancellationToken ct = default)
+        => Ok(!string.IsNullOrWhiteSpace(clearingHouseCode)
+            ? await _catalogService.GetReturnCodesByClearingHouseCodeAsync(clearingHouseCode, ct)
+            : await _catalogService.GetReturnCodesAsync(clearingHouseId, ct));
 
     [HttpGet("file-rejection-codes")]
     [Authorize(Policy = "CanReadAch")]

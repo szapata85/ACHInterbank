@@ -1,6 +1,7 @@
 using System.Net.Http;
-using Cfa.ACHInterbank.Application.Exceptions;
+using Cfa.ACHInterbank.Api.Exceptions;
 using Cfa.ACHInterbank.Application.Helpers.DNS.Interfaces;
+using Cfa.ACHInterbank.External.Connections;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,13 +19,14 @@ public class ServersController : ControllerBase
     /// </summary>
 
     [HttpGet]
-    public async Task<IActionResult> HandleRequest([FromServices] ILoadBalancerSingleton loadBalancer, [FromServices] HttpClient httpClient)
+    public async Task<IActionResult> HandleRequest([FromServices] ILoadBalancerSingleton loadBalancer, [FromServices] IHttpClientFactory httpClientFactory)
     {
         //var server = loadBalancer.GetNextServer("services");
         var end = await loadBalancer.GetNextServer("servicesWCF");
-        var response = await httpClient.GetAsync(end.Url);
+        using var httpClient = httpClientFactory.CreateClient(ExternalHttpClientNames.HealthProbe);
+        using var response = await httpClient.GetAsync(end.Url, HttpContext.RequestAborted);
 
-        var content = await response.Content.ReadAsStringAsync();
+        var content = await response.Content.ReadAsStringAsync(HttpContext.RequestAborted);
         return Content(content, response.Content.Headers.ContentType?.ToString()!);
     }
 }

@@ -25,7 +25,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
   },
-  webServer: externalUiUrl ? undefined : {
+  webServer: externalUiUrl || e2eBaseUrl ? undefined : {
     command: 'npm start',
     url: 'http://localhost:4200',
     reuseExistingServer: !process.env['CI'],

@@ -6,6 +6,7 @@ namespace Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Models;
 public sealed class AchResponseStatusMappingModel
 {
     public int Id { get; set; }
+    public int ClearingHouseId { get; set; }
     public string CodigoCamaraCompensacion { get; set; } = string.Empty;
     public TipoRespuestaAch TipoRespuesta { get; set; }
     public string CodigoEstadoExterno { get; set; } = string.Empty;
@@ -18,6 +19,7 @@ public sealed class AchResponseStatusMappingModel
     public bool RequiereCausal { get; set; }
     public bool PermiteNotificacion { get; set; }
     public bool Activo { get; set; }
+    public int Priority { get; set; }
     public DateTime FechaInicioVigencia { get; set; }
     public DateTime? FechaFinVigencia { get; set; }
 }

@@ -2,10 +2,15 @@ using System.Security.Cryptography;
 using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
+using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -19,6 +24,16 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobService
 {
     private const int MaxAttempts = 5;
+    private const string SoapMethodName = IntegrationGuaranteeConstants.ProcContrapartidas;
+    private const string TechnicalStatusSucceeded = "Succeeded";
+    private const string TechnicalStatusFunctionalRejection = "FunctionalRejection";
+    private const string TechnicalStatusSoapFault = "SoapFault";
+    private const string TechnicalStatusRetryableFailure = "RetryableFailure";
+    private const string TechnicalStatusParserError = "ParserError";
+    private const string TechnicalStatusTechnicalException = "TechnicalException";
+    private const string TechnicalStatusDryRun = "DryRun";
+    private const string TechnicalStatusDisabled = "Disabled";
+    private const string TechnicalStatusUnknownFailure = "UnknownFailure";
     private static readonly ContrapartidaDispatchItemStateEnum[] EligibleStates =
     [
         ContrapartidaDispatchItemStateEnum.PendingContrapartidaReport,
@@ -34,6 +49,12 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private readonly ProcContrapartidasDispatchOptions _dispatchOptions;
     private readonly ITransactionIntegrationOperationResolver? _operationResolver;
     private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
+    private readonly ISoapIntegrationSettingsService? _soapIntegrationSettingsService;
+    private readonly IIntegrationResponseCatalogResolver? _responseCatalogResolver;
+    private readonly TimeProvider _timeProvider;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly ICycleCalendarGuard _calendarGuard;
+    private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
@@ -43,7 +64,13 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         ILogger<ContrapartidaDispatchJobService> logger,
         IOptions<ProcContrapartidasDispatchOptions>? dispatchOptions = null,
         ITransactionIntegrationOperationResolver? operationResolver = null,
-        IIntegrationMappingReadinessService? mappingReadinessService = null)
+        IIntegrationMappingReadinessService? mappingReadinessService = null,
+        ISoapIntegrationSettingsService? soapIntegrationSettingsService = null,
+        IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
+        TimeProvider? timeProvider = null,
+        IOperationalCycleWindowResolver? windowResolver = null,
+        ICycleCalendarGuard? calendarGuard = null,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null)
     {
         _context = context;
         _soapClient = soapClient;
@@ -53,6 +80,15 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         _dispatchOptions = dispatchOptions?.Value ?? new ProcContrapartidasDispatchOptions();
         _operationResolver = operationResolver;
         _mappingReadinessService = mappingReadinessService;
+        _soapIntegrationSettingsService = soapIntegrationSettingsService;
+        _responseCatalogResolver = responseCatalogResolver;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context, timeProvider: _timeProvider);
+        _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
+            new ClearingHouseToPaymentRailMapper(),
+            new CycleNumberResolver());
     }
 
     public async Task<ContrapartidaCycleDispatchResult> ProcessCycleAsync(
@@ -61,18 +97,95 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         string triggeredBy,
         int chunkSize,
         CancellationToken ct = default)
+        => await ProcessPendingAsync(cycleId, clearingHouseId, triggeredBy, chunkSize, null, ct);
+
+    public async Task<ContrapartidaCycleDispatchResult> ProcessTransactionAsync(
+        string cycleId,
+        int clearingHouseId,
+        int transactionId,
+        string triggeredBy,
+        CancellationToken ct = default)
+    {
+        if (transactionId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(transactionId), "El identificador de transaccion debe ser positivo.");
+        }
+
+        return await ProcessPendingAsync(cycleId, clearingHouseId, triggeredBy, 1, transactionId, ct);
+    }
+
+    public async Task<ContrapartidaCycleDispatchResult> ProcessTransactionAsync(
+        int transactionId,
+        string triggeredBy,
+        CancellationToken ct = default)
+    {
+        if (transactionId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(transactionId), "El identificador de transaccion debe ser positivo.");
+        }
+
+        var target = await _context.ContrapartidaDispatchItems
+            .AsNoTracking()
+            .Where(x => x.AchTransactionId == transactionId)
+            .Select(x => new
+            {
+                x.AchCycleId,
+                x.ClearingHouseId,
+                x.State,
+                HasSuccessfulAttempt = x.Attempts.Any(a =>
+                    a.BusinessStatus == IntegrationResponseBusinessStatus.Success
+                    || a.IsSuccessful)
+            })
+            .SingleOrDefaultAsync(ct)
+            ?? throw new KeyNotFoundException("No existe una cola de Proc_Contrapartidas para la transacción solicitada.");
+
+        if (target.State == ContrapartidaDispatchItemStateEnum.ReportedToContrapartida
+            || target.HasSuccessfulAttempt)
+        {
+            throw new InvalidOperationException(
+                "CONTRAPARTIDA_ALREADY_SUCCEEDED: la transacción ya tiene un resultado funcional exitoso.");
+        }
+
+        return await ProcessPendingAsync(
+            target.AchCycleId,
+            target.ClearingHouseId,
+            triggeredBy,
+            1,
+            transactionId,
+            ct);
+    }
+
+    private async Task<ContrapartidaCycleDispatchResult> ProcessPendingAsync(
+        string cycleId,
+        int clearingHouseId,
+        string triggeredBy,
+        int chunkSize,
+        int? transactionId,
+        CancellationToken ct)
     {
         chunkSize = Math.Clamp(chunkSize, 10, 2000);
         var safeTriggeredBy = string.IsNullOrWhiteSpace(triggeredBy) ? "quartz:contrapartida" : triggeredBy.Trim();
+        var nowUtcOffset = _timeProvider.GetUtcNow();
+        var nowUtc = nowUtcOffset.UtcDateTime;
 
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .Include(c => c.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .Include(c => c.ClearingHouseCycleConfig)
             .FirstOrDefaultAsync(c => c.Id == cycleId && c.ClearingHouseId == clearingHouseId, ct)
             ?? throw new InvalidOperationException($"No existe ciclo {cycleId} para cámara {clearingHouseId}.");
 
-        ValidateCycleOperationalWindow(cycle, DateTime.Now);
+        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
+        if (!calendarDecision.CanExecute)
+        {
+            var deferredSummary = $"Ciclo {cycleId} cámara {clearingHouseId}: diferido por calendario operativo hasta {calendarDecision.RescheduledDate:yyyy-MM-dd}. SOAP no invocado.";
+            _logger.LogInformation("{Summary} Reason={Reason}", deferredSummary, calendarDecision.Reason);
+            return new ContrapartidaCycleDispatchResult(cycleId, clearingHouseId, 0, 0, 0, 0, 0, deferredSummary);
+        }
+        await EnsureCycleAllowsDebitDispatchAsync(cycle, ct);
+
+        var nowLocal = ValidateCycleOperationalWindow(cycle, nowUtcOffset).LocalNow;
 
         var processed = 0;
         var succeeded = 0;
@@ -85,8 +198,14 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             var pendingItemIds = await _context.ContrapartidaDispatchItems
                 .AsNoTracking()
                 .Where(i => i.AchCycleId == cycleId && i.ClearingHouseId == clearingHouseId)
+                .Where(i => i.AchTransaction.ClassificationStatus == AchTransactionClassificationStatus.Determined
+                    && i.AchTransaction.MonetaryIntegrationRoute == AchMonetaryIntegrationRoute.ProcContrapartidas
+                    && i.AchTransaction.Direction == AchTransactionDirection.Outgoing
+                    && i.AchTransaction.Origin == AchTransactionOrigin.Cfa
+                    && i.AchTransaction.Type == TransactionTypeEnum.Debit)
+                .Where(i => !transactionId.HasValue || i.AchTransactionId == transactionId.Value)
                 .Where(i => EligibleStates.Contains(i.State))
-                .Where(i => !i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= DateTime.UtcNow)
+                .Where(i => !i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= nowUtc)
                 .OrderBy(i => i.Id)
                 .Select(i => i.Id)
                 .Take(chunkSize)
@@ -107,8 +226,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 ClearingHouseId = cycle.ClearingHouseId,
                 TriggerType = ContrapartidaDispatchBatchTriggerTypeEnum.Scheduled,
                 RequestedBy = safeTriggeredBy,
-                TriggeredAtUtc = DateTime.UtcNow,
-                StartedAtUtc = DateTime.UtcNow,
+                TriggeredAtUtc = nowUtc,
+                StartedAtUtc = nowUtc,
                 Status = ContrapartidaDispatchBatchStatusEnum.Processing,
                 TotalItems = pendingItemIds.Count
             };
@@ -118,12 +237,12 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             await _context.ContrapartidaDispatchItems
                 .Where(i => pendingItemIds.Contains(i.Id)
                     && EligibleStates.Contains(i.State)
-                    && (!i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= DateTime.UtcNow))
+                    && (!i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= nowUtc))
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(i => i.State, ContrapartidaDispatchItemStateEnum.ReportingContrapartida)
                     .SetProperty(i => i.LastCorrelationId, operationToken)
                     .SetProperty(i => i.LastDispatchedBy, safeTriggeredBy)
-                    .SetProperty(i => i.UpdatedAt, DateTimeOffset.UtcNow), ct);
+                    .SetProperty(i => i.UpdatedAt, nowUtcOffset), ct);
 
             var dispatchItems = await _context.ContrapartidaDispatchItems
                 .Where(i => pendingItemIds.Contains(i.Id)
@@ -135,18 +254,18 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             {
                 batch.Status = ContrapartidaDispatchBatchStatusEnum.Cancelled;
                 batch.SummaryMessage = "Sin items reclamados para este chunk (ya tomados por otro worker).";
-                batch.FinishedAtUtc = DateTime.UtcNow;
+                batch.FinishedAtUtc = nowUtc;
                 await _context.SaveChangesAsync(ct);
                 continue;
             }
 
             var transactionIds = dispatchItems.Select(i => i.AchTransactionId).ToArray();
             var transactions = await _context.AchTransactions
-                .AsNoTracking()
                 .Include(t => t.Addendas)
                 .Where(t => transactionIds.Contains(t.Id))
                 .OrderBy(t => t.Id)
                 .ToListAsync(ct);
+            var transactionById = transactions.ToDictionary(x => x.Id);
             var queueItems = await _context.IncomingNachaDispatchQueue
                 .AsNoTracking()
                 .Where(q => q.AchCycleId == cycle.Id && q.ClearingHouseId == cycle.ClearingHouseId && transactionIds.Contains(q.AchTransactionId))
@@ -157,20 +276,31 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
             string requestPayload = string.Empty;
             string responsePayload = string.Empty;
+            string dispatchEndpoint = string.Empty;
+            string executionMode = _dispatchOptions.NormalizedMode;
+            string technicalException = string.Empty;
             ProcContrapartidasParsedResponse? parseResult = null;
-            var startedAtUtc = DateTime.UtcNow;
+            var startedAtUtc = nowUtc;
 
             try
             {
                 await EnsureContrapartidasReadinessAsync(transactions, ct);
-                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, transactions, DateTime.Now, ct);
+                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, transactions, nowLocal, ct);
                 EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
+                var runtime = await ResolveProcContrapartidasRuntimeAsync(ct);
+                dispatchEndpoint = runtime.Endpoint;
+                executionMode = runtime.OperatingMode;
                 batch.MappingSetId = resolution.MappingSetId;
                 batch.MappingVersion = resolution.MappingVersion;
                 batch.MappingSnapshotHash = resolution.MappingSnapshotHash;
 
-                var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
+                var dispatchResult = await DispatchProcContrapartidasAsync(
+                    requestPayload,
+                    cycle.Id,
+                    cycle.ClearingHouseId,
+                    executionMode,
+                    ct);
                 responsePayload = dispatchResult.ResponsePayload;
                 parseResult = dispatchResult.ParseResult;
             }
@@ -181,20 +311,22 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     cycle.Id,
                     cycle.ClearingHouseId);
 
+                technicalException = BuildTechnicalException(ex);
                 parseResult = new ProcContrapartidasParsedResponse(
                     IsSuccess: false,
                     IsSoapFault: false,
-                    IsRetryable: true,
+                    IsRetryable: false,
                     IsFunctionalRejection: false,
                     ErrorCode: "SOAP_EXCEPTION",
-                    ErrorMessage: ex.Message,
-                    RawResponse: ex.ToString(),
+                    ErrorMessage: "La respuesta del servicio es incierta y requiere conciliación antes de reenviar.",
+                    RawResponse: technicalException,
                     ResponseCode: "SOAP_EXCEPTION",
                     ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>());
-                responsePayload = ex.ToString();
+                responsePayload = technicalException;
             }
 
-            var finishedAtUtc = DateTime.UtcNow;
+            var finishedAtUtc = nowUtc;
+            var durationMs = CalculateDurationMs(startedAtUtc, finishedAtUtc);
             batch.RequestPayloadXml = requestPayload;
             batch.ResponsePayloadXml = responsePayload;
 
@@ -203,9 +335,29 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 var txId = item.AchTransactionId;
                 var hasItemResult = parseResult.ItemResults.TryGetValue(txId, out var txResult);
 
-                var isSuccess = hasItemResult ? txResult!.IsSuccess : parseResult.IsSuccess;
-                var itemCode = hasItemResult ? txResult!.ResponseCode : parseResult.ErrorCode;
-                var itemMessage = hasItemResult ? txResult!.Message : parseResult.ErrorMessage;
+                var itemCode = hasItemResult ? txResult!.ResponseCode : parseResult.ResponseCode;
+                var transportStatus = ResolveTransportStatus(parseResult, technicalException, executionMode);
+                var catalogResult = transportStatus == IntegrationTransportStatus.Succeeded
+                    ? await ResolveCoreResponseAsync(itemCode, finishedAtUtc, ct)
+                    : null;
+                var businessStatus = catalogResult?.BusinessStatus ?? IntegrationResponseBusinessStatus.Unknown;
+                var isSuccess = transportStatus == IntegrationTransportStatus.Succeeded
+                    && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
+                var retryAllowed = catalogResult is null
+                    ? (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable)
+                    : catalogResult.RetryAllowed;
+                var itemMessage = catalogResult?.Description
+                    ?? (hasItemResult ? txResult!.Message : parseResult.ErrorMessage);
+                var soapAudit = BuildAttemptSoapAuditFields(
+                    parseResult,
+                    hasItemResult ? txResult : null,
+                    isSuccess,
+                    itemCode,
+                    itemMessage,
+                    dispatchEndpoint,
+                    durationMs,
+                    technicalException,
+                    executionMode);
 
                 var attempt = new ContrapartidaDispatchAttempt
                 {
@@ -221,13 +373,32 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                             : ContrapartidaDispatchAttemptResultEnum.Failed,
                     CorrelationId = $"{batch.Id:N}-{item.Id}",
                     TriggeredBy = safeTriggeredBy,
-                    RetryEligible = !isSuccess && (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable),
+                    RetryEligible = !isSuccess && retryAllowed,
                     ExternalResponseCode = itemCode,
                     ExternalResponseMessage = itemMessage ?? string.Empty,
                     ErrorCode = isSuccess ? string.Empty : itemCode,
                     ErrorMessage = isSuccess ? string.Empty : (itemMessage ?? "Error de negocio en contrapartidas"),
                     RequestPayloadXml = requestPayload,
-                    ResponsePayloadXml = responsePayload
+                    ResponsePayloadXml = responsePayload,
+                    SoapMethodName = soapAudit.SoapMethodName,
+                    SoapEndpoint = soapAudit.SoapEndpoint,
+                    ExecutionMode = soapAudit.ExecutionMode,
+                    DurationMs = soapAudit.DurationMs,
+                    SoapResponseCode = soapAudit.SoapResponseCode,
+                    SoapResponseDescription = NormalizeAuditValue(itemMessage, 4000),
+                    SoapTechnicalStatus = transportStatus == IntegrationTransportStatus.Succeeded
+                        ? TechnicalStatusSucceeded
+                        : soapAudit.SoapTechnicalStatus,
+                    ResponseCatalogId = catalogResult?.CatalogId,
+                    TransportStatus = transportStatus,
+                    BusinessStatus = businessStatus,
+                    RetryAllowed = retryAllowed,
+                    RequiresManualReview = catalogResult?.RequiresManualReview ?? false,
+                    ProcessedAtUtc = finishedAtUtc,
+                    IsSuccessful = isSuccess,
+                    IsFunctionalRejection = businessStatus == IntegrationResponseBusinessStatus.Rejected,
+                    IsTechnicalFailure = transportStatus is IntegrationTransportStatus.Failed or IntegrationTransportStatus.TimedOut,
+                    TechnicalException = soapAudit.TechnicalException
                 };
 
                 _context.ContrapartidaDispatchAttempts.Add(attempt);
@@ -237,6 +408,9 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     {
                         DispatchQueueId = queue.Id,
                         MethodName = IntegrationGuaranteeConstants.ProcContrapartidas,
+                        SoapMethodName = soapAudit.SoapMethodName,
+                        SoapEndpoint = soapAudit.SoapEndpoint,
+                        ExecutionMode = soapAudit.ExecutionMode,
                         MappingSetId = batch.MappingSetId,
                         MappingVersion = batch.MappingVersion,
                         MappingSnapshotHash = batch.MappingSnapshotHash,
@@ -244,10 +418,26 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                         ResponseHash = Hash(responsePayload),
                         RequestPayloadXml = requestPayload,
                         ResponsePayloadXml = responsePayload,
+                        SoapResponseCode = soapAudit.SoapResponseCode,
+                        SoapResponseDescription = NormalizeAuditValue(itemMessage, 4000),
+                        SoapTechnicalStatus = transportStatus == IntegrationTransportStatus.Succeeded
+                            ? TechnicalStatusSucceeded
+                            : soapAudit.SoapTechnicalStatus,
+                        ResponseCatalogId = catalogResult?.CatalogId,
+                        TransportStatus = transportStatus,
+                        BusinessStatus = businessStatus,
+                        RetryAllowed = retryAllowed,
+                        RequiresManualReview = catalogResult?.RequiresManualReview ?? false,
+                        ProcessedAtUtc = finishedAtUtc,
+                        IsSuccessful = isSuccess,
+                        IsFunctionalRejection = businessStatus == IntegrationResponseBusinessStatus.Rejected,
+                        IsTechnicalFailure = transportStatus is IntegrationTransportStatus.Failed or IntegrationTransportStatus.TimedOut,
+                        TechnicalException = soapAudit.TechnicalException,
+                        DurationMs = soapAudit.DurationMs,
                         ResponseCode = itemCode,
                         ResponseMessage = itemMessage ?? string.Empty,
                         IsSuccess = isSuccess,
-                        IsRetryable = !isSuccess && (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable),
+                        IsRetryable = !isSuccess && retryAllowed,
                         StartedAtUtc = startedAtUtc,
                         FinishedAtUtc = finishedAtUtc,
                         CorrelationId = attempt.CorrelationId
@@ -264,6 +454,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
                 if (isSuccess)
                 {
+                    if (transactionById.TryGetValue(txId, out var transaction) && catalogResult is not null)
+                    {
+                        ApplySuccessfulTransactionState(transaction, catalogResult, finishedAtUtc);
+                    }
                     item.State = ContrapartidaDispatchItemStateEnum.ReportedToContrapartida;
                     item.LastSuccessAtUtc = finishedAtUtc;
                     item.NextAttemptAtUtc = null;
@@ -271,8 +465,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 }
                 else
                 {
-                    var retryable = hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable;
-                    var canRetry = retryable && item.AttemptCount < MaxAttempts;
+                    var canRetry = retryAllowed && item.AttemptCount < MaxAttempts;
                     item.State = canRetry
                         ? ContrapartidaDispatchItemStateEnum.RetryPending
                         : ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed;
@@ -334,10 +527,33 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
         var cycle = await _context.AchCycles
             .AsNoTracking()
+            .Include(c => c.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .Include(c => c.ClearingHouseCycleConfig)
             .FirstOrDefaultAsync(x => x.Id == sourceBatch.AchCycleId && x.ClearingHouseId == sourceBatch.ClearingHouseId, ct)
             ?? throw new InvalidOperationException($"No existe ciclo {sourceBatch.AchCycleId} para cámara {sourceBatch.ClearingHouseId}.");
-        ValidateCycleOperationalWindow(cycle, DateTime.Now);
+        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
+        if (!calendarDecision.CanExecute)
+        {
+            var deferredSummary = $"Reintento {sourceBatch.Id}: diferido por calendario operativo hasta {calendarDecision.RescheduledDate:yyyy-MM-dd}. SOAP no invocado.";
+            _logger.LogInformation("{Summary} Reason={Reason}", deferredSummary, calendarDecision.Reason);
+            return new ContrapartidaBatchRetryResult(
+                sourceBatch.Id,
+                Guid.Empty,
+                sourceBatch.AchCycleId,
+                sourceBatch.ClearingHouseId,
+                0,
+                0,
+                0,
+                0,
+                0,
+                deferredSummary);
+        }
+        await EnsureCycleAllowsDebitDispatchAsync(cycle, ct);
+
+        var nowUtcOffset = _timeProvider.GetUtcNow();
+        var nowUtc = nowUtcOffset.UtcDateTime;
+        var nowLocal = ValidateCycleOperationalWindow(cycle, nowUtcOffset).LocalNow;
 
         var sourceItemIds = await _context.ContrapartidaDispatchAttempts
             .AsNoTracking()
@@ -354,6 +570,11 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         var items = await _context.ContrapartidaDispatchItems
             .AsNoTracking()
             .Where(i => sourceItemIds.Contains(i.Id))
+            .Where(i => i.AchTransaction.ClassificationStatus == AchTransactionClassificationStatus.Determined
+                && i.AchTransaction.MonetaryIntegrationRoute == AchMonetaryIntegrationRoute.ProcContrapartidas
+                && i.AchTransaction.Direction == AchTransactionDirection.Outgoing
+                && i.AchTransaction.Origin == AchTransactionOrigin.Cfa
+                && i.AchTransaction.Type == TransactionTypeEnum.Debit)
             .Select(i => new { i.Id, i.State, i.AttemptCount })
             .ToListAsync(ct);
 
@@ -406,8 +627,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             TriggerType = ContrapartidaDispatchBatchTriggerTypeEnum.ManualRetry,
             RequestedBy = safeTriggeredBy,
             JobId = retryJobId,
-            TriggeredAtUtc = DateTime.UtcNow,
-            StartedAtUtc = DateTime.UtcNow,
+            TriggeredAtUtc = nowUtc,
+            StartedAtUtc = nowUtc,
             Status = ContrapartidaDispatchBatchStatusEnum.Processing,
             TotalItems = selectedItemIds.Count,
             SummaryMessage = $"Retry manual scope={request.Scope}"
@@ -435,7 +656,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     .SetProperty(i => i.State, ContrapartidaDispatchItemStateEnum.Retrying)
                     .SetProperty(i => i.LastCorrelationId, operationToken)
                     .SetProperty(i => i.LastDispatchedBy, safeTriggeredBy)
-                    .SetProperty(i => i.UpdatedAt, DateTimeOffset.UtcNow), ct);
+                    .SetProperty(i => i.UpdatedAt, nowUtcOffset), ct);
 
             var claimed = await _context.ContrapartidaDispatchItems
                 .Where(i => chunkIds.Contains(i.Id)
@@ -450,53 +671,85 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
             var txIds = claimed.Select(x => x.AchTransactionId).ToArray();
             var txs = await _context.AchTransactions
-                .AsNoTracking()
                 .Include(t => t.Addendas)
                 .Where(t => txIds.Contains(t.Id))
                 .OrderBy(t => t.Id)
                 .ToListAsync(ct);
+            var txById = txs.ToDictionary(x => x.Id);
 
-            var startedAtUtc = DateTime.UtcNow;
+            var startedAtUtc = nowUtc;
             string requestPayload = string.Empty;
             string responsePayload = string.Empty;
+            string dispatchEndpoint = string.Empty;
+            string executionMode = _dispatchOptions.NormalizedMode;
+            string technicalException = string.Empty;
             ProcContrapartidasParsedResponse parseResult;
             try
             {
                 await EnsureContrapartidasReadinessAsync(txs, ct);
-                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, txs, DateTime.Now, ct);
+                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, txs, nowLocal, ct);
                 EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
+                var runtime = await ResolveProcContrapartidasRuntimeAsync(ct);
+                dispatchEndpoint = runtime.Endpoint;
+                executionMode = runtime.OperatingMode;
                 processingBatch.MappingSetId = resolution.MappingSetId;
                 processingBatch.MappingVersion = resolution.MappingVersion;
                 processingBatch.MappingSnapshotHash = resolution.MappingSnapshotHash;
-                var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
+                var dispatchResult = await DispatchProcContrapartidasAsync(
+                    requestPayload,
+                    cycle.Id,
+                    cycle.ClearingHouseId,
+                    executionMode,
+                    ct);
                 responsePayload = dispatchResult.ResponsePayload;
                 parseResult = dispatchResult.ParseResult;
             }
             catch (Exception ex)
             {
+                technicalException = BuildTechnicalException(ex);
                 parseResult = new ProcContrapartidasParsedResponse(
                     IsSuccess: false,
                     IsSoapFault: false,
-                    IsRetryable: true,
+                    IsRetryable: false,
                     IsFunctionalRejection: false,
                     ErrorCode: "SOAP_EXCEPTION",
-                    ErrorMessage: ex.Message,
-                    RawResponse: ex.ToString(),
+                    ErrorMessage: "La respuesta del servicio es incierta y requiere conciliación antes de reenviar.",
+                    RawResponse: technicalException,
                     ResponseCode: "SOAP_EXCEPTION",
                     ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>());
-                responsePayload = ex.ToString();
+                responsePayload = technicalException;
             }
 
-            var finishedAtUtc = DateTime.UtcNow;
+            var finishedAtUtc = nowUtc;
+            var durationMs = CalculateDurationMs(startedAtUtc, finishedAtUtc);
             foreach (var item in claimed)
             {
                 var hasItemResult = parseResult.ItemResults.TryGetValue(item.AchTransactionId, out var txResult);
-                var isSuccess = hasItemResult ? txResult!.IsSuccess : parseResult.IsSuccess;
-                var code = hasItemResult ? txResult!.ResponseCode : parseResult.ErrorCode;
-                var message = hasItemResult ? txResult!.Message : parseResult.ErrorMessage;
-                var retryable = !isSuccess && (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable);
-                var canRetry = retryable && item.AttemptCount + 1 < MaxAttempts;
+                var code = hasItemResult ? txResult!.ResponseCode : parseResult.ResponseCode;
+                var transportStatus = ResolveTransportStatus(parseResult, technicalException, executionMode);
+                var catalogResult = transportStatus == IntegrationTransportStatus.Succeeded
+                    ? await ResolveCoreResponseAsync(code, finishedAtUtc, ct)
+                    : null;
+                var businessStatus = catalogResult?.BusinessStatus ?? IntegrationResponseBusinessStatus.Unknown;
+                var isSuccess = transportStatus == IntegrationTransportStatus.Succeeded
+                    && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
+                var retryAllowed = catalogResult is null
+                    ? (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable)
+                    : catalogResult.RetryAllowed;
+                var canRetry = !isSuccess && retryAllowed && item.AttemptCount + 1 < MaxAttempts;
+                var message = catalogResult?.Description
+                    ?? (hasItemResult ? txResult!.Message : parseResult.ErrorMessage);
+                var soapAudit = BuildAttemptSoapAuditFields(
+                    parseResult,
+                    hasItemResult ? txResult : null,
+                    isSuccess,
+                    code,
+                    message,
+                    dispatchEndpoint,
+                    durationMs,
+                    technicalException,
+                    executionMode);
 
                 _context.ContrapartidaDispatchAttempts.Add(new ContrapartidaDispatchAttempt
                 {
@@ -518,7 +771,26 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     ErrorCode = isSuccess ? string.Empty : code,
                     ErrorMessage = isSuccess ? string.Empty : (message ?? "Error de negocio en contrapartidas"),
                     RequestPayloadXml = requestPayload,
-                    ResponsePayloadXml = responsePayload
+                    ResponsePayloadXml = responsePayload,
+                    SoapMethodName = soapAudit.SoapMethodName,
+                    SoapEndpoint = soapAudit.SoapEndpoint,
+                    ExecutionMode = soapAudit.ExecutionMode,
+                    DurationMs = soapAudit.DurationMs,
+                    SoapResponseCode = soapAudit.SoapResponseCode,
+                    SoapResponseDescription = NormalizeAuditValue(message, 4000),
+                    SoapTechnicalStatus = transportStatus == IntegrationTransportStatus.Succeeded
+                        ? TechnicalStatusSucceeded
+                        : soapAudit.SoapTechnicalStatus,
+                    ResponseCatalogId = catalogResult?.CatalogId,
+                    TransportStatus = transportStatus,
+                    BusinessStatus = businessStatus,
+                    RetryAllowed = retryAllowed,
+                    RequiresManualReview = catalogResult?.RequiresManualReview ?? false,
+                    ProcessedAtUtc = finishedAtUtc,
+                    IsSuccessful = isSuccess,
+                    IsFunctionalRejection = businessStatus == IntegrationResponseBusinessStatus.Rejected,
+                    IsTechnicalFailure = transportStatus is IntegrationTransportStatus.Failed or IntegrationTransportStatus.TimedOut,
+                    TechnicalException = soapAudit.TechnicalException
                 });
 
                 item.AttemptCount += 1;
@@ -531,6 +803,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
                 if (isSuccess)
                 {
+                    if (txById.TryGetValue(item.AchTransactionId, out var transaction) && catalogResult is not null)
+                    {
+                        ApplySuccessfulTransactionState(transaction, catalogResult, finishedAtUtc);
+                    }
                     item.State = ContrapartidaDispatchItemStateEnum.ReportedToContrapartida;
                     item.LastSuccessAtUtc = finishedAtUtc;
                     item.NextAttemptAtUtc = null;
@@ -560,7 +836,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         processingBatch.TotalSucceeded = totalSucceeded;
         processingBatch.TotalFailed = totalFailed;
         processingBatch.TotalPartial = totalPartial;
-        processingBatch.FinishedAtUtc = DateTime.UtcNow;
+        processingBatch.FinishedAtUtc = nowUtc;
         processingBatch.Status = totalFailed == 0
             ? ContrapartidaDispatchBatchStatusEnum.Completed
             : totalSucceeded > 0
@@ -587,9 +863,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         string requestPayload,
         string cycleId,
         int clearingHouseId,
+        string executionMode,
         CancellationToken ct)
     {
-        if (_dispatchOptions.IsLive)
+        if (IsLiveMode(executionMode))
         {
             _logger.LogInformation(
                 "Proc_Contrapartidas live habilitado para ciclo {CycleId} camara {ClearingHouseId}.",
@@ -600,11 +877,11 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             return new ProcContrapartidasDispatchExecutionResult(responsePayload, _responseParser.Parse(responsePayload));
         }
 
-        var code = _dispatchOptions.IsDisabled
+        var code = IsDisabledMode(executionMode)
             ? "PROC_DISABLED"
             : "PROC_DRY_RUN";
-        var mode = _dispatchOptions.IsDisabled ? "disabled" : "dry-run";
-        var message = _dispatchOptions.IsDisabled
+        var mode = IsDisabledMode(executionMode) ? "disabled" : "dry-run";
+        var message = IsDisabledMode(executionMode)
             ? "Proc_Contrapartidas disabled: envelope generado, no transmitido."
             : "Proc_Contrapartidas dry-run: envelope generado, no transmitido.";
 
@@ -669,6 +946,240 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         }
     }
 
+    private async Task<(string Endpoint, string OperatingMode)> ResolveProcContrapartidasRuntimeAsync(
+        CancellationToken ct)
+    {
+        if (_soapIntegrationSettingsService is null)
+        {
+            return (string.Empty, _dispatchOptions.NormalizedMode);
+        }
+
+        var settings = await _soapIntegrationSettingsService.GetAsync(ct);
+        var mapping = settings.WscfaachMappings
+            .FirstOrDefault(x => string.Equals(x.MethodName, SoapMethodName, StringComparison.OrdinalIgnoreCase));
+        var mode = mapping?.Enabled == false
+            ? "Disabled"
+            : NormalizeOperatingMode(mapping?.OperatingMode, _dispatchOptions.NormalizedMode);
+        return (mapping?.Endpoint?.Trim() ?? string.Empty, mode);
+    }
+
+    private AttemptSoapAuditFields BuildAttemptSoapAuditFields(
+        ProcContrapartidasParsedResponse parseResult,
+        ProcContrapartidasParsedItemResponse? itemResult,
+        bool isSuccess,
+        string? responseCode,
+        string? responseDescription,
+        string soapEndpoint,
+        long durationMs,
+        string technicalException,
+        string executionMode)
+    {
+        var normalizedCode = NormalizeAuditValue(
+            string.IsNullOrWhiteSpace(responseCode) ? parseResult.ResponseCode : responseCode,
+            80);
+        var normalizedDescription = NormalizeAuditValue(
+            string.IsNullOrWhiteSpace(responseDescription) ? parseResult.ErrorMessage : responseDescription,
+            4000);
+        var itemFunctionalRejection = itemResult is not null
+            && !itemResult.IsSuccess
+            && !itemResult.IsRetryable
+            && !IsTechnicalAnomalyCode(itemResult.ResponseCode)
+            && !parseResult.IsSoapFault;
+        var functionalRejection = !isSuccess && (parseResult.IsFunctionalRejection || itemFunctionalRejection);
+        var technicalFailure = !isSuccess
+            && !functionalRejection
+            && (!string.IsNullOrWhiteSpace(technicalException)
+                || (!IsDryRunLikeMode(executionMode) && !IsDisabledMode(executionMode)));
+
+        var technicalStatus = ResolveSoapTechnicalStatus(
+            parseResult,
+            isSuccess,
+            functionalRejection,
+            executionMode);
+
+        return new AttemptSoapAuditFields(
+            SoapMethodName,
+            NormalizeAuditValue(soapEndpoint, 500),
+            NormalizeAuditValue(executionMode, 20),
+            durationMs,
+            normalizedCode,
+            normalizedDescription,
+            technicalStatus,
+            isSuccess,
+            functionalRejection,
+            technicalFailure,
+            NormalizeAuditValue(technicalException, 4000));
+    }
+
+    private string ResolveSoapTechnicalStatus(
+        ProcContrapartidasParsedResponse parseResult,
+        bool isSuccess,
+        bool isFunctionalRejection,
+        string executionMode)
+    {
+        if (parseResult.ResponseCode.Equals("SOAP_EXCEPTION", StringComparison.OrdinalIgnoreCase))
+        {
+            return TechnicalStatusTechnicalException;
+        }
+
+        if (IsDisabledMode(executionMode))
+        {
+            return TechnicalStatusDisabled;
+        }
+
+        if (IsDryRunLikeMode(executionMode))
+        {
+            return TechnicalStatusDryRun;
+        }
+
+        if (isSuccess)
+        {
+            return TechnicalStatusSucceeded;
+        }
+
+        if (parseResult.IsSoapFault)
+        {
+            return TechnicalStatusSoapFault;
+        }
+
+        if (parseResult.ResponseCode.Equals("PARSER_ERROR", StringComparison.OrdinalIgnoreCase))
+        {
+            return TechnicalStatusParserError;
+        }
+
+        if (isFunctionalRejection)
+        {
+            return TechnicalStatusFunctionalRejection;
+        }
+
+        if (parseResult.IsRetryable)
+        {
+            return TechnicalStatusRetryableFailure;
+        }
+
+        return TechnicalStatusUnknownFailure;
+    }
+
+    private async Task<IntegrationResponseCatalogResult> ResolveCoreResponseAsync(
+        string? responseCode,
+        DateTime processedAtUtc,
+        CancellationToken ct)
+    {
+        if (_responseCatalogResolver is not null)
+        {
+            return await _responseCatalogResolver.ResolveAsync(
+                IntegrationResponseCategory.CoreSoapResponse,
+                SoapMethodName,
+                responseCode,
+                processedAtUtc,
+                ct);
+        }
+
+        return new IntegrationResponseCatalogResult(
+            null,
+            (responseCode ?? string.Empty).Trim().ToUpperInvariant(),
+            "Código pendiente de parametrización",
+            IntegrationResponseCategory.CoreSoapResponse,
+            IntegrationResponseCategory.CoreSoapResponse,
+            SoapMethodName,
+            IntegrationResponseBusinessStatus.PendingCatalog,
+            false,
+            true,
+            false,
+            string.Empty,
+            false);
+    }
+
+    private IntegrationTransportStatus ResolveTransportStatus(
+        ProcContrapartidasParsedResponse parsed,
+        string technicalException,
+        string executionMode)
+    {
+        if (parsed.ResponseCode.Contains("TIMEOUT", StringComparison.OrdinalIgnoreCase)
+            || technicalException.Contains("TIMEOUT", StringComparison.OrdinalIgnoreCase))
+        {
+            return IntegrationTransportStatus.TimedOut;
+        }
+
+        if (!string.IsNullOrWhiteSpace(technicalException)
+            || parsed.IsSoapFault
+            || IsTechnicalAnomalyCode(parsed.ResponseCode))
+        {
+            return IntegrationTransportStatus.Failed;
+        }
+
+        if (IsDisabledMode(executionMode) || IsDryRunLikeMode(executionMode))
+        {
+            return IntegrationTransportStatus.NotExecuted;
+        }
+
+        return IntegrationTransportStatus.Succeeded;
+    }
+
+    private static string NormalizeOperatingMode(string? mode, string fallback)
+    {
+        var candidate = string.IsNullOrWhiteSpace(mode) ? fallback : mode.Trim();
+        if (string.Equals(candidate, "Live", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Live";
+        }
+
+        if (string.Equals(candidate, "Disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Disabled";
+        }
+
+        return "DryRun";
+    }
+
+    private static bool IsLiveMode(string mode)
+        => string.Equals(mode, "Live", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDisabledMode(string mode)
+        => string.Equals(mode, "Disabled", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDryRunLikeMode(string mode)
+        => !IsLiveMode(mode) && !IsDisabledMode(mode);
+
+    private void ApplySuccessfulTransactionState(
+        AchTransaction transaction,
+        IntegrationResponseCatalogResult catalog,
+        DateTime processedAtUtc)
+    {
+        transaction.ContrapartidasResponseCode = catalog.Code;
+
+        if (!Enum.TryParse<AchTransferStateEnum>(catalog.TargetTransactionState, true, out var targetState)
+            || transaction.State == targetState)
+        {
+            return;
+        }
+
+        if (transaction.State != AchTransferStateEnum.Pending
+            || targetState != AchTransferStateEnum.AppliedTacitly)
+        {
+            throw new InvalidOperationException(
+                $"CORE_RESPONSE_TARGET_STATE_INVALID: no se permite aplicar {catalog.TargetTransactionState} desde {transaction.State}.");
+        }
+
+        var previous = transaction.State;
+        transaction.State = targetState;
+        transaction.StateChangedAtUtc = processedAtUtc;
+        _context.AchTransactionStateEvents.Add(new AchTransactionStateEvent
+        {
+            AchTransactionId = transaction.Id,
+            FromState = previous,
+            ToState = targetState,
+            Source = AchStateEventSourceEnum.System,
+            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                responseCatalogId = catalog.CatalogId,
+                category = catalog.Category,
+                method = catalog.Method,
+                businessStatus = catalog.BusinessStatus.ToString()
+            })
+        });
+    }
+
     private static void EnsureNoFallbackResolution(ProcContrapartidasRequestResolution resolution)
     {
         if (resolution.UsedFallback)
@@ -684,8 +1195,44 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         return Convert.ToHexString(bytes);
     }
 
-    private static void ValidateCycleOperationalWindow(AchCycle cycle, DateTime nowLocal)
+    private static long CalculateDurationMs(DateTime startedAtUtc, DateTime finishedAtUtc)
+        => Math.Max(0, (long)(finishedAtUtc - startedAtUtc).TotalMilliseconds);
+
+    private static string BuildTechnicalException(Exception ex)
+        => NormalizeAuditValue($"{ex.GetType().Name}: {ex.Message}", 4000);
+
+    private static string NormalizeAuditValue(string? value, int maxLength)
     {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
+    }
+
+    private static bool IsTechnicalAnomalyCode(string? code)
+        => code is not null
+           && (code.Equals("RE", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("0", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("SOAP_FAULT", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("PARSER_ERROR", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("SOAP_EXCEPTION", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("EMPTY_RESPONSE", StringComparison.OrdinalIgnoreCase));
+
+    private OperationalCycleWindow ValidateCycleOperationalWindow(AchCycle cycle, DateTimeOffset nowInstant)
+    {
+        if (cycle.ClearingHouse is null || !cycle.ClearingHouse.IsActive)
+        {
+            throw new InvalidOperationException($"Cámara inactiva o no disponible para {cycle.Id}.");
+        }
+
+        if (cycle.OperationalStatus != AchCycleOperationalStatus.Open)
+        {
+            throw new InvalidOperationException($"El ciclo {cycle.Id} no se encuentra abierto.");
+        }
+
         if (cycle.ClearingHouseCycleConfig is not null)
         {
             if (!cycle.ClearingHouseCycleConfig.IsActive)
@@ -702,32 +1249,59 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             }
         }
 
-        var (windowStart, windowEnd) = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
-        if (nowLocal < windowStart || nowLocal > windowEnd)
+        var window = _windowResolver.Resolve(
+            cycle.ProcessingDate,
+            cycle.StartTime,
+            cycle.EndTime,
+            ClearingHouseOperationalTimeZone.Resolve(cycle),
+            nowInstant);
+        if (!window.IsInside)
         {
-            throw new InvalidOperationException($"Ciclo {cycle.Id} fuera de ventana operativa: {windowStart:yyyy-MM-dd HH:mm} - {windowEnd:yyyy-MM-dd HH:mm}.");
-        }
-    }
-
-    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
-    {
-        if (startTime <= endTime)
-        {
-            return (processingDate.Date + startTime, processingDate.Date + endTime);
+            throw new InvalidOperationException($"Ciclo {cycle.Id} fuera de ventana operativa: {window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}.");
         }
 
-        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
+        return window;
     }
 
-    private static DateTime CalculateNextAttemptAtUtc(int attemptCount)
+    private DateTime CalculateNextAttemptAtUtc(int attemptCount)
     {
         var exponent = Math.Clamp(attemptCount, 1, 5);
         var delay = TimeSpan.FromMinutes(Math.Pow(2, exponent));
         var capped = delay > TimeSpan.FromMinutes(30) ? TimeSpan.FromMinutes(30) : delay;
-        return DateTime.UtcNow.Add(capped);
+        return _timeProvider.GetUtcNow().UtcDateTime.Add(capped);
+    }
+
+    private async Task EnsureCycleAllowsDebitDispatchAsync(AchCycle cycle, CancellationToken ct)
+    {
+        var decision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+            cycle.ClearingHouseId,
+            cycle.ClearingHouseCycleConfigId,
+            cycle.ProcessingDate,
+            cycle.ClearingHouse?.Code,
+            cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+            cycle.CycleName,
+            TransactionTypeEnum.Debit,
+            false), ct);
+        if (!decision.IsAllowed)
+        {
+            throw new InvalidOperationException($"{decision.ReasonCode}: {decision.Message}");
+        }
     }
 
     private sealed record ProcContrapartidasDispatchExecutionResult(
         string ResponsePayload,
         ProcContrapartidasParsedResponse ParseResult);
+
+    private sealed record AttemptSoapAuditFields(
+        string SoapMethodName,
+        string SoapEndpoint,
+        string ExecutionMode,
+        long DurationMs,
+        string SoapResponseCode,
+        string SoapResponseDescription,
+        string SoapTechnicalStatus,
+        bool IsSuccessful,
+        bool IsFunctionalRejection,
+        bool IsTechnicalFailure,
+        string TechnicalException);
 }

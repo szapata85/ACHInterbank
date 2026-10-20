@@ -37,6 +37,7 @@ export class CenitHomeComponent {
     { titulo: 'Neteo', descripcion: 'Posiciones netas por entidad.', ruta: '/cenit/operacion/neteo' },
     { titulo: 'Optimización', descripcion: 'Decisiones de liquidez por prioridad y ciclo.', ruta: '/cenit/operacion/optimizacion' },
     { titulo: 'Devoluciones', descripcion: 'Causales y estado para monitoreo operativo.', ruta: '/cenit/operacion/devoluciones' },
-    { titulo: 'Trazabilidad', descripcion: 'Ciclo, lote, archivo y causal aplicada.', ruta: '/cenit/operacion/trazabilidad' }
+    { titulo: 'Trazabilidad', descripcion: 'Ciclo, lote, archivo y causal aplicada.', ruta: '/cenit/operacion/trazabilidad' },
+    { titulo: 'Respuestas de cámara', descripcion: 'ACK, NACK, rechazos del operador y salidas de sesión.', ruta: '/cenit/operacion/respuestas-camara' }
   ];
 }

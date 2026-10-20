@@ -7,7 +7,7 @@ using Cfa.ACHInterbank.Application.Services.TokenClient.Interfaces;
 using Cfa.ACHInterbank.Application.Services.TokenClient.Model;
 using Cfa.ACHInterbank.Domain.Entities.Token;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Newtonsoft.Json;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Application.Services.TokenClient.Implementations;
 
@@ -50,24 +50,25 @@ public class GenerateToken : IDisposable, IGenerateToken
     private readonly IGenerateTokenExternal _tokenExternal;
     private readonly ITokenRepository _tokenRepository;
     private readonly IClientAssertionValidator _clientAssertion;
-    private readonly AppSettings _appSettings = AppSettings.Settings;
+    private readonly Token _tokenSettings;
 
-    public GenerateToken(ILoggerManager logger, IGenerateTokenExternal tokenExternal, ITokenRepository tokenRepository, IClientAssertionValidator clientAssertion)
+    public GenerateToken(ILoggerManager logger, IGenerateTokenExternal tokenExternal, ITokenRepository tokenRepository, IClientAssertionValidator clientAssertion, IOptions<Token> tokenOptions)
     {
         _logger = logger;
         _tokenExternal = tokenExternal;
         _tokenRepository = tokenRepository;
         _clientAssertion = clientAssertion;
+        _tokenSettings = tokenOptions?.Value ?? throw new ArgumentNullException(nameof(tokenOptions));
     }
     public async Task<GetTokenResponseModel> GenerateTokenAsync(TokenModelClient model)
     {
-        if ((model.client_id != _appSettings.TokenManager!.clientId || model.client_secret != _appSettings.TokenManager!.clientSecret || model.client_secret != _appSettings.TokenManager!.x_api_key) || model is null)
+        if ((model.client_id != _tokenSettings.clientId || model.client_secret != _tokenSettings.clientSecret || model.client_secret != _tokenSettings.x_api_key) || model is null)
         {
-            _logger.LogError($"Error en la creación del token con los datos: {JsonConvert.SerializeObject(model)}");
+            _logger.LogError("Token creation rejected; client credentials are redacted.");
             throw new Exception("En el momento no podemos completar la operación, por favor intente mas tarde.");
         }
 
-        var token = _tokenRepository.GetToken(_appSettings.TokenManager.clientId!);
+        var token = _tokenRepository.GetToken(_tokenSettings.clientId!);
         if (token is null)
         {
             var tokenModel = await Task.Run(() => new { GetTokenResponseModel = _tokenExternal.GenerateToken(model) });
@@ -80,11 +81,10 @@ public class GenerateToken : IDisposable, IGenerateToken
                 expires_in = tokenModel.GetTokenResponseModel.expires,
                 access_token = tokenModel.GetTokenResponseModel.access_token,
                 token_type = tokenModel.GetTokenResponseModel.token_type,
-                client_id = _appSettings.TokenManager.clientId,
+                client_id = _tokenSettings.clientId,
             };
             _tokenRepository.AddToken(tokenCache);
 
-            // _logger.LogInfo($"Se genera token con los datos: {JsonConvert.SerializeObject(model)} Token: {JsonConvert.SerializeObject(tokenModel.GetTokenResponseModel)}");
             return tokenModel.GetTokenResponseModel;
         }
 
@@ -107,7 +107,7 @@ public class GenerateToken : IDisposable, IGenerateToken
             var JwtToken = TokenHandler.ReadToken(model) as JwtSecurityToken;
             if (JwtToken != null)
             {
-                var token = _tokenRepository.GetToken(_appSettings.TokenManager!.clientId!);
+                var token = _tokenRepository.GetToken(_tokenSettings.clientId!);
                 if (token is null)
                 {
                     var claims = JwtToken.Claims.ToList();
@@ -126,11 +126,10 @@ public class GenerateToken : IDisposable, IGenerateToken
                         expires = tokenModel.GetTokenResponseModel.expires_in,
                         access_token = tokenModel.GetTokenResponseModel.access_token,
                         token_type = tokenModel.GetTokenResponseModel.token_type,
-                        client_id = _appSettings.TokenManager.clientId,
+                        client_id = _tokenSettings.clientId,
                     };
                     _tokenRepository.AddToken(tokenCache);
 
-                    // _logger.LogInfo($"Se genera token con los datos: {JsonConvert.SerializeObject(model)} Token: {JsonConvert.SerializeObject(tokenModel.GetTokenResponseModel)}");
                     return tokenModel.GetTokenResponseModel;
                 }
 
@@ -145,11 +144,11 @@ public class GenerateToken : IDisposable, IGenerateToken
             }
             else
             {
-                _logger.LogError($"Error en la creación del token con los datos: {model} no se encontraron claims asociados");
+                _logger.LogError("Token creation rejected; client assertion claims are invalid and the assertion is redacted.");
                 throw new Exception("En el momento no podemos completar la operación, por favor intente mas tarde.");
             }
         }
-        _logger.LogError($"Error en la creación del token con los datos: {model} Falló en la validación del Client Assertion ");
+        _logger.LogError("Token creation rejected; client assertion validation failed and the assertion is redacted.");
         throw new Exception("En el momento no podemos completar la operación, por favor intente mas tarde.");
 
     }

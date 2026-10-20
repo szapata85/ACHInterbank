@@ -26,7 +26,7 @@ export class CompanyEntryDescriptionAdminComponent implements OnInit {
   editingId: number | null = null;
 
   readonly columnas: ColDef[] = [
-    { field: 'id', headerName: 'Id', sortable: true, filter: 'agNumberColumnFilter', maxWidth: 110 },
+    { field: 'id', headerName: 'ID', sortable: true, filter: 'agNumberColumnFilter', maxWidth: 110 },
     { field: 'term', headerName: 'Término', sortable: true, filter: 'agTextColumnFilter' },
     { field: 'description', headerName: 'Descripción', sortable: true, filter: 'agTextColumnFilter', flex: 1 },
     { field: 'sec', headerName: 'SEC', sortable: true, filter: 'agTextColumnFilter', maxWidth: 120 },
@@ -145,7 +145,7 @@ export class CompanyEntryDescriptionAdminComponent implements OnInit {
   }
 
   remove(row: CompanyEntryDescriptionItem): void {
-    const ok = window.confirm(`¿Deseas eliminar el término ${row.term}?`);
+    const ok = window.confirm(`¿Deseas eliminar el término ${row.term} del catálogo?`);
     if (!ok) {
       return;
     }

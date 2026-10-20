@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiService } from '../../../core/services/api.service';
 
+export type NachaSimulationMode = 'IncomingTransactions' | 'DifferentialResponses';
+
 export type NachaInboundSimulationType =
   | 'IncomingCredit'
   | 'IncomingDebit'
@@ -15,6 +17,7 @@ export type NachaInboundSimulationType =
 export type InboundResponseMode = 'Approved' | 'Rejected' | 'Confirmed' | 'Returned' | 'Failed';
 
 export interface GenerateNachaInboundSimulationRequest {
+  simulationMode: NachaSimulationMode;
   clearingHouseCode: string;
   scenarioType: NachaInboundSimulationType;
   originFinancialInstitutionId: number;
@@ -29,6 +32,66 @@ export interface GenerateNachaInboundSimulationRequest {
   responseMode?: InboundResponseMode | null;
   reasonCode?: string | null;
   notes?: string | null;
+}
+
+export interface AchReturnCodeOption {
+  id: number;
+  clearingHouseId: number;
+  code: string;
+  flowType: string;
+  description: string;
+  appliesToDebit: boolean;
+  appliesToCredit: boolean;
+  appliesToPrenotification: boolean;
+  appliesToReturn: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isActive: boolean;
+}
+
+export interface DifferentialResponseEligibleTransaction {
+  id: number;
+  identifier: string;
+  traceNumber: string;
+  clearingHouse: string;
+  destinationFinancialInstitutionId: number;
+  destinationFinancialInstitution: string;
+  transactionType: string;
+  effectiveDate: string;
+  cycle: string;
+  accountNumberMasked: string;
+  amount: number;
+  state: string;
+  hasPriorResponse: boolean;
+  eligible: boolean;
+  ineligibilityReason?: string | null;
+}
+
+export interface DifferentialResponseTransactionPage {
+  items: DifferentialResponseEligibleTransaction[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface AvailableInboundCycle {
+  cycleId: string;
+  cycleCode: string;
+  cycleName: string;
+  clearingHouseId: number;
+  clearingHouseCode: string;
+  clearingHouseName: string;
+  processingDate: string;
+  transactionCount: number;
+  status: string;
+}
+
+export interface InboundSimulationEligibilityPreview {
+  eligible: boolean;
+  decision: string;
+  message: string;
+  functionalCode?: string | null;
+  simulationMode: NachaSimulationMode;
 }
 
 export interface NachaInboundSimulationResult {
@@ -77,11 +140,46 @@ export class NachaInboundSimulatorService {
   }
 
   preview(payload: GenerateNachaInboundSimulationRequest) {
-    return this.api.post<unknown>(`${this.basePath}/eligibility-preview`, payload);
+    return this.api.post<InboundSimulationEligibilityPreview>(`${this.basePath}/eligibility-preview`, payload);
   }
 
   generate(payload: GenerateNachaInboundSimulationRequest) {
     return this.api.post<NachaInboundSimulationResult>(`${this.basePath}/generate`, payload);
+  }
+
+  eligibleDifferentialTransactions(params: {
+    clearingHouseCode: string;
+    destinationFinancialInstitutionId?: number;
+    fromDate?: string;
+    toDate?: string;
+    state?: string;
+    transactionType?: string;
+    traceNumber?: string;
+    search?: string;
+    page: number;
+    pageSize: number;
+  }) {
+    const query = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
+    ) as Record<string, string | number>;
+    return this.api.get<DifferentialResponseTransactionPage>(
+      `${this.basePath}/eligible-differential-transactions`,
+      { params: query }
+    );
+  }
+
+  returnCodes(clearingHouseCode: string) {
+    return this.api.get<AchReturnCodeOption[]>('api/regulatory-catalogs/return-codes', {
+      params: { clearingHouseCode }
+    });
+  }
+
+  availableCycles(params: {
+    clearingHouseCode: string;
+    processingDate: string;
+    scenarioType: NachaInboundSimulationType;
+  }) {
+    return this.api.get<AvailableInboundCycle[]>(`${this.basePath}/available-cycles`, { params });
   }
 
   downloadUrl(id: number): string {

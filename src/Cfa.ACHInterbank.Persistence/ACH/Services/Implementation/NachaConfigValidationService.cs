@@ -47,6 +47,10 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             .AsNoTracking()
             .Include(x => x.Records)
                 .ThenInclude(x => x.RecordCode)
+            .Include(x => x.Records)
+                .ThenInclude(x => x.SemanticRuleSet)
+                    .ThenInclude(x => x!.Rules)
+                        .ThenInclude(x => x.RuleType)
             .Include(x => x.LayoutVariants)
                 .ThenInclude(x => x.RecordCode)
             .Include(x => x.LayoutVariants)
@@ -58,6 +62,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                     .ThenInclude(x => x.Rules)
                         .ThenInclude(x => x.RuleType)
             .Include(x => x.ClearingHouse)
+            .Include(x => x.Tags)
             .FirstOrDefaultAsync(x => x.Id == profileId, ct);
 
         if (profile is null)
@@ -95,6 +100,13 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "AMBIGUOUS_LAYOUT", Mensaje = $"Más de un layout default para record {ambiguous.Key}." });
         }
 
+        foreach (var duplicate in profile.LayoutVariants
+                     .GroupBy(x => x.VariantCode, StringComparer.OrdinalIgnoreCase)
+                     .Where(group => group.Count() > 1))
+        {
+            issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "DUPLICATE_VARIANT_CODE", Mensaje = $"VariantCode duplicado: {duplicate.Key}." });
+        }
+
         var missingVariant = enabledRecords
             .Where(r => !profile.LayoutVariants.Any(v => v.RecordCodeId == r.RecordCodeId))
             .Select(r => r.RecordCode.Code)
@@ -106,10 +118,97 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         }
 
         var chamberCode = ResolveChamberCode(profile.ClearingHouse?.Code, profile.ClearingHouse?.Name);
+        var settlementPolicyMetadata = NachaSettlementPolicyMetadata.Resolve(
+            profile.Tags.Select(tag => new KeyValuePair<string, string>(tag.TagKey, tag.TagValue)));
+        if (settlementPolicyMetadata.Status != NachaSettlementPolicyMetadataStatus.Resolved)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = settlementPolicyMetadata.Status == NachaSettlementPolicyMetadataStatus.NotPresent
+                    ? "MISSING_SETTLEMENT_POLICY"
+                    : "INVALID_SETTLEMENT_POLICY",
+                Mensaje = settlementPolicyMetadata.Error
+                    ?? $"El perfil requiere la metadata '{NachaSettlementPolicyMetadata.TagKey}'."
+            });
+        }
+
+        var semanticMetadata = NachaSemanticContractMetadata.Resolve(profile.Records);
+        if (semanticMetadata.Status != NachaSemanticContractMetadataStatus.Resolved)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = semanticMetadata.ErrorCode ?? "INVALID_SEMANTIC_CONTRACT",
+                Mensaje = semanticMetadata.Error ?? "El perfil requiere un contrato semántico ServiceClassCode válido."
+            });
+        }
+
+        var transactionCodeMetadata = NachaTransactionCodeSemanticMetadata.Resolve(profile.Records);
+        if (transactionCodeMetadata.Status == NachaTransactionCodeSemanticMetadataStatus.Invalid)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = transactionCodeMetadata.ErrorCode ?? "INVALID_TRANSACTION_CODE_CONTRACT",
+                Mensaje = transactionCodeMetadata.Error ?? "El contrato semántico TransactionCode de T6 es inválido."
+            });
+        }
+        else if (transactionCodeMetadata.Status == NachaTransactionCodeSemanticMetadataStatus.Resolved)
+        {
+            if (string.Equals(chamberCode, "ACH", StringComparison.Ordinal)
+                && (profile.Tags.Count(tag => string.Equals(tag.TagKey, "NormativeVersion", StringComparison.OrdinalIgnoreCase)) != 1
+                    || !profile.Tags.Any(tag => string.Equals(tag.TagKey, "NormativeVersion", StringComparison.OrdinalIgnoreCase)
+                                               && string.Equals(tag.TagValue, AchColOfficialNachaLayout.NormativeVersion, StringComparison.Ordinal))))
+            {
+                issues.Add(new NachaConfigValidationIssueDto
+                {
+                    Severidad = "ERROR",
+                    Codigo = "ACH_TRANSACTION_CODE_NORMATIVE_VERSION_INVALID",
+                    Mensaje = "Un perfil ACH TXCODE-aware bajo la versión mayor 35 debe conservar NormativeVersion=V35."
+                });
+            }
+
+            await ValidateHistoricalTransactionCodeAssignmentsAsync(
+                issues,
+                profile.ClearingHouseId,
+                transactionCodeMetadata.Contract!,
+                ct);
+        }
         foreach (var variant in profile.LayoutVariants)
         {
             var ordered = variant.Fields.Where(f => f.IsEnabled).OrderBy(f => f.StartPosition).ToList();
             var canonicalUsages = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            if (variant.TotalLength <= 0)
+            {
+                issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "INVALID_RECORD_LENGTH", Mensaje = $"La variante {variant.VariantCode} tiene longitud inválida." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(variant.SelectionPredicateJson))
+            {
+                try
+                {
+                    var predicate = JsonSerializer.Deserialize<Dictionary<string, string>>(variant.SelectionPredicateJson);
+                    if (predicate is null || predicate.Count == 0 || predicate.Any(item => string.IsNullOrWhiteSpace(item.Key) || item.Value is null))
+                    {
+                        throw new JsonException();
+                    }
+                }
+                catch (JsonException)
+                {
+                    issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "INVALID_SELECTION_PREDICATE", Mensaje = $"La variante {variant.VariantCode} tiene SelectionPredicateJson inválido." });
+                }
+            }
+
+            foreach (var duplicateField in variant.Fields.GroupBy(field => field.FieldCode, StringComparer.OrdinalIgnoreCase).Where(group => group.Count() > 1))
+            {
+                issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "DUPLICATE_FIELD_CODE", Mensaje = $"La variante {variant.VariantCode} repite el field {duplicateField.Key}." });
+            }
+
+            foreach (var duplicateOrder in variant.Fields.GroupBy(field => field.SortOrder).Where(group => group.Count() > 1))
+            {
+                issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "DUPLICATE_FIELD_ORDER", Mensaje = $"La variante {variant.VariantCode} repite SortOrder={duplicateOrder.Key}." });
+            }
             if (ordered.Count == 0)
             {
                 issues.Add(new NachaConfigValidationIssueDto
@@ -138,6 +237,16 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
             foreach (var field in ordered)
             {
+                if (field.StartPosition <= 0 || field.Length <= 0 || field.StartPosition + field.Length - 1 > variant.TotalLength)
+                {
+                    issues.Add(new NachaConfigValidationIssueDto
+                    {
+                        Severidad = "ERROR",
+                        Codigo = "INVALID_FIELD_RANGE",
+                        Mensaje = $"Field {field.FieldCode} excede el rango de la variante {variant.VariantCode}."
+                    });
+                }
+
                 if (field.SourceDefinitionId == 0 || (string.IsNullOrWhiteSpace(field.SourceDefinition.PropertyPath)
                     && string.IsNullOrWhiteSpace(field.SourceDefinition.ConstantValue)
                     && string.IsNullOrWhiteSpace(field.SourceDefinition.ExpressionDsl)))
@@ -151,7 +260,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                 }
                 var sourceType = field.SourceDefinition.DataSourceType?.Code ?? string.Empty;
                 ValidateCanonicalPath(issues, variant.RecordCode.Code, field, sourceType, canonicalUsages);
-                if (sourceType is "SQL_VIEW" or "SQL_PROCEDURE")
+                if (sourceType is not ("CONSTANTE" or "ENTIDAD" or "EXPRESION"))
                 {
                     issues.Add(new NachaConfigValidationIssueDto
                     {
@@ -189,6 +298,14 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                                 ? arr.EnumerateArray()
                                 : Enumerable.Empty<JsonElement>();
 
+                        if (pipelineDoc.RootElement.ValueKind != JsonValueKind.Array
+                            && (pipelineDoc.RootElement.ValueKind != JsonValueKind.Object
+                                || !pipelineDoc.RootElement.TryGetProperty("steps", out var configuredSteps)
+                                || configuredSteps.ValueKind != JsonValueKind.Array))
+                        {
+                            throw new JsonException();
+                        }
+
                         foreach (var step in steps)
                         {
                             if (!step.TryGetProperty("type", out var typeElement))
@@ -204,6 +321,16 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                                     Severidad = "ERROR",
                                     Codigo = "UNSUPPORTED_TRANSFORM_TYPE",
                                     Mensaje = $"Field {field.FieldCode} usa transform {type} no soportado en fase 1."
+                                });
+                            }
+
+                            if (chamberCode == "ACH" && type is "truncate" or "substring" or "null_to_default")
+                            {
+                                issues.Add(new NachaConfigValidationIssueDto
+                                {
+                                    Severidad = "ERROR",
+                                    Codigo = "OFFICIAL_TRANSFORM_FAIL_CLOSED",
+                                    Mensaje = $"Field {field.FieldCode} usa una transformación silenciosa prohibida para ACHCOL oficial."
                                 });
                             }
                         }
@@ -268,6 +395,36 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                             Mensaje = $"Field {field.FieldCode} usa rule type {ruleType} no soportado en fase 1."
                         });
                     }
+
+                    if (string.IsNullOrWhiteSpace(rule.RuleCode)
+                        || string.IsNullOrWhiteSpace(rule.ErrorCode)
+                        || string.IsNullOrWhiteSpace(rule.ErrorMessageEs)
+                        || string.IsNullOrWhiteSpace(rule.Severity))
+                    {
+                        issues.Add(new NachaConfigValidationIssueDto
+                        {
+                            Severidad = "ERROR",
+                            Codigo = "INCOMPLETE_FIELD_RULE",
+                            Mensaje = $"Field {field.FieldCode} contiene una regla incompleta."
+                        });
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(rule.RuleConfigJson))
+                    {
+                        try
+                        {
+                            JsonDocument.Parse(rule.RuleConfigJson).Dispose();
+                        }
+                        catch (JsonException)
+                        {
+                            issues.Add(new NachaConfigValidationIssueDto
+                            {
+                                Severidad = "ERROR",
+                                Codigo = "INVALID_FIELD_RULE_CONFIG",
+                                Mensaje = $"Field {field.FieldCode} contiene RuleConfigJson inválido."
+                            });
+                        }
+                    }
                 }
             }
 
@@ -281,7 +438,26 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                 });
             }
 
-            ValidateHeaderNormativeRequirements(issues, chamberCode, variant, ordered);
+            ValidateHeaderNormativeRequirements(
+                issues,
+                chamberCode,
+                settlementPolicyMetadata.Policy,
+                variant,
+                ordered);
+            if (chamberCode == "ACH")
+            {
+                ValidateAchColExactLayoutAndRules(issues, variant, ordered);
+            }
+        }
+
+        if (chamberCode == "CENIT")
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "CENIT_NOT_HOMOLOGATED",
+                Mensaje = "CENIT permanece NO-GO / NOT HOMOLOGATED; no puede aprobarse ni publicarse para LIVE."
+            });
         }
 
         var conflictingEffective = await _context.CfgProfiles
@@ -308,7 +484,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         ["PRIORITYCODE"] = 2,
         ["IMMEDIATEDESTINATION"] = 10,
         ["IMMEDIATEORIGIN"] = 10,
-        ["FILECREATIONDATE"] = 6,
+        ["FILECREATIONDATE"] = 8,
         ["FILECREATIONTIME"] = 4,
         ["FILEIDMODIFIER"] = 1,
         ["RECORDSIZE"] = 3,
@@ -327,8 +503,8 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         ["COMPANYIDENTIFICATION"] = 10,
         ["STANDARDENTRYCLASSCODE"] = 3,
         ["COMPANYENTRYDESCRIPTION"] = 10,
-        ["COMPANYDESCRIPTIVEDATE"] = 6,
-        ["EFFECTIVEENTRYDATE"] = 6,
+        ["COMPANYDESCRIPTIVEDATE"] = 8,
+        ["EFFECTIVEENTRYDATE"] = 8,
         ["SETTLEMENTDATE"] = 3,
         ["ORIGINATORSTATUSCODE"] = 1,
         ["ORIGINATINGDFI"] = 8,
@@ -339,8 +515,8 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         ["SERVICECLASSCODE"] = 3,
         ["ENTRYADDENDACOUNT"] = 6,
         ["ENTRYHASH"] = 10,
-        ["TOTALDEBITAMOUNT"] = 12,
-        ["TOTALCREDITAMOUNT"] = 12,
+        ["TOTALDEBITAMOUNT"] = 18,
+        ["TOTALCREDITAMOUNT"] = 18,
         ["COMPANYIDENTIFICATION"] = 10,
         ["ORIGINATINGDFI"] = 8,
         ["BATCHNUMBER"] = 7
@@ -351,13 +527,140 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         ["BLOCKCOUNT"] = 6,
         ["ENTRYADDENDACOUNT"] = 8,
         ["ENTRYHASH"] = 10,
-        ["TOTALDEBITAMOUNT"] = 12,
-        ["TOTALCREDITAMOUNT"] = 12
+        ["TOTALDEBITAMOUNT"] = 18,
+        ["TOTALCREDITAMOUNT"] = 18
     };
+
+    private static void ValidateAchColExactLayoutAndRules(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        CfgLayoutVariant variant,
+        IReadOnlyCollection<CfgLayoutField> orderedFields)
+    {
+        IReadOnlyList<AchColOfficialFieldDescriptor> expected;
+        try
+        {
+            expected = AchColOfficialNachaLayout.ForVariant(variant.RecordCode.Code, variant.VariantCode);
+        }
+        catch (InvalidOperationException)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "ACHCOL_LAYOUT_NOT_DEMONSTRATED",
+                Mensaje = $"La variante {variant.VariantCode} no tiene descriptor ACHCOL V35 aprobado."
+            });
+            return;
+        }
+
+        if (variant.TotalLength != AchColOfficialNachaLayout.RecordLength)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "ACHCOL_RECORD_LENGTH",
+                Mensaje = $"La variante {variant.VariantCode} debe declarar longitud 106."
+            });
+        }
+
+        var configured = orderedFields
+            .GroupBy(field => field.FieldCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var descriptor in expected)
+        {
+            if (!configured.TryGetValue(descriptor.FieldCode, out var field))
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_FIELD_MISSING", "no está configurado");
+                continue;
+            }
+
+            if (field.StartPosition != descriptor.StartPosition
+                || field.Length != descriptor.Length
+                || char.ToUpperInvariant(field.Justification) != descriptor.Justification
+                || field.PadChar != descriptor.PadChar)
+            {
+                AddAchColDescriptorIssue(
+                    issues,
+                    descriptor,
+                    "ACHCOL_FIELD_LAYOUT_MISMATCH",
+                    $"debe ocupar {descriptor.StartPosition}-{descriptor.EndPosition}, alineación {descriptor.Justification} y relleno U+{(int)descriptor.PadChar:X4}");
+            }
+
+            if (!string.Equals(field.FormatMask?.Trim(), descriptor.Format ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(descriptor.Format))
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_FIELD_FORMAT_MISMATCH", $"debe usar formato {descriptor.Format}");
+            }
+
+            var rule = field.Rules.FirstOrDefault(candidate =>
+                candidate.IsEnabled
+                && string.Equals(candidate.RuleCode, descriptor.RuleId, StringComparison.OrdinalIgnoreCase));
+            if (rule is null)
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_NOT_EXECUTABLE", $"no tiene CfgFieldRule habilitada con RuleId {descriptor.RuleId}");
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(rule.RuleConfigJson))
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_METADATA_MISSING", "no tiene metadata normativa ejecutable");
+                continue;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(rule.RuleConfigJson);
+                var root = document.RootElement;
+                var overflow = root.TryGetProperty("overflowPolicy", out var overflowElement)
+                    ? overflowElement.GetString()
+                    : null;
+                var source = root.TryGetProperty("normativeSource", out var sourceElement)
+                    ? sourceElement.GetString()
+                    : null;
+                var version = root.TryGetProperty("normativeVersion", out var versionElement)
+                    ? versionElement.GetString()
+                    : null;
+                if (!string.Equals(overflow, "REJECT", StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(source, descriptor.NormativeSource, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(version, descriptor.NormativeVersion, StringComparison.OrdinalIgnoreCase))
+                {
+                    AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_METADATA_INVALID", "no declara overflow REJECT y trazabilidad MAN-004 V35");
+                }
+            }
+            catch (JsonException)
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_METADATA_INVALID", "tiene RuleConfigJson inválido");
+            }
+        }
+
+        var expectedCodes = expected.Select(field => field.FieldCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var unexpected in orderedFields.Where(field => !expectedCodes.Contains(field.FieldCode)))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "ACHCOL_UNEXPECTED_FIELD",
+                Mensaje = $"La variante {variant.VariantCode} contiene un campo no demostrado por su descriptor oficial: {unexpected.FieldCode}."
+            });
+        }
+    }
+
+    private static void AddAchColDescriptorIssue(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        AchColOfficialFieldDescriptor descriptor,
+        string code,
+        string cause)
+        => issues.Add(new NachaConfigValidationIssueDto
+        {
+            Severidad = "ERROR",
+            Codigo = code,
+            Mensaje = $"{descriptor.RuleId}: record {descriptor.RecordCode}, campo {descriptor.FieldCode}, posición {descriptor.StartPosition}, longitud {descriptor.Length}: {cause}."
+        });
 
     private static void ValidateHeaderNormativeRequirements(
         ICollection<NachaConfigValidationIssueDto> issues,
         string chamberCode,
+        NachaSettlementPolicy? settlementPolicy,
         CfgLayoutVariant variant,
         IReadOnlyCollection<CfgLayoutField> orderedFields)
     {
@@ -443,7 +746,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         }
         else if (recordCode == "5")
         {
-            ValidateRecord5HeaderRules(issues, chamberCode, fieldsByCode);
+            ValidateRecord5HeaderRules(issues, chamberCode, settlementPolicy, fieldsByCode);
         }
         else
         {
@@ -498,7 +801,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         string chamberCode,
         IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
     {
-        ValidateFormatMask(issues, fieldsByCode, "FILECREATIONDATE", "yyMMdd");
+        ValidateFormatMask(issues, fieldsByCode, "FILECREATIONDATE", "yyyyMMdd");
         ValidateFormatMask(issues, fieldsByCode, "FILECREATIONTIME", "HHmm");
         ValidateConstantValue(issues, fieldsByCode, "RECORDSIZE", "106");
         ValidateConstantValue(issues, fieldsByCode, "BLOCKINGFACTOR", "10");
@@ -518,9 +821,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
         if (TryGetConstant(fieldsByCode, "FILEIDMODIFIER", out var fileIdModifier))
         {
-            var isValid = chamberCode == "CENIT"
-                ? fileIdModifier.Length == 1 && fileIdModifier.All(char.IsLetter)
-                : fileIdModifier.Length == 1 && fileIdModifier.All(char.IsLetterOrDigit);
+            var isValid = fileIdModifier.Length == 1 && fileIdModifier.All(char.IsLetterOrDigit);
             if (!isValid)
             {
                 AddChamberRuleIssue(issues, chamberCode, "FileIdModifier inválido para la cámara configurada.");
@@ -534,10 +835,11 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
     private static void ValidateRecord5HeaderRules(
         ICollection<NachaConfigValidationIssueDto> issues,
         string chamberCode,
+        NachaSettlementPolicy? settlementPolicy,
         IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
     {
-        ValidateFormatMask(issues, fieldsByCode, "EFFECTIVEENTRYDATE", "yyMMdd");
-        ValidateFormatMask(issues, fieldsByCode, "COMPANYDESCRIPTIVEDATE", "yyMMdd", allowMissingMask: true);
+        ValidateFormatMask(issues, fieldsByCode, "EFFECTIVEENTRYDATE", "yyyyMMdd");
+        ValidateFormatMask(issues, fieldsByCode, "COMPANYDESCRIPTIVEDATE", "yyyyMMdd", allowMissingMask: true);
 
         if (TryGetConstant(fieldsByCode, "STANDARDENTRYCLASSCODE", out var secCode)
             && secCode is not ("PPD" or "CCD"))
@@ -553,45 +855,46 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
         if (fieldsByCode.TryGetValue("SETTLEMENTDATE", out var settlementField))
         {
-            ValidateSettlementPolicy(issues, chamberCode, settlementField);
+            ValidateSettlementPolicy(issues, settlementPolicy, settlementField);
         }
     }
 
     private static void ValidateSettlementPolicy(
         ICollection<NachaConfigValidationIssueDto> issues,
-        string chamberCode,
+        NachaSettlementPolicy? settlementPolicy,
         CfgLayoutField settlementField)
     {
-        var sourceType = settlementField.SourceDefinition?.DataSourceType?.Code ?? string.Empty;
-        var constant = (settlementField.SourceDefinition?.ConstantValue ?? string.Empty).Trim();
-
-        if (chamberCode == "CENIT")
+        if (!settlementPolicy.HasValue)
         {
-            if (sourceType.Equals("CONSTANTE", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(constant))
-            {
-                issues.Add(new NachaConfigValidationIssueDto
-                {
-                    Severidad = "ERROR",
-                    Codigo = "INVALID_SETTLEMENT_POLICY",
-                    Mensaje = "CENIT requiere SettlementDate vacío (lo determina la cámara)."
-                });
-            }
-
             return;
         }
 
-        if (chamberCode == "ACH" && sourceType.Equals("CONSTANTE", StringComparison.OrdinalIgnoreCase))
+        var sourceType = settlementField.SourceDefinition?.DataSourceType?.Code ?? string.Empty;
+        string? calculationType = null;
+        if (sourceType.Equals("EXPRESION", StringComparison.OrdinalIgnoreCase))
         {
-            var valid = string.IsNullOrWhiteSpace(constant) || (constant.Length == 3 && constant.All(char.IsDigit));
-            if (!valid)
+            try
             {
-                issues.Add(new NachaConfigValidationIssueDto
-                {
-                    Severidad = "ERROR",
-                    Codigo = "INVALID_SETTLEMENT_POLICY",
-                    Mensaje = "ACH permite SettlementDate vacío o juliano de 3 dígitos cuando es constante."
-                });
+                using var expression = JsonDocument.Parse(settlementField.SourceDefinition?.ExpressionDsl ?? "{}");
+                calculationType = expression.RootElement.TryGetProperty("calculationType", out var value)
+                    ? value.GetString()
+                    : null;
             }
+            catch (JsonException)
+            {
+                calculationType = null;
+            }
+        }
+
+        if (!sourceType.Equals("EXPRESION", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(calculationType, settlementPolicy.Value.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "INVALID_SETTLEMENT_POLICY",
+                Mensaje = $"SettlementPolicy={settlementPolicy} no es compatible con el source de SettlementDate."
+            });
         }
     }
 
@@ -629,25 +932,22 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
     private static string ResolveChamberCode(string? clearingHouseCode, string? clearingHouseName)
     {
-        if (!string.IsNullOrWhiteSpace(clearingHouseCode))
-        {
-            if (clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase))
-            {
-                return "CENIT";
-            }
-
-            if (clearingHouseCode.Contains("ACH", StringComparison.OrdinalIgnoreCase))
-            {
-                return "ACH";
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(clearingHouseName) && clearingHouseName.Contains("CENIT", StringComparison.OrdinalIgnoreCase))
+        var canonicalCode = clearingHouseCode?.Trim();
+        if (string.Equals(canonicalCode, "CENIT", StringComparison.OrdinalIgnoreCase))
         {
             return "CENIT";
         }
 
-        return "ACH";
+        if (string.Equals(canonicalCode, "ACH", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ACH";
+        }
+
+        // Compatibility only for legacy rows that predate canonical Code population.
+        // This is exact-name equality, never display-name substring inference.
+        return string.Equals(clearingHouseName?.Trim(), "CENIT", StringComparison.OrdinalIgnoreCase)
+            ? "CENIT"
+            : "ACH";
     }
 
     private static void ValidateFormatMask(
@@ -719,6 +1019,48 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
         constant = (field.SourceDefinition?.ConstantValue ?? string.Empty).Trim();
         return !string.IsNullOrWhiteSpace(constant);
+    }
+
+    private async Task ValidateHistoricalTransactionCodeAssignmentsAsync(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        int clearingHouseId,
+        NachaTransactionCodeSemanticContract candidate,
+        CancellationToken ct)
+    {
+        var snapshotJsons = await _context.HistConfigSnapshots
+            .AsNoTracking()
+            .Where(snapshot => snapshot.SnapshotType == "PUBLISH"
+                               && snapshot.Profile.ClearingHouseId == clearingHouseId)
+            .Select(snapshot => snapshot.SnapshotJson)
+            .ToListAsync(ct);
+        foreach (var snapshotJson in snapshotJsons)
+        {
+            var read = NachaPublicationSnapshotSerializer.Read(snapshotJson);
+            if (!read.IsSupported || read.Snapshot is null)
+            {
+                continue;
+            }
+
+            var historical = NachaTransactionCodeSemanticMetadata.Resolve(read.Snapshot.Records);
+            if (historical.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved)
+            {
+                continue;
+            }
+
+            foreach (var previous in historical.Contract!.Rules)
+            {
+                if (candidate.TryGetRule(previous.TransactionCode, out var current)
+                    && current != previous)
+                {
+                    issues.Add(new NachaConfigValidationIssueDto
+                    {
+                        Severidad = "ERROR",
+                        Codigo = "HISTORICAL_TRANSACTION_CODE_REASSIGNMENT",
+                        Mensaje = $"TransactionCode {previous.TransactionCode} no puede cambiar de significado dentro de la misma cámara."
+                    });
+                }
+            }
+        }
     }
 
     private static string Normalize(string? value)

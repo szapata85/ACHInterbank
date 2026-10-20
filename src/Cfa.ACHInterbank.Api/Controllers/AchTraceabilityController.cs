@@ -1,9 +1,11 @@
+using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Security;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -19,16 +21,22 @@ public class AchTraceabilityController : ControllerBase
         _traceabilityService = traceabilityService;
     }
 
-    [EndpointSummary("Aplicar certificación SOL02 a transacción")]
-    [EndpointDescription("Qué hace: cambia estado de una transacción registrando certificación SOL02. Cuándo se usa: en procesos de trazabilidad y cumplimiento con evidencia externa. Perfil consumidor: operación ACH y analistas de trazabilidad. Permiso requerido: CanManageAch con autorización explícita en la acción y autenticación obligatoria en el controller. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: certificar transacción incorrecta altera historial regulatorio. Errores esperados: 404 transacción no encontrada; 400 transición inválida. Relación ACH/CENIT/NACHA-M: integra trazabilidad operativa ACH con evidencia SOL02. Precauciones para desarrollo u operación: confirmar referencia, evidencia externa y segregación de funciones antes de certificar. Advertencia: este endpoint modifica estado; la consulta de trazabilidad no sustituye el proceso formal de auditoría ni autoriza cambios fuera del flujo controlado.")]
+    /// <summary>
+    /// Certifica una transacción mediante la transición SOL02 implementada por el servicio de trazabilidad.
+    /// </summary>
+    /// <param name="transactionId">Identificador interno de la transacción que se desea certificar.</param>
+    /// <param name="request">Referencia y notas opcionales que se almacenan en el payload del evento de estado.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Certificar transacción con SOL02")]
+    [EndpointDescription("Mueve la transacción indicada al estado Certified mediante una transición con fuente Claims y código de razón SOL02. CertificationReference y Notes son opcionales y se conservan en el payload del evento de estado. Devuelve 404 si la transacción no existe y 400 cuando la transición a Certified no está permitida desde su estado actual.")]
     [HttpPost("sol02/{transactionId:int}/certify")]
     [Authorize(Policy = P0Policies.TraceabilityCertifySol02)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Certificación SOL02 aplicada; la respuesta informa el identificador, estado y fecha del cambio de estado.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "La transición de la transacción al estado Certified no está permitida desde su estado actual.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe una transacción con el identificador indicado.")]
     public async Task<IActionResult> CertifyWithSol02(
         int transactionId,
         [FromBody] Sol02CertificationRequest request,
@@ -60,15 +68,19 @@ public class AchTraceabilityController : ControllerBase
         }
     }
 
-    [EndpointSummary("Consulta trazabilidad de una transacción")]
-    [EndpointDescription("Qué hace: devuelve línea de tiempo y estado de la transacción ACH. Cuándo se usa: en auditorías, reclamos y soporte operativo. Perfil consumidor: auditoría y operación ACH. Permiso requerido: CanReadAch con autorización explícita en la acción y autenticación obligatoria en el controller. Tipo de operación: solo consulta. Genera auditoría: sí, por trazas. Riesgos operativos: diagnóstico incompleto si se consulta id equivocado. Errores esperados: 404 transacción inexistente; 401/403 según entorno. Relación ACH/CENIT/NACHA-M: expone trayectoria de la transacción en ACH/CENIT. Precauciones para desarrollo u operación: correlacionar con reportes de ciclo y devoluciones para evitar conclusiones parciales. Advertencia: la trazabilidad es de consulta y no autoriza alteración de estados ni reemplaza auditoría formal.")]
+    /// <summary>
+    /// Consulta la trazabilidad persistida de una transacción ACHInterbank.
+    /// </summary>
+    /// <param name="transactionId">Identificador interno de la transacción consultada.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar trazabilidad de una transacción")]
+    [EndpointDescription("Devuelve los datos operativos de la transacción, su ciclo y cámara, instituciones de origen y destino, estado actual, el archivo NACHA más reciente del ciclo cuando exista, el último archivo de devolución asociado y los eventos de cambio de estado ordenados por fecha de creación. Devuelve 404 si la transacción no existe.")]
     [HttpGet("transactions/{transactionId:int}")]
     [Authorize(Policy = P0Policies.TraceabilityRead)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(AchTraceabilityDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Detalle de trazabilidad de la transacción y su historial de eventos de estado.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe una transacción con el identificador indicado.")]
     public async Task<IActionResult> GetTransactionTraceability(int transactionId, CancellationToken ct)
     {
         var traceability = await _traceabilityService.GetTransactionTraceabilityAsync(transactionId, ct);
@@ -80,15 +92,20 @@ public class AchTraceabilityController : ControllerBase
         return Ok(traceability);
     }
 
-    [EndpointSummary("Reporte de trazabilidad por rango")]
-    [EndpointDescription("Qué hace: genera consulta consolidada de trazabilidad por fechas, estado y ciclo. Cuándo se usa: en cierres operativos y seguimiento de incidentes. Perfil consumidor: operación ACH y control interno. Permiso requerido: CanReadAch con autorización explícita en la acción y autenticación obligatoria en el controller. Tipo de operación: solo consulta. Genera auditoría: sí, por trazas. Riesgos operativos: rangos amplios pueden afectar tiempos de respuesta. Errores esperados: 400 parámetros inválidos. Relación ACH/CENIT/NACHA-M: visibilidad transversal del flujo ACH/NACHA-M. Precauciones para desarrollo u operación: usar filtros acotados y validar zona horaria operativa para análisis consistente. Advertencia: el reporte de trazabilidad no debe usarse para modificar estados ni sustituir los controles formales de auditoría.")]
+    /// <summary>
+    /// Consulta un reporte de trazabilidad usando filtros opcionales sobre el estado persistido de las transacciones.
+    /// </summary>
+    /// <param name="fromUtc">Límite inferior inclusivo de StateChangedAtUtc. El servicio normaliza el valor mediante ToUniversalTime antes de filtrar.</param>
+    /// <param name="toUtc">Límite superior inclusivo de StateChangedAtUtc. El servicio normaliza el valor mediante ToUniversalTime antes de filtrar.</param>
+    /// <param name="state">Estado actual de la transacción usado como filtro exacto.</param>
+    /// <param name="achCycleId">Uno o varios identificadores de ciclo separados por comas. Los valores vacíos se ignoran.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar reporte de trazabilidad")]
+    [EndpointDescription("Devuelve filas de trazabilidad ordenadas por StateChangedAtUtc descendente. Permite filtrar de forma opcional e inclusiva por fecha de cambio de estado, por estado actual y por uno o varios identificadores de ciclo separados por comas. Para cada ciclo informa el archivo NACHA más reciente disponible cuando existe.")]
     [HttpGet("report")]
     [Authorize(Policy = P0Policies.TraceabilityRead)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(typeof(IReadOnlyList<AchTraceabilityReportRowDto>), StatusCodes.Status200OK)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Filas de trazabilidad que cumplen los filtros solicitados, ordenadas por el cambio de estado más reciente.")]
     public async Task<IActionResult> GetTraceabilityReport(
         [FromQuery] DateTime? fromUtc,
         [FromQuery] DateTime? toUtc,
@@ -101,8 +118,18 @@ public class AchTraceabilityController : ControllerBase
     }
 }
 
+/// <summary>
+/// Datos opcionales asociados a una certificación SOL02 de una transacción.
+/// </summary>
 public class Sol02CertificationRequest
 {
+    /// <summary>
+    /// Referencia opcional de certificación que se conserva en el payload JSON del evento de estado.
+    /// </summary>
     public string? CertificationReference { get; set; }
+
+    /// <summary>
+    /// Notas opcionales que se conservan en el payload JSON del evento de estado.
+    /// </summary>
     public string? Notes { get; set; }
 }

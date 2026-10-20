@@ -1,0 +1,160 @@
+<section class="test-panel" data-testid="nacha-config-test-panel" [attr.aria-busy]="loading">
+  <mat-card class="test-action-card">
+    <mat-card-header>
+      <mat-card-title>Probar configuración</mat-card-title>
+      <mat-card-subtitle>Valida la configuración y genera una vista previa sintética sin publicar ni enviar archivos.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-actions>
+      <button mat-flat-button type="button" [disabled]="loading" (click)="probar()" data-testid="nacha-config-run-test">
+        {{ loading ? 'Probando…' : 'Probar configuración' }}
+      </button>
+    </mat-card-actions>
+  </mat-card>
+
+  <div class="loading-state" *ngIf="loading" role="status" aria-live="polite">
+    <mat-spinner diameter="32"></mat-spinner>
+    <span>Validando y preparando la vista previa…</span>
+  </div>
+
+  <mat-card *ngIf="errorMessage && !loading" class="error-state" role="alert" aria-live="assertive" data-testid="nacha-config-test-error">
+    <mat-card-header><mat-card-title>No fue posible probar la configuración</mat-card-title></mat-card-header>
+    <mat-card-content>{{ errorMessage }}</mat-card-content>
+    <mat-card-actions><button mat-stroked-button type="button" (click)="probar()">Reintentar</button></mat-card-actions>
+  </mat-card>
+
+  <mat-card *ngIf="!result && !loading && !errorMessage" class="empty-state" data-testid="nacha-config-test-empty">
+    <mat-card-content>Ejecuta “Probar configuración” para revisar validación, selección contextual y vista previa.</mat-card-content>
+  </mat-card>
+
+  <ng-container *ngIf="result && !loading">
+    <mat-card class="summary-card" data-testid="nacha-config-test-summary">
+      <mat-card-header>
+        <mat-card-title>{{ result.resultLabelEs }}</mat-card-title>
+        <mat-card-subtitle>{{ result.erroresBloqueantes }} errores bloqueantes · {{ result.advertencias }} advertencias</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="check-list" *ngIf="result.canPublish; else requiresChanges">
+          <p>✓ Estructura válida</p>
+          <p>✓ Longitud y posiciones validadas</p>
+          <p>✓ Campos obligatorios completos</p>
+        </div>
+        <ng-template #requiresChanges><p class="requires-changes">✕ Requiere correcciones antes de publicar.</p></ng-template>
+
+        <div class="issue-list" *ngIf="result.issues.length">
+          <article class="issue" *ngFor="let issue of result.issues">
+            <span class="issue-symbol" aria-hidden="true">{{ issueSymbol(issue) }}</span>
+            <div>
+              <strong>{{ issue.messageEs }}</strong>
+              <span *ngIf="issue.recordNameEs || issue.fieldNameEs">
+                {{ issue.recordNameEs || 'Registro' }}<ng-container *ngIf="issue.fieldNameEs"> · {{ issue.fieldNameEs }}</ng-container>
+              </span>
+              <span *ngIf="issue.suggestedActionEs">{{ issue.suggestedActionEs }}</span>
+              <mat-expansion-panel class="advanced-panel">
+                <mat-expansion-panel-header><mat-panel-title>Información avanzada</mat-panel-title></mat-expansion-panel-header>
+                <p data-technical-value="true"><strong>Código:</strong> {{ issue.code }}</p>
+                <p data-technical-value="true"><strong>Detalle técnico:</strong> {{ issue.technicalMessage }}</p>
+              </mat-expansion-panel>
+            </div>
+          </article>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="selection-card">
+      <mat-card-header><mat-card-title>Prueba de selección</mat-card-title></mat-card-header>
+      <mat-card-content>
+        <p>{{ result.selection.summaryEs }}</p>
+        <p *ngFor="let warning of result.selection.warningsEs">⚠ {{ warning }}</p>
+        <mat-expansion-panel *ngIf="result.selection.technicalTrace.length" class="advanced-panel">
+          <mat-expansion-panel-header><mat-panel-title>Información avanzada</mat-panel-title></mat-expansion-panel-header>
+          <p data-technical-value="true" *ngFor="let trace of result.selection.technicalTrace">{{ trace }}</p>
+        </mat-expansion-panel>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card *ngIf="!result.records.length" class="empty-state">
+      <mat-card-content>No hay registros habilitados para mostrar una vista previa.</mat-card-content>
+    </mat-card>
+
+    <div class="preview-layout" *ngIf="result.records.length">
+      <mat-card class="preview-navigation">
+        <mat-card-header><mat-card-title>Registros</mat-card-title></mat-card-header>
+        <mat-card-content>
+          <div class="record-buttons">
+            <button
+              mat-stroked-button
+              type="button"
+              *ngFor="let record of recordOptions"
+              [class.selected]="record.code === selectedRecordCode"
+              [attr.aria-pressed]="record.code === selectedRecordCode"
+              (click)="seleccionarRegistro(record.code)"
+            >{{ record.name }}</button>
+          </div>
+          <div class="variant-buttons" *ngIf="variantsForSelectedRecord.length > 1">
+            <span>Estructura:</span>
+            <button
+              mat-stroked-button
+              type="button"
+              *ngFor="let variant of variantsForSelectedRecord"
+              [class.selected]="variant.variantId === selectedPreview?.variantId"
+              [attr.aria-pressed]="variant.variantId === selectedPreview?.variantId"
+              (click)="seleccionarVariante(variant)"
+            >{{ variant.variantNameEs }}</button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="record-preview" *ngIf="selectedPreview as preview" data-testid="nacha-config-record-preview">
+        <mat-card-header>
+          <mat-card-title>Vista previa · {{ preview.recordNameEs }}</mat-card-title>
+          <mat-card-subtitle>{{ preview.variantNameEs }} · {{ preview.totalLength }} posiciones</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <p *ngIf="preview.contentPreviewMessageEs" class="preview-message">{{ preview.contentPreviewMessageEs }}</p>
+          <div class="ruler-labels" aria-hidden="true"><span>1</span><span>{{ preview.totalLength }}</span></div>
+          <div
+            class="preview-ruler"
+            role="listbox"
+            aria-label="Campos de la vista previa por posición"
+            [style.grid-template-columns]="'repeat(' + preview.totalLength + ', minmax(0, 1fr))'"
+          >
+            <button
+              *ngFor="let field of preview.fields"
+              type="button"
+              role="option"
+              class="preview-field-block"
+              [attr.aria-selected]="field.fieldId === selectedField?.fieldId"
+              [attr.aria-label]="fieldAria(field)"
+              [class.selected]="field.fieldId === selectedField?.fieldId"
+              [class.disabled-field]="!field.isEnabled"
+              [style.grid-column]="gridColumn(field)"
+              [matTooltip]="fieldAria(field)"
+              (click)="seleccionarCampo(field.fieldId)"
+            ><span>{{ field.fieldNameEs }}</span></button>
+          </div>
+
+          <div class="rendered-record-wrap" *ngIf="preview.renderedRecord !== null && preview.renderedRecord !== undefined">
+            <strong>Registro de ejemplo</strong>
+            <code class="rendered-record">{{ preview.renderedRecord }}</code>
+          </div>
+
+          <div class="field-preview-detail" *ngIf="selectedField as field">
+            <div>
+              <span class="detail-label">Campo</span>
+              <strong>{{ field.fieldNameEs }}</strong>
+            </div>
+            <div><span class="detail-label">Posiciones</span><strong>{{ field.startPosition }}–{{ field.endPosition }}</strong></div>
+            <div><span class="detail-label">Valor de ejemplo</span><code>{{ field.sampleValue ?? 'No disponible' }}</code></div>
+            <div><span class="detail-label">Origen</span><strong>{{ field.sourceSummaryEs }}</strong></div>
+            <div><span class="detail-label">Formato</span><strong>{{ field.formatSummaryEs || 'Sin formato especial' }}</strong></div>
+            <div><span class="detail-label">Obligatorio</span><strong>{{ field.isRequired ? 'Sí' : 'No' }}</strong></div>
+            <div class="rules-detail" *ngIf="field.relevantRulesEs.length">
+              <span class="detail-label">Reglas relevantes</span>
+              <span *ngFor="let rule of field.relevantRulesEs">{{ rule }}</span>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </ng-container>
+</section>

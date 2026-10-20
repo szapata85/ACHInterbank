@@ -19,14 +19,12 @@ public class QuartzPersistentStoreConfigurationTests
     [Fact]
     public void QuartzConfiguration_ShouldDefaultToRamJobStore_WhenModeMissingOrRam()
     {
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Quartz:JobStore:Provider"] = "Postgres"
-        }).Build();
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
 
         var options = QuartzJobStoreOptionsFactory.Create(config);
         options.Mode.Should().Be("RAM");
         options.IsPersistentMode().Should().BeFalse();
+        options.Provider.Should().BeEmpty();
     }
 
     [Fact]
@@ -35,7 +33,7 @@ public class QuartzPersistentStoreConfigurationTests
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Quartz:JobStore:Mode"] = "Persistent",
-            ["Quartz:JobStore:Provider"] = "Postgres",
+            ["Quartz:JobStore:Provider"] = "postGres",
             ["Quartz:JobStore:TablePrefix"] = "QRTZ_",
             ["Quartz:JobStore:Clustered"] = "true"
         }).Build();
@@ -57,7 +55,12 @@ public class QuartzPersistentStoreConfigurationTests
         }).Build();
 
         var options = QuartzJobStoreOptionsFactory.Create(config);
-        options.GetNormalizedProvider().Should().Be("Postgres");
+
+        Action act = () => options.GetNormalizedProvider();
+        var exception = act.Should().Throw<InvalidOperationException>().Which;
+        exception.Message.Should().Contain("Oracle");
+        exception.Message.Should().Contain("Postgres");
+        exception.Message.Should().Contain("SqlServer");
     }
 
 
@@ -67,12 +70,60 @@ public class QuartzPersistentStoreConfigurationTests
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Quartz:JobStore:Mode"] = "Persistent",
-            ["Quartz:JobStore:Provider"] = "SqlServer"
+            ["Quartz:JobStore:Provider"] = "sqlserver"
         }).Build();
 
         var options = QuartzJobStoreOptionsFactory.Create(config);
         options.IsPersistentMode().Should().BeTrue();
         options.GetNormalizedProvider().Should().Be("SqlServer");
+    }
+
+    [Fact]
+    public void QuartzConfiguration_ShouldRejectEmptyProvider()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Quartz:JobStore:Mode"] = "Persistent",
+            ["Quartz:JobStore:Provider"] = ""
+        }).Build();
+
+        var options = QuartzJobStoreOptionsFactory.Create(config);
+
+        Action act = () => options.GetNormalizedProvider();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*provider is required*");
+    }
+
+    [Fact]
+    public void QuartzConfiguration_ShouldRejectMissingProviderWhenPersistent()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Quartz:JobStore:Mode"] = "Persistent"
+        }).Build();
+
+        var options = QuartzJobStoreOptionsFactory.Create(config);
+
+        options.Provider.Should().BeEmpty();
+        options.IsPersistentMode().Should().BeTrue();
+
+        Action act = () => options.GetNormalizedProvider();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*provider is required*");
+    }
+
+    [Fact]
+    public void QuartzConfiguration_ShouldAllowRamModeWithoutProvider()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Quartz:JobStore:Mode"] = "RAM"
+        }).Build();
+
+        var options = QuartzJobStoreOptionsFactory.Create(config);
+
+        options.Provider.Should().BeEmpty();
+        options.IsPersistentMode().Should().BeFalse();
     }
 
     [Fact]
@@ -83,6 +134,19 @@ public class QuartzPersistentStoreConfigurationTests
 
         options.Mode.Should().Be("RAM");
         options.IsPersistentMode().Should().BeFalse();
+    }
+
+    [Fact]
+    public void ProductionConfiguration_ShouldUseNamedPersistentCluster()
+    {
+        var config = new ConfigurationBuilder().AddJsonFile(ResolveRepoPath("src", "Cfa.ACHInterbank.Api", "appsettings.json")).Build();
+        var options = QuartzJobStoreOptionsFactory.Create(config);
+
+        options.SchedulerName.Should().Be("ACHInterbankScheduler");
+        options.InstanceId.Should().Be("AUTO");
+        options.IsPersistentMode().Should().BeTrue();
+        options.Clustered.Should().BeTrue();
+        options.AcquireTriggersWithinLock.Should().BeTrue();
     }
 
     [Fact]
@@ -136,6 +200,11 @@ public class QuartzPersistentStoreConfigurationTests
         var sqlServerContent = File.ReadAllText(Path.Combine(scriptsDir, "sqlserver-qrtz-schema.sql"));
         sqlServerContent.Should().Contain("QRTZ_JOB_DETAILS");
         sqlServerContent.Should().Contain("QRTZ_TRIGGERS");
+
+        var postgresContent = File.ReadAllText(Path.Combine(scriptsDir, "postgres-qrtz-schema.sql"));
+        postgresContent.Should().Contain("qrtz_job_details");
+        postgresContent.Should().Contain("qrtz_scheduler_state");
+        postgresContent.Should().Contain("CREATE TABLE IF NOT EXISTS");
     }
 
     [Fact]

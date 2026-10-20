@@ -1,24 +1,29 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Repositories.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
+using Cfa.ACHInterbank.Tests.TestSupport;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -34,13 +39,15 @@ public class AchTransactionNachaTests
         {
             SeedCoreEntities(arrangeContext);
 
-            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
-            var service = BuildTransactionService(arrangeContext, cycleId);
+            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+            var logger = new CapturingLogger<AchTransactionService>();
+            using var metrics = new MetricCapture("Cfa.ACHInterbank.ACH.Single");
+            var service = BuildTransactionService(arrangeContext, cycleId, loggerOverride: logger);
 
             tx = await service.RegisterTransactionAsync(
                 amount: 1500m,
                 reference: "PAGO-REF-001",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Checking,
                 isPrenotification: false,
                 destinationInstitutionId: 2,
@@ -49,11 +56,12 @@ public class AchTransactionNachaTests
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
-                recipientIdNumber: null,
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente sintético",
                 requiresIdentityValidation: false,
                 addendas:
                 [
-                    new() { AddendaType = "05", BusinessType = AchAddendaBusinessType.Credit, Purpose = "PAGOS PSE", Reference = "Factura 123" },
+                    new() { AddendaType = "05", BusinessType = AchAddendaBusinessType.Debit, CollectorId = "9001234567", ReceiverCustomerCode = "CLI0000000001", ServiceDescription = "FACTURA" },
                     new() { AddendaType = "99", BusinessType = AchAddendaBusinessType.Return, ReturnReasonCode = "R01", OriginalTraceNumber = "123456780000001", NewTraceNumber = "765432100000001" }
                 ],
                 ct: CancellationToken.None);
@@ -64,6 +72,13 @@ public class AchTransactionNachaTests
             Assert.Equal("123456780", tx.CompanyIdentification);
             Assert.Equal("12345678", tx.OriginatingDFI);
             Assert.Equal("76543210", tx.ReceivingDFI);
+            Assert.True(metrics.Contains("ach_single_operations_total", "outcome", "accepted"));
+            Assert.Contains(logger.Messages, message => message.Contains("accepted", StringComparison.Ordinal));
+            Assert.DoesNotContain(logger.Messages, message =>
+                message.Contains("111122223333", StringComparison.Ordinal)
+                || message.Contains("999988887777", StringComparison.Ordinal)
+                || message.Contains("123456780", StringComparison.Ordinal)
+                || message.Contains("Cliente sintético", StringComparison.Ordinal));
         }
 
         using var verification = CreateContext(connection);
@@ -74,7 +89,7 @@ public class AchTransactionNachaTests
             .SingleAsync();
 
         Assert.Equal(tx.Id, savedTransaction.Id);
-        Assert.Equal("220", savedTransaction.AchBatch.ServiceClassCode);
+        Assert.Equal("225", savedTransaction.AchBatch.ServiceClassCode);
         Assert.True(savedTransaction.AddendaRecordIndicator);
         Assert.Equal(2, savedTransaction.Addendas.Count);
         Assert.Collection(
@@ -82,9 +97,10 @@ public class AchTransactionNachaTests
             first =>
             {
                 Assert.Equal("05", first.AddendaType);
-                Assert.Equal(AchAddendaBusinessType.Credit, first.BusinessType);
-                Assert.Equal("PAGOS PSE", first.Purpose);
-                Assert.Equal("FACTURA 123", first.Reference);
+                Assert.Equal(AchAddendaBusinessType.Debit, first.BusinessType);
+                Assert.Equal("9001234567", first.CollectorId);
+                Assert.Equal("CLI0000000001", first.ReceiverCustomerCode);
+                Assert.Equal("FACTURA", first.ServiceDescription);
                 Assert.Equal(1, first.SequenceNumber);
             },
             second =>
@@ -104,6 +120,342 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
+    public async Task RegisterTransactionAsync_MandatoryDebitEligibilityFailure_StopsBeforePersistence()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        SeedCoreEntities(context);
+
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var rule = new ClearingHouseTransactionRule
+        {
+            Id = 7101,
+            ClearingHouseId = 1,
+            TransactionNature = TransactionNature.Debit,
+            TransactionType = TransactionTypeEnum.Debit,
+            PrenotificationMode = PrenotificationRequirementMode.Mandatory,
+            AppliesToMonetaryTransactions = true,
+            AppliesToNachaExport = true,
+            EffectiveFrom = TestClock.OperationalDate,
+            IsActive = true,
+            NormativeSource = "TEST",
+            NormativeReference = "TEST"
+        };
+
+        var policy = new Mock<IClearingHouseValidationPolicyService>();
+        policy.Setup(x => x.ResolveAsync(It.IsAny<int>(), TransactionNature.Debit, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int clearingHouseId, TransactionNature ignoredNature, DateTime effectiveDate, CancellationToken ignoredCt) =>
+                new ClearingHouseValidationPolicyResolution(rule, effectiveDate.Date, TransactionNature.Debit, clearingHouseId));
+
+        var eligibility = new Mock<IThirdPartyAccountEligibilityService>();
+        eligibility.Setup(x => x.EvaluateAsync(It.IsAny<ThirdPartyAccountEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ThirdPartyAccountEligibilityResult(
+                ThirdPartyAccountEligibilityDecision.RequiresPrenotification,
+                "PRENOTIFICATION_REQUIRED",
+                "La política efectiva exige una prenotificación válida.",
+                rule,
+                null,
+                null,
+                null));
+
+        var prerequisite = new TransactionPrerequisitePolicyService(context, Mock.Of<IBankHoliday>());
+        var logger = new CapturingLogger<AchTransactionService>();
+        using var metrics = new MetricCapture("Cfa.ACHInterbank.ACH.Single");
+        var service = BuildTransactionService(
+            context,
+            cycleId,
+            clearingHouseValidationPolicyServiceOverride: policy.Object,
+            thirdPartyAccountEligibilityServiceOverride: eligibility.Object,
+            transactionPrerequisitePolicyServiceOverride: prerequisite,
+            loggerOverride: logger);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
+            amount: 1500m,
+            reference: "TPA7A-DEBIT-BLOCK",
+            type: TransactionTypeEnum.Debit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: false,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "111122223333",
+            destinationAccountNumber: "999988887777",
+            companyName: "Empresa Demo",
+            companyIdentification: "123456780",
+            companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "PAGOS PSE"),
+            recipientIdNumber: "900123456",
+            recipientName: "Cliente sintético",
+            ct: CancellationToken.None));
+
+        Assert.Contains("TRANSACTION_PRENOTIFICATION_REQUIRED", ex.Message, StringComparison.Ordinal);
+        Assert.Empty(context.AchTransactions.Where(x => x.Reference == "TPA7A-DEBIT-BLOCK"));
+        Assert.True(metrics.Contains("ach_single_operations_total", "outcome", "rejected"));
+        Assert.True(metrics.Contains("ach_single_operations_total", "stage", "canonical_prerequisite"));
+        Assert.Contains(logger.Messages, message =>
+            message.Contains("rejected", StringComparison.Ordinal)
+            && message.Contains("canonical_prerequisite", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, message =>
+            message.Contains("111122223333", StringComparison.Ordinal)
+            || message.Contains("999988887777", StringComparison.Ordinal)
+            || message.Contains("900123456", StringComparison.Ordinal));
+        eligibility.Verify(x => x.EvaluateAsync(
+            It.Is<ThirdPartyAccountEligibilityRequest>(request =>
+                request.ClearingHouseId == 1
+                && request.TransactionNature == TransactionNature.Debit
+                && request.EffectiveDate.Date == TestClock.OperationalDate.Date
+                && request.ServiceType == "PPD"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_OptionalCreditWithoutPrenote_RemainsAllowedServerSide()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        SeedCoreEntities(context);
+
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var rule = new ClearingHouseTransactionRule
+        {
+            Id = 7102,
+            ClearingHouseId = 1,
+            TransactionNature = TransactionNature.Credit,
+            TransactionType = TransactionTypeEnum.Credit,
+            PrenotificationMode = PrenotificationRequirementMode.Optional,
+            AppliesToMonetaryTransactions = true,
+            AppliesToNachaExport = true,
+            EffectiveFrom = TestClock.OperationalDate,
+            IsActive = true,
+            NormativeSource = "TEST",
+            NormativeReference = "TEST"
+        };
+
+        var policy = new Mock<IClearingHouseValidationPolicyService>();
+        policy.Setup(x => x.ResolveAsync(It.IsAny<int>(), TransactionNature.Credit, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int clearingHouseId, TransactionNature ignoredNature, DateTime effectiveDate, CancellationToken ignoredCt) =>
+                new ClearingHouseValidationPolicyResolution(rule, effectiveDate.Date, TransactionNature.Credit, clearingHouseId));
+
+        var eligibility = new Mock<IThirdPartyAccountEligibilityService>();
+        eligibility.Setup(x => x.EvaluateAsync(It.IsAny<ThirdPartyAccountEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ThirdPartyAccountEligibilityResult(
+                ThirdPartyAccountEligibilityDecision.AllowedWithoutPrenotification,
+                "PRENOTIFICATION_OPTIONAL",
+                "La política efectiva permite crédito sin prenotificación.",
+                rule,
+                null,
+                null,
+                null));
+
+        var prerequisite = new TransactionPrerequisitePolicyService(context, Mock.Of<IBankHoliday>());
+        var legacyCatalog = new Mock<IAchRegulatoryCatalogService>();
+        legacyCatalog.Setup(x => x.IsPrenotificationRequiredAsync(TransactionTypeEnum.Credit, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var service = BuildTransactionService(
+            context,
+            cycleId,
+            clearingHouseValidationPolicyServiceOverride: policy.Object,
+            thirdPartyAccountEligibilityServiceOverride: eligibility.Object,
+            transactionPrerequisitePolicyServiceOverride: prerequisite,
+            catalogServiceOverride: legacyCatalog.Object);
+
+        var transaction = await service.RegisterTransactionAsync(
+            amount: 1500m,
+            reference: "TPA7A-CREDIT-OPTIONAL",
+            type: TransactionTypeEnum.Credit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: false,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "111122223333",
+            destinationAccountNumber: "999988887777",
+            companyName: "Empresa Demo",
+            companyIdentification: "123456780",
+            companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "PAGOS PSE"),
+            recipientIdNumber: "900123456",
+            recipientName: "Cliente sintético",
+            ct: CancellationToken.None);
+
+        Assert.True(transaction.Id > 0);
+        Assert.Equal("TPA7A-CREDIT-OPTIONAL", transaction.Reference);
+        legacyCatalog.Verify(
+            x => x.IsPrenotificationRequiredAsync(TransactionTypeEnum.Credit, It.IsAny<CancellationToken>()),
+            Times.Once);
+        eligibility.Verify(x => x.EvaluateAsync(
+            It.Is<ThirdPartyAccountEligibilityRequest>(request =>
+                request.ClearingHouseId == 1
+                && request.TransactionNature == TransactionNature.Credit
+                && request.EffectiveDate.Date == TestClock.OperationalDate.Date
+                && request.ServiceType == "PPD"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_AllowedValidation_RecordsMonetaryUseInSameFlow()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        SeedCoreEntities(context);
+
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var rule = new ClearingHouseTransactionRule
+        {
+            Id = 7103,
+            ClearingHouseId = 1,
+            TransactionNature = TransactionNature.Debit,
+            TransactionType = TransactionTypeEnum.Debit,
+            PrenotificationMode = PrenotificationRequirementMode.Mandatory,
+            AppliesToMonetaryTransactions = true,
+            AppliesToNachaExport = true,
+            EffectiveFrom = TestClock.OperationalDate,
+            IsActive = true,
+            NormativeSource = "TEST",
+            NormativeReference = "TEST"
+        };
+
+        var policy = new Mock<IClearingHouseValidationPolicyService>();
+        policy.Setup(x => x.ResolveAsync(It.IsAny<int>(), TransactionNature.Debit, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int clearingHouseId, TransactionNature ignoredNature, DateTime effectiveDate, CancellationToken ignoredCt) =>
+                new ClearingHouseValidationPolicyResolution(rule, effectiveDate.Date, TransactionNature.Debit, clearingHouseId));
+
+        var eligibility = new Mock<IThirdPartyAccountEligibilityService>();
+        eligibility.Setup(x => x.EvaluateAsync(It.IsAny<ThirdPartyAccountEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ThirdPartyAccountEligibilityResult(
+                ThirdPartyAccountEligibilityDecision.Allowed,
+                "ELIGIBLE",
+                "La validación contextual autoriza la transacción.",
+                rule,
+                ThirdPartyAccountValidationStatus.Accepted,
+                ValidationId: 88,
+                AttemptId: 89));
+
+        var validation = new Mock<IThirdPartyAccountValidationService>();
+        validation.Setup(x => x.RecordMonetaryUseAsync(It.IsAny<ThirdPartyAccountMonetaryUseRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var prerequisite = new TransactionPrerequisitePolicyService(context, Mock.Of<IBankHoliday>());
+        var service = BuildTransactionService(
+            context,
+            cycleId,
+            clearingHouseValidationPolicyServiceOverride: policy.Object,
+            thirdPartyAccountEligibilityServiceOverride: eligibility.Object,
+            transactionPrerequisitePolicyServiceOverride: prerequisite,
+            thirdPartyAccountValidationServiceOverride: validation.Object);
+
+        await service.RegisterTransactionAsync(
+            amount: 1500m,
+            reference: "TPA7A-MONETARY-USE",
+            type: TransactionTypeEnum.Debit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: false,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "111122223333",
+            destinationAccountNumber: "999988887777",
+            companyName: "Empresa Demo",
+            companyIdentification: "123456780",
+            companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "PAGOS PSE"),
+            recipientIdNumber: "900123456",
+            recipientName: "Cliente sintético",
+            ct: CancellationToken.None);
+
+        validation.Verify(x => x.RecordMonetaryUseAsync(
+            It.Is<ThirdPartyAccountMonetaryUseRequest>(r => r.ThirdPartyAccountId == 1 && r.ValidationId == 88),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_SilentlyCreatesCanonicalThirdPartyAndAccount()
+    {
+        using var connection = CreateOpenConnection();
+
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+            var onboarding = new ThirdPartyOnboardingService(
+                arrangeContext,
+                Mock.Of<ILogger<ThirdPartyOnboardingService>>());
+            var service = BuildTransactionService(
+                arrangeContext,
+                cycleId,
+                thirdPartyOnboardingServiceOverride: onboarding);
+
+            await service.RegisterTransactionAsync(
+                amount: 1500m,
+                reference: "TPA2-SINGLE-001",
+                type: TransactionTypeEnum.Debit,
+                accountType: AccountTypeEnum.Savings,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: " 999988887777 ",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
+                recipientPersonType: "PN",
+                recipientIdNumber: " 900123456 ",
+                recipientName: "  Cliente Canonico  ",
+                requiresIdentityValidation: false,
+                ct: CancellationToken.None);
+        }
+
+        using var verification = CreateContext(connection);
+        var thirdParty = await verification.ThirdParties.SingleAsync();
+        var account = await verification.ThirdPartyAccounts.SingleAsync();
+        var sourceCustomerId = await verification.Customers
+            .Where(x => x.DocumentNumber == "123456780")
+            .Select(x => x.Id)
+            .SingleAsync();
+
+        Assert.Equal(sourceCustomerId, thirdParty.CustomerId);
+        Assert.Equal("900123456", thirdParty.DocumentNumberNormalized);
+        Assert.Equal("Cliente Canonico", thirdParty.DisplayName);
+        Assert.Equal(thirdParty.Id, account.ThirdPartyId);
+        Assert.Equal(2, account.FinancialInstitutionId);
+        Assert.Equal(AccountTypeEnum.Savings, account.AccountType);
+        Assert.Equal("999988887777", account.AccountNumberNormalized);
+        Assert.Equal(ThirdPartyAccountOriginSource.SingleTransaction, account.OriginSource);
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_Prenotification_KeepsLegacyThirdPartyAndCanonicalMasterInParallel()
+    {
+        using var connection = CreateOpenConnection();
+
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+            var onboarding = new ThirdPartyOnboardingService(
+                arrangeContext,
+                Mock.Of<ILogger<ThirdPartyOnboardingService>>());
+            var service = BuildTransactionService(
+                arrangeContext,
+                cycleId,
+                thirdPartyOnboardingServiceOverride: onboarding);
+
+            await service.RegisterTransactionAsync(
+                amount: 0m,
+                reference: "TPA2-PRENOTE-001",
+                type: TransactionTypeEnum.Debit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: true,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
+                recipientPersonType: "PN",
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente Legacy Canonico",
+                requiresIdentityValidation: false,
+                ct: CancellationToken.None);
+        }
+
+        using var verification = CreateContext(connection);
+        Assert.Single(await verification.CustomerThirdParties.ToListAsync());
+        Assert.Single(await verification.ThirdParties.ToListAsync());
+        Assert.Single(await verification.ThirdPartyAccounts.ToListAsync());
+    }
+
+    [Fact]
     public async Task RegisterTransactionAsync_CreatesInitialStateEventAndTraceabilityIncludesIt()
     {
         using var connection = CreateOpenConnection();
@@ -113,13 +465,13 @@ public class AchTransactionNachaTests
         {
             SeedCoreEntities(arrangeContext);
 
-            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
             var service = BuildTransactionService(arrangeContext, cycleId);
 
             tx = await service.RegisterTransactionAsync(
                 amount: 1500m,
                 reference: "PAGO-REF-EVENT-001",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Checking,
                 isPrenotification: false,
                 destinationInstitutionId: 2,
@@ -129,7 +481,8 @@ public class AchTransactionNachaTests
                 companyIdentification: "123456780",
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
                 transactionExternalId: "TX-EVENT-001",
-                recipientIdNumber: null,
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente sintético",
                 requiresIdentityValidation: false,
                 addendas: null,
                 ct: CancellationToken.None);
@@ -157,6 +510,62 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
+    public async Task RegisterTransactionAsync_WhenIntegratedPolicyRejectsCfaOperationalRestriction_DoesNotPersist()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        SeedCoreEntities(context);
+
+        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == cycleId);
+        context.CfaOperationalTransactionRestrictions.Add(new CfaOperationalTransactionRestriction
+        {
+            ClearingHouseCycleConfigId = cycle.ClearingHouseCycleConfigId,
+            TransactionType = TransactionTypeEnum.Debit,
+            AllowedAccountTypes = [AccountTypeEnum.Checking, AccountTypeEnum.Savings],
+            EffectiveFrom = DateTime.UnixEpoch,
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var routing = new Mock<IRoutingStrategyService>();
+        routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(
+                2,
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cycleId);
+        var integratedPolicy = new TransactionPolicyService(
+            context,
+            routing.Object,
+            new CfaOperationalTransactionRestrictionResolver(context),
+            TestClock.Create());
+        var service = BuildTransactionService(context, cycleId, integratedPolicy);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
+            amount: 1500m,
+            reference: "CFA-DENY-IND-001",
+            type: TransactionTypeEnum.Debit,
+            accountType: AccountTypeEnum.ElectronicDeposits,
+            isPrenotification: false,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "111122223333",
+            destinationAccountNumber: "999988887777",
+            companyName: "Empresa Demo",
+            companyIdentification: "123456780",
+            companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "PAGOS PSE"),
+            transactionExternalId: "CFA-DENY-IND-001",
+            recipientIdNumber: "900123456",
+            recipientName: "Cliente sintético",
+            requiresIdentityValidation: false,
+            addendas: null,
+            ct: CancellationToken.None));
+
+        Assert.Contains("restricción operacional CFA", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, await context.AchTransactions.CountAsync());
+        Assert.Equal(0, await context.AchTransactionStateEvents.CountAsync());
+    }
+
+    [Fact]
     public async Task RegisterTransactionAsync_WhenPolicyRejectsDuplicate_DoesNotCreateSecondInitialStateEvent()
     {
         using var connection = CreateOpenConnection();
@@ -164,19 +573,19 @@ public class AchTransactionNachaTests
         using var context = CreateContext(connection);
         SeedCoreEntities(context);
 
-        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var policyService = new Mock<ITransactionPolicyService>();
         policyService
             .SetupSequence(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", DateTime.Today, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Credit:111122223333:999988887777:1500:TX-DUP-001", false))
-            .ReturnsAsync(new TransactionPolicyPreview(false, "Ya existe una transacción equivalente para el mismo ciclo.", cycleId, "CICLO-TEST", DateTime.Today, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Credit:111122223333:999988887777:1500:TX-DUP-001", true));
+            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", TestClock.OperationalDate, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Debit:111122223333:999988887777:1500:TX-DUP-001", false))
+            .ReturnsAsync(new TransactionPolicyPreview(false, "Ya existe una transacción equivalente para el mismo ciclo.", cycleId, "CICLO-TEST", TestClock.OperationalDate, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Debit:111122223333:999988887777:1500:TX-DUP-001", true));
 
         var service = BuildTransactionService(context, cycleId, policyService.Object);
 
         await service.RegisterTransactionAsync(
             amount: 1500m,
             reference: "PAGO-REF-DUP-001",
-            type: TransactionTypeEnum.Credit,
+            type: TransactionTypeEnum.Debit,
             accountType: AccountTypeEnum.Checking,
             isPrenotification: false,
             destinationInstitutionId: 2,
@@ -186,7 +595,8 @@ public class AchTransactionNachaTests
             companyIdentification: "123456780",
             companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "PAGOS PSE"),
             transactionExternalId: "TX-DUP-001",
-            recipientIdNumber: null,
+            recipientIdNumber: "900123456",
+            recipientName: "Cliente sintético",
             requiresIdentityValidation: false,
             addendas: null,
             ct: CancellationToken.None);
@@ -194,7 +604,7 @@ public class AchTransactionNachaTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
             amount: 1500m,
             reference: "PAGO-REF-DUP-001",
-            type: TransactionTypeEnum.Credit,
+            type: TransactionTypeEnum.Debit,
             accountType: AccountTypeEnum.Checking,
             isPrenotification: false,
             destinationInstitutionId: 2,
@@ -204,7 +614,8 @@ public class AchTransactionNachaTests
             companyIdentification: "123456780",
             companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "PAGOS PSE"),
             transactionExternalId: "TX-DUP-001",
-            recipientIdNumber: null,
+            recipientIdNumber: "900123456",
+            recipientName: "Cliente sintético",
             requiresIdentityValidation: false,
             addendas: null,
             ct: CancellationToken.None));
@@ -229,7 +640,7 @@ public class AchTransactionNachaTests
         arrangeContext.FinancialInstitutions.Update(defaultSource);
         await arrangeContext.SaveChangesAsync();
 
-        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var service = BuildTransactionService(arrangeContext, cycleId);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
@@ -255,7 +666,7 @@ public class AchTransactionNachaTests
     {
         using var connection = CreateOpenConnection();
 
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -267,7 +678,7 @@ public class AchTransactionNachaTests
             await transactionService.RegisterTransactionAsync(
                 amount: 0m,
                 reference: "PAGOPRE-002",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Checking,
                 isPrenotification: true,
                 destinationInstitutionId: 2,
@@ -276,15 +687,16 @@ public class AchTransactionNachaTests
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
-                recipientIdNumber: null,
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente sintético",
                 requiresIdentityValidation: false,
-                addendas: BuildCreditAddendas("MULTICREDIT", "PRENOTE 002"),
+                addendas: BuildDebitAddendas(),
                 ct: CancellationToken.None);
 
             await transactionService.RegisterTransactionAsync(
                 amount: 1500m,
                 reference: "PAGO-REF-002",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Checking,
                 isPrenotification: false,
                 destinationInstitutionId: 2,
@@ -293,15 +705,16 @@ public class AchTransactionNachaTests
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
-                recipientIdNumber: null,
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente sintético",
                 requiresIdentityValidation: false,
-                addendas: BuildCreditAddendas("MULTICREDIT", "PAGO 002"),
+                addendas: BuildDebitAddendas(),
                 ct: CancellationToken.None);
 
             var returned = await transactionService.RegisterTransactionAsync(
                 amount: 999m,
                 reference: "PAGO-RETURNED-OMIT",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Checking,
                 isPrenotification: false,
                 destinationInstitutionId: 2,
@@ -310,9 +723,10 @@ public class AchTransactionNachaTests
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
-                recipientIdNumber: null,
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente sintético",
                 requiresIdentityValidation: false,
-                addendas: BuildCreditAddendas("MULTICREDIT", "PAGO OMIT"),
+                addendas: BuildDebitAddendas(),
                 ct: CancellationToken.None);
 
             returned.State = AchTransferStateEnum.ReturnedByOperator;
@@ -320,7 +734,7 @@ public class AchTransactionNachaTests
 
             var prenote = await arrangeContext.AchTransactions
                 .SingleAsync(t => t.Reference == "PAGOPRE-002");
-            prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+            prenote.EffectiveEntryDate = TestClock.OperationalDate.AddDays(-5);
             arrangeContext.AchTransactions.Update(prenote);
             await arrangeContext.SaveChangesAsync();
         }
@@ -331,12 +745,12 @@ public class AchTransactionNachaTests
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns([]);
         var loader = new NachaDataLoader(executionContext);
-        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
+        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
         var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator,
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "DEVELOPMENT" }));
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         var records = ChunkRecords(nachaContent);
@@ -355,7 +769,7 @@ public class AchTransactionNachaTests
         Assert.Equal("9", records[9][..1]);
 
         Assert.Equal("05", records[4].Substring(1, 2));
-        Assert.Equal("MULTICREDI", records[4].Substring(20, 10));
+        Assert.Equal("0009001234567", records[4].Substring(3, 13));
         Assert.Equal("0000001", records[4].Substring(87, 7));
     }
 
@@ -368,7 +782,7 @@ public class AchTransactionNachaTests
         SeedCoreEntities(arrangeContext);
         SeedNachaLayouts(arrangeContext);
 
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var (service, contrapartida) = BuildTransactionServiceWithDispatchMock(arrangeContext, cycleId);
 
         var transaction = await service.RegisterTransactionAsync(
@@ -408,10 +822,358 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
+    public async Task RegisterTransactionAsync_Prenotification_OnboardsParticipantsIdempotently()
+    {
+        using var connection = CreateOpenConnection();
+
+        using (var context = CreateContext(connection))
+        {
+            SeedCoreEntities(context);
+            var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+            var (service, contrapartida) = BuildTransactionServiceWithDispatchMock(context, cycleId);
+            var descriptionId = GetCompanyEntryDescriptionId(context, "RECAUDOS");
+
+            foreach (var sequence in new[] { "001", "002" })
+            {
+                await service.RegisterTransactionAsync(
+                    amount: 0m,
+                    reference: $"PRE-ONBOARD-{sequence}",
+                    type: TransactionTypeEnum.Debit,
+                    accountType: AccountTypeEnum.Checking,
+                    isPrenotification: true,
+                    destinationInstitutionId: 2,
+                    sourceAccountNumber: "700000000001",
+                    destinationAccountNumber: "800000000001",
+                    companyName: "ORIGEN SINTETICO",
+                    companyIdentification: "900777001",
+                    companyEntryDescriptionId: descriptionId,
+                    sourcePersonType: "PJ",
+                    recipientPersonType: "PN",
+                    recipientIdNumber: "1030555001",
+                    recipientName: "RECEPTOR SINTETICO",
+                    transactionExternalId: $"TX-PRE-ONBOARD-{sequence}",
+                    requiresIdentityValidation: false,
+                    addendas:
+                    [
+                        new()
+                        {
+                            AddendaType = "05",
+                            BusinessType = AchAddendaBusinessType.Debit,
+                            CollectorId = "900777001",
+                            ReceiverCustomerCode = "CLIENTE-SINTETICO",
+                            ServiceDescription = "PRENOTIFICACION"
+                        }
+                    ],
+                    ct: CancellationToken.None);
+            }
+
+            contrapartida.Verify(
+                dispatch => dispatch.EnsurePendingDispatchAsync(
+                    It.IsAny<AchTransaction>(),
+                    It.IsAny<int>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+
+        using var verification = CreateContext(connection);
+        var originator = await verification.Customers
+            .Include(customer => customer.Accounts)
+            .SingleAsync(customer => customer.DocumentType == "NIT" && customer.DocumentNumber == "900777001");
+        var recipient = await verification.Customers
+            .Include(customer => customer.Accounts)
+            .SingleAsync(customer => customer.DocumentType == "CC" && customer.DocumentNumber == "1030555001");
+        var thirdParty = await verification.CustomerThirdParties.SingleAsync(thirdParty =>
+            thirdParty.CustomerId == originator.Id
+            && thirdParty.DestinationInstitutionId == 2
+            && thirdParty.DestinationAccountNumber == "800000000001"
+            && thirdParty.RecipientIdNumber == "1030555001");
+
+        Assert.Single(originator.Accounts, account => account.AccountNumber == "700000000001");
+        Assert.Single(recipient.Accounts, account => account.AccountNumber == "800000000001");
+        Assert.Equal(CustomerThirdPartyStatusEnum.Pending, thirdParty.Status);
+        Assert.Equal(2, await verification.AchTransactions.CountAsync(transaction =>
+            transaction.TransactionExternalId.StartsWith("TX-PRE-ONBOARD-")));
+        Assert.Equal(1, await verification.CustomerThirdParties.CountAsync(candidate =>
+            candidate.CustomerId == originator.Id
+            && candidate.DestinationInstitutionId == 2
+            && candidate.DestinationAccountNumber == "800000000001"
+            && candidate.RecipientIdNumber == "1030555001"));
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_WhenDispatchPersistenceFails_RollsBackSilentOnboarding()
+    {
+        using var connection = CreateOpenConnection();
+
+        using (var context = CreateContext(connection))
+        {
+            SeedCoreEntities(context);
+            var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+            var onboarding = new ThirdPartyOnboardingService(
+                context,
+                Mock.Of<ILogger<ThirdPartyOnboardingService>>());
+            var (service, contrapartida) = BuildTransactionServiceWithDispatchMock(
+                context,
+                cycleId,
+                thirdPartyOnboardingServiceOverride: onboarding);
+            contrapartida
+                .Setup(dispatch => dispatch.EnsurePendingDispatchAsync(
+                    It.IsAny<AchTransaction>(),
+                    It.IsAny<int>(),
+                    It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("Fallo controlado de persistencia del dispatch."));
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
+                amount: 1m,
+                reference: "FAIL-ONBOARD-001",
+                type: TransactionTypeEnum.Debit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "700000000002",
+                destinationAccountNumber: "800000000002",
+                companyName: "ORIGEN FALLIDO",
+                companyIdentification: "900777002",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "RECAUDOS"),
+                sourcePersonType: "PJ",
+                recipientPersonType: "PN",
+                recipientIdNumber: "1030555002",
+                recipientName: "RECEPTOR FALLIDO",
+                transactionExternalId: "TX-FAIL-ONBOARD-001",
+                requiresIdentityValidation: false,
+                addendas:
+                [
+                    new()
+                    {
+                        AddendaType = "05",
+                        BusinessType = AchAddendaBusinessType.Debit,
+                        CollectorId = "900777002",
+                        ReceiverCustomerCode = "CLIENTE-FALLIDO",
+                        ServiceDescription = "FALLO CONTROL"
+                    }
+                ],
+                ct: CancellationToken.None));
+        }
+
+        using var verification = CreateContext(connection);
+        Assert.Equal(0, await verification.Customers.CountAsync(customer =>
+            customer.DocumentNumber == "900777002" || customer.DocumentNumber == "1030555002"));
+        Assert.Equal(0, await verification.CustomerAccounts.CountAsync(account =>
+            account.AccountNumber == "700000000002" || account.AccountNumber == "800000000002"));
+        Assert.Equal(0, await verification.CustomerThirdParties.CountAsync(thirdParty =>
+            thirdParty.DestinationAccountNumber == "800000000002"
+            || thirdParty.RecipientIdNumber == "1030555002"));
+        Assert.Equal(0, await verification.ThirdParties.CountAsync(thirdParty =>
+            thirdParty.DocumentNumberNormalized == "1030555002"));
+        Assert.Equal(0, await verification.ThirdPartyAccounts.CountAsync(account =>
+            account.AccountNumberNormalized == "800000000002"));
+        Assert.Equal(0, await verification.AchTransactions.CountAsync(transaction =>
+            transaction.TransactionExternalId == "TX-FAIL-ONBOARD-001"));
+        Assert.Equal(0, await verification.ContrapartidaDispatchItems.CountAsync(item =>
+            item.AchTransaction.TransactionExternalId == "TX-FAIL-ONBOARD-001"));
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_RecoversLegacyOnboardingUniqueConflict_WithCleanRetry()
+    {
+        using var connection = CreateOpenConnection();
+        using (var seedContext = CreateContext(connection))
+        {
+            SeedCoreEntities(seedContext);
+        }
+
+        var interceptor = new ThrowUniqueOnLegacyCustomerSaveInterceptor("900777003");
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection)
+            .AddInterceptors(interceptor)
+            .Options;
+
+        using (var context = new AchDbContext(options))
+        {
+            var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+            var onboarding = new ThirdPartyOnboardingService(
+                context,
+                Mock.Of<ILogger<ThirdPartyOnboardingService>>());
+            var logger = new CapturingLogger<AchTransactionService>();
+            using var metrics = new MetricCapture("Cfa.ACHInterbank.ACH.Single");
+            var service = BuildTransactionService(
+                context,
+                cycleId,
+                thirdPartyOnboardingServiceOverride: onboarding,
+                loggerOverride: logger);
+
+            var transaction = await service.RegisterTransactionAsync(
+                amount: 1m,
+                reference: "RACE-ONBOARD-001",
+                type: TransactionTypeEnum.Debit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "700000000003",
+                destinationAccountNumber: "800000000003",
+                companyName: "ORIGEN RACE",
+                companyIdentification: "900777003",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "RECAUDOS"),
+                sourcePersonType: "PJ",
+                recipientPersonType: "PN",
+                recipientIdNumber: "1030555003",
+                recipientName: "RECEPTOR RACE",
+                transactionExternalId: "TX-RACE-ONBOARD-001",
+                requiresIdentityValidation: false,
+                addendas: null,
+                ct: CancellationToken.None);
+
+            Assert.True(transaction.Id > 0);
+            Assert.True(interceptor.Triggered);
+            Assert.True(metrics.Contains("ach_single_retries_total", "reason", "unique_conflict"));
+            Assert.True(metrics.Contains("ach_single_rollbacks_total", "reason", "unique_conflict"));
+            Assert.Contains(logger.Messages, message => message.Contains("unique_conflict", StringComparison.Ordinal));
+        }
+
+        using var verification = CreateContext(connection);
+        Assert.Single(await verification.Customers.Where(customer => customer.DocumentNumber == "900777003").ToListAsync());
+        Assert.Single(await verification.Customers.Where(customer => customer.DocumentNumber == "1030555003").ToListAsync());
+        Assert.Single(await verification.CustomerAccounts.Where(account => account.AccountNumber == "700000000003").ToListAsync());
+        Assert.Single(await verification.CustomerAccounts.Where(account => account.AccountNumber == "800000000003").ToListAsync());
+        Assert.Single(await verification.ThirdParties.Where(thirdParty => thirdParty.DocumentNumberNormalized == "1030555003").ToListAsync());
+        Assert.Single(await verification.ThirdPartyAccounts.Where(account => account.AccountNumberNormalized == "800000000003").ToListAsync());
+        Assert.Single(await verification.AchTransactions.Where(transaction => transaction.TransactionExternalId == "TX-RACE-ONBOARD-001").ToListAsync());
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_WhenCancellationArrivesBeforeCommit_RollsBackAndClearsTracker()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        SeedCoreEntities(context);
+
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var onboarding = new ThirdPartyOnboardingService(
+            context,
+            Mock.Of<ILogger<ThirdPartyOnboardingService>>());
+        using var cts = new CancellationTokenSource();
+        var logger = new CapturingLogger<AchTransactionService>();
+        using var metrics = new MetricCapture("Cfa.ACHInterbank.ACH.Single");
+        var (service, contrapartida) = BuildTransactionServiceWithDispatchMock(
+            context,
+            cycleId,
+            thirdPartyOnboardingServiceOverride: onboarding,
+            loggerOverride: logger);
+        contrapartida
+            .Setup(dispatch => dispatch.EnsurePendingDispatchAsync(
+                It.IsAny<AchTransaction>(),
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
+            .Callback(() => cts.Cancel())
+            .ReturnsAsync(new ContrapartidaDispatchItem());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.RegisterTransactionAsync(
+            amount: 1m,
+            reference: "CANCEL-ONBOARD-001",
+            type: TransactionTypeEnum.Debit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: false,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "700000000004",
+            destinationAccountNumber: "800000000004",
+            companyName: "ORIGEN CANCEL",
+            companyIdentification: "900777004",
+            companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "RECAUDOS"),
+            sourcePersonType: "PJ",
+            recipientPersonType: "PN",
+            recipientIdNumber: "1030555004",
+            recipientName: "RECEPTOR CANCEL",
+            transactionExternalId: "TX-CANCEL-ONBOARD-001",
+            requiresIdentityValidation: false,
+            addendas: null,
+            ct: cts.Token));
+
+        Assert.Empty(context.ChangeTracker.Entries());
+        Assert.True(metrics.Contains("ach_single_operations_total", "outcome", "canceled"));
+        Assert.True(metrics.Contains("ach_single_rollbacks_total", "reason", "canceled"));
+        Assert.Contains(logger.Messages, message => message.Contains("canceled", StringComparison.Ordinal));
+
+        using var verification = CreateContext(connection);
+        Assert.Equal(0, await verification.Customers.CountAsync(customer =>
+            customer.DocumentNumber == "900777004" || customer.DocumentNumber == "1030555004"));
+        Assert.Equal(0, await verification.ThirdParties.CountAsync(thirdParty =>
+            thirdParty.DocumentNumberNormalized == "1030555004"));
+        Assert.Equal(0, await verification.ThirdPartyAccounts.CountAsync(account =>
+            account.AccountNumberNormalized == "800000000004"));
+        Assert.Equal(0, await verification.AchTransactions.CountAsync(transaction =>
+            transaction.TransactionExternalId == "TX-CANCEL-ONBOARD-001"));
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_WhenUnitOfWorkCommitFails_RollsBackAndClearsTracker()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        SeedCoreEntities(context);
+
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var onboarding = new ThirdPartyOnboardingService(
+            context,
+            Mock.Of<ILogger<ThirdPartyOnboardingService>>());
+        var unitOfWork = new Mock<IUnitOfWork>();
+        const string sensitiveFailureMarker = "CTA-700000000005-DOC-1030555005";
+        unitOfWork
+            .Setup(work => work.CommitAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException($"Fallo controlado del commit de unidad de trabajo. {sensitiveFailureMarker}"));
+        var logger = new CapturingLogger<AchTransactionService>();
+        using var metrics = new MetricCapture("Cfa.ACHInterbank.ACH.Single");
+        var (service, _) = BuildTransactionServiceWithDispatchMock(
+            context,
+            cycleId,
+            thirdPartyOnboardingServiceOverride: onboarding,
+            unitOfWorkOverride: unitOfWork.Object,
+            loggerOverride: logger);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
+            amount: 1m,
+            reference: "UOW-FAIL-001",
+            type: TransactionTypeEnum.Debit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: false,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "700000000005",
+            destinationAccountNumber: "800000000005",
+            companyName: "ORIGEN UOW",
+            companyIdentification: "900777005",
+            companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "RECAUDOS"),
+            sourcePersonType: "PJ",
+            recipientPersonType: "PN",
+            recipientIdNumber: "1030555005",
+            recipientName: "RECEPTOR UOW",
+            transactionExternalId: "TX-UOW-FAIL-001",
+            requiresIdentityValidation: false,
+            addendas: null,
+            ct: CancellationToken.None));
+
+        Assert.Contains("unidad de trabajo", ex.Message, StringComparison.OrdinalIgnoreCase);
+        unitOfWork.Verify(work => work.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Empty(context.ChangeTracker.Entries());
+        Assert.True(metrics.Contains("ach_single_operations_total", "outcome", "failed"));
+        Assert.True(metrics.Contains("ach_single_rollbacks_total", "reason", "failed"));
+        Assert.Contains(logger.Messages, message => message.Contains("InvalidOperationException", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, message => message.Contains(sensitiveFailureMarker, StringComparison.Ordinal));
+
+        using var verification = CreateContext(connection);
+        Assert.Equal(0, await verification.Customers.CountAsync(customer =>
+            customer.DocumentNumber == "900777005" || customer.DocumentNumber == "1030555005"));
+        Assert.Equal(0, await verification.ThirdParties.CountAsync(thirdParty =>
+            thirdParty.DocumentNumberNormalized == "1030555005"));
+        Assert.Equal(0, await verification.ThirdPartyAccounts.CountAsync(account =>
+            account.AccountNumberNormalized == "800000000005"));
+        Assert.Equal(0, await verification.AchTransactions.CountAsync(transaction =>
+            transaction.TransactionExternalId == "TX-UOW-FAIL-001"));
+    }
+
+    [Fact]
     public async Task BuildNachaFileByCycleAsync_Throws_WhenAddendaBusinessTypeIsIncompatibleWithTransactionType()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -479,12 +1241,12 @@ public class AchTransactionNachaTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
         var loader = new NachaDataLoader(executionContext);
-        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
+        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
         var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator,
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "DEVELOPMENT" }));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
         Assert.Contains("devolución", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -494,7 +1256,7 @@ public class AchTransactionNachaTests
     public async Task RegisterTransactions_WithSavingsCheckingAndPrenote_BuildsNachaFile()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -506,7 +1268,7 @@ public class AchTransactionNachaTests
             await transactionService.RegisterTransactionAsync(
                 amount: 0m,
                 reference: "PAGOPRE-SAV-001",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Savings,
                 isPrenotification: true,
                 destinationInstitutionId: 2,
@@ -517,13 +1279,13 @@ public class AchTransactionNachaTests
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: BuildCreditAddendas("MULTICREDIT", "PRE SAV 001"),
+                addendas: BuildDebitAddendas(),
                 ct: CancellationToken.None);
 
             await transactionService.RegisterTransactionAsync(
                 amount: 125m,
                 reference: "PAGO-SAV-001",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Savings,
                 isPrenotification: false,
                 destinationInstitutionId: 2,
@@ -532,15 +1294,16 @@ public class AchTransactionNachaTests
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
-                recipientIdNumber: null,
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente sintético",
                 requiresIdentityValidation: false,
-                addendas: BuildCreditAddendas("MULTICREDIT", "PAGO SAV 001"),
+                addendas: BuildDebitAddendas(),
                 ct: CancellationToken.None);
 
             await transactionService.RegisterTransactionAsync(
                 amount: 0m,
                 reference: "PAGOPRE-CHK-001",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Checking,
                 isPrenotification: true,
                 destinationInstitutionId: 2,
@@ -551,13 +1314,13 @@ public class AchTransactionNachaTests
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: BuildCreditAddendas("MULTICREDIT", "PRE CHK 001"),
+                addendas: BuildDebitAddendas(),
                 ct: CancellationToken.None);
 
             await transactionService.RegisterTransactionAsync(
                 amount: 350m,
                 reference: "PAGO-CHK-001",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Checking,
                 isPrenotification: false,
                 destinationInstitutionId: 2,
@@ -566,15 +1329,16 @@ public class AchTransactionNachaTests
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
-                recipientIdNumber: null,
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente sintético",
                 requiresIdentityValidation: false,
-                addendas: BuildCreditAddendas("MULTICREDIT", "PAGO CHK 001"),
+                addendas: BuildDebitAddendas(),
                 ct: CancellationToken.None);
 
             await transactionService.RegisterTransactionAsync(
                 amount: 0m,
                 reference: "PAGOPRE-003",
-                type: TransactionTypeEnum.Credit,
+                type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Checking,
                 isPrenotification: true,
                 destinationInstitutionId: 2,
@@ -585,7 +1349,7 @@ public class AchTransactionNachaTests
                 companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: BuildCreditAddendas("MULTICREDIT", "PRE 003"),
+                addendas: BuildDebitAddendas(),
                 ct: CancellationToken.None);
 
             var prenotes = await arrangeContext.AchTransactions
@@ -593,7 +1357,7 @@ public class AchTransactionNachaTests
                 .ToListAsync();
             foreach (var prenote in prenotes)
             {
-                prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+                prenote.EffectiveEntryDate = TestClock.OperationalDate.AddDays(-5);
             }
 
             arrangeContext.AchTransactions.UpdateRange(prenotes);
@@ -606,12 +1370,12 @@ public class AchTransactionNachaTests
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns([]);
         var loader = new NachaDataLoader(executionContext);
-        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
+        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
         var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator,
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "DEVELOPMENT" }));
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         Assert.NotEmpty(nachaContent);
@@ -625,7 +1389,7 @@ public class AchTransactionNachaTests
     public async Task BuildNachaFileByCycleAsync_DebitAddenda_UsesGoldenPositions()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -692,7 +1456,7 @@ public class AchTransactionNachaTests
             var prenote = await arrangeContext.AchTransactions
                 .SingleAsync(t => t.Reference == "PRE-RECAUDO-SERVICIO");
             Assert.Equal("28", prenote.TransactionCode);
-            prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+                prenote.EffectiveEntryDate = TestClock.OperationalDate.AddDays(-5);
             arrangeContext.AchTransactions.Update(prenote);
             await arrangeContext.SaveChangesAsync();
         }
@@ -701,12 +1465,12 @@ public class AchTransactionNachaTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
         var loader = new NachaDataLoader(executionContext);
-        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
+        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new Mock<INachaSemanticValidator>();
         var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator.Object,
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "DEVELOPMENT" }));
         var records = ChunkRecords(await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
         var addendaRecord = records.Last(record => record.StartsWith("7"));
 
@@ -719,11 +1483,11 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ReturnAddenda_UsesGoldenPositions()
+    public async Task GenerateReturnsFileAsync_ReturnAddenda_DelegatesV35SemanticsToOptionC()
     {
         using var connection = CreateOpenConnection();
 
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -777,49 +1541,41 @@ public class AchTransactionNachaTests
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AchReturnEligibilityRequest req, CancellationToken _) => new AchReturnEligibilityResult(true, req.ReturnReasonCode.Trim().ToUpperInvariant(), 1, "Credit", "Pending", []));
-        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var builder = ReturnOutNachaFileBuilderFactory.Create();
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: builder);
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(
                 cycleId,
                 [new ReturnSelectionItemDto(persistedTransactionId, "R01")]),
             CancellationToken.None);
 
-        var records = ChunkRecords(System.Text.Encoding.UTF8.GetString(response.Content));
-        var addendaRecord = records.Single(record => record.StartsWith("7"));
-        var batchHeader = records.Single(record => record.StartsWith("5"));
-        var batchControl = records.Single(record => record.StartsWith("8"));
-        var fileControl = records.First(record => record.StartsWith("9"));
+        var requests = Mock.Get(builder).Invocations
+            .Where(x => x.Method.Name == nameof(INachaFileBuilder.BuildReturnOutAsync))
+            .Select(x => (NachaReturnOutBuildRequest)x.Arguments[0])
+            .ToArray();
+        var entry = requests[^1].Batches.Single().Entries.Single();
 
-        Assert.Equal("99", addendaRecord.Substring(1, 2));
-        Assert.Equal("R01", addendaRecord.Substring(3, 5).Trim());
-        Assert.Equal("123456780000123", addendaRecord.Substring(8, 15));
-        Assert.Equal(15, addendaRecord.Substring(81, 15).Trim().Length);
-        Assert.Equal(7, addendaRecord.Substring(99, 7).Trim().Length);
+        Assert.Equal(2, requests.Length);
+        Assert.Equal("21", entry.TransactionCode);
+        Assert.Equal("R01", entry.ReturnReasonCode);
+        Assert.Equal("123456780000123", entry.OriginalTraceNumber);
+        Assert.Equal("76543210", entry.OriginalReceivingDfi);
+        Assert.StartsWith("76543210", entry.NewTraceNumber, StringComparison.Ordinal);
+        Assert.Equal(1200m, entry.Amount);
+        var records = ChunkRecords(System.Text.Encoding.UTF8.GetString(response.Content));
         Assert.Equal(10, records.Count);
         Assert.Equal(106 * records.Count, response.Content.Length);
         Assert.DoesNotContain('\n', System.Text.Encoding.UTF8.GetString(response.Content));
         Assert.DoesNotContain('\r', System.Text.Encoding.UTF8.GetString(response.Content));
-        Assert.Equal("220", batchHeader.Substring(1, 3));
-        Assert.Equal(batchHeader.Substring(1, 3), batchControl.Substring(1, 3));
-        Assert.Equal(batchHeader.Substring(40, 10), batchControl.Substring(56, 10));
-        Assert.Equal(batchHeader.Substring(83, 8), batchControl.Substring(91, 8));
-        Assert.Equal(batchHeader.Substring(91, 7), batchControl.Substring(99, 7));
-        Assert.Equal("      ", batchControl.Substring(85, 6));
-        Assert.Equal("000000000000000000", batchControl.Substring(20, 18));
-        Assert.Equal("000000000000120000", batchControl.Substring(38, 18));
-        Assert.Equal("000001", fileControl.Substring(1, 6));
-        Assert.Equal("000001", fileControl.Substring(7, 6));
-        Assert.Equal("00000002", fileControl.Substring(13, 8));
-        Assert.Equal(new string(' ', 39), fileControl.Substring(67, 39));
         Assert.All(records.Skip(6), record => Assert.Equal(new string('9', 106), record));
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_WithDev14_PreservesFiveCharacterReasonCode()
+    public async Task GenerateReturnsFileAsync_WithDev14_FailsClosedBeforeOptionCGeneration()
     {
         using var connection = CreateOpenConnection();
 
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -873,28 +1629,26 @@ public class AchTransactionNachaTests
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AchReturnEligibilityRequest req, CancellationToken _) => new AchReturnEligibilityResult(true, req.ReturnReasonCode.Trim().ToUpperInvariant(), 1, "Credit", "Pending", []));
-        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
-        var response = await service.GenerateReturnsFileAsync(
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        builder.Setup(x => x.BuildReturnOutAsync(It.IsAny<NachaReturnOutBuildRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("NACHA_ALLOWED_VALUE_INVALID"));
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: builder.Object);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(
                 cycleId,
                 [new ReturnSelectionItemDto(persistedTransactionId, "DEV14")]),
-            CancellationToken.None);
+            CancellationToken.None));
 
-        var records = ChunkRecords(System.Text.Encoding.UTF8.GetString(response.Content));
-        var addendaRecord = records.Single(record => record.StartsWith("7"));
-
-        Assert.Equal("99", addendaRecord.Substring(1, 2));
-        Assert.Equal("DEV14", addendaRecord.Substring(3, 5));
-        Assert.Equal("123456780000456", addendaRecord.Substring(8, 15));
-        Assert.Equal(15, addendaRecord.Substring(81, 15).Trim().Length);
-        Assert.Equal(7, addendaRecord.Substring(99, 7).Trim().Length);
+        Assert.Contains("ACHCOL_DEV14_CLAIMS_ONLY", ex.Message, StringComparison.Ordinal);
+        Assert.False(await executionContext.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == persistedTransactionId));
+        Assert.False(await executionContext.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == persistedTransactionId));
     }
 
     [Fact]
     public async Task GenerateReturnsFileAsync_WhenCatalogPolicyRejectsReason_ThrowsRegulatoryMessage()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -950,7 +1704,7 @@ public class AchTransactionNachaTests
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchReturnEligibilityResult(false, "R01", 1, "Credit", "Pending", [new AchReturnEligibilityFailure("RETURN_CODE_REJECTED", "La causal R01 no está permitida para Credit.")]));
 
-        var service = new AchReturnsService(executionContext, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(cycleId, [new ReturnSelectionItemDto(persistedTransactionId, "R01")]),
@@ -963,7 +1717,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WithValidBaseFile_ShouldParseSuccessfully()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
 
         using var parseContext = CreateContext(connection);
@@ -980,11 +1734,46 @@ public class AchTransactionNachaTests
         Assert.NotNull(await parseContext.FileControls.FirstOrDefaultAsync());
     }
 
+    [Theory]
+    [InlineData("22", "INVOICE-001", "FREE-INFO-001", null, null, null)]
+    [InlineData("23", "PRENOTE-REFERENCE-001", null, null, null, null)]
+    [InlineData("27", null, null, "9001234567890", "CUSTOMER-001", "SERVICE-001")]
+    public void ParseAddendaLinq_WithoutProfileReader_ReadsTheSelectedType7Variant(
+        string transactionCode,
+        string? expectedInvoiceOrReference,
+        string? expectedFreeInformation,
+        string? expectedCollectorId,
+        string? expectedCustomerCode,
+        string? expectedServiceDescription)
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        var parser = BuildParser(context);
+        var record = BuildType7Variant(
+            transactionCode,
+            expectedInvoiceOrReference,
+            expectedFreeInformation,
+            expectedCollectorId,
+            expectedCustomerCode,
+            expectedServiceDescription);
+
+        var addenda = Assert.Single(parser.ParseAddendaLinq(
+            [record],
+            new ParsedEntryDetail { TransactionCode = transactionCode },
+            profileReader: null));
+
+        Assert.Equal(expectedInvoiceOrReference, addenda.InvoiceOrAccountNumber);
+        Assert.Equal(expectedFreeInformation, addenda.InfofromOriginator);
+        Assert.Equal(expectedCollectorId, addenda.CollectorId);
+        Assert.Equal(expectedCustomerCode, addenda.ReceiverCustomerCode);
+        Assert.Equal(expectedServiceDescription, addenda.ServiceDescription);
+    }
+
     [Fact]
     public async Task ParseAndSaveAsync_WhenBatchControlCountDoesNotMatch_ThrowsFatal51()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         var controlIndex = records.FindIndex(record => record.StartsWith("8"));
@@ -1003,7 +1792,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WhenBatchControlHashDoesNotMatch_ThrowsFatal52()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         var controlIndex = records.FindIndex(record => record.StartsWith("8"));
@@ -1022,7 +1811,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WhenBatchControlReservedFieldContainsData_ThrowsFatal87()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         var controlIndex = records.FindIndex(record => record.StartsWith("8"));
@@ -1041,7 +1830,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WhenFileControlCountDoesNotMatch_ThrowsFatal60()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         var fileControlIndex = records.FindIndex(record => record.StartsWith("9") && record != new string('9', 106));
@@ -1060,7 +1849,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WhenPaddingContainsCharactersOtherThanNine_ThrowsFatal64()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         records[^1] = ReplaceSegment(records[^1], 50, 1, "0");
@@ -1092,6 +1881,18 @@ public class AchTransactionNachaTests
         return context;
     }
 
+    private static ITransactionPrerequisitePolicyService CreatePermissivePrerequisitePolicy()
+    {
+        var policy = new Mock<ITransactionPrerequisitePolicyService>();
+        policy
+            .Setup(x => x.ValidateForNachaExportAsync(
+                It.IsAny<AchTransaction>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionPrerequisiteValidationResult(true, "OK", "Política satisfecha.", null));
+        return policy.Object;
+    }
+
     private static void SeedCoreEntities(AchDbContext context)
     {
         var documentType = new DocumentTypeCatalog
@@ -1116,7 +1917,8 @@ public class AchTransactionNachaTests
         {
             Id = 1,
             ClearingHouseId = 1,
-            HolidayStrategy = "Test"
+            HolidayStrategy = "Test",
+            TimeZoneId = "America/Bogota"
         };
 
         var clearingHouse = new ClearingHouse
@@ -1129,17 +1931,33 @@ public class AchTransactionNachaTests
             ClearingHouseConfig = config
         };
 
-        var cycle = new AchCycle
+        var cycleConfig = new ClearingHouseCycleConfig
         {
-            Id = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today),
+            ClearingHouseId = 1,
+            PolicyVersion = "TEST-V1",
             CycleName = "CICLO-TEST",
-            ProcessingDate = DateTime.Today,
             StartTime = TimeSpan.Zero,
             EndTime = new TimeSpan(23, 59, 0),
             CutoffTime = TimeSpan.FromHours(17),
+            OutputReleaseTime = new TimeSpan(23, 59, 0),
+            EffectiveFrom = TestClock.OperationalDate,
+            EffectiveTo = TestClock.OperationalDate,
+            IsActive = true
+        };
+
+        var cycle = new AchCycle
+        {
+            Id = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate),
+            CycleName = "CICLO-TEST",
+            ProcessingDate = TestClock.OperationalDate,
+            StartTime = TimeSpan.Zero,
+            EndTime = new TimeSpan(23, 59, 0),
+            CutoffTime = TimeSpan.FromHours(17),
+            OutputReleaseTime = new TimeSpan(23, 59, 0),
             RescheduleOnHoliday = false,
             ClearingHouseId = 1,
-            ClearingHouse = clearingHouse
+            ClearingHouse = clearingHouse,
+            ClearingHouseCycleConfig = cycleConfig
         };
 
         var sourceInstitution = new FinancialInstitution
@@ -1172,6 +1990,7 @@ public class AchTransactionNachaTests
         context.PersonTypes.Add(personType);
         context.GenderTypes.Add(gender);
         context.ClearingHouses.Add(clearingHouse);
+        context.ClearingHouseCycleConfigs.Add(cycleConfig);
         context.AchCycles.Add(cycle);
         var alternativeSource = new FinancialInstitution
         {
@@ -1185,12 +2004,11 @@ public class AchTransactionNachaTests
         alternativeSource.CalculateCheckDigit();
 
         context.FinancialInstitutions.AddRange(sourceInstitution, destinationInstitution, alternativeSource);
-        context.AchReturnCodes.AddRange(
-            new AchReturnCode { ClearingHouseId = clearingHouse.Id, Code = "R01", Description = "Fondos insuficientes", AppliesToCredit = true, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true },
-            new AchReturnCode { ClearingHouseId = clearingHouse.Id, Code = "DEV14", Description = "No consentimiento", AppliesToCredit = false, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true });
+        context.AchReturnCodes.Add(
+            new AchReturnCode { ClearingHouseId = clearingHouse.Id, Code = "R01", Description = "Fondos insuficientes", AppliesToCredit = true, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true });
         context.AchReturnPolicies.AddRange(
             new AchReturnPolicy { ClearingHouseId = clearingHouse.Id, TransactionType = "Credit", AllowedReturnCodesCsv = "R01", MaxDays = 15, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { ClearingHouseId = clearingHouse.Id, TransactionType = "Debit", AllowedReturnCodesCsv = "R01,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true });
+            new AchReturnPolicy { ClearingHouseId = clearingHouse.Id, TransactionType = "Debit", AllowedReturnCodesCsv = "R01", MaxDays = 60, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true });
         context.Customers.Add(new Customer
         {
             FirstName = "Test",
@@ -1228,6 +2046,21 @@ public class AchTransactionNachaTests
         ];
     }
 
+    private static IEnumerable<AddendaDto> BuildDebitAddendas()
+    {
+        return
+        [
+            new AddendaDto
+            {
+                AddendaType = "05",
+                BusinessType = AchAddendaBusinessType.Debit,
+                CollectorId = "9001234567",
+                ReceiverCustomerCode = "CLI0000000001",
+                ServiceDescription = "FACTURA"
+            }
+        ];
+    }
+
     private static void EnsureCompanyEntryDescription(AchDbContext context, string term)
     {
         if (context.CompanyEntryDescriptionCatalogs.Any(x => x.Term == term))
@@ -1247,16 +2080,43 @@ public class AchTransactionNachaTests
     private static AchTransactionService BuildTransactionService(
         AchDbContext context,
         string cycleId,
-        ITransactionPolicyService? policyServiceOverride = null)
+        ITransactionPolicyService? policyServiceOverride = null,
+        IThirdPartyOnboardingService? thirdPartyOnboardingServiceOverride = null,
+        IClearingHouseValidationPolicyService? clearingHouseValidationPolicyServiceOverride = null,
+        IThirdPartyAccountEligibilityService? thirdPartyAccountEligibilityServiceOverride = null,
+        ITransactionPrerequisitePolicyService? transactionPrerequisitePolicyServiceOverride = null,
+        IThirdPartyAccountValidationService? thirdPartyAccountValidationServiceOverride = null,
+        IAchRegulatoryCatalogService? catalogServiceOverride = null,
+        IUnitOfWork? unitOfWorkOverride = null,
+        ILogger<AchTransactionService>? loggerOverride = null)
     {
-        var (service, _) = BuildTransactionServiceWithDispatchMock(context, cycleId, policyServiceOverride);
+        var (service, _) = BuildTransactionServiceWithDispatchMock(
+            context,
+            cycleId,
+            policyServiceOverride,
+            thirdPartyOnboardingServiceOverride,
+            clearingHouseValidationPolicyServiceOverride,
+            thirdPartyAccountEligibilityServiceOverride,
+            transactionPrerequisitePolicyServiceOverride,
+            thirdPartyAccountValidationServiceOverride,
+            catalogServiceOverride,
+            unitOfWorkOverride,
+            loggerOverride);
         return service;
     }
 
     private static (AchTransactionService Service, Mock<IContrapartidaDispatchPersistenceService> ContrapartidaDispatch) BuildTransactionServiceWithDispatchMock(
         AchDbContext context,
         string cycleId,
-        ITransactionPolicyService? policyServiceOverride = null)
+        ITransactionPolicyService? policyServiceOverride = null,
+        IThirdPartyOnboardingService? thirdPartyOnboardingServiceOverride = null,
+        IClearingHouseValidationPolicyService? clearingHouseValidationPolicyServiceOverride = null,
+        IThirdPartyAccountEligibilityService? thirdPartyAccountEligibilityServiceOverride = null,
+        ITransactionPrerequisitePolicyService? transactionPrerequisitePolicyServiceOverride = null,
+        IThirdPartyAccountValidationService? thirdPartyAccountValidationServiceOverride = null,
+        IAchRegulatoryCatalogService? catalogServiceOverride = null,
+        IUnitOfWork? unitOfWorkOverride = null,
+        ILogger<AchTransactionService>? loggerOverride = null)
     {
         var routing = new Mock<IRoutingStrategyService>();
         routing
@@ -1274,7 +2134,20 @@ public class AchTransactionNachaTests
         var validator = new TransactionValidator(context);
         var achBatchRepository = new AchBatchRepository(context);
         var achTransactionRepository = new AchTransactionRepository(context);
-        var batchResolver = new BatchResolver(context, achBatchRepository, routing.Object);
+        var transactionCodeAuthority = new Mock<IOrdinaryTransactionCodeAuthority>();
+        transactionCodeAuthority
+            .Setup(authority => authority.ResolveAsync(
+                It.IsAny<OrdinaryTransactionCodeAuthorityContext>(),
+                It.IsAny<OrdinaryTransactionCodeSemanticRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OrdinaryTransactionCodeAuthorityContext _, OrdinaryTransactionCodeSemanticRequest semantic, CancellationToken _) =>
+                validator.ResolveTransactionCode(semantic.Type, semantic.AccountType, semantic.IsPrenotification));
+        var batchResolver = new BatchResolver(
+            context,
+            achBatchRepository,
+            routing.Object,
+            timeProvider: TestClock.Create(),
+            transactionCodeAuthority: transactionCodeAuthority.Object);
         var persister = new TransactionPersister(achTransactionRepository, achBatchRepository, validator);
         var customerRepo = new AchCustomerRepository(context);
         var thirdPartyRepo = new CustomerThirdPartyRepository(context);
@@ -1283,13 +2156,107 @@ public class AchTransactionNachaTests
         var policyService = new Mock<ITransactionPolicyService>();
         policyService
             .Setup(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", DateTime.Today, "ACH Colombia", 1, "", true, null, null, null, null, false));
+            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", TestClock.OperationalDate, "ACH Colombia", 1, "", true, null, null, null, null, false));
 
-        var unitOfWork = new UnitOfWork(context);
+        var unitOfWork = unitOfWorkOverride ?? new UnitOfWork(context);
         var contrapartida = new Mock<IContrapartidaDispatchPersistenceService>();
         contrapartida.Setup(x => x.EnsurePendingDispatchAsync(It.IsAny<AchTransaction>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(new ContrapartidaDispatchItem());
 
-        var service = new AchTransactionService(context, unitOfWork, customerRepo, holiday.Object, validator, batchResolver, persister, prenotificationHandler, contrapartida.Object, null, null, policyServiceOverride ?? policyService.Object);
+        var onboarding = new Mock<IThirdPartyOnboardingService>();
+        onboarding
+            .Setup(x => x.EnsureAccountAsync(It.IsAny<ThirdPartyOnboardingRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ThirdPartyAccountRef(1, 1, false, false, false));
+
+        var defaultRule = new ClearingHouseTransactionRule
+        {
+            Id = 9001,
+            ClearingHouseId = 1,
+            TransactionNature = TransactionNature.Credit,
+            TransactionType = TransactionTypeEnum.Credit,
+            PrenotificationMode = PrenotificationRequirementMode.Optional,
+            AppliesToMonetaryTransactions = true,
+            AppliesToNachaExport = true,
+            EffectiveFrom = TestClock.OperationalDate,
+            IsActive = true,
+            NormativeSource = "TEST",
+            NormativeReference = "TEST"
+        };
+        var validationPolicy = new Mock<IClearingHouseValidationPolicyService>();
+        validationPolicy
+            .Setup(x => x.ResolveAsync(It.IsAny<int>(), It.IsAny<TransactionNature>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int clearingHouseId, TransactionNature nature, DateTime effectiveDate, CancellationToken _) =>
+            {
+                var rule = new ClearingHouseTransactionRule
+                {
+                    Id = defaultRule.Id,
+                    ClearingHouseId = clearingHouseId,
+                    TransactionNature = nature,
+                    TransactionType = nature == TransactionNature.Debit ? TransactionTypeEnum.Debit : TransactionTypeEnum.Credit,
+                    PrenotificationMode = PrenotificationRequirementMode.Optional,
+                    AppliesToMonetaryTransactions = true,
+                    AppliesToNachaExport = true,
+                    EffectiveFrom = effectiveDate.Date,
+                    IsActive = true,
+                    NormativeSource = "TEST",
+                    NormativeReference = "TEST"
+                };
+                return new ClearingHouseValidationPolicyResolution(rule, effectiveDate.Date, nature, clearingHouseId);
+            });
+
+        var eligibility = new Mock<IThirdPartyAccountEligibilityService>();
+        eligibility
+            .Setup(x => x.EvaluateAsync(It.IsAny<ThirdPartyAccountEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ThirdPartyAccountEligibilityRequest request, CancellationToken _) =>
+            {
+                var rule = new ClearingHouseTransactionRule
+                {
+                    Id = defaultRule.Id,
+                    ClearingHouseId = request.ClearingHouseId,
+                    TransactionNature = request.TransactionNature,
+                    TransactionType = request.TransactionNature == TransactionNature.Debit ? TransactionTypeEnum.Debit : TransactionTypeEnum.Credit,
+                    PrenotificationMode = PrenotificationRequirementMode.Optional,
+                    AppliesToMonetaryTransactions = true,
+                    AppliesToNachaExport = true,
+                    EffectiveFrom = request.EffectiveDate.Date,
+                    IsActive = true,
+                    NormativeSource = "TEST",
+                    NormativeReference = "TEST"
+                };
+                return new ThirdPartyAccountEligibilityResult(
+                    ThirdPartyAccountEligibilityDecision.AllowedWithoutPrenotification,
+                    "PRENOTIFICATION_OPTIONAL",
+                    "Test permissive eligibility.",
+                    rule,
+                    null,
+                    null,
+                    null);
+            });
+
+        var registrationPrerequisite = new Mock<ITransactionPrerequisitePolicyService>();
+        registrationPrerequisite
+            .Setup(x => x.ValidateForRegistration(It.IsAny<TransactionRegistrationPrerequisiteRequest>()))
+            .Returns((TransactionRegistrationPrerequisiteRequest request) =>
+                new TransactionPrerequisiteValidationResult(true, "OK", "Test prerequisite satisfied.", request.PolicyRule));
+
+        var service = new AchTransactionService(
+            context,
+            unitOfWork,
+            customerRepo,
+            holiday.Object,
+            validator,
+            batchResolver,
+            persister,
+            prenotificationHandler,
+            thirdPartyOnboardingServiceOverride ?? onboarding.Object,
+            clearingHouseValidationPolicyServiceOverride ?? validationPolicy.Object,
+            thirdPartyAccountEligibilityServiceOverride ?? eligibility.Object,
+            transactionPrerequisitePolicyServiceOverride ?? registrationPrerequisite.Object,
+            contrapartida.Object,
+            null,
+            catalogServiceOverride,
+            policyServiceOverride ?? policyService.Object,
+            thirdPartyAccountValidationService: thirdPartyAccountValidationServiceOverride,
+            logger: loggerOverride);
         return (service, contrapartida);
     }
 
@@ -1466,6 +2433,43 @@ public class AchTransactionNachaTests
             .ToList();
     }
 
+    private sealed class ThrowUniqueOnLegacyCustomerSaveInterceptor : SaveChangesInterceptor
+    {
+        private readonly string _documentNumber;
+
+        public ThrowUniqueOnLegacyCustomerSaveInterceptor(string documentNumber)
+        {
+            _documentNumber = documentNumber;
+        }
+
+        public bool Triggered { get; private set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!Triggered
+                && eventData.Context is AchDbContext context
+                && context.ChangeTracker.Entries<Customer>().Any(entry =>
+                    entry.State == EntityState.Added
+                    && entry.Entity.DocumentNumber == _documentNumber))
+            {
+                Triggered = true;
+                throw new DbUpdateException(
+                    "Simulated legacy onboarding unique conflict.",
+                    new FakeSqliteUniqueException());
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+
+    private sealed class FakeSqliteUniqueException : Exception
+    {
+        public int SqliteErrorCode => 19;
+    }
+
     private static NachaParserService BuildParser(AchDbContext context)
     {
         var logger = new Mock<ILogger<NachaParserService>>();
@@ -1496,7 +2500,7 @@ public class AchTransactionNachaTests
         using var arrangeContext = CreateContext(connection);
         SeedCoreEntities(arrangeContext);
 
-        var processingDate = DateTime.Today;
+        var processingDate = TestClock.OperationalDate;
         const string receivingDfi = "76543210";
         const string companyId = "1234567800";
         const string batchNumber = "0000001";
@@ -1592,6 +2596,39 @@ public class AchTransactionNachaTests
         return new string(line);
     }
 
+    private static string BuildType7Variant(
+        string transactionCode,
+        string? invoiceOrReference,
+        string? freeInformation,
+        string? collectorId,
+        string? customerCode,
+        string? serviceDescription)
+    {
+        var line = new string(' ', 106).ToCharArray();
+        line[0] = '7';
+        Copy("05", line, 1);
+        if (transactionCode == "27")
+        {
+            Copy(collectorId!.PadRight(13), line, 3);
+            Copy(customerCode!.PadRight(30), line, 16);
+            Copy(serviceDescription!.PadRight(15), line, 46);
+        }
+        else
+        {
+            Copy("ORIGINATOR-001".PadRight(15), line, 3);
+            Copy("PURPOSE-01".PadRight(10), line, 20);
+            Copy(invoiceOrReference!.PadRight(transactionCode == "23" ? 53 : 24), line, 30);
+            if (transactionCode == "22")
+            {
+                Copy(freeInformation!.PadRight(24), line, 56);
+            }
+        }
+
+        Copy("0001", line, 83);
+        Copy("0000001", line, 87);
+        return new string(line);
+    }
+
     private static string BuildType8(string entryAddendaCount6, string hash10, string amount18, string companyId, string batchNumber)
     {
         var line = new string(' ', 106).ToCharArray();
@@ -1621,6 +2658,70 @@ public class AchTransactionNachaTests
         Copy(amount18, line, 49);
         Copy(new string(' ', 39), line, 67);
         return new string(line);
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+        }
+    }
+
+    private sealed class MetricCapture : IDisposable
+    {
+        private readonly MeterListener _listener = new();
+        private readonly string _meterName;
+
+        public MetricCapture(string meterName)
+        {
+            _meterName = meterName;
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == _meterName)
+                {
+                    listener.EnableMeasurementEvents(instrument);
+                }
+            };
+            _listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, _) =>
+            {
+                var capturedTags = new List<KeyValuePair<string, object?>>(tags.Length);
+                foreach (var tag in tags)
+                {
+                    capturedTags.Add(tag);
+                }
+
+                Measurements.Add(new MetricMeasurement(instrument.Name, measurement, capturedTags));
+            });
+            _listener.Start();
+        }
+
+        private List<MetricMeasurement> Measurements { get; } = [];
+
+        public bool Contains(string instrumentName, string tagName, string tagValue)
+            => Measurements.Any(measurement =>
+                measurement.Name == instrumentName
+                && measurement.Tags.Any(tag =>
+                    tag.Key == tagName
+                    && string.Equals(tag.Value?.ToString(), tagValue, StringComparison.Ordinal)));
+
+        public void Dispose() => _listener.Dispose();
+
+        private sealed record MetricMeasurement(
+            string Name,
+            long Value,
+            IReadOnlyList<KeyValuePair<string, object?>> Tags);
     }
 
     private static void Copy(string value, char[] buffer, int index)

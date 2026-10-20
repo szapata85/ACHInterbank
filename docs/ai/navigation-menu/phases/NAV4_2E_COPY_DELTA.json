@@ -1,0 +1,248 @@
+{
+  "baseline": "NAV4.2D",
+  "baseline_app_tree_sha256": "4d83eac4561e9a8b4a57ce91e20980bce2f8e1a5f76c6b8cc8b6a0c8f8e1022f",
+  "files": 12,
+  "lines": 36,
+  "changes": [
+    {
+      "path": "features/ach-responses/pages/ach-response-dashboard-page.component.html",
+      "entries": [
+        {
+          "line": 20,
+          "old": "    <mat-label>Tipo respuesta</mat-label>",
+          "new": "    <mat-label>Tipo de respuesta</mat-label>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-list-page.component.html",
+      "entries": [
+        {
+          "line": 18,
+          "old": "    <mat-label>Tipo respuesta</mat-label>",
+          "new": "    <mat-label>Tipo de respuesta</mat-label>"
+        },
+        {
+          "line": 25,
+          "old": "    <mat-label>Id transacción</mat-label>",
+          "new": "    <mat-label>ID de transacción</mat-label>"
+        },
+        {
+          "line": 50,
+          "old": "    <mat-label>Estado procesamiento</mat-label>",
+          "new": "    <mat-label>Estado de procesamiento</mat-label>"
+        },
+        {
+          "line": 57,
+          "old": "    <mat-label>CorrelationId</mat-label>",
+          "new": "    <mat-label>ID de correlación</mat-label>"
+        },
+        {
+          "line": 86,
+          "old": "    <mat-label>Tamaño página</mat-label>",
+          "new": "    <mat-label>Tamaño de página</mat-label>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-manual-review-page.component.html",
+      "entries": [
+        {
+          "line": 25,
+          "old": "    <mat-label>Tipo respuesta</mat-label>",
+          "new": "    <mat-label>Tipo de respuesta</mat-label>"
+        },
+        {
+          "line": 32,
+          "old": "    <mat-label>ID transacción</mat-label>",
+          "new": "    <mat-label>ID de transacción</mat-label>"
+        },
+        {
+          "line": 78,
+          "old": "    <mat-label>Tamaño página</mat-label>",
+          "new": "    <mat-label>Tamaño de página</mat-label>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-status-mappings-page.component.html",
+      "entries": [
+        {
+          "line": 16,
+          "old": "    <mat-label>Selector de cámara (ID)</mat-label>",
+          "new": "    <mat-label>ID de cámara</mat-label>"
+        },
+        {
+          "line": 39,
+          "old": "    <mat-label>ID estado interno</mat-label>",
+          "new": "    <mat-label>ID del estado interno</mat-label>"
+        },
+        {
+          "line": 44,
+          "old": "    <mat-label>ID estado servicio externo</mat-label>",
+          "new": "    <mat-label>ID del estado del servicio externo</mat-label>"
+        },
+        {
+          "line": 49,
+          "old": "    <mat-label>Nombre estado interno</mat-label>",
+          "new": "    <mat-label>Nombre del estado interno</mat-label>"
+        },
+        {
+          "line": 102,
+          "old": "    <mat-label>Tipo respuesta</mat-label>",
+          "new": "    <mat-label>Tipo de respuesta</mat-label>"
+        }
+      ]
+    },
+    {
+      "path": "features/incoming-nacha-command-center/pages/incoming-nacha-queue-page.component.html",
+      "entries": [
+        {
+          "line": 13,
+          "old": "      <ui-campo-texto etiqueta=\"Transacción ACH\" [control]=\"$any(filtrosForm.controls.achTransactionId)\"></ui-campo-texto>",
+          "new": "      <ui-campo-texto etiqueta=\"ID de transacción ACH\" [control]=\"$any(filtrosForm.controls.achTransactionId)\"></ui-campo-texto>"
+        },
+        {
+          "line": 16,
+          "old": "      <ui-campo-numero etiqueta=\"Tamaño\" [control]=\"$any(filtrosForm.controls.pageSize)\"></ui-campo-numero>",
+          "new": "      <ui-campo-numero etiqueta=\"Tamaño de página\" [control]=\"$any(filtrosForm.controls.pageSize)\"></ui-campo-numero>"
+        }
+      ]
+    },
+    {
+      "path": "features/integrations/pages/mapping-editor-page.component.html",
+      "entries": [
+        {
+          "line": 208,
+          "old": "              <mat-label>Id de transacción real</mat-label>",
+          "new": "              <mat-label>ID de transacción real</mat-label>"
+        },
+        {
+          "line": 212,
+          "old": "              <mat-label>Id de ciclo real</mat-label>",
+          "new": "              <mat-label>ID de ciclo real</mat-label>"
+        }
+      ]
+    },
+    {
+      "path": "features/integrations/pages/soap-integration-settings.component.html",
+      "entries": [
+        {
+          "line": 166,
+          "old": "              <mat-hint>Backend determina y aplica la seguridad del destino.</mat-hint>",
+          "new": "              <mat-hint>El sistema determina y aplica la seguridad del destino.</mat-hint>"
+        }
+      ]
+    },
+    {
+      "path": "features/operational-restrictions/operational-restrictions.component.html",
+      "entries": [
+        {
+          "line": 43,
+          "old": "          <mat-label>PolicyVersion</mat-label>",
+          "new": "          <mat-label>Versión de política</mat-label>"
+        },
+        {
+          "line": 44,
+          "old": "          <input matInput formControlName=\"policyVersion\" autocomplete=\"off\" placeholder=\"Ej. V35\" aria-label=\"Filtrar por PolicyVersion\" />",
+          "new": "          <input matInput formControlName=\"policyVersion\" autocomplete=\"off\" placeholder=\"Ej. V35\" aria-label=\"Filtrar por versión de política\" />"
+        },
+        {
+          "line": 259,
+          "old": "            <mat-label>PolicyVersion</mat-label>",
+          "new": "            <mat-label>Versión de política</mat-label>"
+        },
+        {
+          "line": 260,
+          "old": "            <mat-select formControlName=\"policyVersion\" aria-label=\"PolicyVersion del ciclo\">",
+          "new": "            <mat-select formControlName=\"policyVersion\" aria-label=\"Versión de política del ciclo\">"
+        },
+        {
+          "line": 267,
+          "old": "            <mat-label>ClearingHouseCycleConfig</mat-label>",
+          "new": "            <mat-label>Ciclo versionado</mat-label>"
+        },
+        {
+          "line": 273,
+          "old": "            <mat-hint>El ID se toma del ciclo versionado; no se usan nombres ni IDs de cámara hardcodeados.</mat-hint>",
+          "new": "            <mat-hint>El ID se toma del ciclo versionado; no se usan nombres ni IDs de cámara definidos de forma fija.</mat-hint>"
+        },
+        {
+          "line": 335,
+          "old": "            <mat-label>Semántica</mat-label>",
+          "new": "            <mat-label>Tratamiento de tipos de cuenta</mat-label>"
+        },
+        {
+          "line": 336,
+          "old": "            <mat-select formControlName=\"accountTypesMode\" aria-label=\"Semántica de tipos de cuenta permitidos\">",
+          "new": "            <mat-select formControlName=\"accountTypesMode\" aria-label=\"Tratamiento de tipos de cuenta permitidos\">"
+        },
+        {
+          "line": 356,
+          "old": "            <mat-label>EffectiveFrom</mat-label>",
+          "new": "            <mat-label>Vigencia inicial</mat-label>"
+        },
+        {
+          "line": 364,
+          "old": "            <mat-label>EffectiveTo</mat-label>",
+          "new": "            <mat-label>Vigencia final</mat-label>"
+        }
+      ]
+    },
+    {
+      "path": "features/payment-rail-capability-registry/pages/payment-rail-capability-registry-page.component.html",
+      "entries": [
+        {
+          "line": 37,
+          "old": "        <span>Capability (opcional)</span>",
+          "new": "        <span>Capacidad (opcional)</span>"
+        },
+        {
+          "line": 42,
+          "old": "        <span>As Of UTC (opcional)</span>",
+          "new": "        <span>Fecha y hora de vigencia (UTC, opcional)</span>"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/ach-return-of-return-management/ach-return-of-return-management.component.html",
+      "entries": [
+        {
+          "line": 9,
+          "old": "      <mat-label>ID devolución origen</mat-label>",
+          "new": "      <mat-label>ID de la devolución de origen</mat-label>"
+        },
+        {
+          "line": 48,
+          "old": "      <mat-label>FlowIds (separados por coma)</mat-label>",
+          "new": "      <mat-label>IDs de flujo (separados por comas)</mat-label>"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/bulk-ingestion-upload/bulk-ingestion-upload.component.html",
+      "entries": [
+        {
+          "line": 11,
+          "old": "      <mat-hint>Si se omite, el backend generará una referencia automática.</mat-hint>",
+          "new": "      <mat-hint>Si se omite, el sistema generará una referencia automática.</mat-hint>"
+        },
+        {
+          "line": 15,
+          "old": "      <mat-label>ID cliente (opcional)</mat-label>",
+          "new": "      <mat-label>ID del cliente (opcional)</mat-label>"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/transaction-create/transaction-create.component.html",
+      "entries": [
+        {
+          "line": 432,
+          "old": "              La elegibilidad y su motivo son calculados por backend para la cámara y contexto actuales.",
+          "new": "              La elegibilidad y su motivo son calculados por el sistema para la cámara y el contexto actuales."
+        }
+      ]
+    }
+  ]
+}

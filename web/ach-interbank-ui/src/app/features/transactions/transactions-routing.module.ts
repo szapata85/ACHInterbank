@@ -8,73 +8,101 @@ import { TransactionBulkCreateComponent } from './components/transaction-bulk-cr
 import { BulkIngestionUploadComponent } from './components/bulk-ingestion-upload/bulk-ingestion-upload.component';
 import { BulkIngestionTrackingComponent } from './components/bulk-ingestion-tracking/bulk-ingestion-tracking.component';
 import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail/bulk-ingestion-detail.component';
-import { CycleConfigManagementComponent } from './components/cycle-config-management/cycle-config-management.component';
-import { ClearingHouseTransactionRulesComponent } from './components/clearing-house-transaction-rules/clearing-house-transaction-rules.component';
 import { AchReturnOfReturnManagementComponent } from './components/ach-return-of-return-management/ach-return-of-return-management.component';
+import { permissionGuard } from '../../core/guards/permission.guard';
+import { OutgoingTransactionMonitoringListComponent } from './outgoing-monitoring/outgoing-transaction-monitoring-list.component';
+import { OutgoingTransactionMonitoringDetailComponent } from './outgoing-monitoring/outgoing-transaction-monitoring-detail.component';
 
-const routes: Routes = [
+export const TRANSACTIONS_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'list' },
+  {
+    path: 'outgoing-monitoring',
+    component: OutgoingTransactionMonitoringListComponent,
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['OutgoingTransactions.Monitor.Read', 'CanReadAch', 'CanManageAch'],
+      title: 'Transacciones enviadas',
+      breadcrumb: 'Transacciones enviadas'
+    }
+  },
+  {
+    path: 'outgoing-monitoring/:id',
+    component: OutgoingTransactionMonitoringDetailComponent,
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['OutgoingTransactions.Monitor.Read', 'CanReadAch', 'CanManageAch'],
+      title: 'Detalle de transacción de salida',
+      breadcrumb: 'Detalle de salida'
+    }
+  },
   {
     path: 'list',
     component: TransactionListComponent,
-    data: { title: 'Transacciones', breadcrumb: 'Transacciones' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Consultar transacciones', breadcrumb: 'Consultar transacciones' }
   },
   {
     path: 'create',
     component: TransactionCreateComponent,
-    data: { title: 'Crear transacción', breadcrumb: 'Crear transacción' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['Transactions.Create', 'CanManageAch'], title: 'Crear transacción', breadcrumb: 'Crear transacción' }
   },
   {
     path: 'bulk-create',
     component: TransactionBulkCreateComponent,
-    data: { title: 'Crear transacción masiva', breadcrumb: 'Crear transacción masiva' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanManageAch'], title: 'Crear transacción masiva', breadcrumb: 'Crear transacción masiva' }
   },
 
   {
     path: 'bulk-ingestion/upload',
     component: BulkIngestionUploadComponent,
-    data: { title: 'Carga masiva por archivo', breadcrumb: 'Carga masiva por archivo' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['BulkIngestion.Upload', 'CanManageAch'], title: 'Cargar transacciones desde archivo', breadcrumb: 'Cargar transacciones desde archivo' }
   },
   {
     path: 'bulk-ingestion/tracking',
     component: BulkIngestionTrackingComponent,
-    data: { title: 'Seguimiento de lotes', breadcrumb: 'Seguimiento de lotes' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['BulkIngestion.Read', 'CanReadAch'], title: 'Seguimiento de cargas', breadcrumb: 'Seguimiento de cargas' }
   },
   {
     path: 'bulk-ingestion/:batchId',
     component: BulkIngestionDetailComponent,
-    data: { title: 'Detalle de lote', breadcrumb: 'Detalle de lote' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['BulkIngestion.Read', 'CanReadAch'], title: 'Detalle de lote', breadcrumb: 'Detalle de lote' }
   },
   {
     path: 'nacha-upload',
     component: NachaUploadComponent,
-    data: { title: 'Cargar NACHA-M', breadcrumb: 'Cargar NACHA-M' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['Nacha.Upload', 'CanManageAch'], title: 'Cargar archivo NACHA-M', breadcrumb: 'Cargar archivo NACHA-M' }
   },
 
   {
     path: 'cycle-configs',
-    component: CycleConfigManagementComponent,
-    data: { title: 'Configuración de ciclos', breadcrumb: 'Configuración de ciclos' }
+    pathMatch: 'full',
+    redirectTo: '/clearing-houses',
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanManageAch'], title: 'Configuración de ciclos', breadcrumb: 'Configuración de ciclos' }
   },
-  {
-    path: 'clearing-house-rules',
-    component: ClearingHouseTransactionRulesComponent,
-    data: { title: 'Reglas por cámara', breadcrumb: 'Reglas por cámara' }
-  },
+  { path: 'clearing-house-rules', pathMatch: 'full', redirectTo: '/clearing-houses' },
   {
     path: 'returns',
     component: AchReturnsManagementComponent,
-    data: { title: 'Devoluciones ACH', breadcrumb: 'Devoluciones ACH' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Devoluciones', breadcrumb: 'Devoluciones' }
   },
   {
     path: 'returns-ror',
     component: AchReturnOfReturnManagementComponent,
-    data: { title: 'Devolución de devolución', breadcrumb: 'Devolución de devolución' }
+    canActivate: [permissionGuard],
+    data: { permissions: ['Returns.Read', 'CanReadAch'], title: 'Devolución de una devolución', breadcrumb: 'Devolución de una devolución' }
   }
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(routes)],
+  imports: [RouterModule.forChild(TRANSACTIONS_ROUTES)],
   exports: [RouterModule]
 })
 export class TransactionsRoutingModule {}

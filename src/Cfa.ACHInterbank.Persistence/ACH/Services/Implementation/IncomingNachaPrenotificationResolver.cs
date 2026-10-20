@@ -35,8 +35,38 @@ public class IncomingNachaPrenotificationResolver : IIncomingNachaPrenotificatio
         AchTransaction? linkedTransaction = null;
         if (linkedTransactionId.HasValue)
         {
-            linkedTransaction = await _context.AchTransactions.AsNoTracking()
+            linkedTransaction = await _context.AchTransactions
+                .AsNoTracking()
+                .Include(x => x.AchCycle)
                 .FirstOrDefaultAsync(x => x.Id == linkedTransactionId.Value, ct);
+        }
+
+        if (!resolvedClearingHouseId.HasValue)
+        {
+            return ManualReview(
+                "La prenotificación entrante no tiene una cámara compensadora resuelta de forma confiable.",
+                ingestionId,
+                destinationAccount,
+                recipientId,
+                receivingDfi,
+                linkedTransactionId,
+                resolvedClearingHouseId,
+                operationalDate);
+        }
+
+        if (linkedTransaction is not null
+            && (linkedTransaction.AchCycle is null
+                || linkedTransaction.AchCycle.ClearingHouseId != resolvedClearingHouseId.Value))
+        {
+            return ManualReview(
+                "La cámara del archivo entrante no coincide con la transacción vinculada.",
+                ingestionId,
+                destinationAccount,
+                recipientId,
+                receivingDfi,
+                linkedTransactionId,
+                resolvedClearingHouseId,
+                operationalDate);
         }
 
         var thirdPartyQuery = _context.CustomerThirdParties
@@ -141,13 +171,13 @@ public class IncomingNachaPrenotificationResolver : IIncomingNachaPrenotificatio
         }
 
         var selected = candidates[0];
-        selected.Status = CustomerThirdPartyStatusEnum.Active;
-        selected.ValidationReceivedAt = DateTime.UtcNow;
-        selected.ValidationMessage = "Prenotificación entrante aplicada por resolvedor NACHA-M.";
-        if (linkedTransactionId.HasValue)
-        {
-            selected.PrenotificationTransactionId = linkedTransactionId.Value;
-        }
+        selected.ApplyAutomaticNachaResult(
+            CustomerThirdPartyStatusEnum.Active,
+            linkedTransactionId,
+            validationCycleId: null,
+            DateTime.UtcNow,
+            "Prenotificación entrante aplicada por resolvedor NACHA-M.",
+            $"incoming-ingestion:{ingestionId:D}");
 
         return new IncomingNachaPrenoteResolutionResult
         {
@@ -169,4 +199,31 @@ public class IncomingNachaPrenotificationResolver : IIncomingNachaPrenotificatio
             })
         };
     }
+
+    private static IncomingNachaPrenoteResolutionResult ManualReview(
+        string message,
+        Guid ingestionId,
+        string destinationAccount,
+        string recipientId,
+        string receivingDfi,
+        int? linkedTransactionId,
+        int? resolvedClearingHouseId,
+        DateTime? operationalDate)
+        => new()
+        {
+            PrenoteStatus = IncomingNachaPrenoteStatus.RequiereRevision,
+            Applied = false,
+            RequiresManualReview = true,
+            Message = message,
+            EvidenceJson = JsonSerializer.Serialize(new
+            {
+                ingestionId,
+                destinationAccount,
+                recipientId,
+                receivingDfi,
+                linkedTransactionId,
+                resolvedClearingHouseId,
+                operationalDate
+            })
+        };
 }

@@ -6,6 +6,8 @@ namespace Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 public abstract class PaymentRailOperationalStrategyBase : IPaymentRailOperationalStrategy
 {
     public abstract string RailCode { get; }
+    public abstract string DisplayName { get; }
+    public virtual bool IsAdministrativelySelectable => true;
     public abstract PaymentRailCapabilityDescriptor Capabilities { get; }
     public abstract IReadOnlyCollection<PaymentRailCapabilityStatus> CapabilityStatuses { get; }
 

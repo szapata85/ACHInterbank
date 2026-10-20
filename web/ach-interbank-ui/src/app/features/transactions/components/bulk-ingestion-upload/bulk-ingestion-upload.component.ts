@@ -1,15 +1,21 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { Router, RouterModule } from '@angular/router';
 import { finalize, take } from 'rxjs';
+import { AuthService } from '../../../../core/services/auth.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
 import { BulkIngestionTrackingApiService } from '../../services/bulk-ingestion-tracking-api.service';
 
+const BULK_INGESTION_UPLOAD_PERMISSIONS = ['BulkIngestion.Upload', 'CanManageAch'];
+
 @Component({
   selector: 'app-bulk-ingestion-upload',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [SharedModule, RouterModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   templateUrl: './bulk-ingestion-upload.component.html',
   styleUrls: ['./bulk-ingestion-upload.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -17,6 +23,7 @@ import { BulkIngestionTrackingApiService } from '../../services/bulk-ingestion-t
 export class BulkIngestionUploadComponent {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(BulkIngestionTrackingApiService);
+  private readonly auth = inject(AuthService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
 
@@ -57,6 +64,10 @@ export class BulkIngestionUploadComponent {
   }
 
   upload(): void {
+    if (!this.ensureCanUpload()) {
+      return;
+    }
+
     if (this.isSubmitting()) {
       return;
     }
@@ -93,6 +104,20 @@ export class BulkIngestionUploadComponent {
           this.notifications.error(error.message);
         }
       });
+  }
+
+
+  get canUploadBatch(): boolean {
+    return this.auth.hasPermission(BULK_INGESTION_UPLOAD_PERMISSIONS);
+  }
+
+  private ensureCanUpload(): boolean {
+    if (this.canUploadBatch) {
+      return true;
+    }
+
+    this.notifications.error('No tiene permisos para cargar transacciones desde archivo.');
+    return false;
   }
 
   goToTracking(): void {

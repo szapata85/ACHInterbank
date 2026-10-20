@@ -2,13 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RuntimeFrameworkVersion>10.0.5</RuntimeFrameworkVersion>
+    <RuntimeFrameworkVersion>10.0.13</RuntimeFrameworkVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 	<NoWarn>CS1591</NoWarn>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\Cfa.ACHInterbank.Api.xml</DocumentationFile>
-    <UserSecretsId>fdac4e92-4a82-41e2-80cd-245f18336eff</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileContext>..\..</DockerfileContext>
   </PropertyGroup>
@@ -34,20 +33,28 @@
     <ProjectReference Include="..\Cfa.ACHInterbank.Domain\Cfa.ACHInterbank.Domain.csproj" />
     <ProjectReference Include="..\Cfa.ACHInterbank.External\Cfa.ACHInterbank.External.csproj" />
     <ProjectReference Include="..\Cfa.ACHInterbank.Persistence\Cfa.ACHInterbank.Persistence.csproj" />
+    <ProjectReference Include="..\Cfa.ACHInterbank.Persistence.Migrations.SqlServer\Cfa.ACHInterbank.Persistence.Migrations.SqlServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.5">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.13">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
-    <PackageReference Include="NLog" Version="6.1.2" />
+    <PackageReference Include="NLog" Version="6.2.1" />
     <PackageReference Include="NLog.Database" Version="6.0.3" />
-    <PackageReference Include="NLog.Extensions.Logging" Version="6.1.2" />
-    <PackageReference Include="NLog.Web.AspNetCore" Version="6.1.2" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.13.22" />
+    <PackageReference Include="NLog.Extensions.Logging" Version="6.2.1" />
+    <PackageReference Include="NLog.Web.AspNetCore" Version="6.2.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
+    <!-- Security pin: overrides vulnerable transitive PKCS versions pulled by design-time/tooling dependencies. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.17.14" />
   </ItemGroup>
 
 </Project>

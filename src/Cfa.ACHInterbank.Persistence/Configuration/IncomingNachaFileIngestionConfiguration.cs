@@ -15,6 +15,7 @@ public class IncomingNachaFileIngestionConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.FileName).HasMaxLength(260).IsRequired();
         builder.Property(x => x.FileHashSha256).HasMaxLength(64).IsRequired();
         builder.Property(x => x.ContentType).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.FileExtension).HasMaxLength(20).IsRequired();
         builder.Property(x => x.UploadedBy).HasMaxLength(120).IsRequired();
         builder.Property(x => x.ReceivedBy).HasMaxLength(120);
         builder.Property(x => x.ResolvedAchCycleId).HasMaxLength(40);
@@ -23,22 +24,31 @@ public class IncomingNachaFileIngestionConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.RawStorageReference).HasMaxLength(400);
         builder.Property(x => x.CorrelationId).HasMaxLength(80).IsRequired();
         builder.Property(x => x.Notes).HasMaxLength(2000).IsRequired();
+        builder.Property(x => x.ProfileCode).HasMaxLength(100);
+        builder.Property(x => x.ProfileVersion).HasMaxLength(40);
+        builder.Property(x => x.RejectionCode).HasMaxLength(100);
+        builder.Property(x => x.RejectionTitle).HasMaxLength(240);
+        builder.Property(x => x.RejectionDescription).HasMaxLength(2000);
+        builder.Property(x => x.SuggestedAction).HasMaxLength(1000);
+        builder.Property(x => x.TechnicalErrorCode).HasMaxLength(100);
+        builder.Property(x => x.TechnicalErrorMessage).HasMaxLength(2000);
 
         builder.Property(x => x.IngestionStatus).HasConversion<string>().HasMaxLength(40).IsRequired();
         builder.Property(x => x.CycleResolutionStatus).HasConversion<string>().HasMaxLength(40).IsRequired();
         builder.Property(x => x.ParsingStatus).HasConversion<string>().HasMaxLength(40).IsRequired();
+        builder.Property(x => x.Stage).HasConversion<string>().HasMaxLength(40).IsRequired();
 
         builder.Property(x => x.ResolutionEvidenceJson).IsRequired();
         builder.Property(x => x.WarningsJson).IsRequired();
 
         builder.HasIndex(x => new { x.FileHashSha256, x.FileSize })
             .IsUnique()
-            .HasDatabaseName("UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical")
-            .HasFilter("\"IsReprocess\" = false");
+            .HasDatabaseName("UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical");
         builder.HasIndex(x => new { x.FileHashSha256, x.FileSize, x.IsReprocess, x.ParentIngestionId });
         builder.HasIndex(x => new { x.UploadedAtUtc, x.FileName });
         builder.HasIndex(x => new { x.ResolvedClearingHouseId, x.OperationalDate, x.ResolvedAchCycleId });
         builder.HasIndex(x => x.CorrelationId);
+        builder.HasIndex(x => new { x.Stage, x.OperationalDate });
 
         builder.HasOne(x => x.ParentIngestion)
             .WithMany(x => x.ReprocessChildren)
@@ -60,9 +70,5 @@ public class IncomingNachaFileIngestionConfiguration : IEntityTypeConfiguration<
             .HasForeignKey(x => x.IncomingNachaFileIngestionId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasMany(x => x.ProcessingEvents)
-            .WithOne(x => x.Ingestion)
-            .HasForeignKey(x => x.IncomingNachaFileIngestionId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -8,7 +8,7 @@ describe('AchReconciliationService', () => {
   let service: AchReconciliationService;
 
   beforeEach(() => {
-    api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
+    api = jasmine.createSpyObj<ApiService>('ApiService', ['get', 'post']);
     TestBed.configureTestingModule({
       providers: [
         AchReconciliationService,
@@ -18,20 +18,26 @@ describe('AchReconciliationService', () => {
     service = TestBed.inject(AchReconciliationService);
   });
 
-  it('ReconciliationService_ShouldCallGetOnlyEndpoints', () => {
+  it('ReconciliationService_ShouldCallOperationalEndpoints', () => {
     api.get.and.returnValue(of({}));
 
     service.getDashboard().subscribe();
     service.getItems().subscribe();
     service.getItem('resp-1').subscribe();
     service.getItemByCorrelation('corr-1').subscribe();
+    service.getExceptions().subscribe();
 
     const urls = api.get.calls.allArgs().map(args => args[0]);
     expect(urls).toEqual([
       'api/ach/reconciliation/dashboard',
       'api/ach/reconciliation/items',
       'api/ach/reconciliation/items/resp-1',
-      'api/ach/reconciliation/items/by-correlation/corr-1'
+      'api/ach/reconciliation/items/by-correlation/corr-1',
+      'api/ach/reconciliation/exceptions'
     ]);
+
+    api.post.and.returnValue(of({}));
+    service.resolveException('case-1', 'version-1', 'Associated', 'Justificación operativa').subscribe();
+    expect(api.post).toHaveBeenCalled();
   });
 });

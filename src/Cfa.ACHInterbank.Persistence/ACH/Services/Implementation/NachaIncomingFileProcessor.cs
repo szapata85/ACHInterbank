@@ -68,8 +68,12 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Fallo controlado en procesamiento NACHA-M entrante 6B.4 para {FileName}", fileName);
-            errors.Add(ex.Message);
+            var incidentId = Guid.NewGuid().ToString("N");
+            _logger.LogWarning(
+                "NACHA_INCOMING_PROCESSING_FAILED|Incident={Incident}|ExceptionType={ExceptionType}",
+                incidentId,
+                ex.GetType().Name);
+            errors.Add($"NACHA_INCOMING_PROCESSING_FAILED;Incident={incidentId}");
             return BuildFailed(request, fileName, correlationId, isReturnFile, errors, warnings);
         }
 
@@ -86,10 +90,15 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         var loaded = await LoadParsedGraphAsync(ingestionResponse.IngestionId, ct);
         var decisions = await BuildDecisionsAsync(ingestionResponse.IngestionId, loaded.Entries, loaded.Addendas, isReturnFile, ct);
         var flowType = ResolveFlowType(isReturnFile, loaded.Entries.FirstOrDefault(), loaded.Addendas.FirstOrDefault());
-        var validationPassed = errors.Count == 0 && ingestionResponse.ParsingStatus is IncomingNachaParsingStatus.Exitoso or IncomingNachaParsingStatus.ExitosoConAdvertencias;
         var persistencePassed = loaded.Headers.Count > 0 && loaded.Entries.Count > 0 && loaded.FileControls.Count > 0;
         var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestionResponse.ResolvedClearingHouseId, request.ClearingHouseCode, ct);
-        var profileCode = ResolveProfileCode(request, clearingHouseCode);
+        var profileCode = ResolveProfileCode(request, ingestionResponse.SelectedProfileCode);
+        if (!string.IsNullOrWhiteSpace(request.ExpectedProfileCode)
+            && !string.Equals(request.ExpectedProfileCode.Trim(), profileCode, StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add("NACHA_PROFILE_EXPECTATION_MISMATCH");
+        }
+        var validationPassed = errors.Count == 0 && ingestionResponse.ParsingStatus is IncomingNachaParsingStatus.Exitoso or IncomingNachaParsingStatus.ExitosoConAdvertencias;
 
         return new NachaIncomingFileProcessingResult
         {
@@ -145,12 +154,12 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
             && !fileName.EndsWith(".RET", StringComparison.OrdinalIgnoreCase)
             && !IsOfficialIncomingName(fileName))
         {
-            errors.Add("Extension o nombre no permitido. Solo se aceptan archivos .ach, .RET o RRRRTTT.ZZZ.N.");
+            errors.Add("Extension o nombre no permitido. Solo se aceptan archivos .ach, .RET o RRRRTTT.ZZZ.YYYYMMDD.N.");
         }
 
         if (!isSimulation && !IsOfficialIncomingName(fileName))
         {
-            errors.Add("Nombre NACHA-M invalido. Se esperaba RRRRTTT.ZZZ.N o RRRRTTT.ZZZ.RET; .ach queda solo como fixture interno UAT.");
+            errors.Add("Nombre NACHA-M invalido. Se esperaba RRRRTTT.ZZZ.YYYYMMDD.N o RRRRTTT.ZZZ.RET; .ach queda solo como fixture interno UAT.");
         }
 
         var records = SplitRecords(content, errors);
@@ -172,7 +181,7 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
             return prefix.Length == 11 && prefix[7] == '.' && prefix.Take(7).All(char.IsDigit) && prefix.Skip(8).All(char.IsDigit);
         }
 
-        return System.Text.RegularExpressions.Regex.IsMatch(name, @"^\d{7}\.\d{3}\.[1-9]\d*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return System.Text.RegularExpressions.Regex.IsMatch(name, @"^\d{7}\.\d{3}\.\d{8}\.\d+$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     }
 
     private static IReadOnlyList<string> SplitRecords(string content, List<string> errors)
@@ -463,16 +472,16 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         return NachaIncomingFlowType.Unknown;
     }
 
-    private static string ResolveProfileCode(NachaIncomingFileRequest request, string clearingHouseCode)
+    private static string ResolveProfileCode(NachaIncomingFileRequest request, string? selectedProfileCode)
     {
-        if (!string.IsNullOrWhiteSpace(request.ExpectedProfileCode))
+        if (!string.IsNullOrWhiteSpace(selectedProfileCode))
         {
-            return request.ExpectedProfileCode.Trim();
+            return selectedProfileCode.Trim();
         }
 
-        return clearingHouseCode.Equals("CENIT", StringComparison.OrdinalIgnoreCase)
-            ? "OFFICIAL_CENIT_ENTRADA_ORIGINAL_V1_0"
-            : "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0";
+        return string.IsNullOrWhiteSpace(request.ExpectedProfileCode)
+            ? string.Empty
+            : request.ExpectedProfileCode.Trim();
     }
 
     private static Dictionary<string, string> BuildTrace(
@@ -520,7 +529,7 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         IReadOnlyList<string> warnings)
     {
         var clearingHouseCode = string.IsNullOrWhiteSpace(request.ClearingHouseCode) ? "UNKNOWN" : request.ClearingHouseCode;
-        var profileCode = ResolveProfileCode(request, clearingHouseCode);
+        var profileCode = ResolveProfileCode(request, null);
         var trace = BuildTrace(fileName, correlationId, clearingHouseCode, profileCode, isReturnFile ? NachaIncomingFlowType.ReturnFile : NachaIncomingFlowType.Unknown, isReturnFile, false, false, [], errors, warnings, null);
         return new NachaIncomingFileProcessingResult
         {
@@ -545,7 +554,7 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         bool isReturnFile)
     {
         var clearingHouseCode = string.IsNullOrWhiteSpace(request.ClearingHouseCode) ? "UNKNOWN" : request.ClearingHouseCode;
-        var profileCode = ResolveProfileCode(request, clearingHouseCode);
+        var profileCode = ResolveProfileCode(request, response.SelectedProfileCode);
         var decisions = new[]
         {
             new NachaIncomingDecision

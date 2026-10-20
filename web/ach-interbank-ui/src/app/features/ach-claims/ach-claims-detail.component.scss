@@ -1,0 +1,27 @@
+.claim-detail-page { display: grid; gap: 1rem; }
+.back-button { justify-self: start; }
+.detail-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.detail-heading h1 { margin: .1rem 0 .35rem; }
+.detail-heading p { margin: 0; color: var(--mat-sys-on-surface-variant); }
+.eyebrow { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.heading-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.summary-grid, .two-column { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; }
+.summary-grid { margin: 0; }
+.summary-grid div { min-width: 0; }
+dt { color: var(--mat-sys-on-surface-variant); font-size: .85rem; margin-bottom: .2rem; }
+dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.status-pill { display: inline-flex; padding: .25rem .6rem; border-radius: 999px; background: var(--mat-sys-surface-container-high); }
+.table-wrap { overflow: auto; margin-top: .75rem; }
+table { width: 100%; min-width: 900px; }
+.empty-state, .state-box { min-height: 7rem; display: flex; align-items: center; justify-content: center; gap: .75rem; color: var(--mat-sys-on-surface-variant); text-align: center; }
+.state-box--error { color: var(--mat-sys-error); }
+.resolution-card p { white-space: pre-wrap; }
+.timeline { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: .9rem; }
+.timeline li { display: grid; grid-template-columns: 28px 1fr; gap: .6rem; }
+.timeline-marker { color: var(--mat-sys-primary); padding-top: .05rem; }
+.timeline-marker mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.timeline-title { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.timeline-content p { margin: .3rem 0 0; white-space: pre-wrap; }
+.timeline-content .label { color: var(--mat-sys-on-surface-variant); }
+.two-column mat-card-content p { margin: .4rem 0 0; color: var(--mat-sys-on-surface-variant); }
+@media (max-width: 700px) { .heading-actions { width: 100%; } .heading-actions button { flex: 1 1 100%; } }

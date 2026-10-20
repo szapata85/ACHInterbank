@@ -12,6 +12,12 @@ export interface CustomerThirdPartyRow {
   validationCycleId?: string | null;
   validationReceivedAt?: string | null;
   validationMessage?: string | null;
+  clearingHouseName?: string | null;
+  clearingHouseCode?: string | null;
+  sendingCycleId?: string | null;
+  responseFileName?: string | null;
+  responseCorrelationId?: string | null;
+  statusSource?: string | null;
 }
 
 export interface CustomerThirdPartyFilters {
@@ -23,14 +29,4 @@ export interface CustomerThirdPartyFilters {
   pageSize: number;
 }
 
-export interface PagedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-export interface UpdateCustomerThirdPartyStatusRequest {
-  status: CustomerThirdPartyStatus;
-  validationMessage?: string | null;
-}
+export type { PagedResponse } from '../../../core/models/paged-response.model';

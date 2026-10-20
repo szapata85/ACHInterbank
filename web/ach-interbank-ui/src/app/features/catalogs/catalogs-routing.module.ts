@@ -17,8 +17,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanManageAch'],
-      breadcrumb: 'Instituciones financieras',
-      title: 'Instituciones financieras'
+      breadcrumb: 'Entidades financieras',
+      title: 'Entidades financieras'
     }
   },
   {
@@ -28,8 +28,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanManageAch'],
-      breadcrumb: 'Prioridades cámaras',
-      title: 'Prioridades cámaras'
+      breadcrumb: 'Prioridades por cámara',
+      title: 'Prioridades por cámara'
     }
   },
   {
@@ -38,19 +38,21 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanManageAch'],
-      breadcrumb: 'Festivos bancarios',
-      title: 'Festivos bancarios'
+      breadcrumb: 'Días no hábiles',
+      title: 'Días no hábiles'
     }
   },
   {
     path: 'clearing-house-special-dates',
     loadComponent: () =>
-      import('./components/clearing-house-special-dates.component').then((m) => m.ClearingHouseSpecialDatesComponent),
+      import('./components/clearing-house-special-dates.component').then(
+        (m) => m.ClearingHouseSpecialDatesLegacyRedirectComponent
+      ),
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanManageAch'],
-      breadcrumb: 'Fechas especiales cámaras',
-      title: 'Fechas especiales cámaras'
+      permissions: ['ClearingHouses.View', 'ClearingHouses.ManageSpecialDates'],
+      breadcrumb: 'Fechas especiales',
+      title: 'Fechas especiales'
     }
   },
   {
@@ -145,8 +147,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanManageAch'],
-      breadcrumb: 'Códigos de transacción ACH',
-      title: 'Códigos de transacción ACH',
+      breadcrumb: 'Códigos de transacción',
+      title: 'Códigos de transacción',
       subtitle: 'Administra el catálogo de códigos de transacción ACH.',
       catalogType: 'transaction-codes'
     }

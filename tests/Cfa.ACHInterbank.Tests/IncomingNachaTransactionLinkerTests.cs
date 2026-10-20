@@ -21,15 +21,15 @@ public class IncomingNachaTransactionLinkerTests
     }
 
     [Fact]
-    public async Task LinkAsync_ByExternalId_Exact()
+    public async Task LinkAsync_DoesNotTreatRecipientIdAsTransactionExternalId()
     {
         using var context = BuildContext();
         SeedTx(context, 2, trace: "223456789012345", externalId: "EXT-2");
         var sut = new IncomingNachaTransactionLinker(context);
 
         var result = await sut.LinkAsync(new EntryDetail { SequenceNumber = "000000000000001", RecipIdNumber = "EXT-2", Amount = 10, AccountNumber = "001", TransactionCode = "22" }, null, new IncomingNachaLinkingContext { FunctionalClass = IncomingNachaFunctionalClass.CreditoEntrante });
-        Assert.Equal(IncomingNachaLinkType.ExactTransactionExternalId, result.LinkType);
-        Assert.Equal(2, result.AchTransactionId);
+        Assert.Equal(IncomingNachaLinkType.NotFound, result.LinkType);
+        Assert.Null(result.AchTransactionId);
     }
 
     [Fact]
@@ -44,6 +44,44 @@ public class IncomingNachaTransactionLinkerTests
     }
 
     [Fact]
+    public async Task LinkAsync_RorWithoutParentReturn_ShouldRemainOrphanWithRawEvidence()
+    {
+        using var context = BuildContext();
+        var entry = new EntryDetail
+        {
+            EntryDetailID = 910,
+            SequenceNumber = "123456780000910",
+            TransactionCode = "21",
+            Amount = 100m,
+            AccountNumber = "1"
+        };
+        var addenda = new AddendaRecord
+        {
+            AddendaID = 911,
+            EntryDetailId = entry.EntryDetailID,
+            BusinessType = "ReturnOfReturn",
+            ReturnReasonCode = "R60",
+            OriginalTraceNumber = "123456780000001",
+            NewTraceNumber = "876543210000999"
+        };
+        context.AddRange(entry, addenda);
+        await context.SaveChangesAsync();
+        var sut = new IncomingNachaTransactionLinker(context);
+
+        var result = await sut.LinkAsync(entry, addenda, new IncomingNachaLinkingContext
+        {
+            FunctionalClass = IncomingNachaFunctionalClass.DevolucionDevolucion,
+            ResolvedAchCycleId = "C4"
+        });
+
+        Assert.Equal(IncomingNachaLinkType.NotFound, result.LinkType);
+        Assert.True(result.IsNotFound);
+        Assert.Null(result.AchTransactionId);
+        Assert.Equal(1, await context.EntryDetails.CountAsync(x => x.EntryDetailID == entry.EntryDetailID));
+        Assert.Equal(1, await context.AddendaRecords.CountAsync(x => x.AddendaID == addenda.AddendaID));
+    }
+
+    [Fact]
     public async Task LinkAsync_Ambiguous_WhenMultipleTraceCandidates()
     {
         using var context = BuildContext();
@@ -54,6 +92,63 @@ public class IncomingNachaTransactionLinkerTests
         var result = await sut.LinkAsync(new EntryDetail { SequenceNumber = "333333333333333", Amount = 10, AccountNumber = "001", TransactionCode = "22" }, null, new IncomingNachaLinkingContext { FunctionalClass = IncomingNachaFunctionalClass.CreditoEntrante });
         Assert.Equal(IncomingNachaLinkType.Ambiguous, result.LinkType);
         Assert.True(result.IsAmbiguous);
+    }
+
+    [Fact]
+    public async Task LinkAsync_ByOriginalTrace_ShouldUseResolvedCycleToDisambiguateDailyTraceReuse()
+    {
+        using var context = BuildContext();
+        SeedTx(context, 5, trace: "555555555555555", externalId: "HISTORICAL", achCycleId: "CYCLE-OLD");
+        SeedTx(context, 6, trace: "555555555555555", externalId: "CURRENT", achCycleId: "CYCLE-CURRENT");
+        var sut = new IncomingNachaTransactionLinker(context);
+
+        var result = await sut.LinkAsync(
+            new EntryDetail { SequenceNumber = "666666666666666", Amount = 100, AccountNumber = "001", TransactionCode = "26" },
+            new AddendaRecord { OriginalTraceNumber = "555555555555555", ReturnReasonCode = "R01" },
+            new IncomingNachaLinkingContext
+            {
+                FunctionalClass = IncomingNachaFunctionalClass.Devolucion,
+                ResolvedAchCycleId = "CYCLE-CURRENT"
+            });
+
+        Assert.Equal(IncomingNachaLinkType.ExactOriginalTraceRef, result.LinkType);
+        Assert.Equal(6, result.AchTransactionId);
+        Assert.True(result.IsFinal);
+        Assert.Contains("ResolvedCycle", result.EvidenceJson);
+    }
+
+    [Fact]
+    public async Task LinkAsync_ReturnWithExactOriginalTraceAndDifferentAmount_ShouldNotLink()
+    {
+        using var context = BuildContext();
+        SeedTx(context, 7, trace: "777777777777777", externalId: "ORIGINAL", amount: 100m);
+        var sut = new IncomingNachaTransactionLinker(context);
+
+        var result = await sut.LinkAsync(
+            new EntryDetail { SequenceNumber = "888888888888888", Amount = 99m, AccountNumber = "001", TransactionCode = "26" },
+            new AddendaRecord { OriginalTraceNumber = "777777777777777", ReturnReasonCode = "R01" },
+            new IncomingNachaLinkingContext { FunctionalClass = IncomingNachaFunctionalClass.Devolucion });
+
+        Assert.Equal(IncomingNachaLinkType.NotFound, result.LinkType);
+        Assert.False(result.IsFinal);
+        Assert.Null(result.AchTransactionId);
+    }
+
+    [Fact]
+    public async Task LinkAsync_ReturnWithExactOriginalTraceAndSameAmount_ShouldLink()
+    {
+        using var context = BuildContext();
+        SeedTx(context, 8, trace: "888888888888888", externalId: "ORIGINAL", amount: 100m);
+        var sut = new IncomingNachaTransactionLinker(context);
+
+        var result = await sut.LinkAsync(
+            new EntryDetail { SequenceNumber = "999999999999999", Amount = 100m, AccountNumber = "001", TransactionCode = "26" },
+            new AddendaRecord { OriginalTraceNumber = "888888888888888", ReturnReasonCode = "R01" },
+            new IncomingNachaLinkingContext { FunctionalClass = IncomingNachaFunctionalClass.Devolucion });
+
+        Assert.Equal(IncomingNachaLinkType.ExactOriginalTraceRef, result.LinkType);
+        Assert.True(result.IsFinal);
+        Assert.Equal(8, result.AchTransactionId);
     }
 
 
@@ -118,7 +213,7 @@ public class IncomingNachaTransactionLinkerTests
     }
 
     [Fact]
-    public async Task LinkAsync_CompositeKey_UsesFunctionalClassToAvoidCreditDebitCollision()
+    public async Task LinkAsync_ReturnCompositeKey_DoesNotGuessTransactionType()
     {
         using var context = BuildContext();
         SeedTx(context, 30, trace: "999999999999930", externalId: "EXT-F1", amount: 810, account: "AC3", recipientId: "RID3", transactionCode: "27", achCycleId: "CYCLE-X", receivingDfi: "333333330", effectiveDate: new DateTime(2026, 4, 20), type: Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit);
@@ -144,8 +239,8 @@ public class IncomingNachaTransactionLinkerTests
                 OperationalDate = new DateTime(2026, 4, 20)
             });
 
-        Assert.Equal(IncomingNachaLinkType.ExactCompositeBusinessKey, result.LinkType);
-        Assert.Equal(31, result.AchTransactionId);
+        Assert.Equal(IncomingNachaLinkType.Ambiguous, result.LinkType);
+        Assert.Null(result.AchTransactionId);
     }
 
     private static AchDbContext BuildContext()

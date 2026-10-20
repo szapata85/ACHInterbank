@@ -1,25 +1,29 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Security;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Policy = FineGrainedPermissions.TestTools.Access)]
 [Route("api/uat/nacha-inbound-simulator")]
 public sealed class NachaInboundSimulatorController : ControllerBase
 {
     private readonly INachaInboundSimulationService _service;
+    private readonly IAuthorizationService _authorizationService;
 
-    public NachaInboundSimulatorController(INachaInboundSimulationService service)
+    public NachaInboundSimulatorController(
+        INachaInboundSimulationService service,
+        IAuthorizationService authorizationService)
     {
         _service = service;
+        _authorizationService = authorizationService;
     }
 
     [HttpPost("generate")]
-    [Authorize(Policy = P1Policies.NachaGenerate)]
     [EndpointDescription("Genera un archivo NACHA-M de entrada simulado para UAT/local. El simulador solo genera y permite descargar el archivo: no llama NachaUpload, no importa automaticamente, no crea transacciones de entrada, no cambia estados y no transmite a camaras externas. El usuario debe cargar manualmente el archivo generado por la SPA mediante el flujo real NachaUpload. Ejemplos: ACH Colombia IncomingCredit, CENIT IncomingPrenotificationResponse, ACH Colombia IncomingCreditReturn. Errores esperados: 400 request invalido; 401/403 autenticacion/autorizacion; 422 simulador deshabilitado, regla no configurada, referencia inexistente o causal requerida; 500 error no controlado.")]
     [ProducesResponseType(typeof(GenerateNachaInboundSimulationResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -29,6 +33,14 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<GenerateNachaInboundSimulationResponse>> Generate([FromBody] GenerateNachaInboundSimulationRequest request, CancellationToken ct)
     {
+        var requiredPolicy = request.SimulationMode == NachaSimulationMode.DifferentialResponses
+            ? P1Policies.NachaSimulatorGenerateDifferential
+            : P1Policies.NachaSimulatorGenerateIncoming;
+        if (!(await _authorizationService.AuthorizeAsync(User, requiredPolicy)).Succeeded)
+        {
+            return Forbid();
+        }
+
         try
         {
             var result = await _service.GenerateAsync(request, User?.Identity?.Name ?? "uat-local", ct);
@@ -45,16 +57,18 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = P1Policies.NachaRead)]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
     [EndpointDescription("Lista simulaciones NACHA-M de entrada generadas para UAT/local. Consulta solo metadata; no importa archivos ni modifica estados.")]
     [ProducesResponseType(typeof(IReadOnlyList<NachaInboundSimulationDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<IReadOnlyList<NachaInboundSimulationDto>>> List(CancellationToken ct)
-        => Ok(await _service.ListAsync(ct));
+    {
+        return Ok(await _service.ListAsync(ct));
+    }
 
     [HttpGet("{id:int}")]
-    [Authorize(Policy = P1Policies.NachaRead)]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
     [EndpointDescription("Obtiene una simulacion NACHA-M de entrada por id. Consulta read-only; no importa archivos ni cambia estados.")]
     [ProducesResponseType(typeof(NachaInboundSimulationDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -67,7 +81,7 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     }
 
     [HttpGet("{id:int}/file")]
-    [Authorize(Policy = P1Policies.NachaRead)]
+    [Authorize(Policy = P1Policies.NachaSimulatorDownload)]
     [EndpointDescription("Descarga el archivo NACHA-M simulado. La descarga no lo importa ni llama NachaUpload; el usuario debe cargarlo manualmente en la SPA.")]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -80,7 +94,7 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     }
 
     [HttpGet("{id:int}/evidence")]
-    [Authorize(Policy = P1Policies.NachaRead)]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
     [EndpointDescription("Devuelve metadata/evidencia de la simulacion: hash SHA256, conteos, generatedOnly=true, autoImported=false, uploadRequired=true y externalTransmission=false.")]
     [ProducesResponseType(typeof(NachaInboundSimulationMetadataDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -93,13 +107,61 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     }
 
     [HttpPost("eligibility-preview")]
-    [Authorize(Policy = P1Policies.NachaRead)]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
     [EndpointDescription("Evalua si una solicitud del simulador NACHA-M de entrada es elegible. No genera archivo, no importa, no crea transacciones y no cambia estados.")]
     [ProducesResponseType(typeof(InboundSimulationEligibilityPreviewResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<InboundSimulationEligibilityPreviewResponse>> Preview([FromBody] InboundSimulationEligibilityPreviewRequest request, CancellationToken ct)
-        => Ok(await _service.PreviewAsync(request, ct));
+    {
+        return Ok(await _service.PreviewAsync(request, ct));
+    }
+
+    [HttpGet("eligible-differential-transactions")]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
+    [ProducesResponseType(typeof(DifferentialResponseTransactionPage), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DifferentialResponseTransactionPage>> EligibleDifferentialTransactions(
+        [FromQuery] DifferentialResponseTransactionQuery query,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(query.ClearingHouseCode))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "CLEARING_HOUSE_REQUIRED",
+                Detail = "Debe seleccionar una cámara.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        return Ok(await _service.ListEligibleDifferentialTransactionsAsync(query, ct));
+    }
+
+    [HttpGet("available-cycles")]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
+    [ProducesResponseType(typeof(IReadOnlyList<AvailableInboundCycleDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<AvailableInboundCycleDto>>> AvailableCycles(
+        [FromQuery] AvailableInboundCycleQuery query,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(query.ClearingHouseCode))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "CLEARING_HOUSE_REQUIRED",
+                Detail = "Debe seleccionar una cámara.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        return Ok(await _service.ListAvailableCyclesAsync(query, ct));
+    }
 
     private static ProblemDetails ToProblem(string message)
     {

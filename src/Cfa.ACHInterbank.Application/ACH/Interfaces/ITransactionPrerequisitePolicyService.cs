@@ -7,6 +7,7 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 public interface ITransactionPrerequisitePolicyService
 {
     Task<TransactionPrerequisitePreviewResponse> PreviewAsync(TransactionPrerequisitePreviewRequest request, CancellationToken ct);
+    TransactionPrerequisiteValidationResult ValidateForRegistration(TransactionRegistrationPrerequisiteRequest request);
     Task<TransactionPrerequisiteValidationResult> ValidateForNachaExportAsync(AchTransaction transaction, DateTime? prenotificationDate, CancellationToken ct);
 }
 

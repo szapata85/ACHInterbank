@@ -1,0 +1,147 @@
+name: Scheduler Cluster E2E
+run-name: "Scheduler Cluster E2E · ${{ github.event_name }} · ${{ github.ref_name }}"
+
+on:
+  push:
+    paths: &scheduler_paths
+      - '.github/workflows/scheduler-cluster-e2e.yml'
+      - 'scripts/ci/scheduler-cluster/**'
+      - 'docker-compose.scheduler-cluster.yml'
+      - 'docker-compose.scheduler-cluster.sqlserver.yml'
+      - 'src/Cfa.ACHInterbank.Api/Controllers/SchedulerController.cs'
+      - 'src/Cfa.ACHInterbank.Api/Controllers/TaskDefinitionsController.cs'
+      - 'src/Cfa.ACHInterbank.Application/Scheduler/**'
+      - 'src/Cfa.ACHInterbank.Application/JobsQuartz/**'
+      - 'src/Cfa.ACHInterbank.Domain/Entities/SchedulerTask/**'
+      - 'src/Cfa.ACHInterbank.Domain/Models/ACH/ClearingHouseCycleConfig.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Models/ACH/BankHolidayModel.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Entities/ACH/Dtos/ClearingHouseCycleConfigDtos.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Entities/ACH/Dtos/BankHolidayDto.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Scheduler/**'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Quartz/**'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/OperationalCalendarService.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/OperationalCycleWindowResolver.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ContrapartidaDispatchJobService.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostProcessingOrchestrator.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/TaskDefinitionSeeder.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/ClearingHouseCycleConfigSeeder.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/BankHolidaySeeder.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/SchedulerTask/**'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/BankHolidayConfiguration.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/PermissionConfiguration.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/RolePermissionConfiguration.cs'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/**/*Scheduler*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/**/*Quartz*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/**/*Scheduler*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/**/*Quartz*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/Scheduler*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/Quartz*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/AchCycleSchedulerTests.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/AchContrapartidasByCycleHandlerTests.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/ContrapartidaDispatchJobServiceTests.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/IncomingNachaPostProcessingOrchestratorTests.cs'
+      - 'web/ach-interbank-ui/src/app/features/scheduler/**'
+      - 'web/ach-interbank-ui/e2e/scheduler-cluster.spec.ts'
+  pull_request:
+    paths: *scheduler_paths
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduler-cluster-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  scheduler-cluster:
+    name: ${{ matrix.database }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [postgres, sqlserver]
+    env:
+      CI: true
+      COMPOSE_FILE: ${{ matrix.database == 'postgres' && 'docker-compose.scheduler-cluster.yml' || 'docker-compose.scheduler-cluster.sqlserver.yml' }}
+      API_01_PORT: ${{ matrix.database == 'postgres' && '8441' || '8451' }}
+      API_02_PORT: ${{ matrix.database == 'postgres' && '8442' || '8452' }}
+      SPA_PORT: ${{ matrix.database == 'postgres' && '744' || '745' }}
+      EVIDENCE_DIR: artifacts/ci/scheduler-cluster/${{ matrix.database }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Publish execution context
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          {
+            echo '## Contexto de ejecución'
+            echo "- Evento: ${EVENT_NAME}"
+            echo "- Rama: ${REF_NAME}"
+            echo "- Commit: ${HEAD_SHA}"
+            if [[ "${EVENT_NAME}" == 'push' ]]; then echo "- Commit anterior: ${PUSH_BEFORE}"; fi
+            if [[ "${EVENT_NAME}" == 'pull_request' ]]; then echo "- Base del PR: ${PR_BASE}"; echo "- Cabeza del PR: ${PR_HEAD}"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: web/ach-interbank-ui/package-lock.json
+
+      - name: Install Playwright dependencies
+        working-directory: web/ach-interbank-ui
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Validate Compose definition
+        run: docker compose -f "$COMPOSE_FILE" config --quiet
+
+      - name: Start first scheduler node and SPA
+        run: docker compose -f "$COMPOSE_FILE" up -d --build quartz-schema achinterbank-api-01 achinterbank-spa
+
+      - name: Wait for first node and bootstrap ephemeral E2E identities
+        run: bash scripts/ci/scheduler-cluster/bootstrap-test-users.sh "$COMPOSE_FILE" "${{ matrix.database }}" "http://localhost:${API_01_PORT}"
+
+      - name: Start second scheduler node
+        run: docker compose -f "$COMPOSE_FILE" up -d achinterbank-api-02
+
+      - name: Verify runtime cluster
+        run: bash scripts/ci/scheduler-cluster/verify-cluster.sh "$COMPOSE_FILE" "http://localhost:${API_01_PORT}" "http://localhost:${API_02_PORT}" "http://localhost:${SPA_PORT}" "$EVIDENCE_DIR"
+
+      - name: Run real scheduler Playwright scenarios
+        id: playwright
+        working-directory: web/ach-interbank-ui
+        env:
+          E2E_BASE_URL: http://localhost:${{ env.SPA_PORT }}
+          ACH_UI_URL: http://localhost:${{ env.SPA_PORT }}
+          ACH_API_URL: http://localhost:${{ env.API_01_PORT }}
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE: ../../${{ env.EVIDENCE_DIR }}/scheduler-junit.xml
+        run: npx playwright test e2e/scheduler-cluster.spec.ts e2e/ach-responses-job4.spec.ts --project=chromium --workers=1 --reporter=line,junit,html
+
+      - name: Verify Playwright execution and collect evidence
+        if: always()
+        run: bash scripts/ci/scheduler-cluster/collect-evidence.sh "$COMPOSE_FILE" "http://localhost:${API_01_PORT}" "http://localhost:${API_02_PORT}" "$EVIDENCE_DIR" "${{ steps.playwright.outcome }}"
+
+      - name: Publish scheduler evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: scheduler-cluster-${{ matrix.database }}-evidence
+          path: ${{ env.EVIDENCE_DIR }}
+          if-no-files-found: error
+
+      - name: Cleanup cluster
+        if: always()
+        run: docker compose -f "$COMPOSE_FILE" down -v --remove-orphans

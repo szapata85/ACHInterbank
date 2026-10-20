@@ -1,17 +1,22 @@
-import { Component } from '@angular/core';
-import { RouterModule } from '@angular/router';
-import { SharedModule } from '../../../shared/shared.module';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { IntegrationCenterShellComponent } from '../presentation/integration-center-shell.component';
+import { ContractWorkspaceStore } from '../state/contract-workspace.store';
+import { IntegrationCenterStore } from '../state/integration-center.store';
+import { MappingWorkspaceStore } from '../state/mapping-workspace.store';
 
 @Component({
   selector: 'app-integration-workspace',
   standalone: true,
-  imports: [RouterModule, SharedModule],
+  imports: [IntegrationCenterShellComponent],
   templateUrl: './integration-workspace.component.html',
-  styleUrls: ['./integration-workspace.component.scss']
+  styleUrls: ['./integration-workspace.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [IntegrationCenterStore, ContractWorkspaceStore, MappingWorkspaceStore]
 })
 export class IntegrationWorkspaceComponent {
-  readonly migas = [
-    { etiqueta: 'Inicio', ruta: '/' },
-    { etiqueta: 'Integraciones' }
-  ];
+  readonly center = inject(IntegrationCenterStore);
+
+  constructor() {
+    this.center.load();
+  }
 }

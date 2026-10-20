@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
@@ -24,9 +25,9 @@ public class PostgresExternalFileNameSequenceService : IExternalFileNameSequence
     {
         var next = await ExecuteUpsertAsync(context, ct);
 
-        if ((ExternalFileNameSupport.IsAch(context) || ExternalFileNameSupport.IsReturnOut(context)) && next > 36)
+        if (next > ExternalFileNameSupport.ResolveDailySequenceMaximum(context))
         {
-            throw new InvalidOperationException("Regla ACH HARD BLOCK: mÃ¡ximo 36 archivos diarios por participante.");
+            throw new InvalidOperationException(ExternalFileNameSupport.BuildDailySequenceExhaustedMessage(context));
         }
 
         return next;
@@ -35,30 +36,53 @@ public class PostgresExternalFileNameSequenceService : IExternalFileNameSequence
     protected virtual async Task<int> ExecuteUpsertAsync(ExternalFileNameContext context, CancellationToken ct)
     {
         var connection = (NpgsqlConnection)_context.Database.GetDbConnection();
-        if (connection.State != System.Data.ConnectionState.Open)
+        var openedHere = connection.State != System.Data.ConnectionState.Open;
+        if (openedHere)
         {
             await connection.OpenAsync(ct);
         }
 
-        await using var cmd = connection.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO "ExternalFileSequences"
-                ("ClearingHouseId","ScopeCode","SequenceDate","LastValue","UpdatedAtUtc","RowVersion")
-            VALUES
-                (@clearingHouseId,@scopeCode,@sequenceDate,1,timezone('utc', now()),decode('01','hex'))
-            ON CONFLICT ("ClearingHouseId","ScopeCode","SequenceDate")
-            DO UPDATE SET
-                "LastValue" = "ExternalFileSequences"."LastValue" + 1,
-                "UpdatedAtUtc" = timezone('utc', now()),
-                "RowVersion" = decode('01','hex')
-            RETURNING "LastValue";
-            """;
+        try
+        {
+            await using var cmd = connection.CreateCommand();
+            cmd.Transaction = _context.Database.CurrentTransaction?.GetDbTransaction() as NpgsqlTransaction;
+            cmd.CommandText = """
+                INSERT INTO "ExternalFileSequences"
+                    ("ClearingHouseId","ScopeCode","SequenceDate","LastValue","UpdatedAtUtc","RowVersion")
+                VALUES
+                    (@clearingHouseId,@scopeCode,@sequenceDate,1,@updatedAtUtc,decode('01','hex'))
+                ON CONFLICT ("ClearingHouseId","ScopeCode","SequenceDate")
+                DO UPDATE SET
+                    "LastValue" = "ExternalFileSequences"."LastValue" + 1,
+                    "UpdatedAtUtc" = @updatedAtUtc,
+                    "RowVersion" = decode('01','hex')
+                WHERE "ExternalFileSequences"."LastValue" < @maxValue
+                RETURNING "LastValue";
+                """;
 
-        cmd.Parameters.AddWithValue("@clearingHouseId", context.ClearingHouseId);
-        cmd.Parameters.AddWithValue("@scopeCode", ExternalFileNameSupport.GetSequenceScopeCode(context));
-        cmd.Parameters.AddWithValue("@sequenceDate", DateOnly.FromDateTime(context.ProcessingDate.Date));
+            cmd.Parameters.AddWithValue("@clearingHouseId", context.ClearingHouseId);
+            cmd.Parameters.AddWithValue("@scopeCode", ExternalFileNameSupport.GetSequenceScopeCode(context));
+            cmd.Parameters.AddWithValue("@sequenceDate",
+                context.OperationalTimeSnapshot?.OperationalDate
+                ?? DateOnly.FromDateTime(context.ProcessingDate.Date));
+            cmd.Parameters.AddWithValue("@maxValue", ExternalFileNameSupport.ResolveDailySequenceMaximum(context));
+            cmd.Parameters.AddWithValue("@updatedAtUtc",
+                context.OperationalTimeSnapshot?.CapturedAtUtc ?? DateTime.UtcNow);
 
-        var scalar = await cmd.ExecuteScalarAsync(ct);
-        return Convert.ToInt32(scalar);
+            var scalar = await cmd.ExecuteScalarAsync(ct);
+            if (scalar is null || scalar is DBNull)
+            {
+                throw new InvalidOperationException(ExternalFileNameSupport.BuildDailySequenceExhaustedMessage(context));
+            }
+
+            return Convert.ToInt32(scalar);
+        }
+        finally
+        {
+            if (openedHere)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
 }

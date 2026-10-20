@@ -25,8 +25,30 @@ public class AchCycleConfiguration : IEntityTypeConfiguration<AchCycle>
         builder.Property(cycle => cycle.EndTime)
             .IsRequired();
 
+        builder.Property(cycle => cycle.OutputReleaseTime)
+            .IsRequired();
+
+        builder.Property(cycle => cycle.CompensationStatementStartTime)
+            .IsRequired(false);
+
+        builder.Property(cycle => cycle.CompensationStatementEndTime)
+            .IsRequired(false);
+
+        builder.Property(cycle => cycle.CompensationPaymentStartTime)
+            .IsRequired(false);
+
+        builder.Property(cycle => cycle.CompensationPaymentEndTime)
+            .IsRequired(false);
+
+        builder.Property(cycle => cycle.OutputReleaseStartTime)
+            .IsRequired(false);
+
+        builder.Property(cycle => cycle.OutputReleaseEndTime)
+            .IsRequired(false);
+
         builder.Property(cycle => cycle.ProcessingDate)
-            .HasColumnType("date");
+            .HasColumnType("date")
+            .IsConcurrencyToken();
 
         builder.HasIndex(cycle => new { cycle.ClearingHouseId, cycle.ProcessingDate, cycle.CycleName })
             .IsUnique();

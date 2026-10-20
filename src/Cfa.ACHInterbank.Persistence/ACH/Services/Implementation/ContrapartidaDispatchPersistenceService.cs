@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,15 @@ public sealed class ContrapartidaDispatchPersistenceService : IContrapartidaDisp
         int clearingHouseId,
         CancellationToken ct = default)
     {
+        if (transaction.ClassificationStatus != AchTransactionClassificationStatus.Determined
+            || transaction.Direction != AchTransactionDirection.Outgoing
+            || transaction.Origin != AchTransactionOrigin.Cfa
+            || transaction.MonetaryIntegrationRoute != AchMonetaryIntegrationRoute.ProcContrapartidas)
+        {
+            throw new InvalidOperationException(
+                "La transacción no es elegible para el movimiento débito de contrapartidas y no será encolada.");
+        }
+
         ContrapartidaDispatchItem? existing = null;
         if (transaction.Id > 0)
         {
@@ -114,7 +124,24 @@ public sealed class ContrapartidaDispatchPersistenceService : IContrapartidaDisp
             ErrorCode = request.ErrorCode?.Trim() ?? string.Empty,
             ErrorMessage = request.ErrorMessage?.Trim() ?? string.Empty,
             RequestPayloadXml = request.RequestPayloadXml ?? string.Empty,
-            ResponsePayloadXml = request.ResponsePayloadXml ?? string.Empty
+            ResponsePayloadXml = request.ResponsePayloadXml ?? string.Empty,
+            SoapMethodName = request.SoapMethodName?.Trim() ?? string.Empty,
+            SoapEndpoint = request.SoapEndpoint?.Trim() ?? string.Empty,
+            ExecutionMode = request.ExecutionMode?.Trim() ?? string.Empty,
+            DurationMs = request.DurationMs,
+            SoapResponseCode = request.SoapResponseCode?.Trim() ?? string.Empty,
+            SoapResponseDescription = request.SoapResponseDescription?.Trim() ?? string.Empty,
+            SoapTechnicalStatus = request.SoapTechnicalStatus?.Trim() ?? string.Empty,
+            ResponseCatalogId = request.ResponseCatalogId,
+            TransportStatus = request.TransportStatus,
+            BusinessStatus = request.BusinessStatus,
+            RetryAllowed = request.RetryAllowed,
+            RequiresManualReview = request.RequiresManualReview,
+            ProcessedAtUtc = request.ProcessedAtUtc,
+            IsSuccessful = request.IsSuccessful,
+            IsFunctionalRejection = request.IsFunctionalRejection,
+            IsTechnicalFailure = request.IsTechnicalFailure,
+            TechnicalException = request.TechnicalException?.Trim() ?? string.Empty
         };
 
         item.AttemptCount = nextAttemptNumber;

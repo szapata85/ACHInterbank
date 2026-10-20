@@ -2,6 +2,7 @@ using System.Reflection;
 using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Application.Reports.Models;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -69,7 +70,7 @@ public sealed class AccountingReviewBoundaryCharacterizationTests
     [Fact]
     public void System_ShouldNotExposeAccountingApiEndpoints_CurrentBoundary()
     {
-        var apiAssembly = typeof(ReportsController).Assembly;
+        var apiAssembly = typeof(AuthController).Assembly;
         var controllers = apiAssembly.GetTypes().Where(t => t.Name.EndsWith("Controller", StringComparison.Ordinal)).ToArray();
 
         foreach (var forbidden in ForbiddenControllerNames)
@@ -77,14 +78,15 @@ public sealed class AccountingReviewBoundaryCharacterizationTests
             Assert.DoesNotContain(controllers, c => c.Name.Equals(forbidden, StringComparison.Ordinal));
         }
 
-        Assert.Contains(controllers, c => c.Name == nameof(ReportsController));
+        Assert.Contains(controllers, c => c.Name == nameof(AccountingReviewReportsController));
     }
 
     [Fact]
     public void Reports_ShouldBeClassifiedAsAccountingReviewSupport_NotAccountingPosting()
     {
-        var methodNames = typeof(ReportsController).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Select(m => m.Name)
+        var methodNames = GetReportControllerTypes()
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            .Select(method => method.Name)
             .ToArray();
 
         Assert.Contains(methodNames, m => m.Contains("Report", StringComparison.OrdinalIgnoreCase)
@@ -164,10 +166,11 @@ public sealed class AccountingReviewBoundaryCharacterizationTests
     }
 
     [Fact]
-    public void ReportsController_ShouldExposeOperationalReports_ForThirdPartyReview()
+    public void ReportsControllers_ShouldExposeOperationalReports_ForThirdPartyReview()
     {
-        var methods = typeof(ReportsController).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Select(m => m.Name)
+        var methods = GetReportControllerTypes()
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            .Select(method => method.Name)
             .ToArray();
 
         Assert.Contains("GetSentTransactions", methods);
@@ -224,19 +227,25 @@ public sealed class AccountingReviewBoundaryCharacterizationTests
     [Fact]
     public void Reporting_ShouldNotExposeCudAccountingSettlementApi_CurrentBoundary()
     {
-        var controllerNames = typeof(ReportsController).Assembly.GetTypes()
+        var controllerNames = typeof(AuthController).Assembly.GetTypes()
             .Where(t => t.Name.EndsWith("Controller", StringComparison.Ordinal))
             .Select(t => t.Name)
             .ToArray();
 
         Assert.DoesNotContain(controllerNames, n => n.Contains("Cud", StringComparison.OrdinalIgnoreCase) && n.Contains("Settlement", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(controllerNames, n => n.Contains("Accounting", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(controllerNames, n =>
+            n.Contains("Accounting", StringComparison.OrdinalIgnoreCase)
+            && (n.Contains("Settlement", StringComparison.OrdinalIgnoreCase)
+                || n.Contains("Posting", StringComparison.OrdinalIgnoreCase)
+                || n.Contains("Ledger", StringComparison.OrdinalIgnoreCase)
+                || n.Contains("Journal", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(nameof(AccountingReviewReportsController), controllerNames);
     }
 
     [Fact]
     public void ReportingBoundary_ShouldNotUseWordsAsientoOrLedgerInProductiveApiSurface()
     {
-        var apiTypes = typeof(ReportsController).Assembly.GetTypes()
+        var apiTypes = typeof(AuthController).Assembly.GetTypes()
             .Where(t => t.IsClass && t.Namespace != null && t.Namespace.Contains("Controllers", StringComparison.Ordinal))
             .ToArray();
 
@@ -252,17 +261,28 @@ public sealed class AccountingReviewBoundaryCharacterizationTests
     [Fact]
     public void Reporting_ShouldSupportThirdPartyReviewTerminology()
     {
-        Assert.NotNull(typeof(ReportsController));
+        Assert.NotEmpty(GetReportControllerTypes());
+        Assert.NotNull(typeof(AccountingReviewReportsController));
         Assert.NotNull(typeof(AchTraceabilityController));
         Assert.NotNull(typeof(Cfa.ACHInterbank.Persistence.Reports.AchTransactionReportService));
         Assert.NotNull(typeof(Cfa.ACHInterbank.Persistence.Reports.AchAuditHistoryReportService));
+    }
+
+
+    private static Type[] GetReportControllerTypes()
+    {
+        return typeof(AuthController).Assembly.GetTypes()
+            .Where(type => !type.IsAbstract && typeof(ControllerBase).IsAssignableFrom(type))
+            .Where(type => type.GetCustomAttributes<RouteAttribute>(inherit: true)
+                .Any(route => string.Equals(route.Template, "api/reports", StringComparison.Ordinal)))
+            .ToArray();
     }
 
     private static Assembly[] GetProductiveAssemblies()
     {
         return
         [
-            typeof(ReportsController).Assembly,
+            typeof(AuthController).Assembly,
             typeof(AchTraceabilityService).Assembly,
             typeof(AchReconciliationReportResponseDto).Assembly,
             typeof(Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction).Assembly

@@ -89,6 +89,8 @@ public class ExternalFileNamePolicy : IExternalFileNamePolicy
             CycleName = context.CycleName,
             CycleNumber = context.CycleNumber,
             ProcessingDate = context.ProcessingDate,
+            OperationalTimeSnapshot = context.OperationalTimeSnapshot,
+            IdempotencyKey = context.IdempotencyKey,
             ExternalFileType = context.ExternalFileType,
             Flow = context.Flow,
             Direction = context.Direction,

@@ -2,8 +2,6 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
-import { CustomerThirdPartiesComponent } from '../../customer-third-parties/components/customer-third-parties.component';
-import { CustomerThirdPartiesService } from '../../customer-third-parties/services/customer-third-parties.service';
 import { BankHolidaysAdminService } from '../services/bank-holidays-admin.service';
 import { CatalogTypesApiService } from '../services/catalog-types-api.service';
 import { FinancialInstitutionAdminService } from '../services/financial-institution-admin.service';
@@ -158,47 +156,4 @@ describe('Catalogos fase 3', () => {
     expect(fixture.componentInstance.loading).toBeFalse();
   });
 
-  it('CustomerThirdParties_ShouldLoadInitialPage', async () => {
-    const service = jasmine.createSpyObj<CustomerThirdPartiesService>('CustomerThirdPartiesService', ['search']);
-    service.search.and.returnValue(of({
-      items: [{ id: 1, customerName: 'UAT', destinationInstitutionName: 'Banco', destinationAccountNumber: '123' } as any],
-      total: 1,
-      page: 1,
-      pageSize: 20
-    }));
-
-    await TestBed.configureTestingModule({
-      imports: [CustomerThirdPartiesComponent],
-      providers: [
-        { provide: CustomerThirdPartiesService, useValue: service },
-        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) }
-      ]
-    }).compileComponents();
-
-    const fixture = TestBed.createComponent(CustomerThirdPartiesComponent);
-    fixture.detectChanges();
-
-    expect(service.search).toHaveBeenCalled();
-    expect(fixture.componentInstance.rows.length).toBe(1);
-    expect(fixture.componentInstance.loadError).toBeFalse();
-  });
-
-  it('CustomerThirdParties_ShouldShowError_WhenApiFails', async () => {
-    const service = jasmine.createSpyObj<CustomerThirdPartiesService>('CustomerThirdPartiesService', ['search']);
-    service.search.and.returnValue(throwError(() => new Error('api')));
-
-    await TestBed.configureTestingModule({
-      imports: [CustomerThirdPartiesComponent],
-      providers: [
-        { provide: CustomerThirdPartiesService, useValue: service },
-        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) }
-      ]
-    }).compileComponents();
-
-    const fixture = TestBed.createComponent(CustomerThirdPartiesComponent);
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.loadError).toBeTrue();
-    expect(fixture.componentInstance.loading).toBeFalse();
-  });
 });

@@ -1,22 +1,31 @@
 <app-page-header
-  title="Panel operativo ACH"
+  title="Resumen de respuestas"
   description="Indicadores de respuestas ACH por estado de procesamiento"
 ></app-page-header>
 
-<p class="nota-operativa">Panel calculado a partir de consultas de conteo sobre la bandeja de respuestas ACH. No requiere endpoints adicionales.</p>
+<p class="nota-operativa">Panel calculado en el backend mediante una consulta agregada sobre la bandeja de respuestas ACH.</p>
 
 <form class="filtros" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
-  <div class="campo"><label>Fecha desde</label><input type="date" formControlName="fechaDesde" /></div>
-  <div class="campo"><label>Fecha hasta</label><input type="date" formControlName="fechaHasta" /></div>
-  <div class="campo">
-    <label>Tipo respuesta</label>
-    <select formControlName="tipoRespuesta">
-      <option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</option>
-    </select>
-  </div>
+  <mat-form-field appearance="outline">
+    <mat-label>Fecha desde</mat-label>
+    <input matInput type="date" formControlName="fechaDesde" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Fecha hasta</mat-label>
+    <input matInput type="date" formControlName="fechaHasta" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Tipo de respuesta</mat-label>
+    <mat-select formControlName="tipoRespuesta">
+      <mat-option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+
   <div class="acciones">
-    <ui-boton texto="Actualizar" variante="primario" [deshabilitado]="loading" (accion)="applyFilters()"></ui-boton>
-    <ui-boton texto="Limpiar" variante="contorno" [deshabilitado]="loading" (accion)="clearFilters()"></ui-boton>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading">Actualizar</button>
+    <button mat-stroked-button type="button" [disabled]="loading" (click)="clearFilters()">Limpiar filtros</button>
   </div>
 </form>
 
@@ -24,7 +33,7 @@
 
 <ui-estado-error
   *ngIf="error"
-  [mensaje]="'No fue posible cargar el dashboard operativo ACH.'"
+  [mensaje]="'No fue posible cargar los indicadores operativos ACH.'"
   (reintentar)="loadDashboard()"
 ></ui-estado-error>
 
@@ -33,7 +42,7 @@
     <h3>{{ kpi.titulo }}</h3>
     <p class="valor">{{ formatNumber(kpi.valor) }}</p>
     <p class="descripcion">{{ kpi.descripcion }}</p>
-    <ui-boton *ngIf="kpi.ruta" texto="Ver" variante="contorno" (accion)="openKpi(kpi)"></ui-boton>
+    <button *ngIf="kpi.ruta" mat-stroked-button type="button" (click)="openKpi(kpi)">Ver</button>
   </article>
 </div>
 

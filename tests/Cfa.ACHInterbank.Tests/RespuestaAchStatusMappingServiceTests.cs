@@ -185,7 +185,7 @@ public class RespuestaAchStatusMappingServiceTests
     }
 
     [Fact]
-    public async Task HomologarAsync_ShouldChooseMostRecentEffectiveMapping_WhenMultipleEquivalentMappingsExist()
+    public async Task HomologarAsync_ShouldReturnAmbiguous_WhenTopPriorityIsTied()
     {
         var old = BuildMapping(id: 1, fechaInicio: DateTime.UtcNow.AddDays(-20));
         var recent = BuildMapping(id: 2, fechaInicio: DateTime.UtcNow.AddDays(-1));
@@ -193,7 +193,8 @@ public class RespuestaAchStatusMappingServiceTests
 
         var result = await service.HomologarAsync(new HomologarRespuestaAchRequest("ACH", TipoRespuestaAch.Transaccion, "00", null, DateTime.UtcNow));
 
-        Assert.Equal(2, result.IdEstadoInterno);
+        Assert.Equal(MappingResolutionStatus.Ambiguous, result.ResolutionStatus);
+        Assert.Null(result.IdEstadoInterno);
     }
 
     [Fact]

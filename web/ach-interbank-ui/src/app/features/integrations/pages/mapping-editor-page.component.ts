@@ -1,6 +1,16 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder } from '@angular/forms';
+import { FormBuilder, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
 import { ReactiveFormsModule } from '@angular/forms';
@@ -19,12 +29,27 @@ import {
   MappingSetHistoryItem
 } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { SharedModule } from '../../../shared/shared.module';
 
 @Component({
   selector: 'app-mapping-editor-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    SharedModule,
+    MatButtonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatChipsModule,
+    MatExpansionModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressBarModule,
+    MatSelectModule,
+    MatTooltipModule
+  ],
   templateUrl: './mapping-editor-page.component.html',
   styleUrls: ['./mapping-editor-page.component.scss']
 })
@@ -33,17 +58,22 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
+  private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
+  readonly canManage = this.auth.hasPermission(['Integrations.ManageMappings', 'CanManageAch']);
+  readonly canValidate = this.auth.hasPermission(['Integrations.Validate', 'CanManageAch']);
+  readonly canPublish = this.auth.hasPermission(['Integrations.Publish', 'CanManageAch']);
+  historyLoadFailed = false;
 
   mappingSetId = '';
   methodCode = '';
 
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/' },
-    { etiqueta: 'Integraciones', ruta: '/integraciones' },
-    { etiqueta: 'Configuración funcional', ruta: '/integraciones/mappings' },
+    { etiqueta: 'Conexiones', ruta: '/integraciones' },
+    { etiqueta: 'Relación de información', ruta: '/integraciones/relacion-informacion' },
     { etiqueta: 'Editor de configuración' }
   ];
 
@@ -76,14 +106,14 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
   readonly ruleForm = this.fb.group({
     id: [null as number | null],
-    sourceKind: ['Transaction'],
+    sourceKind: ['Transaction', Validators.required],
     sourceCatalogFieldId: [null as number | null],
     sourceFieldPath: [''],
     fixedValue: [''],
     defaultValue: [''],
     transformationCode: [''],
     formatMask: [''],
-    priority: [1],
+    priority: [1, [Validators.required, Validators.min(1)]],
     requiredOverride: [null as boolean | null],
     enabled: [true],
     conditionExpression: ['']
@@ -176,24 +206,24 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    console.debug('[mapping-editor] loadAll:start', { mappingSetId: this.mappingSetId, methodCode: this.methodCode });
     this.loading = true;
     this.viewState = 'loading';
     this.errorMessage = '';
     this.previewResult = undefined;
     this.validationResult = undefined;
+    this.historyLoadFailed = false;
     this.cdr.detectChanges();
 
     this.api
       .getMappingSetById(this.mappingSetId)
       .pipe(
         timeout(15000),
-        catchError((error) => this.failEditorLoad<IntegrationMappingSet>('No existe o no se pudo cargar el mapping set solicitado.', error)),
+        catchError((error) => this.failEditorLoad<IntegrationMappingSet>('No existe o no se pudo cargar la configuración de relación de información solicitada.', error)),
         switchMap((set) => {
           const routeMethodCode = decodeURIComponent(this.methodCode).trim();
           if (routeMethodCode && set.methodCode !== routeMethodCode) {
             return this.failEditorLoad(
-              `El mapping set cargado pertenece a ${set.methodCode}, pero la ruta solicita ${routeMethodCode}.`
+              `La configuración de relación de información cargada no corresponde al servicio solicitado.`
             );
           }
 
@@ -212,8 +242,8 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
             ),
             historyItems: this.api.getHistory(set.id).pipe(
               timeout(10000),
-              catchError((historyError) => {
-                console.warn('[mapping-editor] history load failed, continuing without history', historyError);
+              catchError(() => {
+                this.historyLoadFailed = true;
                 return of([] as MappingSetHistoryItem[]);
               })
             )
@@ -224,13 +254,6 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: ({ set, parameters, sourceCatalog, transformations, historyItems }) => {
-          console.debug('[mapping-editor] loadAll:success', {
-            mappingSetId: set.id,
-            parameters: parameters?.length ?? 0,
-            sourceCatalog: sourceCatalog?.length ?? 0,
-            transformations: transformations?.length ?? 0,
-            historyItems: historyItems?.length ?? 0
-          });
           try {
             this.mappingSet = set;
             this.parameters = parameters ?? [];
@@ -303,13 +326,18 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   }
 
   saveRule(): void {
-    if (!this.mappingSet || !this.selectedParameterId || this.savingRule) return;
+    if (!this.canManage || !this.mappingSet || !this.selectedParameterId || this.savingRule) return;
+    if (this.ruleForm.invalid) {
+      this.ruleForm.markAllAsTouched();
+      this.notifications.error('Corrige los campos inválidos antes de guardar.');
+      return;
+    }
 
     const payload = {
       id: this.ruleForm.value.id,
       methodId: this.mappingSet.methodId,
       parameterId: this.selectedParameterId,
-      sourceKind: this.ruleForm.value.sourceKind,
+      sourceKind: this.toApiSourceKind(this.ruleForm.value.sourceKind),
       sourceCatalogFieldId: this.ruleForm.value.sourceCatalogFieldId,
       sourceFieldPath: this.resolveControlledSourceFieldPath(),
       fixedValue: this.ruleForm.value.fixedValue,
@@ -323,22 +351,25 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     };
 
     this.savingRule = true;
-    this.api.upsertRules(this.mappingSet.id, 'ui-admin', [payload]).subscribe({
+    this.api.upsertRules(this.mappingSet.id, 'ui-admin', [payload]).pipe(
+      finalize(() => (this.savingRule = false))
+    ).subscribe({
       next: (updated) => {
         this.mappingSet = updated;
         this.notifications.success('Regla guardada. Ejecuta validación para confirmar consistencia.');
         this.populateFormFromSelectedRule();
       },
-      error: () => this.notifications.error('No fue posible guardar la regla.'),
-      complete: () => (this.savingRule = false)
+      error: () => this.notifications.error('No fue posible guardar la regla.')
     });
   }
 
   runValidation(onDone?: (isValid: boolean) => void): void {
-    if (!this.mappingSet || this.validating) return;
+    if (!this.canValidate || !this.mappingSet || this.validating) return;
 
     this.validating = true;
-    this.api.validate(this.mappingSet.id).subscribe({
+    this.api.validate(this.mappingSet.id).pipe(
+      finalize(() => (this.validating = false))
+    ).subscribe({
       next: (result) => {
         this.validationResult = result;
         const message = result.isValid
@@ -350,13 +381,12 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       error: () => {
         this.notifications.error('No fue posible validar la configuración.');
         onDone?.(false);
-      },
-      complete: () => (this.validating = false)
+      }
     });
   }
 
   runPreview(): void {
-    if (!this.mappingSet || this.previewing) return;
+    if (!this.canValidate || !this.mappingSet || this.previewing) return;
 
     this.previewing = true;
     this.api
@@ -366,49 +396,37 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
         useControlledSample: Boolean(this.previewForm.controls.usarMuestraControlada.value),
         maxItems: 200
       })
+      .pipe(finalize(() => (this.previewing = false)))
       .subscribe({
         next: (result) => {
           this.previewResult = result;
           this.notifications.success(`Simulación generada usando contexto: ${result.contextMode}.`);
         },
-        error: () => this.notifications.error('No fue posible generar la simulación.'),
-        complete: () => (this.previewing = false)
+        error: () => this.notifications.error('No fue posible generar la simulación.')
       });
   }
 
   publish(): void {
-    if (!this.mappingSet || this.publishing) return;
+    if (!this.canPublish || !this.mappingSet || this.publishing) return;
 
-    this.runValidation((isValid) => {
-      if (!isValid) {
-        this.notifications.error('Publicación bloqueada: configuración inválida o incompleta.');
-        return;
-      }
-
-      this.publishing = true;
-      this.api.publish(this.mappingSet!.id, 'ui-admin', 'Publicado desde SPA').subscribe({
-        next: (updated) => {
-          this.mappingSet = updated;
-          this.notifications.success('Configuración publicada correctamente.');
-        },
-        error: () => this.notifications.error('No se pudo publicar. Revisa validación y cobertura.'),
-        complete: () => (this.publishing = false)
-      });
+    void this.router.navigate(['/integraciones/relacion-informacion'], {
+      queryParams: { method: this.methodCode }
     });
   }
 
   clone(): void {
-    if (!this.mappingSet || this.cloning) return;
+    if (!this.canManage || !this.mappingSet || this.cloning) return;
     this.cloning = true;
-    this.api.clone(this.mappingSet.id, `${this.mappingSet.name} (copia)`, 'ui-admin').subscribe({
+    this.api.clone(this.mappingSet.id, `${this.mappingSet.name} (copia)`, 'ui-admin').pipe(
+      finalize(() => (this.cloning = false))
+    ).subscribe({
       next: (created) => {
         this.notifications.success('Configuración clonada.');
         this.mappingSet = created;
         this.mappingSetId = created.id;
-        this.router.navigate(['/integraciones/mappings', created.methodCode, created.id]);
+        this.router.navigate(['/integraciones/relacion-informacion', created.methodCode, created.id]);
       },
-      error: () => this.notifications.error('No fue posible clonar la configuración.'),
-      complete: () => (this.cloning = false)
+      error: () => this.notifications.error('No fue posible clonar la configuración.')
     });
   }
 
@@ -514,21 +532,21 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
   getSourceKindLabel(kind: string | null | undefined): string {
     switch (this.normalizeSourceKind(kind)) {
-      case 'Transaction': return 'Dato de transacción';
-      case 'Batch': return 'Dato de lote';
-      case 'Cycle': return 'Dato de ciclo';
-      case 'ClearingHouse': return 'Dato de cámara';
-      case 'Constant': return 'Valor fijo';
-      case 'Addenda': return 'Dato complementario';
-      case 'NachaHeader': return 'NachaHeaders';
-      case 'BatchHeader': return 'BatchHeaders';
-      case 'EntryDetail': return 'EntryDetails';
-      case 'AddendaRecord': return 'AddendaRecords';
-      case 'BatchControl': return 'BatchControls';
-      case 'FileControl': return 'FileControls';
-      case 'FinancialInstitution': return 'FinancialInstitution';
-      case 'Prenotification': return 'Prenotification';
-      case 'DifferentialResponse': return 'DifferentialResponse';
+      case 'Transaction': return 'Transaccion';
+      case 'Batch': return 'Lote operativo';
+      case 'Cycle': return 'Ciclo';
+      case 'ClearingHouse': return 'Camara';
+      case 'Constant': return 'Constante';
+      case 'Addenda': return 'Addenda NACHA';
+      case 'NachaHeader': return 'Archivo NACHA';
+      case 'BatchHeader': return 'Lote NACHA';
+      case 'EntryDetail': return 'Detalle NACHA';
+      case 'AddendaRecord': return 'Addenda NACHA';
+      case 'BatchControl': return 'Control lote NACHA';
+      case 'FileControl': return 'Control archivo NACHA';
+      case 'FinancialInstitution': return 'Entidad financiera';
+      case 'Prenotification': return 'Prenotificacion';
+      case 'DifferentialResponse': return 'Respuesta diferencial';
       default: return 'No definido';
     }
   }
@@ -577,6 +595,28 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     return raw;
   }
 
+  private toApiSourceKind(kind: string | number | null | undefined): number {
+    const normalized = this.normalizeSourceKind(kind);
+    const values: Record<string, number> = {
+      Transaction: 1,
+      Addenda: 2,
+      Batch: 3,
+      Cycle: 4,
+      ClearingHouse: 5,
+      Constant: 6,
+      Expression: 7,
+      NachaHeader: 8,
+      BatchHeader: 9,
+      EntryDetail: 10,
+      AddendaRecord: 11,
+      BatchControl: 12,
+      FileControl: 13,
+      Prenotification: 14,
+      DifferentialResponse: 15
+    };
+    return values[normalized] ?? 0;
+  }
+
   private failEditorLoad<T>(message: string, error?: unknown): Observable<T> {
     return throwError(() => new Error(this.buildEditorLoadErrorMessage(message, error)));
   }
@@ -613,11 +653,6 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
   private handleEditorLoadFailure(error: unknown): void {
     const message = this.getEditorLoadErrorMessage(error);
-    console.error('[mapping-editor] loadAll:error', {
-      mappingSetId: this.mappingSetId,
-      methodCode: this.methodCode,
-      message
-    });
     this.loading = false;
     this.mappingSet = undefined;
     this.parameters = [];
@@ -660,20 +695,11 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   get estadoPublicacion(): string {
     return this.getMappingSetStatusLabel(this.mappingSet?.status as any);
   }
-
-  irAComparacion(): void {
-    if (!this.mappingSet?.methodCode) {
-      this.notifications.error('No se encontró el método para abrir comparación de versiones.');
-      return;
-    }
-    this.router.navigate(['/integraciones/mappings/compare', this.mappingSet.methodCode]);
-  }
-
   trackByParameterId(_: number, parameter: IntegrationMethodParameter): number {
     return parameter.id;
   }
 
   goToMappingList(): void {
-    this.router.navigate(['/integraciones/mappings']);
+    this.router.navigate(['/integraciones/relacion-informacion']);
   }
 }

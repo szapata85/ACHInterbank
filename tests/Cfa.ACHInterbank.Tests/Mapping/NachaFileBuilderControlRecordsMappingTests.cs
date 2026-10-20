@@ -97,6 +97,7 @@ public class NachaFileBuilderControlRecordsMappingTests
         var options = Options.Create(new NachaGenerationOptions
         {
             Mode = shadowMode ? "SHADOW_COMPARE" : "HYBRID",
+            ExecutionScope = "DEVELOPMENT",
             EnableRecord8MappingEngine = enableRecord8,
             EnableRecord9MappingEngine = enableRecord9
         });

@@ -16,17 +16,20 @@ public class AchCycleSeederHandler : ITaskHandler
     private readonly AchDbContext _db;
     private readonly IServiceProvider _sp;
     private readonly ILogger<AchCycleSeederHandler> _log;
+    private readonly TimeProvider _timeProvider;
 
     public string Code => "AchCycleSeeder";
 
     public AchCycleSeederHandler(
         AchDbContext db,
         IServiceProvider sp,
-        ILogger<AchCycleSeederHandler> log)
+        ILogger<AchCycleSeederHandler> log,
+        TimeProvider? timeProvider = null)
     {
         _db = db;
         _sp = sp;
         _log = log;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<string> ExecuteAsync(TaskDefinition task, CancellationToken ct)
@@ -43,7 +46,10 @@ public class AchCycleSeederHandler : ITaskHandler
         var houses = await q.Select(ch => new { ch.Id, ch.Code, ch.Name }).ToListAsync(ct);
         if (houses.Count == 0) return "No hay ClearingHouses en BD (o el filtro no tuvo coincidencias).";
 
-        var years = ParseYears(task) ?? BuildDefaultYears();
+        var currentYear = TimeZoneInfo.ConvertTimeBySystemTimeZoneId(
+            _timeProvider.GetUtcNow(),
+            "America/Bogota").Year;
+        var years = ParseYears(task, currentYear) ?? BuildDefaultYears(currentYear);
 
         var combos = from ch in houses
                      from year in years
@@ -73,13 +79,9 @@ public class AchCycleSeederHandler : ITaskHandler
         return $"Seeder paralelo ejecutado. CH: {houses.Count}. Años: {string.Join(",", years)}. Éxitos: {ok}. Fallos: {fail}.";
     }
 
-    private static List<int> BuildDefaultYears()
-    {
-        var y = DateTime.Now.Year;
-        return new List<int> { y, y + 1 };
-    }
+    private static List<int> BuildDefaultYears(int currentYear) => [currentYear, currentYear + 1];
 
-    private static List<int>? ParseYears(TaskDefinition task)
+    private static List<int>? ParseYears(TaskDefinition task, int currentYear)
     {
         var yearsParam = task.Parameters.FirstOrDefault(p => p.Key == "Years")?.Value;
         if (!string.IsNullOrWhiteSpace(yearsParam))
@@ -93,8 +95,7 @@ public class AchCycleSeederHandler : ITaskHandler
         var nextParam = task.Parameters.FirstOrDefault(p => p.Key == "SeedNextYears")?.Value;
         if (!string.IsNullOrWhiteSpace(nextParam) && int.TryParse(nextParam, out var n) && n >= 0)
         {
-            var baseYear = DateTime.Now.Year;
-            return Enumerable.Range(baseYear, n + 1).ToList();
+            return Enumerable.Range(currentYear, n + 1).ToList();
         }
 
         return null;

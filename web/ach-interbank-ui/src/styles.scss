@@ -1,4 +1,59 @@
+@use '@angular/material' as mat;
 @use './styles/tokens';
 @use './styles/base';
 @use './styles/components';
 @use './styles/utilities';
+
+html {
+  // Static palettes generate Material's baseline token structure. BrandingService
+  // overrides the runtime Material system primary tokens without recompilation.
+  @include mat.theme((
+    color: (
+      primary: mat.$green-palette,
+      tertiary: mat.$azure-palette
+    ),
+    typography: Roboto,
+    density: -1
+  ));
+
+  // Foundation bridge: Material consumes the same system tokens used by the
+  // shell/shared layer. BrandingService updates the brand tokens at runtime and
+  // applies the primary/on-primary Material system tokens inline.
+  --mat-sys-primary: var(--brand-primary);
+  --mat-sys-on-primary: var(--brand-on-primary);
+  --mat-sys-background: var(--color-background);
+  --mat-sys-on-background: var(--color-text);
+  --mat-sys-surface: var(--color-surface);
+  --mat-sys-surface-container: var(--color-surface);
+  --mat-sys-surface-container-low: var(--color-surface-muted);
+  --mat-sys-on-surface: var(--color-text);
+  --mat-sys-on-surface-variant: var(--color-text-muted);
+  --mat-sys-outline: var(--color-outline);
+  --mat-sys-error: var(--color-error);
+  --mat-sys-on-error: var(--color-on-error);
+
+  // Material typography uses the same global family as the rest of the SPA.
+  --mat-sys-body-large-font: var(--font-sans);
+  --mat-sys-body-medium-font: var(--font-sans);
+  --mat-sys-body-small-font: var(--font-sans);
+  --mat-sys-display-large-font: var(--font-sans);
+  --mat-sys-display-medium-font: var(--font-sans);
+  --mat-sys-display-small-font: var(--font-sans);
+  --mat-sys-headline-large-font: var(--font-sans);
+  --mat-sys-headline-medium-font: var(--font-sans);
+  --mat-sys-headline-small-font: var(--font-sans);
+  --mat-sys-label-large-font: var(--font-sans);
+  --mat-sys-label-medium-font: var(--font-sans);
+  --mat-sys-label-small-font: var(--font-sans);
+  --mat-sys-title-large-font: var(--font-sans);
+  --mat-sys-title-medium-font: var(--font-sans);
+  --mat-sys-title-small-font: var(--font-sans);
+}
+
+// Angular Material defaults to the legacy "Material Icons" font set. The SPA
+// packages Material Symbols locally, so font icons must resolve to that bundled
+// family even when a component uses the default mat-icon font set.
+mat-icon.mat-icon {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-feature-settings: 'liga';
+}

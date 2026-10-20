@@ -13,24 +13,20 @@ namespace Cfa.ACHInterbank.Tests;
 public class LegacyNachaEndpointsTests
 {
     [Fact]
-    public void LegacyLayoutsEndpoint_ShouldBeMarkedDeprecatedOrDiagnostic()
+    public void LegacyLayoutsEndpoint_ShouldRemainDiagnosticWithoutObsoleteMetadata()
     {
-#pragma warning disable CS0618
         var controllerType = typeof(NachaRecordLayoutsController);
-#pragma warning restore CS0618
 
-        Assert.NotNull(controllerType.GetCustomAttributes(typeof(ObsoleteAttribute), inherit: false).SingleOrDefault());
+        Assert.Null(controllerType.GetCustomAttributes(typeof(ObsoleteAttribute), inherit: false).SingleOrDefault());
         Assert.Contains(controllerType.GetMethods(), method => method.Name == "GetAll");
     }
 
     [Fact]
-    public void LegacyDefinitionsEndpoint_ShouldBeMarkedDeprecatedOrDiagnostic()
+    public void LegacyDefinitionsEndpoint_ShouldRemainDiagnosticWithoutObsoleteMetadata()
     {
-#pragma warning disable CS0618
         var controllerType = typeof(NachaRecordDefinitionsController);
-#pragma warning restore CS0618
 
-        Assert.NotNull(controllerType.GetCustomAttributes(typeof(ObsoleteAttribute), inherit: false).SingleOrDefault());
+        Assert.Null(controllerType.GetCustomAttributes(typeof(ObsoleteAttribute), inherit: false).SingleOrDefault());
         Assert.Contains(controllerType.GetMethods(), method => method.Name == "GetAll");
     }
 
@@ -39,10 +35,8 @@ public class LegacyNachaEndpointsTests
     {
         var layoutsService = new Mock<INachaRecordLayoutAppService>(MockBehavior.Strict);
         var definitionsService = new Mock<INachaRecordDefinitionAppService>(MockBehavior.Strict);
-#pragma warning disable CS0618
         var layouts = new NachaRecordLayoutsController(layoutsService.Object);
         var definitions = new NachaRecordDefinitionsController(definitionsService.Object);
-#pragma warning restore CS0618
 
         var layoutResult = Assert.IsType<ObjectResult>(layouts.Create(new NachaRecordLayoutDto(), CancellationToken.None).Result);
         var definitionResult = Assert.IsType<ObjectResult>(definitions.Create(new NachaRecordDefinitionDto(), CancellationToken.None).Result);

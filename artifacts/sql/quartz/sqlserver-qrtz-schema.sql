@@ -8,6 +8,22 @@
 -- @DropDb = 1 elimina tablas QRTZ_* existentes y puede borrar jobs/triggers persistidos.
 DECLARE @DropDb BIT = 0; -- Set this to 0 to skip DROP statements, 1 to include them
 
+DECLARE @QuartzTableCount INT = (
+    SELECT COUNT(*)
+    FROM sys.tables
+    WHERE [name] IN (
+      'QRTZ_CALENDARS', 'QRTZ_CRON_TRIGGERS', 'QRTZ_FIRED_TRIGGERS',
+      'QRTZ_PAUSED_TRIGGER_GRPS', 'QRTZ_SCHEDULER_STATE', 'QRTZ_LOCKS',
+      'QRTZ_JOB_DETAILS', 'QRTZ_SIMPLE_TRIGGERS', 'QRTZ_SIMPROP_TRIGGERS',
+      'QRTZ_BLOB_TRIGGERS', 'QRTZ_TRIGGERS'));
+
+IF @DropDb = 0 AND @QuartzTableCount > 0 AND @QuartzTableCount < 11
+    THROW 51000, 'Quartz schema is incomplete. Repair it before starting the scheduler.', 1;
+
+-- The script is intentionally a no-op when the complete versioned schema exists.
+IF @DropDb = 0 AND @QuartzTableCount = 11
+    SET NOEXEC ON;
+
 IF @DropDb = 1
 BEGIN
     -- drop indexes if they exist and rebuild if current ones
@@ -118,7 +134,8 @@ CREATE TABLE [dbo].[QRTZ_FIRED_TRIGGERS] (
   [JOB_NAME] nvarchar(150) NULL,
   [JOB_GROUP] nvarchar(150) NULL,
   [IS_NONCONCURRENT] bit NULL,
-  [REQUESTS_RECOVERY] bit NULL 
+  [REQUESTS_RECOVERY] bit NULL,
+  [EXECUTION_GROUP] nvarchar(200) NULL
 );
 
 CREATE TABLE [dbo].[QRTZ_PAUSED_TRIGGER_GRPS] (
@@ -201,6 +218,8 @@ CREATE TABLE [dbo].[QRTZ_TRIGGERS] (
   [END_TIME] bigint NULL,
   [CALENDAR_NAME] nvarchar(200) NULL,
   [MISFIRE_INSTR] int NULL,
+  [MISFIRE_ORIG_FIRE_TIME] bigint NULL,
+  [EXECUTION_GROUP] nvarchar(200) NULL,
   [JOB_DATA] varbinary(max) NULL
 );
 GO

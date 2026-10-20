@@ -10,6 +10,7 @@ using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Moq;
+using System.Text.Json;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -58,6 +59,7 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.Equal(attempt.IdEstado, cmd.IdEstado);
         Assert.Equal(attempt.IdTransaccionServicioExterno, cmd.IdTransaccionServicioExterno);
         Assert.Equal(attempt.AchResponse!.CodigoCamaraCompensacion, cmd.CodigoCamaraCompensacion);
+        Assert.Equal(attempt.AchResponse.Id, cmd.DifferentialResponseId);
     }
 
     [Fact]
@@ -73,6 +75,15 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.True(result.Procesada);
         Assert.Equal(AchResponseNotificationStatus.Exitosa, attempt.EstadoNotificacion);
         Assert.Equal(AchResponseProcessingStatus.Notificada, attempt.AchResponse!.EstadoProcesamiento);
+        Assert.NotNull(attempt.RequestPayload);
+        Assert.NotNull(attempt.ResponsePayload);
+        using (var requestJson = JsonDocument.Parse(attempt.RequestPayload!))
+        {
+            var names = requestJson.RootElement.EnumerateObject().Select(x => x.Name).ToArray();
+            Assert.Equal(
+                ["idCanal", "nombreCanal", "idTransaccion", "idEstado", "causal", "idTransaccionAxon", "descripcionCausal"],
+                names);
+        }
         uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -93,7 +104,7 @@ public class NotificarRespuestaAchUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ShouldMarkTechnicalErrorAndPendingRetry_WhenGatewayThrows()
+    public async Task ExecuteAsync_ShouldRequireManualReview_AndBlockReplay_WhenGatewayTimesOut()
     {
         var sut = BuildSut(out var attemptRepo, out var gateway, out var uow, out _);
         var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
@@ -103,9 +114,34 @@ public class NotificarRespuestaAchUseCaseTests
         var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
 
         Assert.True(result.ErrorTecnico);
+        Assert.Equal(AchResponseNotificationStatus.RequiereRevisionManual, attempt.EstadoNotificacion);
+        Assert.Equal(AchResponseProcessingStatus.RequiereRevisionManual, attempt.AchResponse!.EstadoProcesamiento);
+        Assert.False(string.IsNullOrWhiteSpace(attempt.ErrorTecnico));
+        Assert.NotNull(attempt.RequestPayload);
+        Assert.Contains("ResultadoDesconocido", attempt.ResponsePayload!);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        var replay = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+
+        Assert.True(replay.YaProcesada);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldKeepRetryPending_WhenGatewayFailsBeforeKnownDelivery()
+    {
+        var sut = BuildSut(out var attemptRepo, out var gateway, out var uow, out _);
+        var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
+        attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+        gateway.Setup(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("endpoint configuration invalid"));
+
+        var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+
+        Assert.True(result.ErrorTecnico);
         Assert.Equal(AchResponseNotificationStatus.ErrorTecnico, attempt.EstadoNotificacion);
         Assert.Equal(AchResponseProcessingStatus.PendienteReintento, attempt.AchResponse!.EstadoProcesamiento);
-        Assert.False(string.IsNullOrWhiteSpace(attempt.ErrorTecnico));
+        Assert.Contains("ErrorTecnico", attempt.ResponsePayload!);
         uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 

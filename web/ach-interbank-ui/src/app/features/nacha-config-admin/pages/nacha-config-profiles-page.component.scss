@@ -15,15 +15,15 @@
 }
 
 .summary-grid article {
-  border: 1px solid #d8dee8;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: 0.9rem;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .summary-grid span {
   display: block;
-  color: #5f6b7a;
+  color: var(--color-text-soft);
   font-size: 0.85rem;
 }
 
@@ -44,25 +44,40 @@
   display: flex;
   justify-content: flex-end;
   margin-top: 1rem;
+  flex-wrap: wrap;
 }
 
-.selector-campo {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+
+.filtros-grid mat-form-field,
+.crear-grid mat-form-field {
+  width: 100%;
 }
 
-.selector-campo > span {
-  font-weight: 600;
-  font-size: var(--font-sm);
+.create-panel > summary:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
-.selector-campo select {
-  min-height: var(--control-height);
-  border: 1px solid var(--color-border-strong);
+.create-panel {
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: 0.55rem 0.75rem;
-  background: #fff;
+  background: var(--color-surface);
+}
+
+.create-panel > summary {
+  cursor: pointer;
+  padding: 1rem;
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.create-panel[open] > summary {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.create-panel ui-tarjeta {
+  display: block;
+  padding: .75rem;
 }
 
 .validacion-resumen {
@@ -82,4 +97,27 @@
   display: flex;
   gap: 0.35rem;
   flex-wrap: wrap;
+}
+
+.acciones-catalogos {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0.75rem 0;
+}
+
+@media (max-width: 600px) {
+  .filtros-grid,
+  .crear-grid,
+  .validacion-resumen {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .acciones-crear {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .create-panel > summary {
+    min-height: 44px;
+  }
 }

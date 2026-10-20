@@ -1,52 +1,122 @@
 <section class="login-card" aria-labelledby="login-title">
-  <header>
-    <h1 id="login-title">Ingreso al portal ACH Interbank</h1>
-    <p>Autenticate para gestionar transacciones y catalogos.</p>
+  <header class="login-header">
+    <span class="login-eyebrow">Portal transaccional</span>
+    <h1 id="login-title">Ingreso al portal {{ productName }}</h1>
+    <p>Accede de forma segura para gestionar la operación interbancaria.</p>
   </header>
 
-  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-    <label class="field">
-      <span>Usuario</span>
-      <input type="text" formControlName="username" autocomplete="username" />
-      <small *ngIf="form.get('username')?.touched && form.get('username')?.invalid">
-        Ingrese un usuario valido.
-      </small>
-    </label>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate [attr.aria-busy]="isSubmitting">
+    <mat-form-field appearance="outline">
+      <mat-label>Usuario</mat-label>
+      <input
+        matInput
+        type="text"
+        formControlName="username"
+        autocomplete="username"
+        autocapitalize="none"
+        spellcheck="false"
+      />
+      <svg
+        matPrefix
+        class="field-icon"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        focusable="false"
+        data-login-icon="account"
+      >
+        <circle cx="12" cy="8" r="3.5"></circle>
+        <path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"></path>
+      </svg>
+      <mat-error *ngIf="form.controls.username.hasError('required')">
+        El usuario es obligatorio.
+      </mat-error>
+      <mat-error *ngIf="form.controls.username.hasError('minlength')">
+        El usuario debe tener al menos 3 caracteres.
+      </mat-error>
+    </mat-form-field>
 
-    <label class="field">
-      <span>Contrasena</span>
-      <div class="password-field">
-        <input
-          [type]="passwordVisible ? 'text' : 'password'"
-          formControlName="password"
-          autocomplete="current-password"
-        />
-        <button
-          type="button"
-          class="password-toggle"
-          (click)="togglePasswordVisibility()"
-          [attr.aria-pressed]="passwordVisible"
-          [attr.aria-label]="passwordVisible ? 'Ocultar contrasena' : 'Mostrar contrasena'"
+    <mat-form-field appearance="outline">
+      <mat-label>Contraseña</mat-label>
+      <input
+        matInput
+        [type]="passwordVisible ? 'text' : 'password'"
+        formControlName="password"
+        autocomplete="current-password"
+      />
+      <svg
+        matPrefix
+        class="field-icon"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        focusable="false"
+        data-login-icon="lock"
+      >
+        <rect x="5" y="10" width="14" height="10" rx="2"></rect>
+        <path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10"></path>
+      </svg>
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        class="password-toggle"
+        (click)="togglePasswordVisibility()"
+        [attr.aria-pressed]="passwordVisible"
+        [attr.aria-label]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+        [matTooltip]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+      >
+        <svg
+          *ngIf="!passwordVisible"
+          class="visibility-icon"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          focusable="false"
+          data-login-icon="visibility"
         >
-          <span class="sr-only">{{ passwordVisible ? 'Ocultar' : 'Mostrar' }}</span>
-          <span class="icon material-symbols-outlined" aria-hidden="true">
-            {{ passwordVisible ? 'visibility_off' : 'visibility' }}
-          </span>
-        </button>
-      </div>
-      <small *ngIf="form.get('password')?.touched && form.get('password')?.invalid">
-        La contrasena debe tener al menos 6 caracteres.
-      </small>
-    </label>
+          <path d="M2.8 12s3.3-5.5 9.2-5.5 9.2 5.5 9.2 5.5-3.3 5.5-9.2 5.5S2.8 12 2.8 12Z"></path>
+          <circle cx="12" cy="12" r="2.7"></circle>
+        </svg>
+        <svg
+          *ngIf="passwordVisible"
+          class="visibility-icon"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          focusable="false"
+          data-login-icon="visibility-off"
+        >
+          <path d="M4 4l16 16"></path>
+          <path d="M9.8 6.8A10.8 10.8 0 0 1 12 6.5c5.9 0 9.2 5.5 9.2 5.5a14.7 14.7 0 0 1-2.4 3.1M14.2 17.2a10.8 10.8 0 0 1-2.2.3C6.1 17.5 2.8 12 2.8 12a14.3 14.3 0 0 1 2.4-3.1"></path>
+        </svg>
+      </button>
+      <mat-error *ngIf="form.controls.password.hasError('required')">
+        La contraseña es obligatoria.
+      </mat-error>
+      <mat-error *ngIf="form.controls.password.hasError('minlength')">
+        La contraseña debe tener al menos 6 caracteres.
+      </mat-error>
+    </mat-form-field>
 
-    <app-error-message [text]="errorMessage"></app-error-message>
+    <div class="login-error" *ngIf="errorMessage" role="alert" aria-live="assertive">
+      <svg class="error-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 7.5v6M12 17h.01"></path>
+      </svg>
+      <span>{{ errorMessage }}</span>
+    </div>
 
-    <button type="submit" [disabled]="isSubmitting">
-      {{ isSubmitting ? 'Ingresando...' : 'Ingresar' }}
+    <button
+      mat-flat-button
+      color="primary"
+      class="submit-button"
+      type="submit"
+      [disabled]="form.invalid || isSubmitting"
+    >
+      <mat-spinner *ngIf="isSubmitting" diameter="20" aria-hidden="true"></mat-spinner>
+      <span>{{ isSubmitting ? 'Ingresando…' : 'Ingresar' }}</span>
     </button>
+    <span class="sr-only" aria-live="polite">{{ isSubmitting ? 'Autenticación en curso' : '' }}</span>
 
     <div class="helper-links">
-      <a routerLink="/forgot-password">Olvidaste tu clave?</a>
+      <a routerLink="/forgot-password">¿Olvidaste tu clave?</a>
     </div>
   </form>
 </section>

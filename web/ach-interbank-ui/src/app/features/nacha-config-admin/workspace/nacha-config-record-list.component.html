@@ -1,0 +1,30 @@
+<mat-card class="record-card" data-testid="nacha-config-record-list">
+  <mat-card-header>
+    <mat-card-title>Estructura del archivo</mat-card-title>
+    <mat-card-subtitle>Selecciona un registro para ver sus campos.</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <mat-action-list *ngIf="records.length; else emptyRecords" aria-label="Registros del archivo">
+      <button
+        mat-list-item
+        type="button"
+        *ngFor="let record of sortedRecords()"
+        [activated]="record.recordCode === selectedRecordCode"
+        (click)="selectedRecordCodeChange.emit(record.recordCode)"
+      >
+        <span matListItemTitle>{{ label(record) }}</span>
+        <span matListItemLine>Orden {{ record.sequence }} · {{ record.sourceStrategyName || record.sourceStrategy }}</span>
+        <mat-chip-set matListItemMeta aria-label="Disponibilidad del registro">
+          <mat-chip>{{ record.isEnabled ? 'Activo' : 'Inactivo' }}</mat-chip>
+        </mat-chip-set>
+      </button>
+    </mat-action-list>
+
+    <ng-template #emptyRecords>
+      <div class="empty-state" role="status">
+        <strong>Sin registros configurados</strong>
+        <span>Este perfil no tiene una estructura de registros disponible.</span>
+      </div>
+    </ng-template>
+  </mat-card-content>
+</mat-card>

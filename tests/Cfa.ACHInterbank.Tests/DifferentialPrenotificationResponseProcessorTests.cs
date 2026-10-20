@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Models;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -11,6 +12,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using System.Reflection;
 using Xunit;
 
@@ -35,9 +37,35 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         Assert.True(result.Success);
         Assert.Equal(AchTransferStateEnum.Certified, prenote.State);
         Assert.Single(prenote.StateEvents);
-        Assert.Contains(trace.Entries, x => x.SourceField == "entryDetails.sequenceNumber" && x.SourceValueSanitized == fixture.TraceNumber);
+        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.idTransaccion" && x.SourceValueSanitized == fixture.TraceNumber);
         Assert.False(result.MonetaryMovementCreated);
         Assert.False(result.BalancesAffected);
+        var thirdParty = await fixture.Context.CustomerThirdParties.SingleAsync();
+        Assert.Equal(CustomerThirdPartyStatusEnum.Active, thirdParty.Status);
+        Assert.Equal("CYCLE", thirdParty.ValidationCycleId);
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_ShouldProcessTransactionalPayload_WithoutDifferentialPhysicalFile()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        fixture.Context.IncomingNachaTransactionLinks.RemoveRange(fixture.Context.IncomingNachaTransactionLinks);
+        fixture.Context.EntryDetails.RemoveRange(fixture.Context.EntryDetails);
+        await fixture.Context.SaveChangesAsync();
+
+        var result = await fixture.Processor.ProcessAsync(
+            fixture.SuccessCommand(),
+            fixture.BuildResponse("00", null),
+            HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
+
+        Assert.True(result.Success);
+        Assert.Equal(fixture.Prenotification.Id, result.PrenotificationTransactionId);
+        Assert.True(result.TracePersisted);
+        Assert.False(result.MonetaryMovementCreated);
+        Assert.False(result.BalancesAffected);
+        Assert.Equal(AchTransferStateEnum.Certified,
+            (await fixture.Context.AchTransactions.SingleAsync(x => x.Id == fixture.Prenotification.Id)).State);
     }
 
     [Fact]
@@ -60,6 +88,56 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         Assert.Equal("R03", stateEvent.ReasonCode);
         Assert.False(result.MonetaryMovementCreated);
         Assert.False(result.BalancesAffected);
+        var thirdParty = await fixture.Context.CustomerThirdParties.SingleAsync();
+        Assert.Equal(CustomerThirdPartyStatusEnum.Rejected, thirdParty.Status);
+        Assert.Contains("R03", thirdParty.ValidationMessage);
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_ShouldNotResolvePrenotification_FromAnotherClearingHouse()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        var response = fixture.BuildResponse("00", null);
+        response.ClearingHouseId = 2;
+
+        var result = await fixture.Processor.ProcessAsync(
+            fixture.SuccessCommand(),
+            response,
+            HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
+
+        Assert.False(result.Success);
+        Assert.Equal("DIFFERENTIAL_RESPONSE_CLEARING_HOUSE_MISMATCH", result.ErrorCode);
+        Assert.Equal(AchTransferStateEnum.Pending, fixture.Prenotification.State);
+        Assert.Equal(CustomerThirdPartyStatusEnum.Pending,
+            (await fixture.Context.CustomerThirdParties.SingleAsync()).Status);
+    }
+
+    [Theory]
+    [InlineData("00", null, CustomerThirdPartyStatusEnum.Active)]
+    [InlineData("RJ", "R03", CustomerThirdPartyStatusEnum.Rejected)]
+    public async Task RegistrarRespuestaTransaccion_ShouldResolveCenitPrenotification_WithCenitEvidenceOnly(
+        string externalStatus,
+        string? reason,
+        CustomerThirdPartyStatusEnum expectedStatus)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        await fixture.UseCenitAsync();
+        var command = (expectedStatus == CustomerThirdPartyStatusEnum.Active
+            ? fixture.SuccessCommand()
+            : fixture.RejectedCommand()) with { CodigoCamaraCompensacion = "CENIT" };
+        var response = fixture.BuildResponse(externalStatus, reason);
+        response.CodigoCamaraCompensacion = "CENIT";
+        var homologation = expectedStatus == CustomerThirdPartyStatusEnum.Active
+            ? HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null)
+            : HomologarRespuestaAchResult.Success(true, 2, 2, "Rechazada", "R03", "Cuenta no localizada");
+
+        var result = await fixture.Processor.ProcessAsync(command, response, homologation);
+
+        Assert.True(result.Success);
+        Assert.Equal(expectedStatus, (await fixture.Context.CustomerThirdParties.SingleAsync()).Status);
+        Assert.Equal(1, response.ClearingHouseId);
     }
 
     [Fact]
@@ -80,12 +158,13 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         Assert.Equal(IntegrationGuaranteeConstants.DifferentialResponseNotification, trace.MappingPurpose);
         Assert.False(trace.MonetaryMovementCreated);
         Assert.False(trace.ExternalTransmission);
-        Assert.Contains(trace.Entries, x => x.TargetField == "ANSIDTX" && x.SourceField == "entryDetails.sequenceNumber");
-        Assert.Contains(trace.Entries, x => x.TargetField == "ANSIDLOTE" && x.SourceField == "batchHeaders.batchNumber");
+        Assert.Contains(trace.Entries, x => x.TargetField == "idTransaccion" && x.SourceField == "differentialResponse.idTransaccion");
+        Assert.Contains(trace.Entries, x => x.TargetField == "idCanal" && x.SourceField == "differentialResponse.idCanal");
+        Assert.DoesNotContain(trace.Entries, x => x.TargetField.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public async Task RegistrarRespuestaTransaccion_ShouldUseNachaDesagregadoFields_ToMatchPrenotification()
+    public async Task RegistrarRespuestaTransaccion_ShouldUseDifferentialResponseFields_ForWsdlTrace()
     {
         await using var fixture = await Fixture.CreateAsync();
         await fixture.PublishRegistrarRespuestaMappingAsync();
@@ -97,9 +176,9 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
 
         var trace = await fixture.Context.IntegrationMappingTraces.Include(x => x.Entries).SingleAsync();
 
-        Assert.Contains(trace.Entries, x => x.SourceField == "batchHeaders.batchNumber" && x.SourceValueSanitized == "1");
-        Assert.Contains(trace.Entries, x => x.SourceField == "addendaRecords.originalTraceNumber" && x.SourceValueSanitized == fixture.TraceNumber);
-        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.codigoEstadoExterno" && x.SourceValueSanitized == "00");
+        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.idTransaccion" && x.SourceValueSanitized == fixture.TraceNumber);
+        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.idTransaccionServicioExterno" && x.SourceValueSanitized == "1001");
+        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.idEstado" && x.SourceValueSanitized == "1");
     }
 
     [Fact]
@@ -120,6 +199,54 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         Assert.Equal("DIFFERENTIAL_RESPONSE_PRENOTIFICATION_NOT_FOUND", result.ErrorCode);
         Assert.True(await fixture.Context.IntegrationMappingTraces.AnyAsync());
         Assert.Equal(AchTransferStateEnum.Pending, (await fixture.Context.AchTransactions.SingleAsync(x => x.Id == fixture.Prenotification.Id)).State);
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_ShouldFailClosed_WhenOriginalTransactionCorrelationIsAmbiguous()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        fixture.Context.IncomingNachaTransactionLinks.RemoveRange(fixture.Context.IncomingNachaTransactionLinks);
+        fixture.Context.AchTransactions.Add(new AchTransaction
+        {
+            Id = 902,
+            Amount = 0m,
+            Type = TransactionTypeEnum.Prenotification,
+            IsPrenotification = true,
+            TransactionCode = "28",
+            TransactionExternalId = fixture.TraceNumber,
+            Reference = fixture.TraceNumber,
+            SourceInstitutionId = fixture.Prenotification.SourceInstitutionId,
+            DestinationInstitutionId = fixture.Prenotification.DestinationInstitutionId,
+            SourceAccountNumber = fixture.Prenotification.SourceAccountNumber,
+            DestinationAccountNumber = fixture.Prenotification.DestinationAccountNumber,
+            RecipientIdNumber = fixture.Prenotification.RecipientIdNumber,
+            OriginatingDFI = fixture.Prenotification.OriginatingDFI,
+            ReceivingDFI = fixture.Prenotification.ReceivingDFI,
+            TraceNumber = fixture.TraceNumber,
+            CompanyIdentification = fixture.Prenotification.CompanyIdentification,
+            AchCycleId = fixture.Prenotification.AchCycleId,
+            AchBatchId = fixture.Prenotification.AchBatchId,
+            EffectiveEntryDate = fixture.Prenotification.EffectiveEntryDate.AddDays(1),
+            Direction = AchTransactionDirection.Outgoing,
+            Origin = AchTransactionOrigin.Cfa,
+            ClassificationStatus = AchTransactionClassificationStatus.Determined,
+            State = AchTransferStateEnum.Pending
+        });
+        await fixture.Context.SaveChangesAsync();
+        var response = fixture.BuildResponse("00", null);
+
+        var result = await fixture.Processor.ProcessAsync(
+            fixture.SuccessCommand(),
+            response,
+            HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
+
+        Assert.False(result.Success);
+        Assert.Equal("DIFFERENTIAL_RESPONSE_CORRELATION_AMBIGUOUS", result.ErrorCode);
+        Assert.Null(response.AchTransactionId);
+        Assert.Empty(await fixture.Context.AchTransactionStateEvents.ToListAsync());
+        Assert.All(await fixture.Context.AchTransactions.Where(x => x.IsPrenotification).ToListAsync(),
+            transaction => Assert.Equal(AchTransferStateEnum.Pending, transaction.State));
     }
 
     [Fact]
@@ -145,8 +272,37 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
     public async Task RegistrarRespuestaTransaccion_ShouldFailControlled_WhenRequiredMappingMissing()
     {
         await using var fixture = await Fixture.CreateAsync();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        readiness
+            .Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntegrationMappingReadinessResult(
+                IsReady: false,
+                Status: "Failed",
+                Code: "INTEGRATION_MAPPING_REQUIRED",
+                IntegrationKey: IntegrationGuaranteeConstants.WsAxon,
+                OperationKey: IntegrationGuaranteeConstants.RegistrarRespuestaTransaccion,
+                MappingPurpose: IntegrationGuaranteeConstants.DifferentialResponseNotification,
+                MappingDirection: IntegrationGuaranteeConstants.InboundResponse,
+                RequiredMappings: 0,
+                ActiveMappings: 0,
+                MissingRequiredMappings: [],
+                InactiveRequiredMappings: [],
+                FallbackFields: [],
+                RequiredFallbackFields: [],
+                UsesFallback: false,
+                CanBuildPayload: false,
+                Errors: ["No existe IntegrationMappingSet publicado para WSAXON.RegistrarRespuestaTransaccion; no se permite fallback para campos requeridos."],
+                Warnings: []));
 
-        var result = await fixture.Processor.ProcessAsync(
+        var traceWriter = new Mock<IIntegrationMappingTraceWriter>(MockBehavior.Strict);
+        var sut = new DifferentialPrenotificationResponseProcessor(
+            fixture.Context,
+            fixture.OperationResolver,
+            readiness.Object,
+            traceWriter.Object,
+            new AchStateTransitionService(fixture.Context));
+
+        var result = await sut.ProcessAsync(
             fixture.SuccessCommand(),
             fixture.BuildResponse("00", null),
             HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
@@ -228,17 +384,19 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
             _connection = connection;
             Context = context;
             Catalog = new IntegrationCatalogService(context);
-            var operationResolver = new TransactionIntegrationOperationResolver(context);
+            OperationResolver = new TransactionIntegrationOperationResolver(context);
             Processor = new DifferentialPrenotificationResponseProcessor(
                 context,
-                operationResolver,
+                OperationResolver,
                 new IntegrationMappingReadinessService(context, Catalog),
-                new IntegrationMappingTraceWriter(context, Catalog));
+                new IntegrationMappingTraceWriter(context, Catalog),
+                new AchStateTransitionService(context));
         }
 
         public string TraceNumber => "000128300012345";
         public AchDbContext Context { get; }
         public IntegrationCatalogService Catalog { get; }
+        public TransactionIntegrationOperationResolver OperationResolver { get; }
         public DifferentialPrenotificationResponseProcessor Processor { get; }
         public AchTransaction Prenotification { get; private set; } = null!;
 
@@ -264,6 +422,7 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
             => new()
             {
                 Id = Guid.NewGuid(),
+                ClearingHouseId = 1,
                 TipoRespuesta = TipoRespuestaAch.Prenota,
                 IdTransaccion = TraceNumber,
                 CodigoCamaraCompensacion = "ACH",
@@ -312,6 +471,14 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
             await Context.SaveChangesAsync();
         }
 
+        public async Task UseCenitAsync()
+        {
+            var clearingHouse = await Context.ClearingHouses.SingleAsync();
+            clearingHouse.Code = "CENIT";
+            clearingHouse.Name = "CENIT";
+            await Context.SaveChangesAsync();
+        }
+
         private async Task SeedAsync()
         {
             await Catalog.GetMethodsAsync();
@@ -340,6 +507,7 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
                 DestinationInstitutionId = 2,
                 SourceAccountNumber = "0000003101",
                 DestinationAccountNumber = "0000003102",
+                RecipientIdNumber = "900003101",
                 OriginatingDFI = "0001283",
                 ReceivingDFI = "9999000",
                 TraceNumber = TraceNumber,
@@ -347,11 +515,33 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
                 AchCycleId = cycle.Id,
                 AchBatchId = 1,
                 EffectiveEntryDate = cycle.ProcessingDate,
+                Direction = AchTransactionDirection.Outgoing,
+                Origin = AchTransactionOrigin.Cfa,
+                ClassificationStatus = AchTransactionClassificationStatus.Determined,
                 State = AchTransferStateEnum.Pending
             };
             Context.AchTransactions.Add(Prenotification);
+            var customer = new Customer
+            {
+                Id = 1,
+                FirstName = "Cliente",
+                LastName = "UAT",
+                PersonType = "PN",
+                DocumentType = "CC",
+                DocumentNumber = "10000001"
+            };
+            Context.Customers.Add(customer);
+            Context.CustomerThirdParties.Add(new CustomerThirdParty
+            {
+                Id = 1,
+                CustomerId = customer.Id,
+                DestinationInstitutionId = external.Id,
+                DestinationAccountNumber = Prenotification.DestinationAccountNumber,
+                RecipientIdNumber = Prenotification.RecipientIdNumber,
+                PrenotificationTransactionId = Prenotification.Id
+            });
 
-            var ingestion = new IncomingNachaFileIngestion { Id = Guid.NewGuid(), FileName = "0001283.001.1", FileHashSha256 = "HASH", FileSize = 200, ContentType = "text/plain", UploadedBy = "test", CorrelationId = "corr" };
+            var ingestion = new IncomingNachaFileIngestion { Id = Guid.NewGuid(), FileName = "0001283.001.1", FileHashSha256 = "HASH", FileSize = 200, ContentType = "text/plain", UploadedBy = "test", CorrelationId = "corr", ResolvedClearingHouseId = 1, ResolvedAchCycleId = cycle.Id };
             Context.IncomingNachaFileIngestions.Add(ingestion);
             Context.NachaHeaders.Add(new NachaHeader { NachaID = "NACHA-PRENOTE", IncomingNachaFileIngestionId = ingestion.Id, ImmediateOrigin = "0001283", ImmediateDestination = "9999000", FileIdModifier = "A", ReferenceCode = "PRENOTE", ClearingHouseId = 1, AchCycleId = cycle.Id });
             Context.BatchHeaders.Add(new BatchHeader { BatchID = 10, NachaID = "NACHA-PRENOTE", CompanyId = "900003101", CompanyName = "CFA", StandardEntryClassCode = "PPD", CompanyEntryDescription = "PRENOTE", EffectiveEntryDate = "260523", OriginParticipantEntityCode = "0001283", BatchNumber = 1 });
@@ -366,11 +556,13 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         private static string SourceFor(string parameterPath)
             => parameterPath switch
             {
-                "ANSIDLOTE" => "batchHeaders.batchNumber",
-                "ANSST" => "differentialResponse.codigoEstadoExterno",
-                "ANCLC" => "differentialResponse.codigoCausalExterna",
-                "ANSIDTX" => "entryDetails.sequenceNumber",
-                "ANSIDREVER" => "addendaRecords.originalTraceNumber",
+                "idCanal" => "differentialResponse.idCanal",
+                "nombreCanal" => "differentialResponse.nombreCanal",
+                "idTransaccion" => "differentialResponse.idTransaccion",
+                "idEstado" => "differentialResponse.idEstado",
+                "causal" => "differentialResponse.codigoCausalExterna",
+                "idTransaccionAxon" => "differentialResponse.idTransaccionServicioExterno",
+                "descripcionCausal" => "differentialResponse.descripcionCausalExterna",
                 _ => "differentialResponse.idTransaccion"
             };
 

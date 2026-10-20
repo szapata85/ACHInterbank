@@ -64,6 +64,7 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from 
   ],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
+/** @deprecated Use OperationalConfirmDialogComponent for new confirmations. */
 export class ConfirmDialogComponent {
   @Input() open = false;
   @Input() title = 'Confirmar acción';

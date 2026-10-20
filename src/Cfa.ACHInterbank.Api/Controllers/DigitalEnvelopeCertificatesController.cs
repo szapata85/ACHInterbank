@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
@@ -23,65 +24,45 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
     {
         _service = service;
     }
-    [EndpointSummary("Inventario de certificados de sobre digital")]
-    [EndpointDescription("Qué hace: lista certificados de sobre digital registrados con metadatos de vigencia y huella. Cuándo se usa: en revisiones operativas previas a cifrado, descifrado y validación de firma. Perfil consumidor: seguridad bancaria, operación ACH y auditoría técnica. Permiso requerido: policy del controller/método vigente en código. Tipo de operación: solo consulta. Genera auditoría: sí, por trazas de acceso. Riesgos operativos: no identificar un certificado expirado puede interrumpir intercambio seguro con contrapartes. Errores esperados: 401/403 por autorización y 500 ante fallas internas. Relación ACH/CENIT/NACHA-M: administra confianza criptográfica usada por operaciones de sobre digital NACHA-M. Precauciones para desarrollo u operación: validar vigencia y tipo de certificado antes de usarlo en productivo.")]
+    /// <summary>Lista los certificados registrados por el servicio de sobre digital.</summary>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar certificados de sobre digital")]
+    [EndpointDescription("Consulta el inventario del servicio y devuelve por cada registro su identificador, archivo, tipo, disponibilidad de llave privada y metadatos del certificado almacenado. La operación es de solo lectura y el controller devuelve 200 con la colección obtenida.")]
     [HttpGet]
     [Authorize(Policy = P1Policies.CertificatesRead)]
+    [ProducesResponseType(typeof(IEnumerable<DigitalEnvelopeCertificateResponse>), StatusCodes.Status200OK)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Colección de certificados registrados por el servicio de sobre digital.")]
     public async Task<ActionResult<IEnumerable<DigitalEnvelopeCertificateResponse>>> GetAsync(CancellationToken cancellationToken)
     {
         var certificates = await _service.ListAsync(cancellationToken);
         var response = certificates.Select(MapToResponse);
         return Ok(response);
     }
-    [EndpointSummary("Cargar o actualizar certificado de sobre digital")]
-    [EndpointDescription("Qué hace: carga certificado público o con clave privada y registra/actualiza su información en catálogo. Cuándo se usa: en alta, renovación o corrección de material criptográfico de sobre digital. Perfil consumidor: administradores de seguridad y operación ACH autorizada. Permiso requerido: policy del controller/método vigente en código. Tipo de operación: modifica información. Genera auditoría: sí, por trazabilidad de altas y cambios. Riesgos operativos: cargar archivo o contraseña incorrecta puede dejar inoperante el cifrado/descifrado. Errores esperados: 400 por archivo/contraseña inválidos; 401/403 por autorización; 500 por fallas internas. Relación ACH/CENIT/NACHA-M: soporta protección de archivos NACHA-M en tránsito mediante sobre digital. Precauciones para desarrollo u operación: validar formato, cadena de confianza y vigencia antes de activar uso operativo.")]
+    /// <summary>Informa que la operación simplificada de carga ya no está disponible.</summary>
+    [EndpointSummary("Carga simplificada de certificados retirada")]
+    [EndpointDescription("La operación no procesa un archivo ni crea un certificado. Siempre devuelve 410 con ProblemDetails e indica usar las operaciones de gestión public o private.")]
     [HttpPost]
     [Authorize(Policy = P1Policies.CertificatesUploadPublic)]
-    [RequestSizeLimit(15 * 1024 * 1024)]
-    public async Task<ActionResult<DigitalEnvelopeCertificateResponse>> UploadAsync([FromForm] UploadCertificateRequest request, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone)]
+    [OpenApiResponseDescription(StatusCodes.Status410Gone, "La carga simplificada está retirada y el cuerpo ProblemDetails remite a las operaciones de gestión public o private.")]
+    public ActionResult UploadAsync()
     {
-        if (request.File == null || request.File.Length == 0)
+        return StatusCode(StatusCodes.Status410Gone, new ProblemDetails
         {
-            return BadRequest("No se ha proporcionado ningún archivo de certificado.");
-        }
-
-        await using var memory = new MemoryStream();
-        await request.File.CopyToAsync(memory, cancellationToken);
-        var rawData = memory.ToArray();
-
-        X509Certificate2 certificate;
-        try
-        {
-            certificate = string.IsNullOrWhiteSpace(request.Password)
-                ? X509CertificateLoader.LoadCertificate(rawData)
-                : X509CertificateLoader.LoadPkcs12(rawData, request.Password, X509KeyStorageFlags.MachineKeySet);
-        }
-        catch (CryptographicException)
-        {
-            return BadRequest("El certificado o la contraseña son inválidos.");
-        }
-
-        var entity = new DigitalEnvelopeCertificate
-        {
-            FileName = request.File.FileName,
-            RawData = rawData,
-            Password = request.Password,
-            Type = request.Type,
-            HasPrivateKey = certificate.HasPrivateKey,
-            Subject = certificate.Subject,
-            Issuer = certificate.Issuer,
-            Thumbprint = certificate.Thumbprint,
-            NotBefore = certificate.NotBefore,
-            NotAfter = certificate.NotAfter
-        };
-
-        var saved = await _service.UpsertAsync(entity, cancellationToken);
-        return Ok(MapToResponse(saved));
+            Status = StatusCodes.Status410Gone,
+            Title = "Endpoint retirado",
+            Detail = "Use /nacha-security/certificates/management/public o /nacha-security/certificates/management/private."
+        });
     }
+    /// <summary>Solicita eliminar del inventario de sobre digital el certificado identificado por id.</summary>
+    /// <param name="id">Identificador del certificado que se solicita eliminar.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     [EndpointSummary("Eliminar certificado de sobre digital")]
-    [EndpointDescription("Qué hace: elimina un certificado registrado en inventario de sobre digital. Cuándo se usa: en limpieza controlada o retiro operativo. Perfil consumidor: seguridad bancaria y administradores ACH. Permiso requerido: policy del controller/método vigente en código. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: borrar certificado activo puede interrumpir cifrado/validación. Errores esperados: 404 no encontrado; 409 por reglas de uso; 401/403. Relación ACH/CENIT/NACHA-M: gestiona material de confianza para NACHA-M seguro. Precauciones para desarrollo u operación: validar dependencia activa antes de eliminar.")]
+    [EndpointDescription("Invoca la eliminación del servicio y, al completar la llamada, devuelve 204 sin cuerpo. La implementación actual del repositorio no produce 404 cuando el identificador no existe: simplemente no elimina ninguna entidad.")]
     [HttpDelete("{id:int}")]
     [Authorize(Policy = P1Policies.CertificatesRevoke)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [OpenApiResponseDescription(StatusCodes.Status204NoContent, "La solicitud de eliminación finalizó sin cuerpo; la implementación actual también usa este resultado cuando no existe una entidad con el id indicado.")]
     public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
     {
         await _service.DeleteAsync(id, cancellationToken);
@@ -105,29 +86,37 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         };
     }
 
-    public class UploadCertificateRequest
-    {
-        [FromForm(Name = "file")]
-        public IFormFile? File { get; set; }
-
-        [FromForm(Name = "type")]
-        public DigitalEnvelopeCertificateType Type { get; set; }
-
-        [FromForm(Name = "password")]
-        public string? Password { get; set; }
-    }
-
+    /// <summary>Contrato de lectura de un certificado registrado para el servicio de sobre digital.</summary>
     public class DigitalEnvelopeCertificateResponse
     {
+        /// <summary>Identificador persistido del certificado.</summary>
         public int Id { get; set; }
+
+        /// <summary>Nombre de archivo almacenado para el certificado.</summary>
         public string FileName { get; set; } = string.Empty;
+
+        /// <summary>Tipo de certificado de sobre digital persistido.</summary>
         public DigitalEnvelopeCertificateType Type { get; set; }
+
+        /// <summary>Indica si el registro contiene llave privada.</summary>
         public bool HasPrivateKey { get; set; }
+
+        /// <summary>Subject persistido del certificado.</summary>
         public string Subject { get; set; } = string.Empty;
+
+        /// <summary>Issuer persistido del certificado.</summary>
         public string Issuer { get; set; } = string.Empty;
+
+        /// <summary>Thumbprint persistido del certificado.</summary>
         public string Thumbprint { get; set; } = string.Empty;
+
+        /// <summary>Fecha inicial de vigencia almacenada cuando está disponible.</summary>
         public DateTime? NotBefore { get; set; }
+
+        /// <summary>Fecha final de vigencia almacenada cuando está disponible.</summary>
         public DateTime? NotAfter { get; set; }
+
+        /// <summary>Fecha y hora de registro almacenada por el servicio.</summary>
         public DateTime UploadedAt { get; set; }
     }
 }

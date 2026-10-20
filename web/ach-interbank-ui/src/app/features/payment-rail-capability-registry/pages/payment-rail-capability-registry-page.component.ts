@@ -27,8 +27,8 @@ export class PaymentRailCapabilityRegistryPageComponent implements OnInit {
 
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/' },
-    { etiqueta: 'Governanza multi-riel' },
-    { etiqueta: 'Capability Registry (solo lectura)' }
+    { etiqueta: 'Administración' },
+    { etiqueta: 'Capacidades de la plataforma' }
   ];
 
   rails: PaymentRailItem[] = [];
@@ -39,14 +39,14 @@ export class PaymentRailCapabilityRegistryPageComponent implements OnInit {
 
   readonly columnas: ColDef<PaymentRailCapabilityItem>[] = [
     { field: 'railCode', headerName: 'Riel', sortable: true, filter: 'agTextColumnFilter' },
-    { field: 'capabilityCode', headerName: 'Capability', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'capabilityCode', headerName: 'Capacidad', sortable: true, filter: 'agTextColumnFilter' },
     { field: 'state', headerName: 'Estado efectivo', sortable: true, filter: 'agTextColumnFilter' },
     { field: 'source', headerName: 'Origen', sortable: true, filter: 'agTextColumnFilter' },
-    { field: 'effectiveFromUtc', headerName: 'Vigencia desde (UTC)', sortable: true },
-    { field: 'effectiveToUtc', headerName: 'Vigencia hasta (UTC)', sortable: true },
+    { field: 'effectiveFromUtc', headerName: 'Vigencia inicial (UTC)', sortable: true },
+    { field: 'effectiveToUtc', headerName: 'Vigencia final (UTC)', sortable: true },
     { field: 'version', headerName: 'Versión', sortable: true },
-    { field: 'changeSource', headerName: 'Fuente cambio', sortable: true },
-    { field: 'changeTicket', headerName: 'Ticket cambio', sortable: true },
+    { field: 'changeSource', headerName: 'Fuente del cambio', sortable: true },
+    { field: 'changeTicket', headerName: 'Ticket de cambio', sortable: true },
     { field: 'changedBy', headerName: 'Cambiado por', sortable: true },
     { field: 'changedAtUtc', headerName: 'Cambio en (UTC)', sortable: true }
   ];

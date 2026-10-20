@@ -71,6 +71,21 @@ public class RegulatoryCatalogSeederReturnPoliciesByClearingHouseTests
     }
 
     [Fact]
+    public async Task Seeder_AchColombiaDebitReturnPolicy_KeepsMaxCyclesAtFour()
+    {
+        await using var context = await Seed();
+        var ach = await context.ClearingHouses.SingleAsync(x => x.Code == "ACH");
+
+        var policy = await context.AchReturnPolicies.SingleAsync(x =>
+            x.ClearingHouseId == ach.Id
+            && x.TransactionType == "Debit"
+            && x.Direction == AchReturnDirection.Any
+            && x.FlowType == AchReturnFlowType.Return);
+
+        Assert.Equal(4, policy.MaxCycles);
+    }
+
+    [Fact]
     public async Task Seeder_ShouldUpsertReturnPoliciesByClearingHouseTransactionTypeDirectionAndFlowType()
     {
         await using var context = await CreateContextAsync();

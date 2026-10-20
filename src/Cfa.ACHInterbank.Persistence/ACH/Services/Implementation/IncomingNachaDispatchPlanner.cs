@@ -21,6 +21,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
     private readonly IPaymentRailShadowCompareService? _shadowCompareService;
     private readonly ILogger<IncomingNachaDispatchPlanner> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public IncomingNachaDispatchPlanner(
         AchDbContext context,
@@ -28,7 +29,8 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
         IPaymentRailContextService? paymentRailContextService = null,
         IPaymentRailOperationalStrategyResolver? strategyResolver = null,
         IPaymentRailShadowCompareService? shadowCompareService = null,
-        ILogger<IncomingNachaDispatchPlanner>? logger = null)
+        ILogger<IncomingNachaDispatchPlanner>? logger = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _eligibility = eligibility;
@@ -36,6 +38,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
         _strategyResolver = strategyResolver;
         _shadowCompareService = shadowCompareService;
         _logger = logger ?? NullLogger<IncomingNachaDispatchPlanner>.Instance;
+        _timeProvider = timeProvider ?? OperationalTimeProvider.SystemBogota;
     }
 
     public async Task<int> PlanForIngestionAsync(Guid ingestionId, string plannedBy, CancellationToken ct = default)
@@ -59,8 +62,22 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
             .Include(x => x.AchCycle)
             .Where(x => transactionIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
+        var clearingHouseIds = txMap.Values
+            .Select(x => x.AchCycle.ClearingHouseId)
+            .Distinct()
+            .ToArray();
+        var clearingHouseCodes = await _context.ClearingHouses
+            .AsNoTracking()
+            .Where(clearingHouse => clearingHouseIds.Contains(clearingHouse.ClearingHouseId))
+            .ToDictionaryAsync(clearingHouse => clearingHouse.ClearingHouseId, clearingHouse => clearingHouse.Code, ct);
+        var paymentRailCodes = await _context.ClearingHouseConfigs
+            .AsNoTracking()
+            .Where(config => clearingHouseIds.Contains(config.ClearingHouseId))
+            .ToDictionaryAsync(config => config.ClearingHouseId, config => config.PaymentRailCode, ct);
 
         var created = 0;
+        var nowUtcOffset = _timeProvider.GetUtcNow();
+        var nowLocal = TimeZoneInfo.ConvertTime(nowUtcOffset, _timeProvider.LocalTimeZone).DateTime;
         foreach (var candidate in candidates)
         {
             if (!txMap.TryGetValue(candidate.AchTransactionId, out var tx))
@@ -73,7 +90,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
                 candidate.Classification,
                 candidate.Link,
                 tx,
-                nowLocal: DateTime.Now,
+                nowLocal: nowLocal,
                 ct);
 
             var dispatchKey = BuildIdempotencyKey(ingestion.Id, tx.Id, tx.AchCycleId, candidate.Classification.Id);
@@ -90,12 +107,52 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
                     ? IncomingNachaDispatchQueueStatus.WaitingWindow
                     : IncomingNachaDispatchQueueStatus.Blocked;
 
+            var nextAttemptAtUtc = status == IncomingNachaDispatchQueueStatus.Queued
+                ? nowUtcOffset.UtcDateTime
+                : (DateTime?)null;
+            var lastErrorCode = status == IncomingNachaDispatchQueueStatus.Blocked
+                ? "POLICY_BLOCKED"
+                : string.Empty;
+            var queueReason = evaluation.Reason;
+
+            if (status == IncomingNachaDispatchQueueStatus.WaitingWindow)
+            {
+                var window = IncomingNachaDispatchWindowCalculator.Evaluate(
+                    tx.AchCycle,
+                    nowLocal,
+                    _timeProvider.LocalTimeZone);
+
+                switch (window.Position)
+                {
+                    case IncomingNachaDispatchWindowPosition.Before:
+                        nextAttemptAtUtc = window.NextEligibleAtUtc;
+                        break;
+                    case IncomingNachaDispatchWindowPosition.Expired:
+                        status = IncomingNachaDispatchQueueStatus.Blocked;
+                        lastErrorCode = "WINDOW_EXPIRED";
+                        queueReason = "La ventana operativa del ciclo ya expiró; no se permite despacho automático.";
+                        break;
+                    case IncomingNachaDispatchWindowPosition.Invalid:
+                        status = IncomingNachaDispatchQueueStatus.Blocked;
+                        lastErrorCode = "WINDOW_SCHEDULE_INVALID";
+                        queueReason = "No fue posible calcular de forma determinística la próxima ventana operativa.";
+                        break;
+                    default:
+                        status = IncomingNachaDispatchQueueStatus.Blocked;
+                        lastErrorCode = "WINDOW_POLICY_INCONSISTENT";
+                        queueReason = "La evaluación de ventana operativa resultó inconsistente; se bloqueó de forma segura.";
+                        break;
+                }
+            }
+
             CompareDispatchShadow(
                 tx,
                 ingestion,
+                clearingHouseCodes.GetValueOrDefault(tx.AchCycle.ClearingHouseId),
+                paymentRailCodes.GetValueOrDefault(tx.AchCycle.ClearingHouseId),
                 status,
-                evaluation.IsEligible,
-                evaluation.IsWaitingWindow,
+                status == IncomingNachaDispatchQueueStatus.Queued,
+                status == IncomingNachaDispatchQueueStatus.WaitingWindow,
                 evaluation.Priority);
 
             _context.IncomingNachaDispatchQueue.Add(new IncomingNachaDispatchQueue
@@ -110,9 +167,9 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
                 QueueStatus = status,
                 Priority = evaluation.Priority,
                 IdempotencyDispatchKey = dispatchKey,
-                NextAttemptAtUtc = status == IncomingNachaDispatchQueueStatus.Queued ? DateTime.UtcNow : null,
-                LastErrorCode = status == IncomingNachaDispatchQueueStatus.Blocked ? "POLICY_BLOCKED" : string.Empty,
-                LastErrorMessage = evaluation.Reason
+                NextAttemptAtUtc = nextAttemptAtUtc,
+                LastErrorCode = lastErrorCode,
+                LastErrorMessage = queueReason
             });
             created++;
         }
@@ -128,6 +185,8 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
     private void CompareDispatchShadow(
         AchTransaction transaction,
         IncomingNachaFileIngestion ingestion,
+        string? clearingHouseCode,
+        string? paymentRailCode,
         IncomingNachaDispatchQueueStatus legacyStatus,
         bool legacyEligible,
         bool legacyWaitingWindow,
@@ -138,16 +197,16 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
             return;
         }
 
-        var clearingHouseCode = transaction.AchCycle.ClearingHouse?.Code;
         var resolvedContext = _paymentRailContextService.ResolveContext(
             transaction.AchCycle.ClearingHouseId,
             clearingHouseCode,
             transaction.AchCycleId,
-            ingestion.OperationalDate?.Date ?? transaction.AchCycle.ProcessingDate.Date);
+            ingestion.OperationalDate?.Date ?? transaction.AchCycle.ProcessingDate.Date,
+            paymentRailCode);
         var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(
             transaction.AchCycle.ClearingHouseId,
             clearingHouseCode,
-            null));
+            paymentRailCode));
         var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
             resolvedContext.OperationalContext,
             PaymentRailCapabilityKind.Dispatch,
@@ -175,5 +234,69 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
         var raw = $"{ingestionId:N}|{transactionId}|{cycleId}|{classificationId:N}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return Convert.ToHexString(hash);
+    }
+}
+
+internal enum IncomingNachaDispatchWindowPosition
+{
+    Before,
+    Open,
+    Expired,
+    Invalid
+}
+
+internal readonly record struct IncomingNachaDispatchWindowEvaluation(
+    IncomingNachaDispatchWindowPosition Position,
+    DateTime? NextEligibleAtUtc);
+
+internal static class IncomingNachaDispatchWindowCalculator
+{
+    public static IncomingNachaDispatchWindowEvaluation Evaluate(
+        AchCycle cycle,
+        DateTime nowLocal,
+        TimeZoneInfo localTimeZone)
+    {
+        var processingDate = cycle.ProcessingDate.Date;
+        var startLocal = cycle.StartTime <= cycle.EndTime
+            ? processingDate + cycle.StartTime
+            : processingDate.AddDays(-1) + cycle.StartTime;
+        var endLocal = processingDate + cycle.EndTime;
+        var comparableNow = DateTime.SpecifyKind(nowLocal, DateTimeKind.Unspecified);
+        startLocal = DateTime.SpecifyKind(startLocal, DateTimeKind.Unspecified);
+        endLocal = DateTime.SpecifyKind(endLocal, DateTimeKind.Unspecified);
+
+        if (comparableNow > endLocal)
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Expired,
+                null);
+        }
+
+        if (comparableNow >= startLocal)
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Open,
+                null);
+        }
+
+        if (localTimeZone.IsInvalidTime(startLocal) || localTimeZone.IsAmbiguousTime(startLocal))
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Invalid,
+                null);
+        }
+
+        try
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Before,
+                TimeZoneInfo.ConvertTimeToUtc(startLocal, localTimeZone));
+        }
+        catch (ArgumentException)
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Invalid,
+                null);
+        }
     }
 }

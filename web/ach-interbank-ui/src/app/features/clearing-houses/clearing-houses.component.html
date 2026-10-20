@@ -1,0 +1,304 @@
+<section class="clearing-page" aria-label="Cámaras compensadoras">
+  <ng-template #headerActions>
+    <a *ngIf="canReadOperationalRestrictions" mat-stroked-button routerLink="/operational-restrictions">
+      <mat-icon>rule_settings</mat-icon>
+      Restricciones operativas
+    </a>
+    <button *ngIf="canCreate" mat-flat-button color="primary" type="button" (click)="create()">
+      <mat-icon>add</mat-icon>
+      Nueva cámara
+    </button>
+  </ng-template>
+
+  <app-page-header
+    title="Cámaras compensadoras"
+    subtitle="Configuración ACH"
+    [actionsTemplate]="headerActions"
+  ></app-page-header>
+  <p class="page-description">
+    Consulte la disponibilidad operativa y acceda a las configuraciones propias de cada cámara compensadora.
+  </p>
+
+  <section class="metrics" aria-label="Resumen de cámaras">
+    <mat-card>
+      <mat-icon aria-hidden="true">account_balance</mat-icon>
+      <div><strong>{{ totalCount }}</strong><span>Cámaras encontradas</span></div>
+    </mat-card>
+    <mat-card>
+      <mat-icon aria-hidden="true">check_circle</mat-icon>
+      <div><strong>{{ activeCount }}</strong><span>Cámaras activas</span></div>
+    </mat-card>
+    <mat-card>
+      <mat-icon aria-hidden="true">tune</mat-icon>
+      <div><strong>{{ rows.length }}</strong><span>En esta página</span></div>
+    </mat-card>
+  </section>
+
+  <mat-card class="filters-card">
+    <mat-card-header>
+      <mat-card-title>Buscar y filtrar</mat-card-title>
+      <mat-card-subtitle>Localice una cámara por nombre, código o estado.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="filterForm" (ngSubmit)="applyFilters()" class="filters">
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre o código</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput formControlName="search" autocomplete="off" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select formControlName="state">
+            <mat-option value="all">Todas</mat-option>
+            <mat-option value="active">Activas</mat-option>
+            <mat-option value="inactive">Inactivas</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <div class="filters__actions">
+          <button mat-button type="button" (click)="clearFilters()" [disabled]="loading">
+            <mat-icon>filter_alt_off</mat-icon>
+            Limpiar filtros
+          </button>
+          <button mat-flat-button color="primary" type="submit" [disabled]="loading">
+            <mat-icon>search</mat-icon>
+            Buscar
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <ui-estado-carga
+    *ngIf="loading"
+    mensaje="Cargando cámaras compensadoras…"
+  ></ui-estado-carga>
+
+  <ui-estado-error
+    *ngIf="!loading && error"
+    titulo="No fue posible cargar las cámaras"
+    [mensaje]="error"
+    (reintentar)="load()"
+  ></ui-estado-error>
+
+  <mat-card *ngIf="!loading && !error && rows.length" class="table-card">
+    <div class="table-card__heading">
+      <div><h3>Cámaras configuradas</h3><p>Las acciones disponibles dependen de sus permisos.</p></div>
+    </div>
+
+    <div class="desktop-table">
+      <table mat-table [dataSource]="sortedRows" matSort (matSortChange)="sortChanged($event)">
+        <ng-container matColumnDef="code">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Código</th>
+          <td mat-cell *matCellDef="let row"><span class="code">{{ row.code }}</span></td>
+        </ng-container>
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Nombre</th>
+          <td mat-cell *matCellDef="let row"><strong>{{ row.name }}</strong><small>{{ row.timeZoneId }}</small></td>
+        </ng-container>
+        <ng-container matColumnDef="state">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
+          <td mat-cell *matCellDef="let row">
+            <ui-etiqueta-estado [estado]="row.isActive ? 'activo' : 'inactivo'" [texto]="row.isActive ? 'Activa' : 'Inactiva'"></ui-etiqueta-estado>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="availability">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Disponibilidad</th>
+          <td mat-cell *matCellDef="let row">
+            <ui-etiqueta-estado
+              [estado]="row.isReady ? 'exitoso' : 'pendiente'"
+              [texto]="row.isReady ? 'Configuración completa' : 'Configuración pendiente'"
+            ></ui-etiqueta-estado>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="updated">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Última modificación</th>
+          <td mat-cell *matCellDef="let row">{{ (row.updatedAt || row.createdAt) | date:'mediumDate' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="configuration">
+          <th mat-header-cell *matHeaderCellDef>Configuraciones</th>
+          <td mat-cell *matCellDef="let row">
+            <span>{{ row.activeCycleCount }} ciclos</span>
+            <small>{{ row.paymentRailCode || 'Estrategia pendiente' }}</small>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>Acciones</th>
+          <td mat-cell *matCellDef="let row">
+            <button
+              mat-stroked-button
+              type="button"
+              [matMenuTriggerFor]="rowActions"
+              [attr.aria-label]="'Administrar ' + row.name"
+              [matTooltip]="'Administrar ' + row.code"
+            >
+              Administrar
+              <mat-icon>expand_more</mat-icon>
+            </button>
+            <mat-menu #rowActions="matMenu">
+              <button mat-menu-item type="button" (click)="view(row)">
+                <mat-icon>visibility</mat-icon><span>Ver detalle</span>
+              </button>
+              <button *ngIf="canUpdate" mat-menu-item type="button" (click)="edit(row)">
+                <mat-icon>edit</mat-icon><span>Editar cámara</span>
+              </button>
+              <a *ngIf="canReadPolicies" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'transaction-policies']">
+                <mat-icon>policy</mat-icon><span>Políticas transaccionales</span>
+              </a>
+              <a *ngIf="canCycles" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'cycles']">
+                <mat-icon>schedule</mat-icon><span>Ciclos</span>
+              </a>
+              <a *ngIf="canSpecialDates" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'special-dates']">
+                <mat-icon>event</mat-icon><span>Fechas especiales</span>
+              </a>
+              <mat-divider *ngIf="canStatus"></mat-divider>
+              <button *ngIf="canStatus" mat-menu-item type="button" (click)="changeStatus(row)">
+                <mat-icon>{{ row.isActive ? 'pause_circle' : 'play_circle' }}</mat-icon>
+                <span>{{ row.isActive ? 'Desactivar' : 'Activar' }}</span>
+              </button>
+            </mat-menu>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+    </div>
+
+    <div class="mobile-cards" aria-label="Cámaras configuradas">
+      <article *ngFor="let row of sortedRows">
+        <header>
+          <div><span class="code">{{ row.code }}</span><h3>{{ row.name }}</h3></div>
+          <ui-etiqueta-estado [estado]="row.isActive ? 'activo' : 'inactivo'" [texto]="row.isActive ? 'Activa' : 'Inactiva'"></ui-etiqueta-estado>
+        </header>
+        <div class="mobile-cards__facts">
+          <span><strong>Disponibilidad</strong>{{ row.isReady ? 'Configuración completa' : 'Configuración pendiente' }}</span>
+          <span><strong>Ciclos activos</strong>{{ row.activeCycleCount }}</span>
+          <span><strong>Estrategia</strong>{{ row.paymentRailCode || 'Pendiente' }}</span>
+        </div>
+        <button mat-stroked-button type="button" [matMenuTriggerFor]="mobileActions" [attr.aria-label]="'Administrar ' + row.name">
+          Administrar <mat-icon>expand_more</mat-icon>
+        </button>
+        <mat-menu #mobileActions="matMenu">
+          <button mat-menu-item type="button" (click)="view(row)"><mat-icon>visibility</mat-icon><span>Ver detalle</span></button>
+          <button *ngIf="canUpdate" mat-menu-item type="button" (click)="edit(row)"><mat-icon>edit</mat-icon><span>Editar cámara</span></button>
+          <a *ngIf="canReadPolicies" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'transaction-policies']"><mat-icon>policy</mat-icon><span>Políticas transaccionales</span></a>
+          <a *ngIf="canCycles" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'cycles']"><mat-icon>schedule</mat-icon><span>Ciclos</span></a>
+          <a *ngIf="canSpecialDates" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'special-dates']"><mat-icon>event</mat-icon><span>Fechas especiales</span></a>
+          <button *ngIf="canStatus" mat-menu-item type="button" (click)="changeStatus(row)"><mat-icon>{{ row.isActive ? 'pause_circle' : 'play_circle' }}</mat-icon><span>{{ row.isActive ? 'Desactivar' : 'Activar' }}</span></button>
+        </mat-menu>
+      </article>
+    </div>
+
+    <mat-paginator
+      [length]="totalCount"
+      [pageSize]="pageSize"
+      [pageIndex]="page - 1"
+      [pageSizeOptions]="[20]"
+      showFirstLastButtons
+      aria-label="Paginación de cámaras compensadoras"
+      (page)="pageChanged($event)"
+    ></mat-paginator>
+  </mat-card>
+
+  <div *ngIf="!loading && !error && !rows.length" class="empty-state">
+    <ui-estado-vacio
+      titulo="Sin resultados"
+      mensaje="No hay cámaras compensadoras para los filtros seleccionados."
+      [sugerencia]="''"
+    ></ui-estado-vacio>
+    <button mat-stroked-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+  </div>
+
+  <mat-card *ngIf="editing" class="editor-card">
+    <mat-card-header>
+      <mat-card-title>{{ selected ? 'Editar cámara' : 'Nueva cámara' }}</mat-card-title>
+      <mat-card-subtitle>Complete los datos funcionales y la configuración operativa.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="save()" class="editor-form">
+        <h3>Datos generales</h3>
+        <mat-form-field appearance="outline">
+          <mat-label>Código funcional</mat-label>
+          <input matInput formControlName="code" maxlength="20" autocomplete="off" (blur)="normalizeCode(); loadProfiles()" />
+          <mat-hint>2 a 20 letras, números, guion o guion bajo.</mat-hint>
+          <mat-error *ngIf="form.controls.code.hasError('required')">El código es obligatorio.</mat-error>
+          <mat-error *ngIf="form.controls.code.hasError('pattern')">Usa de 2 a 20 caracteres: letras mayúsculas, números, guion o guion bajo.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre</mat-label>
+          <input matInput formControlName="name" maxlength="120" />
+          <mat-error *ngIf="form.controls.name.hasError('required')">El nombre es obligatorio.</mat-error>
+          <mat-error *ngIf="form.controls.name.hasError('maxlength')">El nombre supera 120 caracteres.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Código de origen</mat-label>
+          <input matInput formControlName="originCode" maxlength="20" />
+          <mat-error *ngIf="form.controls.originCode.hasError('required')">El código de origen es obligatorio.</mat-error>
+        </mat-form-field>
+        <mat-divider></mat-divider>
+        <h3>Configuración operativa</h3>
+        <mat-form-field appearance="outline">
+          <mat-label>Zona horaria</mat-label>
+          <input matInput formControlName="timeZoneId" />
+          <mat-error>La zona horaria es obligatoria.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Estrategia de calendario</mat-label>
+          <input matInput formControlName="holidayStrategy" />
+          <mat-error>La estrategia de calendario es obligatoria.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Estrategia operativa</mat-label>
+          <mat-select formControlName="paymentRailCode">
+            <mat-option [value]="null">Sin configurar</mat-option>
+            <mat-option *ngFor="let option of paymentRailOptions" [value]="option.code">{{ option.code }} — {{ option.name }}</mat-option>
+          </mat-select>
+          <mat-hint *ngIf="selected?.isActive">Para cambiarla, primero desactive la cámara.</mat-hint>
+        </mat-form-field>
+        <mat-checkbox formControlName="requiresNachaProfile">Requiere perfil NACHA-M</mat-checkbox>
+        <mat-form-field *ngIf="form.controls.requiresNachaProfile.value" appearance="outline">
+          <mat-label>Perfil NACHA-M</mat-label>
+          <mat-select formControlName="nachaProfileId">
+            <mat-option [value]="null">Seleccione</mat-option>
+            <mat-option *ngFor="let profile of profiles" [value]="profile.id">{{ profile.code }} — {{ profile.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <div class="editor-form__actions">
+          <button mat-button type="button" (click)="cancel()" [disabled]="saving">Cancelar</button>
+          <button mat-flat-button color="primary" type="submit" [disabled]="saving || form.invalid">
+            <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+            <mat-icon *ngIf="!saving">save</mat-icon>
+            {{ saving ? 'Guardando…' : 'Guardar cámara' }}
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card *ngIf="selected && !editing" class="detail-card" aria-label="Detalle de cámara compensadora">
+    <mat-card-header>
+      <mat-icon mat-card-avatar>account_balance</mat-icon>
+      <mat-card-title>{{ selected.name }}</mat-card-title>
+      <mat-card-subtitle>{{ selected.code }}</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="detail-grid">
+        <span>
+          <strong>Estado</strong>
+          <ui-etiqueta-estado [estado]="selected.isActive ? 'activo' : 'inactivo'" [texto]="selected.isActive ? 'Activa' : 'Inactiva'"></ui-etiqueta-estado>
+        </span>
+        <span><strong>Estrategia operativa</strong>{{ selected.paymentRailCode || 'Sin configurar' }}</span>
+        <span>
+          <strong>Disponibilidad</strong>
+          <ui-etiqueta-estado
+            [estado]="selected.isReady ? 'exitoso' : 'pendiente'"
+            [texto]="selected.isReady ? 'Configuración completa' : 'Configuración incompleta'"
+          ></ui-etiqueta-estado>
+        </span>
+        <span><strong>Ciclos activos</strong>{{ selected.activeCycleCount }}</span>
+      </div>
+      <ul *ngIf="selected.missingRequirements.length">
+        <li *ngFor="let missing of selected.missingRequirements">{{ missing }}</li>
+      </ul>
+    </mat-card-content>
+  </mat-card>
+</section>

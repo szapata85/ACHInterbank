@@ -1,40 +1,28 @@
-﻿using Cfa.ACHInterbank.Application.DataBase;
-using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Cfa.ACHInterbank.Persistence.ACH.Services.StrategyImplementation;
-using Cfa.ACHInterbank.Persistence.DataBase;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 
 [Scoped]
-public class BankHolidaySeeder : IDbSeeder
+public sealed class BankHolidaySeeder : IDbSeeder
 {
-    private readonly AchDbContext _context;
+    private readonly IBankHolidayProvisioningService _provisioning;
+    private readonly IOperationalTimeSnapshotProvider _operationalTime;
 
-    public BankHolidaySeeder(AchDbContext context)
+    public BankHolidaySeeder(
+        IBankHolidayProvisioningService provisioning,
+        IOperationalTimeSnapshotProvider operationalTime)
     {
-        _context = context;
+        _provisioning = provisioning;
+        _operationalTime = operationalTime;
     }
 
     int IDbSeeder.Order => 3;
 
     public async Task SeedAsync()
     {
-        if (!_context.BankHolidays.Any())
-        {
-            var strategy = new ColombianHolidayStrategy();
-            var year = DateTime.Now.Year;
-            var holidays = new List<BankHolidayModel>();
-
-            holidays.AddRange(strategy.GenerateHolidays(year));
-            holidays.AddRange(strategy.GenerateHolidays(year + 1));
-
-            _context.ChangeTracker.AutoDetectChangesEnabled = false;
-            _context.BankHolidays.AddRange(holidays);
-
-            await _context.SaveChangesAsync();
-
-            _context.ChangeTracker.AutoDetectChangesEnabled = true;
-        }
+        var currentYear = _operationalTime.CaptureNow().OperationalDate.Year;
+        await _provisioning.EnsureYearsAsync([currentYear, currentYear + 1]);
     }
 }

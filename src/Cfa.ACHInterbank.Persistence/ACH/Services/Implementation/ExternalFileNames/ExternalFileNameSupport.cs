@@ -8,12 +8,33 @@ internal static class ExternalFileNameSupport
 {
     private const string AchScopeCode = "ACH_EXTERNAL_NAME";
     private const string ReturnOutScopeCode = "ACH_RETURN_EXTERNAL_NAME";
+    private const string CenitFileIdentifierSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.(?<cycle>[1-9]\d*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ReturnRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.RET$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex CenitOutboundRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.1$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex ReturnRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.1$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex PositiveCycleRegex = new(@"(?<!\d)(?<cycle>\d+)(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public static ExternalFileNameComponents Parse(ExternalFileNameContext context, string externalFileName)
     {
+        if (IsCenitNachaOut(context))
+        {
+            var match = CenitOutboundRegex.Match(externalFileName);
+            if (!match.Success
+                || !int.TryParse(match.Groups["seq"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence)
+                || sequence is < 1 or > 999)
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
+
+            return new ExternalFileNameComponents
+            {
+                FullName = externalFileName,
+                Prefix = $"{match.Groups["route"].Value}{match.Groups["transit"].Value}",
+                ExternalSequence = sequence,
+                FileIdModifier = ResolveCenitFileIdentifier(sequence, "Alphanumeric36", 1, 999)
+            };
+        }
+
         if (IsAch(context))
         {
             var match = AchRegex.Match(externalFileName);
@@ -89,6 +110,12 @@ internal static class ExternalFileNameSupport
     public static bool IsCenit(ExternalFileNameContext context) =>
         string.Equals(context.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsCenitNachaOut(ExternalFileNameContext context) =>
+        IsCenit(context) && IsAch(context);
+
+    public static bool IsAchColombiaNachaOut(ExternalFileNameContext context) =>
+        IsAch(context) && !IsCenit(context);
+
     public static bool IsStaReject(ExternalFileNameContext context) =>
         IsCenit(context) && context.ExternalFileType == ExternalFileType.StaReject;
 
@@ -115,6 +142,49 @@ internal static class ExternalFileNameSupport
         return $"{normalizedOriginCode}.{sequence:D3}.{cycleNumber}";
     }
 
+    public static string BuildCenitName(string originCode, int sequence)
+    {
+        if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)
+        {
+            throw new InvalidOperationException("Para CENIT el código de origen debe contener exactamente 7 dígitos.");
+        }
+
+        if (sequence is < 1 or > 999)
+        {
+            throw new InvalidOperationException("CENIT_DAILY_SEQUENCE_EXHAUSTED: la secuencia diaria debe estar entre 001 y 999.");
+        }
+
+        var normalizedOriginCode = originCode[^7..];
+        return $"{normalizedOriginCode}.{sequence:D3}.1";
+    }
+
+    public static char ResolveCenitFileIdentifier(int sequence, string mappingMode, int minimum, int maximum)
+    {
+        if (!string.Equals(mappingMode, "Alphanumeric36", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("CENIT_FILE_IDENTIFIER_MAPPING_UNSUPPORTED: la politica no configura Alphanumeric36.");
+        }
+
+        if (minimum != 1 || maximum != 999 || sequence < minimum || sequence > maximum)
+        {
+            throw new InvalidOperationException("CENIT_DAILY_SEQUENCE_EXHAUSTED: la secuencia diaria debe estar entre 001 y 999.");
+        }
+
+        return CenitFileIdentifierSymbols[(sequence - 1) % CenitFileIdentifierSymbols.Length];
+    }
+
+    public static int ResolveDailySequenceMaximum(ExternalFileNameContext context)
+        => IsAchColombiaNachaOut(context) || IsReturnOut(context)
+            ? 36
+            : IsCenitNachaOut(context)
+                ? 999
+                : int.MaxValue;
+
+    public static string BuildDailySequenceExhaustedMessage(ExternalFileNameContext context)
+        => IsCenitNachaOut(context)
+            ? "CENIT_DAILY_SEQUENCE_EXHAUSTED: máximo 999 archivos diarios CENIT."
+            : "Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.";
+
     public static string BuildReturnName(string originCode, int sequence)
     {
         if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)
@@ -123,7 +193,7 @@ internal static class ExternalFileNameSupport
         }
 
         var normalizedOriginCode = originCode[^7..];
-        return $"{normalizedOriginCode}.{sequence:D3}.RET";
+        return $"{normalizedOriginCode}.{sequence:D3}.1";
     }
 
     public static string GetSequenceScopeCode(ExternalFileNameContext context)

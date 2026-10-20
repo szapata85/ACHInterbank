@@ -45,7 +45,9 @@ public sealed class AchDbContextFactory : IDesignTimeDbContextFactory<AchDbConte
                 break;
             case "sqlserver":
             case "mssql":
-                optionsBuilder.UseSqlServer(connectionString);
+                optionsBuilder.UseSqlServer(
+                    connectionString,
+                    sqlOptions => sqlOptions.MigrationsAssembly("Cfa.ACHInterbank.Persistence.Migrations.SqlServer"));
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported database provider '{provider}'.");

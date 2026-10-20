@@ -7,6 +7,14 @@
 public interface INachaFileBuilder
 {
     /// <summary>
+    /// Genera ReturnOut ACH Colombia mediante el perfil Opción C DEVOLUCION/SALIDA.
+    /// La ausencia o invalidez del perfil produce error; esta ruta no tiene fallback legacy.
+    /// </summary>
+    Task<Cfa.ACHInterbank.Application.ACH.Models.NachaReturnOutBuildResult> BuildReturnOutAsync(
+        Cfa.ACHInterbank.Application.ACH.Models.NachaReturnOutBuildRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Genera un archivo NACHA-M a partir de un conjunto de lotes específicos.
     /// </summary>
     /// <param name="batchIds">Lista de identificadores de lotes a exportar.</param>
@@ -21,6 +29,16 @@ public interface INachaFileBuilder
     /// <param name="ct">Token de cancelación.</param>
     /// <returns>Archivo NACHA-M en formato plano concatenando registros 1-9.</returns>
     Task<string> BuildNachaFileByCycleAsync(string cycleId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Genera el archivo y devuelve la membresía exacta utilizada en esa versión.
+    /// </summary>
+    Task<Cfa.ACHInterbank.Application.ACH.Models.NachaFileBuildArtifact> BuildNachaFileArtifactByCycleAsync(string cycleId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Genera cero o más archivos NACHA-M con membresía explícita por archivo.
+    /// </summary>
+    Task<Cfa.ACHInterbank.Application.ACH.Models.NachaFileBuildResult> BuildNachaFilesByCycleAsync(string cycleId, CancellationToken ct = default);
 
     /// <summary>
     /// Construye un registro NACHA-M individual de acuerdo con su layout configurado.

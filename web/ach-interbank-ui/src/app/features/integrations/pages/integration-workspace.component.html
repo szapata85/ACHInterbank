@@ -1,21 +1,9 @@
 <section class="integration-workspace">
-  <ui-migas-pan [items]="migas"></ui-migas-pan>
-  <ui-encabezado-pagina
-    titulo="Integraciones ACH"
-    descripcion="Configure de forma guiada las reglas funcionales y parámetros técnicos de intercambio con servicios ACH."
-  ></ui-encabezado-pagina>
-
-  <ui-alerta
-    tipo="info"
-    mensaje="Use configuración funcional para reglas operativas y configuración técnica SOAP para endpoint y contratos de consumo."
-  ></ui-alerta>
-
-  <nav class="workspace-nav">
-    <a routerLink="/integraciones/mappings" routerLinkActive="active">Configuración funcional</a>
-    <a routerLink="/integraciones/soap-settings" routerLinkActive="active">Configuración técnica SOAP</a>
-  </nav>
-
-  <section class="workspace-content">
-    <router-outlet></router-outlet>
-  </section>
+  <app-integration-center-shell
+    [status]="center.status()"
+    [services]="center.services()"
+    [error]="center.error()"
+    [permissions]="center.permissions()"
+    (retry)="center.load()"
+  ></app-integration-center-shell>
 </section>

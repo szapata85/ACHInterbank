@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiService } from '../../../core/services/api.service';
-import { Observable } from 'rxjs';
-import { PagedResponse, SaveUserRequest, UserFilter, UserSummary, RoleSummary } from '../models/user.model';
+import { map, Observable } from 'rxjs';
+import { ApiResponse } from '../../../core/models/api-response.model';
+import { PagedResponse, SaveUserRequest, UserFilter, UserSummary } from '../models/user.model';
 
 @Injectable({ providedIn: 'root' })
 export class UsersApiService {
@@ -19,7 +20,9 @@ export class UsersApiService {
   }
 
   getUser(id: string): Observable<UserSummary> {
-    return this.api.get<UserSummary>(`${this.basePath}/${id}`);
+    return this.api.get<ApiResponse<UserSummary>>(`${this.basePath}/${id}`).pipe(
+      map((response) => response.data)
+    );
   }
 
   createUser(request: SaveUserRequest): Observable<UserSummary> {
@@ -43,12 +46,3 @@ export class UsersApiService {
   }
 }
 
-@Injectable({ providedIn: 'root' })
-export class RolesApiService {
-  private readonly api = inject(ApiService);
-  private readonly basePath = 'api/roles';
-
-  getRoles(): Observable<RoleSummary[]> {
-    return this.api.get<RoleSummary[]>(this.basePath);
-  }
-}

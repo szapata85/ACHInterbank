@@ -12,6 +12,7 @@ public class DigitalEnvelopeOperationLogConfiguration : IEntityTypeConfiguration
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Direction).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.OperationMode).HasMaxLength(20).IsRequired();
         builder.Property(x => x.Result).HasMaxLength(60).IsRequired();
         builder.Property(x => x.ErrorCode).HasMaxLength(100);
         builder.Property(x => x.FileNameIn).HasMaxLength(300);

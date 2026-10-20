@@ -43,17 +43,17 @@ public class AchReturnEligibilityServiceTests
     }
 
     [Fact]
-    public async Task EvaluateOutgoingReturnAsync_ShouldPreserveAlphanumericReasonCode()
+    public async Task EvaluateOutgoingReturnAsync_ShouldNormalizeLowercaseReturnReasonCode()
     {
         await using var context = BuildContext();
         SeedBase(context, 77, new DateTime(2026, 05, 10));
         var catalog = BuildAllowCatalogMock();
         var sut = new AchReturnEligibilityService(context, catalog.Object);
 
-        var result = await sut.EvaluateOutgoingReturnAsync(new(20, " dev14 ", new DateTime(2026, 05, 11), true), CancellationToken.None);
+        var result = await sut.EvaluateOutgoingReturnAsync(new(20, " r29 ", new DateTime(2026, 05, 11), true), CancellationToken.None);
 
-        Assert.Equal("DEV14", result.NormalizedReasonCode);
-        catalog.Verify(x => x.ValidateReturnCodeAsync(77, "DEV14", It.IsAny<TransactionTypeEnum>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("R29", result.NormalizedReasonCode);
+        catalog.Verify(x => x.ValidateReturnCodeAsync(77, "R29", It.IsAny<TransactionTypeEnum>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

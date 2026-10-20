@@ -4,8 +4,8 @@
 ></app-page-header>
 
 <div class="acciones-header">
-  <ui-boton texto="Volver al detalle" variante="contorno" (accion)="backToDetail()"></ui-boton>
-  <ui-boton texto="Volver a bandeja" variante="contorno" (accion)="backToList()"></ui-boton>
+  <button mat-stroked-button type="button" (click)="backToDetail()">Volver al detalle</button>
+  <button mat-stroked-button type="button" (click)="backToList()">Volver a Bandeja de respuestas</button>
 </div>
 
 <ui-estado-carga *ngIf="loading" [mensaje]="'Cargando intentos de notificación ACH...'"></ui-estado-carga>
@@ -23,48 +23,88 @@
 ></ui-estado-vacio>
 
 <div *ngIf="!loading && !error && attempts.length > 0" class="tabla-wrapper">
-  <table>
-    <thead>
-      <tr>
-        <th>Número intento</th>
-        <th>Estado notificación</th>
-        <th>IdCanal</th>
-        <th>Nombre canal</th>
-        <th>Id transacción</th>
-        <th>IdEstado</th>
-        <th>Causal</th>
-        <th>IdTransaccionServicioExterno</th>
-        <th>Descripción causal</th>
-        <th>Existe error</th>
-        <th>Código error</th>
-        <th>Descripción error</th>
-        <th>Error técnico</th>
-        <th>Fecha creación</th>
-        <th>Fecha envío</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let attempt of attempts">
-        <td>{{ formatValue(attempt.numeroIntento) }}</td>
-        <td>
-          <span class="estado-pill" [ngClass]="getNotificationStatusClass(attempt.estadoNotificacion)">
-            {{ formatNotificationStatus(attempt.estadoNotificacion) }}
-          </span>
-        </td>
-        <td>{{ formatValue(attempt.idCanal) }}</td>
-        <td>{{ formatValue(attempt.nombreCanal) }}</td>
-        <td>{{ formatValue(attempt.idTransaccion) }}</td>
-        <td>{{ formatValue(attempt.idEstado) }}</td>
-        <td>{{ formatValue(attempt.causal) }}</td>
-        <td>{{ formatValue(attempt.idTransaccionServicioExterno) }}</td>
-        <td>{{ formatValue(attempt.descripcionCausal) }}</td>
-        <td>{{ formatValue(attempt.existeError) }}</td>
-        <td>{{ formatValue(attempt.codigoError) }}</td>
-        <td>{{ formatValue(attempt.descripcionError) }}</td>
-        <td>{{ formatValue(attempt.errorTecnico) }}</td>
-        <td>{{ formatDate(attempt.fechaCreacion) }}</td>
-        <td>{{ formatDate(attempt.fechaEnvio) }}</td>
-      </tr>
-    </tbody>
+  <table mat-table [dataSource]="attempts">
+    <ng-container matColumnDef="numeroIntento">
+      <th mat-header-cell *matHeaderCellDef>Número de intento</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.numeroIntento) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="estadoNotificacion">
+      <th mat-header-cell *matHeaderCellDef>Estado de notificación</th>
+      <td mat-cell *matCellDef="let attempt">
+        <ui-etiqueta-estado
+          [estado]="getNotificationStatusState(attempt.estadoNotificacion)"
+          [texto]="formatNotificationStatus(attempt.estadoNotificacion)"
+        ></ui-etiqueta-estado>
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="idCanal">
+      <th mat-header-cell *matHeaderCellDef>ID de canal</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.idCanal) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="nombreCanal">
+      <th mat-header-cell *matHeaderCellDef>Nombre del canal</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.nombreCanal) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="idTransaccion">
+      <th mat-header-cell *matHeaderCellDef>ID de transacción</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.idTransaccion) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="idEstado">
+      <th mat-header-cell *matHeaderCellDef>ID del estado</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.idEstado) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="causal">
+      <th mat-header-cell *matHeaderCellDef>Causal</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.causal) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="idTransaccionServicioExterno">
+      <th mat-header-cell *matHeaderCellDef>ID de transacción del servicio externo</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.idTransaccionServicioExterno) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="descripcionCausal">
+      <th mat-header-cell *matHeaderCellDef>Descripción de la causal</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.descripcionCausal) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="existeError">
+      <th mat-header-cell *matHeaderCellDef>Existe error</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.existeError) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="codigoError">
+      <th mat-header-cell *matHeaderCellDef>Código de error</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.codigoError) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="descripcionError">
+      <th mat-header-cell *matHeaderCellDef>Descripción del error</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.descripcionError) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="errorTecnico">
+      <th mat-header-cell *matHeaderCellDef>Error técnico</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatValue(attempt.errorTecnico) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="fechaCreacion">
+      <th mat-header-cell *matHeaderCellDef>Fecha de creación</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatDate(attempt.fechaCreacion) }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="fechaEnvio">
+      <th mat-header-cell *matHeaderCellDef>Fecha de envío</th>
+      <td mat-cell *matCellDef="let attempt">{{ formatDate(attempt.fechaEnvio) }}</td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
   </table>
 </div>

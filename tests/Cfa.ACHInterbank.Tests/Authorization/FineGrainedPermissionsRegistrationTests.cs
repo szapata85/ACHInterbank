@@ -24,6 +24,9 @@ public class FineGrainedPermissionsRegistrationTests
         Assert.Contains(FineGrainedPermissions.CommandCenter.MarkFailedFinal, FineGrainedPermissions.AllPermissions);
         Assert.Contains(FineGrainedPermissions.Users.AssignRoles, FineGrainedPermissions.AllPermissions);
         Assert.Contains(FineGrainedPermissions.Maintenance.Seed, FineGrainedPermissions.AllPermissions);
+        Assert.Contains(FineGrainedPermissions.OperationalRestrictions.Read, FineGrainedPermissions.AllPermissions);
+        Assert.Contains(FineGrainedPermissions.OperationalRestrictions.Manage, FineGrainedPermissions.AllPermissions);
+        Assert.Contains(FineGrainedPermissions.TestTools.Access, FineGrainedPermissions.AllPermissions);
     }
 
     [Fact]

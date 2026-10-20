@@ -1,8 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
-import { NachaConfigApiError } from '../models/nacha-config-admin.models';
-import { NachaConfigApiService } from './nacha-config-api.service';
+import { NachaConfigApiError, NachaConfigFieldEditorUpdateRequest, NachaConfigResolverPreviewRequest } from '../../../core/models/nacha-config.model';
+import { NachaConfigApiService } from '../../../core/services/nacha-config-api.service';
 
 @Injectable({ providedIn: 'root' })
 export class NachaConfigCommandService {
@@ -22,6 +22,10 @@ export class NachaConfigCommandService {
 
   validar(profileId: number) {
     return this.api.validar(profileId).pipe(catchError((error) => this.normalizeError(error)));
+  }
+
+  probar(profileId: number) {
+    return this.api.probar(profileId).pipe(catchError((error) => this.normalizeError(error)));
   }
 
   publicar(profileId: number, expectedRowVersion: string) {
@@ -48,12 +52,16 @@ export class NachaConfigCommandService {
     return this.api.actualizarField(profileId, fieldId, payload).pipe(catchError((error) => this.normalizeError(error)));
   }
 
+  actualizarEditorCampo(profileId: number, fieldId: number, payload: NachaConfigFieldEditorUpdateRequest) {
+    return this.api.actualizarEditorCampo(profileId, fieldId, payload).pipe(catchError((error) => this.normalizeError(error)));
+  }
+
   actualizarRule(profileId: number, ruleId: number, payload: Record<string, unknown>) {
     return this.api.actualizarRule(profileId, ruleId, payload).pipe(catchError((error) => this.normalizeError(error)));
   }
 
-  preview(payload: Record<string, unknown>) {
-    return this.api.preview(payload as any).pipe(catchError((error) => this.normalizeError(error)));
+  preview(payload: NachaConfigResolverPreviewRequest) {
+    return this.api.preview(payload).pipe(catchError((error) => this.normalizeError(error)));
   }
 
   private normalizeError(error: unknown) {
@@ -61,7 +69,7 @@ export class NachaConfigCommandService {
       const backend = error.error as NachaConfigApiError | undefined;
       const payload: NachaConfigApiError = {
         errorCode: backend?.errorCode ?? `HTTP_${error.status}`,
-        message: backend?.message ?? 'Ocurrió un error inesperado en NACHA Config.',
+        message: backend?.message ?? 'Ocurrió un error inesperado en la configuración NACHA-M.',
         currentRowVersion: backend?.currentRowVersion,
         issues: backend?.issues ?? []
       };

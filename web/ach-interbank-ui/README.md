@@ -27,3 +27,11 @@ Aplicación Angular diseñada para crear transacciones ACH consumiendo el `Trans
    ```
 
 La aplicación quedará disponible en `http://localhost:4200/` y enviará solicitudes autenticadas al servicio de transacciones.
+
+## Revisión de dependencias npm
+
+La remediación del audit de octubre de 2026, la sustitución de Puppeteer por Playwright
+para Karma y el procedimiento de regeneración verificada del lockfile están descritos
+en [NPM_SECURITY_REMEDIATION.md](NPM_SECURITY_REMEDIATION.md).
+Para resolver el problema de `npm ci` en Windows, consulta
+[NPM_SECURITY_WINDOWS_FIX.md](NPM_SECURITY_WINDOWS_FIX.md).

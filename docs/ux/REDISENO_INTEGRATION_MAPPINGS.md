@@ -1,33 +1,46 @@
-# Rediseno UX/UI - Mapeos de Integracion
+# Rediseno UX/UI - Matriz de Campos SOAP
 
-Fecha: 2026-05-21  
-Ruta SPA: `/integraciones/mappings`  
+Fecha: 2026-06-19
+Ruta SPA: `/integraciones/mappings`
 Productivo: NO-GO
 
-## Diagnostico
+## Objetivo funcional
 
-El campo `Integracion` se alimenta de `GET api/integrations/methods`. El catalogo backend solo sembraba metodos `WSCFAACH.*`, por lo que `WsAxonRespuestaTransaccionesSoapClient` no podia aparecer en el dropdown. La pantalla tambien mezclaba creacion de borradores y grilla principal en una vista densa, con poca claridad operativa cuando una integracion no tenia mappings.
+La pantalla deja de comportarse como administrador tecnico de `MappingSets` y pasa a ser una matriz funcional para entender que parametro SOAP se alimenta desde que tabla y campo interno.
+
+Servicios obligatorios visibles:
+
+- `Proc_Transacciones`: creditos monetarios recibidos desde otra entidad financiera hacia CFA.
+- `Proc_Contrapartidas`: debitos monetarios originados por CFA hacia otra entidad financiera.
+- `RegistrarRespuestaTransaccion`: respuestas, rechazos o notificaciones diferenciales; no realiza movimiento monetario.
 
 ## Ajuste aplicado
 
-- Se agrego al catalogo activo el metodo `WSAXON.RegistrarRespuestaTransaccion` con `soapClientCode = WsAxonRespuestaTransaccionesSoapClient`.
-- El dropdown muestra integraciones activas aunque no tengan mappings.
-- Si la integracion seleccionada no tiene mappings, la pantalla muestra un estado vacio claro.
-- La vista principal usa filtros, resumen y cards compactas.
-- El formulario de nuevo borrador se movio a modal.
-- `Detalle` abre modal read-only.
-- `Editar` abre un modal de confirmacion y conserva el flujo editor funcional existente.
-- Se agregaron atributos `data-testid` y `data-ux-critical` para validacion DOM con Playwright.
+- Vista principal renombrada a `Matriz de campos SOAP`.
+- Selector de servicio SOAP con descripcion funcional por operacion.
+- Tabla principal con columnas: Servicio SOAP, Parametro SOAP, Tabla origen, Campo origen, Regla de conversion, Obligatorio, Estado, Ultima actualizacion y Acciones.
+- Estados funcionales limitados a `Mapeado`, `Sin mapear` e `Inactivo`.
+- Tablas origen visibles limitadas a `NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls` y `FileControls`.
+- Usuario solo consulta ve la matriz y detalle/auditoria secundaria, sin acciones de edicion.
+- Usuario administrador puede crear borrador, editar relacion y abrir editor avanzado como accion secundaria.
+- Historial, ruta tecnica del campo y detalle tecnico quedan fuera de la vista principal.
+- `/integraciones/soap-settings` conserva responsabilidad exclusiva sobre configuracion tecnica SOAP.
 
 ## Restricciones conservadas
 
-- No se eliminaron mappings existentes.
 - No se modificaron contratos SOAP.
-- No se cambio la semantica de edicion/publicacion.
+- No se cambio logica monetaria.
+- No se alteraron reglas NACHA-M.
+- No se modificaron golden files.
+- No se agregaron dependencias.
+- No se introdujo OpenBao.
 - No se exponen secretos, credenciales ni certificados privados.
 - Productivo permanece **NO-GO**.
 
-## Evidencia esperada
+## Validacion esperada
 
-- Screenshot: `docs/ux/evidencias/integration-mappings-after.png`.
-- Reporte DOM: `docs/ux/evidencias/ux-validation-integrations.json`.
+- Build Angular exitoso.
+- Tests Angular exitosos.
+- Build .NET exitoso.
+- Tests backend exitosos.
+- Verificacion manual de `/integraciones/mappings` y `/integraciones/soap-settings` en desktop y responsive.

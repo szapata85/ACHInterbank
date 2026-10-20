@@ -11,7 +11,7 @@ public class AchReturnGeneratedConfiguration : IEntityTypeConfiguration<AchRetur
         builder.ToTable("AchReturnsGenerated");
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.ReturnCycleId).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.ReturnCycleId).HasMaxLength(40).IsRequired();
         builder.Property(x => x.ReturnReasonCode).HasMaxLength(5).IsRequired();
         builder.Property(x => x.NewSequenceNumber).HasMaxLength(15).IsRequired();
         builder.Property(x => x.OriginalSequenceNumber).HasMaxLength(15).IsRequired();
@@ -30,8 +30,12 @@ public class AchReturnGeneratedConfiguration : IEntityTypeConfiguration<AchRetur
             .HasForeignKey(x => x.ReturnCycleId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(x => new { x.OriginalTransactionId, x.ReturnReasonCode, x.ReturnCycleId })
+        builder.HasIndex(x => x.OriginalTransactionId)
             .IsUnique()
-            .HasDatabaseName("UX_AchReturnGenerated_OriginalTransaction_Reason_Cycle");
+            .HasDatabaseName("UX_AchReturnGenerated_OriginalTransaction");
+
+        builder.HasIndex(x => new { x.SequenceDate, x.NewSequenceNumber })
+            .IsUnique()
+            .HasDatabaseName("UX_AchReturnGenerated_SequenceDate_Trace");
     }
 }

@@ -1,0 +1,506 @@
+using System.Text.Json.Nodes;
+using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Config;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
+
+namespace Cfa.ACHInterbank.Tests;
+
+public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<OfficialNachaGenerationFixture>
+{
+    private readonly OfficialNachaGenerationFixture _fixture;
+
+    public NachaPublicationSnapshotCoverageSeederTests(OfficialNachaGenerationFixture fixture) => _fixture = fixture;
+
+    [Fact]
+    public async Task SupportedOrdinaryDomain_SelectsVersionedDimensionsAndExcludesLegacy()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var profiles = await SelectionProfilesAsync(context);
+        var achOriginal = profiles.Single(profile =>
+            profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
+        var legacy = Clone(achOriginal, 90001, 1, 0, new DateTime(2020, 1, 1), null, 100);
+        legacy.ProfileCode = "LEGACY_ACH_SALIDA_ORIGINAL_V1_0";
+        profiles.Add(legacy);
+
+        var winners = NachaOrdinaryProductionProfileScope.FindMandatoryWinners(profiles);
+        winners.Should().HaveCount(12);
+        winners.Should().OnlyContain(profile => profile.FlowType.Code == "ORIGINAL" || profile.FlowType.Code == "PRENOTIFICACION");
+        winners.Should().OnlyContain(profile => profile.ClearingHouse.Code == "ACH" ? profile.VersionMajor == 35
+                && (profile.Direction.Code == "SALIDA" ? profile.VersionMinor == 1 : profile.VersionMinor == 0)
+            : profile.ClearingHouse.Code == "CENIT" && (profile.Direction.Code == "SALIDA" || profile.VersionMajor == 1 && profile.VersionMinor == 0));
+        winners.Should().ContainSingle(profile => profile.ClearingHouse.Code == "ACH" && profile.Direction.Code == "SALIDA"
+            && profile.FlowType.Code == "ORIGINAL" && profile.VersionMajor == 35 && profile.VersionMinor == 1);
+        winners.Should().ContainSingle(profile => profile.ClearingHouse.Code == "ACH" && profile.Direction.Code == "SALIDA"
+            && profile.FlowType.Code == "PRENOTIFICACION" && profile.VersionMajor == 35 && profile.VersionMinor == 1);
+        winners.Should().Contain(profile => profile.ClearingHouse.Code == "ACH" && profile.Direction.Code == "ENTRADA"
+            && profile.VersionMajor == 35);
+        winners.Should().Contain(profile => profile.ClearingHouse.Code == "CENIT" && profile.Direction.Code == "ENTRADA"
+            && profile.VersionMajor == 1 && profile.VersionMinor == 0);
+        winners.Should().NotContain(profile => profile.Id == legacy.Id);
+    }
+
+    [Fact]
+    public async Task CenitUnpinnedDomain_UsesEffectiveBoundariesPriorityAndHighestVersion()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var source = (await SelectionProfilesAsync(context)).Single(profile =>
+            profile.ProfileCode == CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
+        var old = Clone(source, 90010, 1, 0, new DateTime(2026, 1, 1), new DateTime(2026, 2, 28), 100);
+        var newer = Clone(source, 90011, 2, 0, new DateTime(2026, 3, 1), null, 100);
+        var superseded = Clone(source, 90012, 1, 1, new DateTime(2026, 3, 1), null, 100);
+        var lowPriority = Clone(source, 90013, 3, 0, new DateTime(2026, 1, 1), null, 200);
+        var preferred = Clone(source, 90014, 1, 5, new DateTime(2026, 4, 1), new DateTime(2026, 4, 30), 50);
+        var scope = new NachaOrdinaryProductionProfileScope("CENIT", "ORIGINAL", "SALIDA", "PPD", null, null);
+
+        scope.FindWinners([old, newer, superseded, lowPriority, preferred])
+            .Select(profile => profile.Id).Should().BeEquivalentTo([old.Id, newer.Id, preferred.Id]);
+        var fixedScope = scope with { RequestedVersionMajor = 1, RequestedVersionMinor = 0 };
+        fixedScope.FindWinners([old, newer, superseded, lowPriority, preferred])
+            .Select(profile => profile.Id).Should().Equal(old.Id);
+    }
+
+    [Fact]
+    public async Task ServiceSpecificityAndAmbiguity_MatchResolverCandidateSelection()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var profiles = await SelectionProfilesAsync(context);
+        var generic = profiles.Single(profile =>
+            profile.ProfileCode == CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
+        var ctxSource = profiles.Single(profile =>
+            profile.ProfileCode == CenitCtxOutbound2026Layout.TxCodeAwareOriginalProfileCode);
+        var ctx = Clone(ctxSource, 90020, 2, 0, new DateTime(2026, 1, 1), null, 100);
+        var ppdScope = new NachaOrdinaryProductionProfileScope("CENIT", "ORIGINAL", "SALIDA", "PPD", null, null);
+        var ctxScope = ppdScope with { ServiceClassCode = "CTX" };
+
+        ppdScope.FindWinners([generic, ctx]).Select(profile => profile.Id).Should().Equal(generic.Id);
+        ctxScope.FindWinners([generic, ctx]).Select(profile => profile.Id).Should().Equal(ctx.Id);
+
+        var duplicate = Clone(ctx, 90021, 2, 0, ctx.EffectiveFrom, null, ctx.ContextPriority);
+        var action = () => ctxScope.FindWinners([generic, ctx, duplicate]);
+        action.Should().Throw<InvalidOperationException>().WithMessage("ORDINARY_PROFILE_AMBIGUOUS*");
+    }
+
+    [Fact]
+    public async Task MissingV1_BackfillsCurrentPublishedGraphWithoutChangingGenerationDefinitions()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        var originalJson = row.SnapshotJson;
+        var originalProfile = NachaPublicationSnapshotSerializer.Read(originalJson).Snapshot!.Profile;
+        context.HistConfigSnapshots.Remove(row);
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
+        context.ChangeTracker.Clear();
+
+        await Seeder(context).SeedAsync();
+        var result = await TargetSnapshotsAsync(context);
+        result.Should().ContainSingle();
+        result[0].CreatedBy.Should().Be("system-v1-coverage-backfill");
+        result[0].SnapshotJson.Should().Be(originalJson);
+        var read = NachaPublicationSnapshotSerializer.Read(result[0].SnapshotJson);
+        read.Status.Should().Be(NachaPublicationSnapshotReadStatus.Supported);
+        read.Snapshot!.Profile.Should().BeEquivalentTo(originalProfile);
+        read.Snapshot.Records.Single(record => record.RecordCode == "5").SemanticRuleSet!.ResolvedDeclarations.Should().BeEquivalentTo(
+            [new NachaPublicationSnapshotSemanticDeclaration("200", true, true),
+             new NachaPublicationSnapshotSemanticDeclaration("220", true, false),
+             new NachaPublicationSnapshotSemanticDeclaration("225", false, true)]);
+
+        await Seeder(context).SeedAsync();
+        (await TargetSnapshotsAsync(context)).Should().ContainSingle();
+        (await TargetSnapshotsAsync(context))[0].SnapshotJson.Should().Be(originalJson);
+    }
+
+    [Fact]
+    public async Task LegacyPublishRow_IsPreservedAlongsideNewV1()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        row.SnapshotJson = "{\"profileCode\":\"historical\"}";
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
+        var legacyId = row.Id;
+        var legacyCreated = row.CreatedAtUtc;
+        context.ChangeTracker.Clear();
+
+        await Seeder(context).SeedAsync();
+        var rows = await TargetSnapshotsAsync(context);
+        rows.Should().HaveCount(2);
+        rows.Single(snapshot => snapshot.Id == legacyId).SnapshotJson.Should().Be("{\"profileCode\":\"historical\"}");
+        rows.Single(snapshot => snapshot.Id == legacyId).CreatedAtUtc.Should().Be(legacyCreated);
+        rows.Count(snapshot => NachaPublicationSnapshotSerializer.Read(snapshot.SnapshotJson).IsSupported).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ExistingV1_IsStrictNoOp()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var before = await context.HistConfigSnapshots.AsNoTracking().OrderBy(row => row.Id)
+            .Select(row => new { row.Id, row.SnapshotJson, row.CreatedAtUtc, row.CreatedBy }).ToArrayAsync();
+        var historyCount = await context.HistConfigChanges.CountAsync();
+
+        await Seeder(context).SeedAsync();
+
+        var after = await context.HistConfigSnapshots.AsNoTracking().OrderBy(row => row.Id)
+            .Select(row => new { row.Id, row.SnapshotJson, row.CreatedAtUtc, row.CreatedBy }).ToArrayAsync();
+        after.Should().Equal(before);
+        (await context.HistConfigChanges.CountAsync()).Should().Be(historyCount);
+    }
+
+    [Fact]
+    public async Task PublishedSecCatalog_RoundTripsEveryActiveTermAndPreservesLookupSemantics()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var catalog = await context.CompanyEntryDescriptionCatalogs.AsNoTracking()
+            .Where(item => item.IsActive).ToArrayAsync();
+        var snapshot = (await TargetSnapshotAsync(context)).SnapshotJson;
+        var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshot);
+
+        read.IsSupported.Should().BeTrue(read.Error);
+        var mappings = read.Snapshot!.StandardEntryClassMappings!;
+        mappings.Should().HaveCount(catalog.Length);
+        catalog.Select(item => new NachaPublicationSnapshotSecMapping(item.Term, item.StandardEntryClassCode))
+            .Should().BeEquivalentTo(mappings);
+        mappings.Select(item => item.StandardEntryClassCode).Distinct().Should().HaveCountGreaterThan(1);
+        foreach (var item in catalog)
+        {
+            var input = $"  {item.Term.ToLowerInvariant()}  ";
+            var normalized = input.Trim().ToUpperInvariant();
+            mappings.First(candidate => string.Equals(candidate.Term, normalized, StringComparison.OrdinalIgnoreCase))
+                .StandardEntryClassCode.Should().Be(item.StandardEntryClassCode);
+        }
+        NachaPublicationSnapshotSerializer.Serialize(read.Snapshot).Should().Be(snapshot);
+    }
+
+    [Fact]
+    public async Task PublishedSecCatalog_RemainsFrozenAfterLiveMutationAndCoverageRerun()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var before = (await TargetSnapshotAsync(context)).SnapshotJson;
+        var live = await context.CompanyEntryDescriptionCatalogs.FirstAsync(item => item.IsActive);
+        var original = live.StandardEntryClassCode;
+        live.StandardEntryClassCode = original == "PPD" ? "CCD" : "PPD";
+        await context.SaveChangesAsync();
+
+        await Seeder(context).SeedAsync();
+
+        var after = (await TargetSnapshotAsync(context)).SnapshotJson;
+        after.Should().Be(before);
+        NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(after).Snapshot!
+            .StandardEntryClassMappings!.Single(item => item.Term == live.Term)
+            .StandardEntryClassCode.Should().Be(original);
+    }
+
+    [Fact]
+    public async Task HistoricalV1WithoutSecCatalog_RemainsTraceReadableButOrdinaryIncomplete()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        var json = JsonNode.Parse(row.SnapshotJson)!.AsObject();
+        json.Remove("standardEntryClassMappings").Should().BeTrue();
+        row.SnapshotJson = json.ToJsonString();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
+        context.ChangeTracker.Clear();
+
+        NachaPublicationSnapshotSerializer.Read(row.SnapshotJson).IsSupported.Should().BeTrue();
+        NachaPublicationSnapshotSerializer.ReadForTraceLineage(row.SnapshotJson).IsSupported.Should().BeTrue();
+        var ordinary = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(row.SnapshotJson);
+        ordinary.Status.Should().Be(NachaPublicationSnapshotReadStatus.LegacyOrIncomplete);
+        ordinary.Snapshot.Should().NotBeNull();
+        (await context.CompanyEntryDescriptionCatalogs.CountAsync(item => item.IsActive)).Should().BeGreaterThan(0);
+
+        await Seeder(context).SeedAsync();
+        (await TargetSnapshotAsync(context)).SnapshotJson.Should().Be(row.SnapshotJson);
+        NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(row.SnapshotJson).IsSupported.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AmbiguousSecTerms_AreRejectedByOrdinaryReadAndNewCapture()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        var json = JsonNode.Parse(row.SnapshotJson)!.AsObject();
+        var mappings = json["standardEntryClassMappings"]!.AsArray();
+        var duplicate = JsonNode.Parse(mappings[0]!.ToJsonString())!;
+        duplicate["term"] = duplicate["term"]!.GetValue<string>().ToLowerInvariant();
+        mappings.Add(duplicate);
+        NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(json.ToJsonString())
+            .Status.Should().Be(NachaPublicationSnapshotReadStatus.LegacyOrIncomplete);
+
+        var profile = await NachaCompleteProfileQuery.Create(context).AsNoTracking()
+            .SingleAsync(item => item.Id == row.ProfileId);
+        var catalog = await context.CompanyEntryDescriptionCatalogs.AsNoTracking().ToListAsync();
+        catalog.Add(new CompanyEntryDescriptionCatalog
+        {
+            Term = catalog.First(item => item.IsActive).Term.ToLowerInvariant(),
+            StandardEntryClassCode = "CCD", IsActive = true
+        });
+        var capture = () => NachaPublicationSnapshotSerializer.Build(profile, profile.VersionMajor,
+            profile.VersionMinor, DateTime.UtcNow, "test", catalog);
+        capture.Should().Throw<InvalidOperationException>().WithMessage("El catálogo SEC no permite construir*");
+    }
+
+    [Fact]
+    public async Task NewSecCapture_ExcludesInactiveTermsAndRejectsMissingAuthority()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        var profile = await NachaCompleteProfileQuery.Create(context).AsNoTracking()
+            .SingleAsync(item => item.Id == row.ProfileId);
+        var catalog = await context.CompanyEntryDescriptionCatalogs.AsNoTracking().ToListAsync();
+        var inactive = catalog.First(item => item.IsActive);
+        inactive.IsActive = false;
+        var artifact = NachaPublicationSnapshotSerializer.Build(profile, profile.VersionMajor,
+            profile.VersionMinor, DateTime.UtcNow, "test", catalog);
+        artifact.StandardEntryClassMappings.Should().NotContain(item => item.Term == inactive.Term);
+        NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(
+            NachaPublicationSnapshotSerializer.Serialize(artifact)).IsSupported.Should().BeTrue();
+
+        var missing = () => NachaPublicationSnapshotSerializer.Build(profile, profile.VersionMajor,
+            profile.VersionMinor, DateTime.UtcNow, "test", Array.Empty<CompanyEntryDescriptionCatalog>());
+        missing.Should().Throw<InvalidOperationException>().WithMessage("El catálogo SEC no permite construir*");
+    }
+
+    [Fact]
+    public async Task PersistedPublication_ExposesExactTraceLineageWithoutLiveLookup()
+    {
+        string snapshotJson;
+        (int Id, string Code, (int Id, string Code, string Name)[] Fields)[] expected;
+        {
+            await using var context = await _fixture.CreateSeededContextAsync();
+            var row = await TargetSnapshotAsync(context);
+            snapshotJson = row.SnapshotJson;
+            var variants = await context.CfgLayoutVariants.AsNoTracking()
+                .Include(variant => variant.Fields)
+                .Where(variant => variant.ProfileId == row.ProfileId)
+                .ToArrayAsync();
+            expected = variants.Select(variant => (
+                variant.Id,
+                variant.VariantCode,
+                variant.Fields.Select(field => (field.Id, field.FieldCode, field.FieldNameEs)).ToArray()))
+                .ToArray();
+        }
+
+        var read = NachaPublicationSnapshotSerializer.ReadForTraceLineage(snapshotJson);
+        read.IsSupported.Should().BeTrue(read.Error);
+        read.Snapshot!.LayoutVariants.Should().HaveCount(expected.Length);
+        foreach (var variant in expected)
+        {
+            var actual = read.Snapshot.LayoutVariants.Single(item => item.LayoutVariantId == variant.Id);
+            actual.VariantCode.Should().Be(variant.Code);
+            actual.Fields.Should().HaveCount(variant.Fields.Length);
+            foreach (var field in variant.Fields)
+            {
+                var actualField = actual.Fields.Single(item => item.FieldDefinitionId == field.Id);
+                actualField.FieldCode.Should().Be(field.Code);
+                actualField.FieldNameEs.Should().Be(field.Name);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task HistoricalV1WithoutTraceLineage_RemainsReadableAndIsNotEnriched()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        var json = JsonNode.Parse(row.SnapshotJson)!.AsObject();
+        foreach (var variant in json["layoutVariants"]!.AsArray())
+        {
+            variant!.AsObject().Remove("layoutVariantId");
+            foreach (var field in variant["fields"]!.AsArray())
+            {
+                field!.AsObject().Remove("fieldDefinitionId");
+                field.AsObject().Remove("fieldNameEs");
+            }
+        }
+        row.SnapshotJson = json.ToJsonString();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
+        context.ChangeTracker.Clear();
+
+        var semanticRead = NachaPublicationSnapshotSerializer.Read(row.SnapshotJson);
+        semanticRead.IsSupported.Should().BeTrue(semanticRead.Error);
+        var traceRead = NachaPublicationSnapshotSerializer.ReadForTraceLineage(row.SnapshotJson);
+        traceRead.Status.Should().Be(NachaPublicationSnapshotReadStatus.LegacyOrIncomplete);
+        traceRead.Snapshot.Should().NotBeNull();
+
+        await Seeder(context).SeedAsync();
+        var preserved = await TargetSnapshotsAsync(context);
+        preserved.Should().ContainSingle();
+        preserved[0].SnapshotJson.Should().Be(row.SnapshotJson);
+        NachaPublicationSnapshotSerializer.ReadForTraceLineage(preserved[0].SnapshotJson).IsSupported.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DuplicateOrMissingTraceLineage_FailsClosed()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var original = (await TargetSnapshotAsync(context)).SnapshotJson;
+        foreach (var mutation in new[] { "missing-variant", "missing-field", "missing-name", "duplicate-variant", "duplicate-field" })
+        {
+            var json = JsonNode.Parse(original)!.AsObject();
+            var variants = json["layoutVariants"]!.AsArray();
+            var fields = variants[0]!["fields"]!.AsArray();
+            switch (mutation)
+            {
+                case "missing-variant": variants[0]!.AsObject().Remove("layoutVariantId"); break;
+                case "missing-field": fields[0]!.AsObject().Remove("fieldDefinitionId"); break;
+                case "missing-name": fields[0]!.AsObject().Remove("fieldNameEs"); break;
+                case "duplicate-variant":
+                    variants[1]!["layoutVariantId"] = variants[0]!["layoutVariantId"]!.GetValue<int>();
+                    break;
+                case "duplicate-field":
+                    fields[1]!["fieldDefinitionId"] = fields[0]!["fieldDefinitionId"]!.GetValue<int>();
+                    break;
+            }
+
+            var serialized = json.ToJsonString();
+            NachaPublicationSnapshotSerializer.Read(serialized).IsSupported.Should().BeTrue(mutation);
+            var read = NachaPublicationSnapshotSerializer.ReadForTraceLineage(serialized);
+            read.Status.Should().Be(NachaPublicationSnapshotReadStatus.LegacyOrIncomplete, mutation);
+            read.Error.Should().NotBeNullOrWhiteSpace();
+        }
+    }
+
+    [Theory]
+    [InlineData("duplicate", "SNAPSHOT_COVERAGE_DUPLICATE_V1")]
+    [InlineData("malformed", "SNAPSHOT_COVERAGE_MALFORMED")]
+    [InlineData("unsupported", "SNAPSHOT_COVERAGE_UNSUPPORTEDVERSION")]
+    [InlineData("identity", "SNAPSHOT_COVERAGE_IDENTITY_MISMATCH")]
+    public async Task InvalidPublishArtifacts_FailClosedWithoutMutation(string caseName, string error)
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        if (caseName == "duplicate")
+        {
+            context.HistConfigSnapshots.Add(new HistConfigSnapshot
+            {
+                ProfileId = row.ProfileId, VersionMajor = row.VersionMajor, VersionMinor = row.VersionMinor,
+                SnapshotType = "PUBLISH", SnapshotJson = row.SnapshotJson,
+                CreatedAtUtc = row.CreatedAtUtc, CreatedBy = "test"
+            });
+        }
+        else if (caseName == "identity")
+        {
+            var json = JsonNode.Parse(row.SnapshotJson)!;
+            json["profile"]!["profileCode"] = "WRONG_IDENTITY";
+            row.SnapshotJson = json.ToJsonString();
+        }
+        else
+        {
+            row.SnapshotJson = caseName == "malformed" ? "not-json" : "{\"snapshotFormatVersion\":999}";
+        }
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
+        context.ChangeTracker.Clear();
+        var count = await context.HistConfigSnapshots.CountAsync();
+
+        var action = () => Seeder(context).SeedAsync();
+        (await action.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Contain(error);
+        (await context.HistConfigSnapshots.CountAsync()).Should().Be(count);
+    }
+
+    [Fact]
+    public async Task InvalidPublishedGraph_FailsWithoutBackfillOrGraphRepair()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        context.HistConfigSnapshots.Remove(row);
+        var record = await context.CfgProfileRecords.SingleAsync(item => item.ProfileId == row.ProfileId && item.RecordCode.Code == "5");
+        record.SemanticRuleSetId = null;
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
+        context.ChangeTracker.Clear();
+
+        var action = () => Seeder(context).SeedAsync();
+        (await action.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Contain("SNAPSHOT_COVERAGE_BUILD_INVALID");
+        (await TargetSnapshotsAsync(context)).Should().BeEmpty();
+        (await context.CfgProfileRecords.SingleAsync(item => item.Id == record.Id)).SemanticRuleSetId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PublishedLegacyVersion_IsOutsideDomainAndRemainsUntouched()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var ach = (await SelectionProfilesAsync(context)).Single(profile =>
+            profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
+        var legacy = Clone(ach, 0, 1, 0, new DateTime(2020, 1, 1), null, 100);
+        legacy.ProfileCode = "LEGACY_ACH_SALIDA_ORIGINAL_V1_0";
+        legacy.PublishedAt = new DateTime(2020, 1, 1);
+        legacy.PublishedBy = "system-backfill";
+        legacy.ClearingHouse = null!;
+        legacy.FlowType = null!;
+        legacy.Direction = null!;
+        legacy.ServiceClass = null;
+        legacy.Status = null!;
+        legacy.Tags = new List<CfgProfileTag>();
+        context.CfgProfiles.Add(legacy);
+        await context.SaveChangesAsync();
+        context.HistConfigSnapshots.Add(new HistConfigSnapshot
+        {
+            ProfileId = legacy.Id, VersionMajor = 1, VersionMinor = 0, SnapshotType = "PUBLISH",
+            SnapshotJson = "{\"profileCode\":\"legacy\"}", CreatedAtUtc = new DateTime(2020, 1, 1), CreatedBy = "system-backfill"
+        });
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
+        context.ChangeTracker.Clear();
+
+        await Seeder(context).SeedAsync();
+        var unchanged = await context.CfgProfiles.AsNoTracking().SingleAsync(profile => profile.Id == legacy.Id);
+        unchanged.StatusId.Should().Be(ach.StatusId);
+        unchanged.VersionMajor.Should().Be(1);
+        unchanged.VersionMinor.Should().Be(0);
+        (await context.HistConfigSnapshots.Where(row => row.ProfileId == legacy.Id).ToArrayAsync())
+            .Should().ContainSingle(row => row.SnapshotJson == "{\"profileCode\":\"legacy\"}");
+    }
+
+    [Fact]
+    public void SeederOrder_FollowsOfficialAndNamingSeeders()
+    {
+        var order = typeof(NachaPublicationSnapshotCoverageSeeder).GetProperty(nameof(NachaPublicationSnapshotCoverageSeeder.Order));
+        order.Should().NotBeNull();
+        // Constructor-free order check uses the repository's explicit numeric seeder sequence.
+        using var context = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>().UseSqlite("Data Source=:memory:").Options);
+        new NachaConfigBackfillSeeder(context).Order.Should().Be(8);
+        new NachaConfigOfficialProfilesSeeder(context).Order.Should().Be(9);
+        new NachaFileNamingRuleSeeder(context).Order.Should().Be(10);
+        Seeder(context).Order.Should().Be(11);
+    }
+
+    private static NachaPublicationSnapshotCoverageSeeder Seeder(AchDbContext context)
+        => new(context);
+
+    private static async Task<List<CfgProfile>> SelectionProfilesAsync(AchDbContext context)
+        => await context.CfgProfiles.AsNoTracking().Include(profile => profile.Status)
+            .Include(profile => profile.ClearingHouse).Include(profile => profile.FlowType)
+            .Include(profile => profile.Direction).Include(profile => profile.ServiceClass)
+            .Include(profile => profile.Tags).ToListAsync();
+
+    private static async Task<HistConfigSnapshot> TargetSnapshotAsync(AchDbContext context)
+    {
+        var profile = await context.CfgProfiles.SingleAsync(item =>
+            item.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
+        return await context.HistConfigSnapshots.SingleAsync(row => row.ProfileId == profile.Id && row.SnapshotType == "PUBLISH");
+    }
+
+    private static async Task<HistConfigSnapshot[]> TargetSnapshotsAsync(AchDbContext context)
+    {
+        var profileId = await context.CfgProfiles.Where(item =>
+                item.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode)
+            .Select(item => item.Id).SingleAsync();
+        return await context.HistConfigSnapshots.AsNoTracking().Where(row => row.ProfileId == profileId && row.SnapshotType == "PUBLISH")
+            .OrderBy(row => row.Id).ToArrayAsync();
+    }
+
+    private static CfgProfile Clone(CfgProfile source, int id, int major, int minor, DateTime from, DateTime? to, int priority)
+        => new()
+        {
+            Id = id, ProfileCode = $"TEST_{id}_{major}_{minor}", NameEs = source.NameEs,
+            ClearingHouseId = source.ClearingHouseId, ClearingHouse = source.ClearingHouse,
+            FlowTypeId = source.FlowTypeId, FlowType = source.FlowType,
+            DirectionId = source.DirectionId, Direction = source.Direction,
+            ServiceClassId = source.ServiceClassId, ServiceClass = source.ServiceClass,
+            StatusId = source.StatusId, Status = source.Status,
+            VersionMajor = major, VersionMinor = minor, EffectiveFrom = from, EffectiveTo = to,
+            ContextPriority = priority, Tags = source.Tags.ToList()
+        };
+}

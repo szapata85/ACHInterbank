@@ -1,0 +1,139 @@
+<section class="claims-page">
+  <header class="page-heading">
+    <div>
+      <p class="eyebrow">Operación ACH</p>
+      <h1>Reclamaciones</h1>
+      <p>Consulta y gestiona reclamaciones por transacciones ACH de acuerdo con tus permisos.</p>
+    </div>
+    <button *ngIf="canCreate" mat-flat-button type="button" (click)="openCreateDialog()">
+      <mat-icon>add</mat-icon>
+      Nueva reclamación
+    </button>
+  </header>
+
+  <mat-card appearance="outlined" class="filters-card">
+    <mat-card-header><mat-card-title>Filtros</mat-card-title></mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="form" class="filters" (ngSubmit)="applyFilters()">
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select formControlName="status">
+            <mat-option [value]="null">Todos</mat-option>
+            <mat-option *ngFor="let status of statuses" [value]="status">{{ statusLabel(status) }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Causal</mat-label>
+          <mat-select formControlName="causeCode">
+            <mat-option [value]="null">Todas</mat-option>
+            <mat-option *ngFor="let cause of causes" [value]="cause">{{ causeLabel(cause) }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>N.º de transacción</mat-label>
+          <input matInput type="number" min="1" formControlName="transactionId" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Entidad participante</mat-label>
+          <mat-select formControlName="participantId">
+            <mat-option [value]="null">Todas</mat-option>
+            <mat-option *ngFor="let institution of institutions()" [value]="institution.id">
+              {{ institution.name }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha desde</mat-label>
+          <input matInput [matDatepicker]="fromPicker" formControlName="from" />
+          <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha hasta</mat-label>
+          <input matInput [matDatepicker]="toPicker" formControlName="to" />
+          <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
+        </mat-form-field>
+
+        <div class="filter-actions">
+          <button mat-flat-button type="submit"><mat-icon>search</mat-icon>Buscar</button>
+          <button mat-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="results-card">
+    <mat-card-content>
+      <div *ngIf="loading()" class="state-box"><mat-spinner diameter="36"></mat-spinner><span>Consultando reclamaciones…</span></div>
+      <div *ngIf="!loading() && error()" class="state-box state-box--error" role="alert">{{ error() }}</div>
+      <div *ngIf="!loading() && !error() && page().items.length === 0" class="state-box">
+        No se encontraron reclamaciones con los filtros seleccionados.
+      </div>
+
+      <div *ngIf="!loading() && !error() && page().items.length > 0" class="table-wrap">
+        <table mat-table [trackBy]="trackById" [dataSource]="page().items" aria-label="Listado de reclamaciones ACH">
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef>N.º de reclamación</th>
+            <td mat-cell *matCellDef="let row">#{{ row.id }}</td>
+          </ng-container>
+          <ng-container matColumnDef="cause">
+            <th mat-header-cell *matHeaderCellDef>Causal</th>
+            <td mat-cell *matCellDef="let row">{{ causeLabel(row.causeCode) }}</td>
+          </ng-container>
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let row"><span class="status-pill" [attr.data-status]="row.status">{{ statusLabel(row.status) }}</span></td>
+          </ng-container>
+          <ng-container matColumnDef="filedAt">
+            <th mat-header-cell *matHeaderCellDef>Fecha de radicación</th>
+            <td mat-cell *matCellDef="let row">{{ row.filedAt | dateFormat }}</td>
+          </ng-container>
+          <ng-container matColumnDef="deadlineAt">
+            <th mat-header-cell *matHeaderCellDef>Fecha límite de gestión</th>
+            <td mat-cell *matCellDef="let row">{{ row.deadlineAt | dateFormat }}</td>
+          </ng-container>
+          <ng-container matColumnDef="requestingParticipant">
+            <th mat-header-cell *matHeaderCellDef>Entidad solicitante</th>
+            <td mat-cell *matCellDef="let row">{{ row.requestingParticipant.name }}</td>
+          </ng-container>
+          <ng-container matColumnDef="respondingParticipant">
+            <th mat-header-cell *matHeaderCellDef>Entidad destinataria</th>
+            <td mat-cell *matCellDef="let row">{{ row.respondingParticipant.name }}</td>
+          </ng-container>
+          <ng-container matColumnDef="transactions">
+            <th mat-header-cell *matHeaderCellDef>Transacciones</th>
+            <td mat-cell *matCellDef="let row">{{ row.transactionCount }}</td>
+          </ng-container>
+          <ng-container matColumnDef="externalReference">
+            <th mat-header-cell *matHeaderCellDef>Referencia externa</th>
+            <td mat-cell *matCellDef="let row">{{ row.externalReference || '—' }}</td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let row">
+              <button mat-button type="button" (click)="viewDetail(row)"><mat-icon>visibility</mat-icon>Ver detalle</button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+        </table>
+      </div>
+    </mat-card-content>
+    <mat-paginator
+      *ngIf="!loading() && !error() && page().totalItems > 0"
+      [length]="page().totalItems"
+      [pageIndex]="page().pageNumber - 1"
+      [pageSize]="page().pageSize"
+      [pageSizeOptions]="[25, 50, 100]"
+      showFirstLastButtons
+      (page)="pageChanged($event)"
+      aria-label="Paginación de reclamaciones ACH">
+    </mat-paginator>
+  </mat-card>
+</section>

@@ -65,13 +65,13 @@ public class ReportServicesDataQualityTests
 
         var response = await service.GetReturnsAsync(new AchReturnRejectionReportFilter
         {
-            Causal = "dev14"
+            Causal = "r01"
         });
 
         Assert.Single(response.Items);
         var row = response.Items[0];
-        Assert.Equal("DEV14", row.CausalCode);
-        Assert.Equal("No consentimiento / revocación expresa del usuario receptor.", row.CausalDescription);
+        Assert.Equal("R01", row.CausalCode);
+        Assert.Equal("Fondos insuficientes.", row.CausalDescription);
         Assert.Equal("REF-SENT-OLD", row.OriginalTransactionReference);
         Assert.Equal(1002, row.OriginalTransactionId);
     }
@@ -199,13 +199,13 @@ public class ReportServicesDataQualityTests
                 GeneratedAtUtc = new DateTime(2026, 04, 01, 9, 30, 0, DateTimeKind.Utc)
             });
 
-        if (!await context.ReturnReasons.AnyAsync(x => x.Code == "DEV14"))
+        if (!await context.ReturnReasons.AnyAsync(x => x.Code == "R01"))
         {
             context.ReturnReasons.Add(new ReturnReason
             {
-                Code = "DEV14",
-                Description = "No consentimiento / retorno de débito por operador",
-                Category = "Return",
+                Code = "R01",
+                Description = "Fondos insuficientes.",
+                Category = "R",
                 IsForReturn = true
             });
         }
@@ -214,7 +214,7 @@ public class ReportServicesDataQualityTests
             CreateTransaction(1001, 250m, "REF-SENT-NEW", TransactionTypeEnum.Credit, AchTransferStateEnum.Certified, "123456780000001", string.Empty, string.Empty, 1, 2, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 10, 30, 0, TimeSpan.Zero)),
             CreateTransaction(1002, 200m, "REF-SENT-OLD", TransactionTypeEnum.Debit, AchTransferStateEnum.Pending, "123456780000002", string.Empty, string.Empty, 1, 3, "cycle-1", 202, new DateTimeOffset(2026, 04, 01, 8, 30, 0, TimeSpan.Zero)),
             CreateTransaction(1003, 90m, "REF-OTHER-BANK", TransactionTypeEnum.Credit, AchTransferStateEnum.AppliedTacitly, "123456780000003", string.Empty, string.Empty, 2, 1, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 8, 40, 0, TimeSpan.Zero)),
-            CreateTransaction(1004, 300m, "REF-RETURN-DEV", TransactionTypeEnum.Credit, AchTransferStateEnum.ReturnedByOperator, "123456780000004", "DEV14", "123456780000002", 2, 1, "cycle-1", 202, new DateTimeOffset(2026, 04, 01, 11, 00, 0, TimeSpan.Zero)),
+            CreateTransaction(1004, 300m, "REF-RETURN-R01", TransactionTypeEnum.Credit, AchTransferStateEnum.ReturnedByOperator, "123456780000004", "R01", "123456780000002", 2, 1, "cycle-1", 202, new DateTimeOffset(2026, 04, 01, 11, 00, 0, TimeSpan.Zero)),
             CreateTransaction(1005, -5m, "REF-NEGATIVE", TransactionTypeEnum.Credit, AchTransferStateEnum.Pending, "123456780000005", string.Empty, string.Empty, 2, 3, "cycle-1", 202, new DateTimeOffset(2026, 04, 01, 11, 20, 0, TimeSpan.Zero)),
             CreateTransaction(1006, 4m, "REF-RETURN-NO-CAUSAL", TransactionTypeEnum.Credit, AchTransferStateEnum.ReturnedByEpr, "123456780000006", string.Empty, string.Empty, 1, 3, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 11, 30, 0, TimeSpan.Zero)),
             CreateTransaction(1007, 215m, "REF-CAUSAL-WRONG-STATE", TransactionTypeEnum.Credit, AchTransferStateEnum.Pending, "123456780000007", "R01", string.Empty, 1, 2, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 11, 45, 0, TimeSpan.Zero)),

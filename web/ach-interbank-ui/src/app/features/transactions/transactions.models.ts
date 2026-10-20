@@ -1,23 +1,11 @@
-import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } from './transactions.types';
-
-export interface DestinationInstitution {
-  id: number;
-  name: string;
-  routingNumber: string;
-  transitCode: string;
-  checkDigit: string;
-  isDefaultSource: boolean;
-  status: FinancialInstitutionStatusEnum;
-}
+import { AccountTypeEnum, TransactionTypeEnum } from '../../core/models/transaction-types.model';
 
 export interface TransactionDraft {
   amount: number;
   transactionExternalId: string;
-  reference?: string;
   type: TransactionTypeEnum;
   accountType: AccountTypeEnum;
   isPrenotification: boolean;
-  transactionCode: string;
   destinationInstitutionId: number;
   sourceAccountNumber: string;
   destinationAccountNumber: string;
@@ -32,6 +20,9 @@ export interface TransactionDraft {
   addendas: Array<{
     addendaType: string;
     information: string;
+    collectorId?: string;
+    receiverCustomerCode?: string;
+    serviceDescription?: string;
     returnReasonCode?: string;
     originalTraceSequence?: string;
   }>;
@@ -78,6 +69,28 @@ export interface TransactionListFilter {
   clearingHouseId?: number | null;
 }
 
+export type IntegrationBusinessStatus = 'Success' | 'Rejected' | 'PendingCatalog' | 'ManualReview' | 'Unknown';
+
+export interface TransactionIntegrationResultItem {
+  catalogId?: number | null;
+  method: string;
+  transportStatus: string;
+  businessStatus: IntegrationBusinessStatus;
+  responseCode: string;
+  responseDescription: string;
+  processedAt?: string | null;
+  attemptNumber: number;
+  retryAllowed: boolean;
+  requiresManualReview: boolean;
+  transactionState: string;
+}
+
+export interface TransactionIntegrationResult {
+  transactionId: number;
+  latest?: TransactionIntegrationResultItem | null;
+  history: TransactionIntegrationResultItem[];
+}
+
 export interface ReturnReason {
   id: number;
   code: string;
@@ -87,12 +100,32 @@ export interface ReturnReason {
 }
 
 
-export interface ActiveThirdPartyAccount {
-  id: number;
+export interface ContextualThirdPartyAccount {
+  thirdPartyAccountId: number;
+  thirdPartyId: number;
   destinationInstitutionId: number;
   destinationInstitutionName: string;
   destinationAccountNumber: string;
+  accountType: AccountTypeEnum;
   recipientIdNumber: string;
+  recipientName: string;
+  recipientPersonType: 'PN' | 'PJ' | string;
+  eligibilityDecision: number;
+  eligibilityCode: string;
+  eligibilityMessage: string;
+  isSelectable: boolean;
+}
+
+export interface ContextualThirdPartyAccountSelectorResponse {
+  customerId: number;
+  destinationInstitutionId: number;
+  clearingHouseId: number;
+  clearingHouseCode: string;
+  clearingHouseName: string;
+  transactionNature: number;
+  effectiveDate: string;
+  serviceType: string;
+  items: ContextualThirdPartyAccount[];
 }
 
 
@@ -124,6 +157,7 @@ export interface ReturnEligibleTransaction {
 export interface ReturnSelectionItem {
   transactionId: number;
   returnReasonCode: string;
+  achColombiaR10Basis?: 1 | 2;
 }
 
 export interface GenerateReturnsFileRequest {
@@ -395,38 +429,6 @@ export interface CancelBatchResponse {
 
 export type CycleValidityFilter = 'all' | 'current' | 'future' | 'expired';
 export type CycleStatusFilter = 'all' | 'active' | 'inactive';
-
-export interface ClearingHouseCycleConfigItem {
-  id: number;
-  clearingHouseId: number;
-  clearingHouseName?: string | null;
-  cycleName: string;
-  startTime: string;
-  endTime: string;
-  cutoffTime: string;
-  isActive: boolean;
-  effectiveFrom: string;
-  effectiveTo?: string | null;
-  isCurrent: boolean;
-}
-
-export interface ClearingHouseCycleConfigFilters {
-  clearingHouseId: number;
-  effectiveAt?: string | null;
-}
-
-export interface UpsertCycleConfigRequest {
-  clearingHouseId: number;
-  cycleName: string;
-  startTime: string;
-  endTime: string;
-  cutoffTime: string;
-  effectiveFrom: string;
-}
-
-export interface InactivateCycleConfigRequest {
-  effectiveTo: string;
-}
 
 export type TransactionNature = 'Credit' | 'Debit';
 export type PrenotificationRequirementMode = 'Mandatory' | 'Optional' | 'NotApplicable';

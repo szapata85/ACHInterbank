@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -27,14 +28,16 @@ public class TransactionPersister : ITransactionPersister
 
     public async Task<TransactionPersistResult> PersistAsync(AchTransactionRequestData request, TransactionBatchContext context, CancellationToken ct = default)
     {
+        var classification = context.Classification
+            ?? throw new InvalidOperationException("La clasificación canónica debe resolverse antes de persistir la transacción ACH.");
         var effectiveType = request.IsPrenotification || request.Type == TransactionTypeEnum.Prenotification
             ? TransactionTypeEnum.Prenotification
             : request.Type;
 
-        var codeType = effectiveType == TransactionTypeEnum.Prenotification && request.Type != TransactionTypeEnum.Prenotification
-            ? request.Type
-            : effectiveType;
-        var transactionCode = _validator.ResolveTransactionCode(codeType, request.AccountType, request.IsPrenotification || effectiveType == TransactionTypeEnum.Prenotification);
+        var transactionCode = string.IsNullOrWhiteSpace(context.ResolvedTransactionCode)
+            ? throw new InvalidOperationException(
+                "ORDINARY_TXCODE_AUTHORITY_REQUIRED: la transacción ordinaria no puede persistirse sin un código resuelto desde publicaciones inmutables.")
+            : context.ResolvedTransactionCode.Trim();
 
         string traceOriginatingDfi = context.OriginatingDfi.Length >= 8
             ? context.OriginatingDfi[..8]
@@ -45,21 +48,12 @@ public class TransactionPersister : ITransactionPersister
             throw new InvalidOperationException("Error Fatal ID 7: el segmento de entidad del número de secuencia (posiciones 88-95) debe ser un código originador de 8 dígitos numéricos.");
         }
 
-        var processingDate = context.EffectiveEntryDate.Date;
-        int nextSeq = await _transactionRepository.GetMaxTraceSequenceAsync(processingDate, traceOriginatingDfi, ct) ?? 0;
-        nextSeq++;
-
-        if (nextSeq > 6_999_999)
-        {
-            throw new InvalidOperationException("Error Fatal ID 7: el consecutivo diario excede el máximo permitido (6999999). El rango 7000001-9999999 está reservado para PSE.");
-        }
-
-        var duplicateSequenceExists = await _transactionRepository.ExistsTraceSequenceAsync(processingDate, traceOriginatingDfi, nextSeq, ct);
-
-        if (duplicateSequenceExists)
-        {
-            throw new InvalidOperationException($"Error Fatal ID 7: el consecutivo diario {nextSeq:0000000} ya fue utilizado para la entidad originadora {traceOriginatingDfi} en la fecha de proceso {processingDate:yyyy-MM-dd}.");
-        }
+        var processingDate = DateOnly.FromDateTime(context.EffectiveEntryDate);
+        int nextSeq = await _transactionRepository.AllocateNextTraceSequenceAsync(
+            processingDate,
+            traceOriginatingDfi,
+            DateTime.UtcNow,
+            ct);
 
         string traceNumber = $"{traceOriginatingDfi}{nextSeq.ToString().PadLeft(7, '0')}";
 
@@ -88,6 +82,13 @@ public class TransactionPersister : ITransactionPersister
             StateChangedAtUtc = stateChangedAtUtc,
             AddendaRecordIndicator = true,
             IsPrenotification = effectiveType == TransactionTypeEnum.Prenotification || request.IsPrenotification,
+            Direction = classification.Direction,
+            Origin = classification.Origin,
+            MonetaryIntegrationRoute = classification.MonetaryIntegrationRoute,
+            ClassificationStatus = classification.Status,
+            SourceInstitutionWasDefaultAtCreation = classification.SourceInstitutionWasDefaultAtCreation,
+            ClassifiedAtUtc = classification.ClassifiedAtUtc,
+            ClassificationVersion = classification.ClassificationVersion,
             SlaDeadlineAtUtc = context.ReturnSlaDeadlineAtUtc,
             RecipientIdNumber = request.RecipientIdNumber?.Trim() ?? string.Empty,
             DiscretionaryData = effectiveType == TransactionTypeEnum.Credit && request.RequiresIdentityValidation ? "V" : string.Empty,
@@ -108,6 +109,7 @@ public class TransactionPersister : ITransactionPersister
             ToState = AchTransferStateEnum.Pending,
             Source = AchStateEventSourceEnum.System,
             ReasonCode = "CREATED",
+            OccurredAtUtc = stateChangedAtUtc,
             PayloadJson = JsonSerializer.Serialize(new
             {
                 eventType = "TransactionCreated",
@@ -196,10 +198,7 @@ public class TransactionPersister : ITransactionPersister
             return;
         }
 
-        bool allCredits = transactions.All(t => t is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification);
-        bool allDebits = transactions.All(t => t is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal);
-
-        string newCode = allCredits ? "220" : allDebits ? "225" : "200";
+        string newCode = AchBatchServiceClassPolicy.Resolve(transactions);
 
         if (batch.ServiceClassCode != newCode)
         {

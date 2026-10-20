@@ -12,5 +12,6 @@ public interface INachaConfigProfileCommandService
     Task<bool> UpdateRecordSequenceAsync(int profileId, NachaConfigRecordSequenceUpdateRequest request, string actor, CancellationToken ct = default);
     Task<bool> UpdateLayoutVariantAsync(int profileId, int variantId, NachaConfigLayoutVariantEditDto request, string actor, CancellationToken ct = default);
     Task<bool> UpdateLayoutFieldAsync(int profileId, int fieldId, NachaConfigLayoutFieldEditDto request, string actor, CancellationToken ct = default);
+    Task<bool> UpdateFieldEditorAsync(int profileId, int fieldId, NachaConfigFieldEditorUpdateRequest request, string actor, CancellationToken ct = default);
     Task<bool> UpdateFieldRuleAsync(int profileId, int ruleId, NachaConfigFieldRuleEditDto request, string actor, CancellationToken ct = default);
 }

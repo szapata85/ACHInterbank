@@ -1,14 +1,20 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { SharedModule } from '../../../../shared/shared.module';
+import { AuthService } from '../../../../core/services/auth.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AchReturnsApiService } from '../../services/ach-returns-api.service';
 import { AchReturnOfReturnEligibilityResult } from '../../transactions.models';
 
+const RETURN_OF_RETURN_GENERATE_PERMISSIONS = ['Returns.GenerateFile', 'CanManageAch'];
+
 @Component({
   selector: 'app-ach-return-of-return-management',
   standalone: true,
-  imports: [SharedModule],
+  imports: [SharedModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   templateUrl: './ach-return-of-return-management.component.html',
   styleUrls: ['./ach-return-of-return-management.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -16,6 +22,7 @@ import { AchReturnOfReturnEligibilityResult } from '../../transactions.models';
 export class AchReturnOfReturnManagementComponent {
   private readonly fb = inject(FormBuilder);
   private readonly returnsApi = inject(AchReturnsApiService);
+  private readonly auth = inject(AuthService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -70,9 +77,13 @@ export class AchReturnOfReturnManagementComponent {
   }
 
   generateAudit(): void {
+    if (!this.ensureCanGenerateFiles()) {
+      return;
+    }
+
     const flowIds = this.parseFlowIds();
     if (flowIds.length === 0 || this.loadingAudit || this.loadingNacha) {
-      this.notifications.warning('Ingrese al menos un flowId válido.');
+      this.notifications.warning('Ingrese al menos un ID de flujo válido.');
       return;
     }
 
@@ -94,9 +105,13 @@ export class AchReturnOfReturnManagementComponent {
   }
 
   generateNacha(): void {
+    if (!this.ensureCanGenerateFiles()) {
+      return;
+    }
+
     const flowIds = this.parseFlowIds();
     if (flowIds.length === 0 || this.loadingNacha || this.loadingAudit) {
-      this.notifications.warning('Ingrese al menos un flowId válido.');
+      this.notifications.warning('Ingrese al menos un ID de flujo válido.');
       return;
     }
     if (!this.eligibilityResult) {
@@ -108,8 +123,8 @@ export class AchReturnOfReturnManagementComponent {
       return;
     }
     const confirmed = window.confirm(
-      'Este archivo corresponde al modo productivo NACHA-M de devolución de devolución. ' +
-      'Confirme que los flowIds corresponden a la devolución evaluada; el backend validará nuevamente la elegibilidad. ¿Desea continuar?'
+      'Se solicitará la generación de un archivo NACHA-M productivo de devolución de una devolución. ' +
+      'Confirma que los identificadores de flujo corresponden a la devolución evaluada; el sistema validará nuevamente la elegibilidad antes de generar el archivo. ¿Deseas continuar?'
     );
     if (!confirmed) {
       return;
@@ -138,12 +153,26 @@ export class AchReturnOfReturnManagementComponent {
     this.cdr.markForCheck();
   }
 
+  get canGenerateFiles(): boolean {
+    return this.auth.hasPermission(RETURN_OF_RETURN_GENERATE_PERMISSIONS);
+  }
+
   get canGenerateNacha(): boolean {
-    return !this.loadingNacha
+    return this.canGenerateFiles
+      && !this.loadingNacha
       && !this.loadingAudit
       && this.parseFlowIds().length > 0
       && !!this.eligibilityResult
       && this.eligibilityResult.isEligible;
+  }
+
+  private ensureCanGenerateFiles(): boolean {
+    if (this.canGenerateFiles) {
+      return true;
+    }
+
+    this.notifications.error('No tiene permisos para generar archivos de devolución de devolución.');
+    return false;
   }
 
   private parseFlowIds(): number[] {

@@ -1,0 +1,7 @@
+Validación estática (sin .NET SDK ni Docker instalados en este entorno):
+- YAML Docker Compose válido; 4 servicios preservados.
+- Contraseña no incluida en YAML; variables se inyectan por ejecutor .NET sin .env.
+- Todas las referencias del stack a Dockerfiles, SQL Quartz, appsettings y entrypoint existen en NAV6.
+- .dockerignore excluye src/Cfa.ACHInterbank.Api/appsettings.Development.json del build.
+- Comandos CMD documentados; no hay dependencia de PowerShell para el nuevo flujo.
+- Compilación .NET/Docker, migraciones y seed NO ejecutados; requieren validación en host del usuario.

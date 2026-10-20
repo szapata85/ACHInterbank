@@ -1,6 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
-using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -20,7 +19,11 @@ public class NachaDataLoader : INachaDataLoader
 
     public async Task<IReadOnlyList<AchBatch>> LoadBatchesByIdsAsync(IEnumerable<int> batchIds, CancellationToken ct = default)
     {
-        return await _context.AchBatches
+        var requestedIds = batchIds.Distinct().ToList();
+        var requestedOrder = requestedIds
+            .Select((id, index) => new { id, index })
+            .ToDictionary(item => item.id, item => item.index);
+        var batches = await _context.AchBatches
             .AsNoTracking()
             .Include(b => b.AchCycle)
                 .ThenInclude(c => c!.ClearingHouse)
@@ -30,8 +33,10 @@ public class NachaDataLoader : INachaDataLoader
                 .ThenInclude(t => t.SourceInstitution)
             .Include(b => b.Transactions)
                 .ThenInclude(t => t.DestinationInstitution)
-            .Where(b => batchIds.Contains(b.Id))
+            .Where(b => requestedIds.Contains(b.Id))
             .ToListAsync(ct);
+
+        return batches.OrderBy(batch => requestedOrder[batch.Id]).ToList();
     }
 
     public async Task<NachaBuildContext> LoadByCycleAsync(string cycleId, CancellationToken ct = default)
@@ -53,8 +58,8 @@ public class NachaDataLoader : INachaDataLoader
             .Include(t => t.AchBatch)
             .Include(t => t.SourceInstitution)
             .Include(t => t.DestinationInstitution)
-            .Where(t => t.AchCycleId == cycleId)
-            .Where(t => t.State == AchTransferStateEnum.Pending)
+            .Where(t => t.AchCycleId == cycleId
+                        && NachaExportEligibility.ExportableStates.Contains(t.State))
             .ToListAsync(ct);
 
         var transactionBatches = transactions
@@ -68,6 +73,11 @@ public class NachaDataLoader : INachaDataLoader
             .Concat(transactionBatches)
             .GroupBy(b => b.Id)
             .Select(g => g.First())
+            .OrderBy(batch => batch.EffectiveEntryDate)
+            .ThenBy(batch => batch.CompanyIdentification)
+            .ThenBy(batch => batch.OriginOrOdfi)
+            .ThenBy(batch => batch.CompanyEntryDescription)
+            .ThenBy(batch => batch.Id)
             .ToList();
 
         var transactionsByBatchId = transactions

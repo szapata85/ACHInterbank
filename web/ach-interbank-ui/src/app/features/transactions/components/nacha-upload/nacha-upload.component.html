@@ -5,6 +5,15 @@
 
 <section class="upload-card" data-testid="nacha-upload-form">
   <form [formGroup]="form" (ngSubmit)="upload()" novalidate>
+    <label class="clearing-house-field">
+      Cámara compensadora *
+      <app-clearing-house-select
+        formControlName="clearingHouseId"
+        placeholder="Seleccione la cámara de origen"
+      ></app-clearing-house-select>
+      <app-error-message [control]="form.get('clearingHouseId')"></app-error-message>
+    </label>
+
     <label class="file-input">
       <span>Archivo NACHA-M *</span>
       <input #fileInput type="file" (change)="onFileSelected($event)" />
@@ -16,8 +25,10 @@
         {{ selectedFileValidation.rejectionMessage }}
       </small>
       <small class="muted file-help" data-testid="nacha-upload-help">
-        Formatos permitidos: RRRRTTT.ZZZ.N, RRRRTTT.ZZZ.RET y fixture UAT/golden interno .ach.
-        Se rechazan .txt, .nacha y .env.
+        Formatos permitidos: ACHCOL RRRRTTT.ZZZ.YYYYMMDD.N.OUT, CENIT RRRRTTT.ZZZ.YYYYMMDD.N,
+        RRRRTTT.ZZZ.RET, sobre digital ACH Colombia .ENV y fixture UAT/golden interno .ach.
+        CENIT se carga descifrado; ACH Colombia .ENV conserva el sobre digital hasta el backend.
+        Se rechazan .txt y .nacha.
       </small>
       <ng-template #emptyFile>
         <small class="muted">Selecciona el archivo NACHA-M a cargar.</small>
@@ -25,9 +36,16 @@
       <app-error-message [control]="form.get('file')"></app-error-message>
     </label>
 
+    <ui-estado-carga
+      *ngIf="uploading"
+      mensaje="Procesando archivo NACHA-M…"
+    ></ui-estado-carga>
+
     <div class="actions">
-      <button type="submit" [disabled]="uploading">{{ uploading ? 'Cargando...' : 'Cargar archivo' }}</button>
-      <button type="button" class="btn btn-outline" routerLink="/transactions">Cancelar</button>
+      <button mat-flat-button type="submit" [disabled]="uploading">
+        {{ uploading ? 'Cargando...' : 'Cargar archivo' }}
+      </button>
+      <button mat-stroked-button type="button" routerLink="/transactions">Cancelar</button>
     </div>
   </form>
 </section>
@@ -38,7 +56,7 @@
       <h3>Resultado de la carga</h3>
       <p class="muted">La respuesta del API queda visible para la validación funcional controlada.</p>
     </div>
-    <span class="upload-result-badge" [attr.data-kind]="result.statusCode >= 400 ? 'error' : result.partial ? 'warning' : 'success'">
+    <span class="upload-result-badge" [attr.data-kind]="result.success && !result.partial ? 'success' : result.statusCode >= 500 ? 'error' : 'warning'">
       {{ result.statusLabel }}
     </span>
   </div>
@@ -53,6 +71,10 @@
       <dd>{{ result.traceId || 'No disponible' }}</dd>
     </div>
     <div>
+      <dt>ID de ingesta</dt>
+      <dd data-testid="nacha-upload-ingestion-id">{{ result.ingestionId || 'No disponible' }}</dd>
+    </div>
+    <div>
       <dt>Estado de ingesta</dt>
       <dd>{{ result.ingestionStatus || 'No disponible' }}</dd>
     </div>
@@ -63,6 +85,13 @@
     <div>
       <dt>Estado de parseo</dt>
       <dd>{{ result.parsingStatus || 'No disponible' }}</dd>
+    </div>
+    <div>
+      <dt>Cámara</dt>
+      <dd>
+        Seleccionada: {{ result.selectedClearingHouseId }} |
+        Detectada/resuelta: {{ result.resolvedClearingHouseId ?? result.detectedClearingHouseId ?? 'Pendiente' }}
+      </dd>
     </div>
     <div>
       <dt>Totales</dt>
@@ -78,6 +107,21 @@
       <li *ngFor="let error of result.errors">{{ error }}</li>
     </ul>
   </div>
+
+  <div class="actions" *ngIf="result.canReprocess">
+    <button
+      mat-flat-button
+      type="button"
+      data-testid="nacha-reprocess-button"
+      [disabled]="uploading"
+      (click)="reprocess()"
+    >
+      {{ uploading ? 'Reprocesando...' : 'Reprocesar ingesta fallida' }}
+    </button>
+    <small class="muted">
+      Reutiliza el mismo archivo seleccionado. El backend bloquea el reproceso si ya existe persistencia canónica o despacho.
+    </small>
+  </div>
 </section>
 
 <section class="upload-card records-card" data-testid="nacha-upload-records">
@@ -87,34 +131,36 @@
   </div>
 
   <form class="filters-grid" [formGroup]="filtersForm" (ngSubmit)="searchRecords()">
-    <label>
-      Origen inmediato
-      <input type="text" formControlName="immediateOrigin" placeholder="Ej: 02100002" />
-    </label>
+    <mat-form-field appearance="outline">
+      <mat-label>Origen inmediato</mat-label>
+      <input matInput type="text" formControlName="immediateOrigin" placeholder="Ej: 02100002" />
+    </mat-form-field>
 
-    <label>
-      Destino inmediato
-      <input type="text" formControlName="immediateDestination" placeholder="Ej: 02100001" />
-    </label>
+    <mat-form-field appearance="outline">
+      <mat-label>Destino inmediato</mat-label>
+      <input matInput type="text" formControlName="immediateDestination" placeholder="Ej: 02100001" />
+    </mat-form-field>
 
-    <label>
-      Referencia
-      <input type="text" formControlName="referenceCode" placeholder="Código de referencia" />
-    </label>
+    <mat-form-field appearance="outline">
+      <mat-label>Referencia</mat-label>
+      <input matInput type="text" formControlName="referenceCode" placeholder="Código de referencia" />
+    </mat-form-field>
 
-    <label>
-      Ciclo ACH
-      <input type="text" formControlName="achCycleId" placeholder="Ej: CH01-20260108-C1" />
-    </label>
+    <mat-form-field appearance="outline">
+      <mat-label>Ciclo ACH</mat-label>
+      <input matInput type="text" formControlName="achCycleId" placeholder="Ej: CH01-20260108-C1" />
+    </mat-form-field>
 
-    <label>
-      Fecha de creación del archivo
-      <input type="date" formControlName="fileCreationDate" />
-    </label>
+    <mat-form-field appearance="outline">
+      <mat-label>Fecha de creación del archivo</mat-label>
+      <input matInput type="date" formControlName="fileCreationDate" />
+    </mat-form-field>
 
-    <div class="actions">
-      <button type="submit" [disabled]="loadingRecords">{{ loadingRecords ? 'Buscando...' : 'Buscar' }}</button>
-      <button type="button" class="btn btn-outline" (click)="clearFilters()">Limpiar</button>
+    <div class="actions filter-actions">
+      <button mat-flat-button type="submit" [disabled]="loadingRecords">
+        {{ loadingRecords ? 'Buscando...' : 'Buscar' }}
+      </button>
+      <button mat-stroked-button type="button" (click)="clearFilters()">Limpiar filtros</button>
     </div>
   </form>
 

@@ -55,6 +55,27 @@ El caso positivo crea por API una prenotificación UAT de valor cero, la madura 
 
 Los resultados dry-run conservan los estados reales: no se interpretan como movimiento monetario exitoso y nunca habilitan SOAP externo.
 
+## Proc_Transacciones PRE-LIVE: setup sintético separado
+
+El setup de `Proc_Transacciones` no hace upload, no modifica Quartz y no invoca SOAP. Reutiliza la CFA canónica, reutiliza o crea únicamente `Banco UAT Externo ACH` y provisiona una transacción ancla `E2E-PTX-IN-*` mediante EF Core. No forma parte de `DbInitializer`.
+
+Requiere autorización separada y valores explícitos, sin fallback:
+
+```powershell
+$env:ALLOW_PROC_TRANSACCIONES_SYNTHETIC_DATA_SETUP="true"
+$env:ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT="<cuenta-sintetica-autorizada>"
+$env:ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT="<monto-autorizado>"
+
+npx playwright test `
+  e2e/transactions-proc-transacciones-setup.spec.ts `
+  --project=chromium `
+  --workers=1
+```
+
+`ALLOW_PROC_TRANSACCIONES_SYNTHETIC_DATA_SETUP` autoriza exclusivamente datos sintéticos. No sustituye `RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E`, `ALLOW_LOCAL_MONETARY_SOAP_E2E` ni `ProcTransacciones__Mode=Live`.
+
+El fixture se deriva en memoria del golden, escribe cuenta/monto autorizados, DFI de CFA y routing externo, y recalcula `Entry/Addenda Count`, `Entry Hash`, totales Batch/File y `BlockCount`. El golden original no se escribe ni se limpia la transacción ancla automáticamente, porque una fase LIVE posterior podría haberla usado como evidencia.
+
 En CI, `angular-ci.yml` publica `playwright-report`, `playwright-test-results` y `uat-evidence-playwright` con `if: always()`.
 
 ## Evidencia generada

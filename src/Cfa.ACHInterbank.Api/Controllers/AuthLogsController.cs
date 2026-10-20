@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.AuthLogs.Dtos;
 using Cfa.ACHInterbank.Application.AuthLogs.Interfaces;
 using Cfa.ACHInterbank.Application.Common;
 using Cfa.ACHInterbank.Application.Features;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,6 +24,7 @@ public class AuthLogsController : ControllerBase
     /// Endpoint de la API ACH Interbank.
     /// </summary>
     [HttpGet]
+    [Authorize(Policy = P1Policies.AuthLogsRead)]
     public async Task<IActionResult> GetAuthLogsAsync(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,

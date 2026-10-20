@@ -14,6 +14,13 @@ public class AchFileRejectionCodeConfiguration : IEntityTypeConfiguration<AchFil
         builder.Property(x => x.Description).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Severity).HasMaxLength(20).IsRequired();
         builder.Property(x => x.AppliesToStage).HasMaxLength(30).IsRequired();
-        builder.HasIndex(x => x.Code).IsUnique();
+        builder.Property(x => x.RegulatorySource).HasMaxLength(120)
+            .HasDefaultValue("Catálogo histórico pendiente de contexto").IsRequired();
+        builder.Property(x => x.EffectiveFrom).HasDefaultValue(new DateTime(2024, 1, 1)).IsRequired();
+        builder.HasOne(x => x.ClearingHouse)
+            .WithMany()
+            .HasForeignKey(x => x.ClearingHouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.ClearingHouseId, x.Code, x.AppliesToStage, x.EffectiveFrom }).IsUnique();
     }
 }

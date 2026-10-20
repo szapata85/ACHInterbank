@@ -1,0 +1,51 @@
+<mat-card class="field-card" data-testid="nacha-config-field-list">
+  <mat-card-header>
+    <mat-card-title>Campos</mat-card-title>
+    <mat-card-subtitle>Listado del registro seleccionado, según sus variantes configuradas.</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <div class="table-shell" *ngIf="items.length; else emptyFields">
+      <table mat-table [dataSource]="items" class="field-table">
+        <ng-container matColumnDef="field">
+          <th mat-header-cell *matHeaderCellDef>Campo</th>
+          <td mat-cell *matCellDef="let item">{{ item.field.fieldNameEs }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="variant">
+          <th mat-header-cell *matHeaderCellDef>Variante</th>
+          <td mat-cell *matCellDef="let item">{{ item.variant.nombreEs }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="position">
+          <th mat-header-cell *matHeaderCellDef>Posición</th>
+          <td mat-cell *matCellDef="let item">{{ item.field.startPosition }}–{{ endPosition(item.field) }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="length">
+          <th mat-header-cell *matHeaderCellDef>Longitud</th>
+          <td mat-cell *matCellDef="let item">{{ item.field.length }}</td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr
+          mat-row
+          *matRowDef="let row; columns: columns"
+          [class.selected-row]="row.field.id === selectedFieldId"
+          [attr.aria-selected]="row.field.id === selectedFieldId"
+          [attr.aria-label]="rowAria(row)"
+          tabindex="0"
+          (click)="select(row)"
+          (keydown.enter)="select(row)"
+          (keydown.space)="$event.preventDefault(); select(row)"
+        ></tr>
+      </table>
+    </div>
+
+    <ng-template #emptyFields>
+      <div class="empty-state" role="status">
+        <strong>Sin campos para mostrar</strong>
+        <span>Selecciona otro registro o revisa la configuración del perfil.</span>
+      </div>
+    </ng-template>
+  </mat-card-content>
+</mat-card>

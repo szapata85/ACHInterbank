@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.Navigation.Dtos;
 using Cfa.ACHInterbank.Application.Navigation.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,7 +8,8 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("navigation/menu-items")]
-[Authorize(Roles = "Admin")]
+[Route("api/navigation/menu-items")]
+[Authorize(Policy = P1Policies.NavigationMenuManage)]
 public class MenuItemsController : ControllerBase
 {
     private readonly IMenuItemsService _service;
@@ -36,7 +38,7 @@ public class MenuItemsController : ControllerBase
         try
         {
             var created = await _service.CreateAsync(request, cancellationToken);
-            return CreatedAtAction(nameof(GetMenuItemsAsync), created);
+            return StatusCode(StatusCodes.Status201Created, created);
         }
         catch (ArgumentException ex)
         {

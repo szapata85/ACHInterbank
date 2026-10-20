@@ -51,6 +51,7 @@ public class P0FineGrainedPolicyMigrationTests
         AssertPolicy(typeof(TransactionsController), nameof(TransactionsController.SubmitBulkIngestion), P0Policies.TransactionsBulkSubmit);
         AssertPolicy(typeof(TransactionsController), nameof(TransactionsController.CreateTransactionsBulk), P0Policies.TransactionsBulkSubmit);
         AssertPolicy(typeof(TransactionsController), nameof(TransactionsController.GetById), P0Policies.TransactionsRead);
+        AssertPolicy(typeof(TransactionsController), nameof(TransactionsController.GetIntegrationResult), P0Policies.TransactionsRead);
 
         AssertPolicy(typeof(AchTraceabilityController), nameof(AchTraceabilityController.CertifyWithSol02), P0Policies.TraceabilityCertifySol02);
         AssertPolicy(typeof(AchTraceabilityController), nameof(AchTraceabilityController.GetTransactionTraceability), P0Policies.TraceabilityRead);

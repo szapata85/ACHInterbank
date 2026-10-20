@@ -18,12 +18,15 @@ public class CustomerThirdPartyRepository : ICustomerThirdPartyRepository
 
     public Task<CustomerThirdParty?> FindAsync(int customerId, int destinationInstitutionId, string destinationAccountNumber, string recipientIdNumber, CancellationToken ct = default)
     {
+        var normalizedAccount = (destinationAccountNumber ?? string.Empty).Trim();
+        var normalizedRecipientId = (recipientIdNumber ?? string.Empty).Trim().ToUpper();
+
         return _context.CustomerThirdParties
             .FirstOrDefaultAsync(t =>
                 t.CustomerId == customerId &&
                 t.DestinationInstitutionId == destinationInstitutionId &&
-                t.DestinationAccountNumber == destinationAccountNumber &&
-                t.RecipientIdNumber == recipientIdNumber, ct);
+                t.DestinationAccountNumber.Trim() == normalizedAccount &&
+                t.RecipientIdNumber.Trim().ToUpper() == normalizedRecipientId, ct);
     }
 
     public Task AddAsync(CustomerThirdParty entity, CancellationToken ct = default)

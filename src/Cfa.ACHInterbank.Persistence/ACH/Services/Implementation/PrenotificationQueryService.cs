@@ -1,7 +1,9 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -12,12 +14,16 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public sealed class PrenotificationQueryService : IPrenotificationQueryService
 {
     private readonly AchDbContext _context;
-    private readonly IBankHoliday _holidayService;
+    private readonly IClearingHouseValidationPolicyService _policyService;
 
-    public PrenotificationQueryService(AchDbContext context, IBankHoliday holidayService)
+    public PrenotificationQueryService(
+        AchDbContext context,
+        IBankHoliday holidayService,
+        IClearingHouseValidationPolicyService? policyService = null)
     {
         _context = context;
-        _holidayService = holidayService;
+        _policyService = policyService
+            ?? new ClearingHouseValidationPolicyService(context, holidayService, new OperationalCycleWindowResolver());
     }
 
     public async Task<PrenotificationStatusDto?> GetByReferenceAsync(string reference, CancellationToken ct = default)
@@ -30,16 +36,14 @@ public sealed class PrenotificationQueryService : IPrenotificationQueryService
 
         var transaction = await BuildBaseQuery()
             .FirstOrDefaultAsync(x => x.Reference == normalized && x.IsPrenotification, ct);
-
-        return transaction is null ? null : Map(transaction);
+        return transaction is null ? null : await MapAsync(transaction, ct);
     }
 
     public async Task<PrenotificationStatusDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
         var transaction = await BuildBaseQuery()
             .FirstOrDefaultAsync(x => x.Id == id && x.IsPrenotification, ct);
-
-        return transaction is null ? null : Map(transaction);
+        return transaction is null ? null : await MapAsync(transaction, ct);
     }
 
     private IQueryable<AchTransaction> BuildBaseQuery()
@@ -50,18 +54,50 @@ public sealed class PrenotificationQueryService : IPrenotificationQueryService
                 .ThenInclude(x => x.ClearingHouse)
             .Include(x => x.StateEvents);
 
-    private PrenotificationStatusDto Map(AchTransaction transaction)
+    private async Task<PrenotificationStatusDto> MapAsync(AchTransaction transaction, CancellationToken ct)
     {
-        var maturityDate = AddBusinessDays(transaction.EffectiveEntryDate.Date, 3);
-        var approvedAt = transaction.StateEvents
-            .Where(x => x.ToState is AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified)
-            .OrderByDescending(x => x.CreatedAt)
-            .Select(x => (DateTimeOffset?)x.CreatedAt)
-            .FirstOrDefault();
+        var direction = NachaTransactionCodeTaxonomy.ResolvePrenotificationDirection(transaction.TransactionCode);
+        var nature = direction.HasValue ? TransactionPrerequisitePolicyService.ResolveNature(direction.Value) : null;
+        ClearingHouseTransactionRule? rule = null;
+        PrenotificationValidationAttempt? attempt = await _context.PrenotificationValidationAttempts
+            .AsNoTracking()
+            .Include(x => x.ThirdPartyAccountValidation)
+                .ThenInclude(x => x.PolicyRule)
+            .FirstOrDefaultAsync(x => x.AchTransactionId == transaction.Id, ct);
 
-        bool isApproved = transaction.State is AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified;
-        bool isMatured = isApproved && DateTime.UtcNow.Date >= maturityDate.Date;
-        bool canBeUsedForDebit = isApproved && isMatured;
+        if (attempt?.ThirdPartyAccountValidation.PolicyRule is not null)
+        {
+            rule = attempt.ThirdPartyAccountValidation.PolicyRule;
+            nature ??= attempt.ThirdPartyAccountValidation.TransactionNature;
+        }
+        else if (nature.HasValue && transaction.AchCycle?.ClearingHouseId > 0)
+        {
+            rule = (await _policyService.ResolveAsync(
+                transaction.AchCycle.ClearingHouseId,
+                nature.Value,
+                transaction.EffectiveEntryDate,
+                ct)).Rule;
+        }
+
+        // Maturity follows the prenotification effective/processing date. SentAtUtc is transport evidence
+        // and must not turn an evening Colombian cycle into the next business date through UTC conversion.
+        var baseDate = attempt?.ThirdPartyAccountValidation.EffectiveDate.Date ?? transaction.EffectiveEntryDate.Date;
+        var maturityDate = rule?.PrenotificationLeadBusinessDays is > 0
+            ? _policyService.AddBusinessDays(baseDate, rule.PrenotificationLeadBusinessDays.Value)
+            : baseDate;
+
+        var approvedAt = attempt?.ResolvedAtUtc
+            ?? transaction.StateEvents
+                .Where(x => x.ToState is AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified)
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => (DateTimeOffset?)x.CreatedAt)
+                .FirstOrDefault();
+
+        var isApproved = attempt?.Resolution is PrenotificationValidationResolution.Accepted or PrenotificationValidationResolution.TacitlyAccepted
+                         || transaction.State is AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified;
+        var policyResolved = rule is not null && nature.HasValue;
+        var isMatured = policyResolved && isApproved && DateTime.UtcNow.Date >= maturityDate.Date;
+        var canBeUsedForDebit = nature == TransactionNature.Debit && isMatured;
 
         return new PrenotificationStatusDto
         {
@@ -79,38 +115,8 @@ public sealed class PrenotificationQueryService : IPrenotificationQueryService
             MaturityDate = maturityDate,
             IsMatured = isMatured,
             CanBeUsedForDebit = canBeUsedForDebit,
-            Message = BuildMessage(transaction.State, isMatured)
+            Message = BuildMessage(transaction.State, policyResolved, isMatured, rule?.PrenotificationLeadBusinessDays)
         };
-    }
-
-    private DateTime AddBusinessDays(DateTime start, int days)
-    {
-        var current = start;
-        var remaining = days;
-        var currentYear = current.Year;
-        var holidays = _holidayService.GetHolidays(currentYear)
-            .Select(x => x.Date)
-            .ToHashSet();
-
-        while (remaining > 0)
-        {
-            current = current.AddDays(1);
-            if (current.Year != currentYear)
-            {
-                currentYear = current.Year;
-                holidays = _holidayService.GetHolidays(currentYear)
-                    .Select(x => x.Date)
-                    .ToHashSet();
-            }
-
-            var dateOnly = DateOnly.FromDateTime(current);
-            if (current.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && !holidays.Contains(dateOnly))
-            {
-                remaining--;
-            }
-        }
-
-        return current.Date;
     }
 
     private static string ToSpanishStatus(AchTransferStateEnum state)
@@ -124,13 +130,25 @@ public sealed class PrenotificationQueryService : IPrenotificationQueryService
             _ => "Estado no clasificado"
         };
 
-    private static string BuildMessage(AchTransferStateEnum state, bool isMatured)
-        => state switch
+    private static string BuildMessage(
+        AchTransferStateEnum state,
+        bool policyResolved,
+        bool isMatured,
+        int? leadBusinessDays)
+    {
+        if (!policyResolved)
         {
-            AchTransferStateEnum.Pending => "La prenotificacion esta pendiente. Puede exportarse como prenotificacion, pero aun no habilita debito monetario posterior.",
-            AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified when !isMatured => "La prenotificacion fue aprobada, pero aun no cumple los dias habiles requeridos para debito monetario.",
-            AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified => "La prenotificacion esta madura y puede usarse para debito monetario posterior.",
-            AchTransferStateEnum.ReturnedByOperator or AchTransferStateEnum.ReturnedByEpr => "La prenotificacion fue rechazada y no puede usarse para debito monetario posterior.",
-            _ => "La prenotificacion requiere revision operativa."
+            return "La prenotificación requiere revisión técnica porque no se resolvió una política efectiva de cámara/naturaleza.";
+        }
+
+        return state switch
+        {
+            AchTransferStateEnum.Pending => "La prenotificación está pendiente de resolución automática.",
+            AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified when !isMatured && leadBusinessDays is > 0
+                => $"La prenotificación fue aceptada, pero aún no cumple el lead efectivo configurado de {leadBusinessDays.Value} días hábiles.",
+            AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified => "La prenotificación fue aceptada y cumple la política efectiva aplicable.",
+            AchTransferStateEnum.ReturnedByOperator or AchTransferStateEnum.ReturnedByEpr => "La prenotificación fue rechazada automáticamente y requiere un nuevo intento cuando corresponda.",
+            _ => "La prenotificación requiere revisión operativa."
         };
+    }
 }

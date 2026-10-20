@@ -9,6 +9,7 @@ public sealed class IncomingNachaIngestionRequest
     public string ContentType { get; init; } = "application/octet-stream";
     public string RequestedBy { get; init; } = "system";
     public string CorrelationId { get; init; } = string.Empty;
+    public int? RequestedClearingHouseId { get; init; }
     public Guid? ParentIngestionId { get; init; }
     public bool ForceReprocess { get; init; }
 }
@@ -16,6 +17,9 @@ public sealed class IncomingNachaIngestionRequest
 public sealed class IncomingNachaIngestionResponse
 {
     public Guid IngestionId { get; init; }
+    public string OriginalFileName { get; init; } = string.Empty;
+    public string FileHash { get; init; } = string.Empty;
+    public string CorrelationId { get; init; } = string.Empty;
     public IncomingNachaIngestionStatus IngestionStatus { get; init; }
     public IncomingNachaCycleResolutionStatus CycleResolutionStatus { get; init; }
     public IncomingNachaParsingStatus ParsingStatus { get; init; }
@@ -23,12 +27,16 @@ public sealed class IncomingNachaIngestionResponse
     public int? ResolvedClearingHouseId { get; init; }
     public string? ResolvedAchCycleId { get; init; }
     public DateTime? OperationalDate { get; init; }
+    public NachaProfileSelectionStatus? ProfileSelectionStatus { get; init; }
+    public string? SelectedProfileCode { get; init; }
+    public string? SelectedProfileVersion { get; init; }
     public int TotalBatches { get; init; }
     public int TotalEntries { get; init; }
     public int TotalAddendas { get; init; }
     public int WarningCount { get; init; }
     public int ErrorCount { get; init; }
     public IReadOnlyList<string> Errors { get; init; } = [];
+    public IncomingNachaAdmissionIssue? OperationalIssue { get; init; }
 }
 
 public sealed class IncomingNachaCycleResolutionRequest
@@ -56,6 +64,9 @@ public sealed class IncomingNachaCycleResolutionResult
 public sealed class NachaParseRequest
 {
     public Guid? IncomingNachaFileIngestionId { get; init; }
+    public int? SelectedProfileId { get; init; }
+    public string? SelectedProfileCode { get; init; }
+    public bool RequirePublishedProfileSnapshot { get; init; }
     public int? ResolvedClearingHouseId { get; init; }
     public string? ResolvedAchCycleId { get; init; }
     public DateTime? OperationalDate { get; init; }

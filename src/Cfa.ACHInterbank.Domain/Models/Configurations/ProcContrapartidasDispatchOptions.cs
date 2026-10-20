@@ -6,6 +6,8 @@ public sealed class ProcContrapartidasDispatchOptions
 
     public string Mode { get; set; } = "DryRun";
 
+    public bool UseContractDrivenRequest { get; set; }
+
     public string NormalizedMode
         => string.IsNullOrWhiteSpace(Mode) ? "DryRun" : Mode.Trim();
 

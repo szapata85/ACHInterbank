@@ -1,0 +1,160 @@
+<app-page-header
+  title="Terceros del cliente"
+  [subtitle]="customerDisplayName + ' · maestro administrativo canónico'"
+  [actionsTemplate]="headerActions"
+></app-page-header>
+
+<ng-template #headerActions>
+  <div class="header-actions">
+    <a class="btn btn-outline" [routerLink]="['/customers']">Volver a clientes</a>
+    <button
+      *ngIf="canManage"
+      type="button"
+      class="btn btn-primary"
+      (click)="toggleCreate()"
+      data-testid="new-third-party"
+    >
+      {{ createOpen ? 'Cerrar registro' : 'Registrar tercero' }}
+    </button>
+  </div>
+</ng-template>
+
+<section class="notice" data-testid="administrative-state-notice">
+  <strong>Estado administrativo.</strong>
+  Estar activo en este maestro no significa que una cuenta esté habilitada para transferir. La validación interbancaria se consulta por contexto.
+</section>
+
+<section *ngIf="createOpen" class="card" data-testid="third-party-create-panel">
+  <h2>Registrar tercero</h2>
+  <p class="muted">La identidad del tercero se registra sin seleccionar ACH Colombia, CENIT ni otra cámara.</p>
+
+  <form class="form-grid" [formGroup]="createForm" (ngSubmit)="createThirdParty()" novalidate>
+    <label>
+      Tipo de persona
+      <select formControlName="personType" data-testid="third-party-person-type">
+        <option value="">Selecciona</option>
+        <option value="PN">Persona natural</option>
+        <option value="PJ">Persona jurídica</option>
+      </select>
+    </label>
+
+    <label>
+      Tipo de documento
+      <select formControlName="documentType" data-testid="third-party-document-type">
+        <option value="">Selecciona</option>
+        <option value="CC">Cédula de Ciudadanía</option>
+        <option value="CE">Cédula de Extranjería</option>
+        <option value="NIT">NIT</option>
+        <option value="PAS">Pasaporte</option>
+        <option value="TI">Tarjeta de Identidad</option>
+        <option value="OTRO">Otro</option>
+      </select>
+    </label>
+
+    <label>
+      Número de documento
+      <input type="text" formControlName="documentNumber" autocomplete="off" data-testid="third-party-document-number" />
+    </label>
+
+    <label>
+      Nombre administrativo
+      <input type="text" formControlName="displayName" autocomplete="off" data-testid="third-party-display-name" />
+    </label>
+
+    <div class="form-actions full-width">
+      <button type="button" class="btn btn-outline" [disabled]="saving" (click)="toggleCreate()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="saving" data-testid="save-third-party">
+        {{ saving ? 'Guardando…' : 'Guardar tercero' }}
+      </button>
+    </div>
+  </form>
+
+  <ui-estado-error
+    *ngIf="commandError"
+    [titulo]="'No fue posible registrar el tercero'"
+    [mensaje]="commandError"
+    [mostrarReintentar]="false"
+    data-testid="third-party-command-error"
+  ></ui-estado-error>
+</section>
+
+<section class="card filters" [formGroup]="filters" data-testid="third-party-search-panel">
+  <label>
+    Buscar tercero
+    <input type="search" formControlName="search" placeholder="Nombre o identidad enmascarada" (keyup.enter)="load(1)" />
+  </label>
+  <label>
+    Estado administrativo
+    <select formControlName="status">
+      <option [ngValue]="null">Todos</option>
+      <option [ngValue]="ThirdPartyAdministrativeStatus.Active">Activo administrativo</option>
+      <option [ngValue]="ThirdPartyAdministrativeStatus.Inactive">Inactivo administrativo</option>
+      <option [ngValue]="ThirdPartyAdministrativeStatus.Draft">Borrador</option>
+    </select>
+  </label>
+  <div class="filter-actions">
+    <button type="button" class="btn btn-primary" [disabled]="loading" (click)="load(1)">Buscar</button>
+    <button type="button" class="btn btn-outline" [disabled]="loading" (click)="clearFilters()">Limpiar filtros</button>
+  </div>
+</section>
+
+<ui-estado-carga *ngIf="loading" mensaje="Cargando terceros del cliente…" data-testid="third-party-loading"></ui-estado-carga>
+<ui-estado-error
+  *ngIf="!loading && loadError"
+  titulo="No fue posible cargar los terceros"
+  [mensaje]="loadError"
+  (reintentar)="load(page)"
+  data-testid="third-party-load-error"
+></ui-estado-error>
+
+<section *ngIf="!loading && !loadError" class="card results" data-testid="third-party-list">
+  <div class="results-header">
+    <h2>Terceros</h2>
+    <span>{{ total }} resultado{{ total === 1 ? '' : 's' }}</span>
+  </div>
+
+  <ui-estado-vacio
+    *ngIf="items.length === 0"
+    titulo="Sin terceros registrados"
+    mensaje="Este cliente todavía no tiene terceros registrados."
+    [sugerencia]="canManage ? 'Puede registrar uno sin seleccionar cámara.' : 'Solicite a un usuario con permisos de gestión que registre el tercero.'"
+    data-testid="third-party-empty"
+  ></ui-estado-vacio>
+
+  <div *ngIf="items.length > 0" class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Identidad</th>
+          <th>Estado</th>
+          <th>Cuentas</th>
+          <th>Actualizado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of items">
+          <td>{{ item.displayName }}</td>
+          <td>{{ item.documentType }} {{ item.documentNumberMasked }}</td>
+          <td>
+            <ui-etiqueta-estado [estado]="administrativeStatusTone(item.status)" [texto]="administrativeStatusLabel(item.status)"></ui-etiqueta-estado>
+          </td>
+          <td>{{ item.accountCount }}</td>
+          <td>{{ item.updatedAt | date:'yyyy-MM-dd HH:mm' }}</td>
+          <td class="actions-cell">
+            <button type="button" class="btn btn-outline btn-sm" (click)="openDetail(item)" data-testid="third-party-detail-link">
+              Ver cuentas
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="totalPages > 1" class="pager" aria-label="Paginación de terceros">
+    <button type="button" class="btn btn-outline btn-sm" [disabled]="page <= 1" (click)="previousPage()">Anterior</button>
+    <span>Página {{ page }} de {{ totalPages }}</span>
+    <button type="button" class="btn btn-outline btn-sm" [disabled]="page >= totalPages" (click)="nextPage()">Siguiente</button>
+  </div>
+</section>

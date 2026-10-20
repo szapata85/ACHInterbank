@@ -74,7 +74,8 @@ public class CompanyEntryDescriptionCatalogConfiguration : IEntityTypeConfigurat
             ("PAGOS PSE", "Transacciones de comercio electrónico a través del botón de pagos.", "CCD"),
             ("COBROS PSE", "Recaudos originados por el sistema PSE.", "CCD"),
             ("PAGOS DIAN", "Pagos de impuestos a la Dirección de Impuestos y Aduanas Nacionales.", "CCD"),
-            ("COBROS SSS", "Pagos y recaudos del Sistema de Seguridad Social", "CCD")
+            ("COBROS SSS", "Pagos y recaudos del Sistema de Seguridad Social", "CCD"),
+            ("CORPORATE", "Pagos corporativos CENIT con múltiples adendas.", "CTX")
         ];
 
         var seed = new List<CompanyEntryDescriptionCatalog>();

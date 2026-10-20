@@ -1,9 +1,4 @@
-export interface RoleSummary {
-  id: string;
-  name: string;
-  description?: string;
-  permissions?: string[];
-}
+import { RoleSummary } from '../../../core/models/role.model';
 
 export interface UserSummary {
   id: string;
@@ -32,9 +27,4 @@ export interface SaveUserRequest {
   roleIds?: string[];
 }
 
-export interface PagedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
+export type { PagedResponse } from '../../../core/models/paged-response.model';

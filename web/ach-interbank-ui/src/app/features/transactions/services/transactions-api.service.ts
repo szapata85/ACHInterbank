@@ -1,37 +1,22 @@
 import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
-import { AccountTypeEnum, TransactionTypeEnum } from '../transactions.types';
-import { ActiveThirdPartyAccount, BulkAchTransactionRequest, BulkAchTransactionResponse, CompanyEntryDescriptionOption, TransactionDraft, TransactionListFilter, TransactionListItem, TransactionPolicyPreview, TransactionResponse } from '../transactions.models';
-
-interface PagedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-interface CustomerThirdPartyApiItem {
-  id: number;
-  destinationInstitutionId: number;
-  destinationInstitutionName: string;
-  destinationAccountNumber: string;
-  recipientIdNumber: string;
-}
+import { AccountTypeEnum, TransactionTypeEnum } from '../../../core/models/transaction-types.model';
+import { BulkAchTransactionRequest, BulkAchTransactionResponse, CompanyEntryDescriptionOption, ContextualThirdPartyAccount, ContextualThirdPartyAccountSelectorResponse, TransactionDraft, TransactionIntegrationResult, TransactionListFilter, TransactionListItem, TransactionPolicyPreview, TransactionResponse } from '../transactions.models';
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
   private readonly api = inject(ApiService);
+  private readonly basePath = 'api/transactions';
 
   getCompanyEntryDescriptions() {
-    return this.api.get<CompanyEntryDescriptionOption[]>('transactions/company-entry-descriptions');
+    return this.api.get<CompanyEntryDescriptionOption[]>(`${this.basePath}/company-entry-descriptions`);
   }
 
   previewPolicy(payload: TransactionDraft) {
     const params: Record<string, string | number | boolean> = {
       amount: Number(payload.amount),
       transactionExternalId: payload.transactionExternalId?.trim() || '',
-      reference: payload.reference?.trim() || '',
       type: Number(payload.type),
       accountType: Number(payload.accountType),
       isPrenotification: Boolean(payload.isPrenotification),
@@ -42,7 +27,7 @@ export class TransactionsApiService {
       recipientIdNumber: payload.recipientIdNumber?.trim() || ''
     };
 
-    return this.api.get<TransactionPolicyPreview>('transactions/policies/preview', { params });
+    return this.api.get<TransactionPolicyPreview>(`${this.basePath}/policies/preview`, { params });
   }
 
   createTransaction(payload: TransactionDraft) {
@@ -55,12 +40,11 @@ export class TransactionsApiService {
       isPrenotification: Boolean(payload.isPrenotification),
       requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
       transactionExternalId: payload.transactionExternalId?.trim() || '',
-      reference: payload.reference?.trim() || undefined,
       recipientIdNumber: payload.recipientIdNumber?.trim() || undefined,
       recipientName: payload.recipientName?.trim() || undefined
     };
 
-    return this.api.post<TransactionResponse>('transactions', sanitized).pipe(
+    return this.api.post<TransactionResponse>(this.basePath, sanitized).pipe(
       catchError((error) => {
         if (error.status === 400) {
           return throwError(() => new Error(this.extractErrorMessage(error, 'Solicitud inválida')));
@@ -78,7 +62,7 @@ export class TransactionsApiService {
 
 
   createBulkTransaction(payload: BulkAchTransactionRequest) {
-    return this.api.post<BulkAchTransactionResponse>('transactions/bulk', payload).pipe(
+    return this.api.post<BulkAchTransactionResponse>(`${this.basePath}/bulk`, payload).pipe(
       catchError((error) => {
         if (error.status === 400) {
           return throwError(() => new Error(error.error?.message ?? 'El lote no cumple las validaciones requeridas.'));
@@ -91,34 +75,22 @@ export class TransactionsApiService {
     );
   }
 
-  getActiveThirdParties(sourceAccountNumber: string, destinationInstitutionId?: number | null) {
+  getContextualThirdPartyAccounts(
+    sourceAccountNumber: string,
+    destinationInstitutionId: number,
+    type: TransactionTypeEnum,
+    companyEntryDescriptionId: number
+  ) {
     const params: Record<string, string | number> = {
-      status: 'Active',
-      page: 1,
-      pageSize: 500
+      sourceAccountNumber: sourceAccountNumber.trim(),
+      destinationInstitutionId: Number(destinationInstitutionId),
+      type: Number(type),
+      companyEntryDescriptionId: Number(companyEntryDescriptionId)
     };
 
-    params.sourceAccountNumber = sourceAccountNumber;
-
-    if (destinationInstitutionId && destinationInstitutionId > 0) {
-      params.destinationInstitutionId = destinationInstitutionId;
-    }
-
     return this.api
-      .get<PagedResponse<CustomerThirdPartyApiItem>>('api/customer-third-parties', { params })
-      .pipe(
-        map((response) =>
-          (response?.items ?? []).map(
-            (item): ActiveThirdPartyAccount => ({
-              id: item.id,
-              destinationInstitutionId: item.destinationInstitutionId,
-              destinationInstitutionName: item.destinationInstitutionName,
-              destinationAccountNumber: item.destinationAccountNumber,
-              recipientIdNumber: item.recipientIdNumber
-            })
-          )
-        )
-      );
+      .get<ContextualThirdPartyAccountSelectorResponse>(`${this.basePath}/third-party-accounts/selector`, { params })
+      .pipe(map((response): ContextualThirdPartyAccount[] => response?.items ?? []));
   }
 
   getAll(filter?: TransactionListFilter) {
@@ -140,9 +112,13 @@ export class TransactionsApiService {
       params.clearingHouseId = filter.clearingHouseId;
     }
 
-    return this.api.get<TransactionListItem[]>('transactions', { params }).pipe(
+    return this.api.get<TransactionListItem[]>(this.basePath, { params }).pipe(
       map((items) => (items ?? []).map((item) => ({ ...item, amount: Number(item.amount) })))
     );
+  }
+
+  getIntegrationResult(transactionId: number) {
+    return this.api.get<TransactionIntegrationResult>(`${this.basePath}/${transactionId}/integration-result`);
   }
 
   private extractErrorMessage(error: any, fallback: string): string {

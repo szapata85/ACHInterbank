@@ -10,6 +10,8 @@ public interface INachaInboundSimulationService
     Task<(string FileName, string ContentType, byte[] Content)?> GetFileAsync(int id, CancellationToken ct = default);
     Task<NachaInboundSimulationMetadataDto?> GetEvidenceAsync(int id, CancellationToken ct = default);
     Task<InboundSimulationEligibilityPreviewResponse> PreviewAsync(InboundSimulationEligibilityPreviewRequest request, CancellationToken ct = default);
+    Task<DifferentialResponseTransactionPage> ListEligibleDifferentialTransactionsAsync(DifferentialResponseTransactionQuery query, CancellationToken ct = default);
+    Task<IReadOnlyList<AvailableInboundCycleDto>> ListAvailableCyclesAsync(AvailableInboundCycleQuery query, CancellationToken ct = default);
 }
 
 public interface INachaInboundSimulationFileGenerator;

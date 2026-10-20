@@ -22,6 +22,13 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
 
     public async Task<NachaConfigPublicationResultDto> PublishAsync(int profileId, string actor, string expectedRowVersion, CancellationToken ct = default)
     {
+        var currentProfile = await _context.CfgProfiles
+            .Include(x => x.Status)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == profileId, ct)
+            ?? throw new InvalidOperationException("Perfil no encontrado.");
+        EnsureProfileIsBorrador(currentProfile);
+
         var validation = await _validation.ValidateBeforePublishAsync(profileId, ct);
         if (!validation.IsValid)
         {
@@ -35,37 +42,60 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
 
         return await ExecuteInTransactionAsync(async () =>
         {
-            var profile = await _context.CfgProfiles.FirstOrDefaultAsync(x => x.Id == profileId, ct)
+            var profile = await NachaCompleteProfileQuery.Create(_context)
+                              .FirstOrDefaultAsync(profile => profile.Id == profileId, ct)
                          ?? throw new InvalidOperationException("Perfil no encontrado.");
 
             EnsureExpectedRowVersion(profile, expectedRowVersion);
+            EnsureProfileIsBorrador(profile);
 
-            profile.StatusId = await ResolveStatusIdAsync("PUBLICADO", ct);
-            profile.PublishedAt = DateTime.UtcNow;
-            profile.PublishedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor;
-            profile.UpdatedAt = DateTimeOffset.UtcNow;
-            profile.VersionMinor += 1;
+            var currentValidation = await _validation.ValidateBeforePublishAsync(profileId, ct);
+            if (!currentValidation.IsValid)
+            {
+                return new NachaConfigPublicationResultDto
+                {
+                    ProfileId = profileId,
+                    Publicado = false,
+                    Mensaje = currentValidation.Resumen
+                };
+            }
+
+            var publishedAtUtc = DateTime.UtcNow;
+            var publishedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor;
+            var targetVersionMinor = profile.VersionMinor + 1;
+            var snapshotContract = NachaPublicationSnapshotSerializer.Build(
+                profile,
+                profile.VersionMajor,
+                targetVersionMinor,
+                publishedAtUtc,
+                publishedBy,
+                await _context.CompanyEntryDescriptionCatalogs.AsNoTracking().ToListAsync(ct));
+            var snapshotJson = NachaPublicationSnapshotSerializer.Serialize(snapshotContract);
+            var snapshotReadResult = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshotJson);
+            if (!snapshotReadResult.IsSupported)
+            {
+                throw new InvalidOperationException(
+                    $"SNAPSHOT_SERIALIZATION_INVALID: {snapshotReadResult.Status}: {snapshotReadResult.Error}");
+            }
 
             var snapshot = new HistConfigSnapshot
             {
                 ProfileId = profile.Id,
                 VersionMajor = profile.VersionMajor,
-                VersionMinor = profile.VersionMinor,
+                VersionMinor = targetVersionMinor,
                 SnapshotType = "PUBLISH",
-                SnapshotJson = JsonSerializer.Serialize(new
-                {
-                    profile.ProfileCode,
-                    profile.VersionMajor,
-                    profile.VersionMinor,
-                    profile.EffectiveFrom,
-                    profile.EffectiveTo,
-                    profile.StatusId
-                }),
-                CreatedAtUtc = DateTime.UtcNow,
-                CreatedBy = profile.PublishedBy ?? "system"
+                SnapshotJson = snapshotJson,
+                CreatedAtUtc = publishedAtUtc,
+                CreatedBy = publishedBy
             };
 
             _context.HistConfigSnapshots.Add(snapshot);
+
+            profile.StatusId = await ResolveStatusIdAsync("PUBLICADO", ct);
+            profile.PublishedAt = publishedAtUtc;
+            profile.PublishedBy = publishedBy;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+            profile.VersionMinor = targetVersionMinor;
             _context.HistConfigChanges.Add(new HistConfigChange
             {
                 ProfileId = profile.Id,
@@ -88,6 +118,8 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
                 Mensaje = "Perfil publicado correctamente.",
                 VersionMajor = profile.VersionMajor,
                 VersionMinor = profile.VersionMinor,
+                Estado = "PUBLICADO",
+                EstadoNombreEs = "Publicado",
                 RowVersion = Convert.ToBase64String(profile.RowVersion)
             };
         }, ct);
@@ -113,6 +145,18 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
         if (!profile.RowVersion.SequenceEqual(expectedBytes))
         {
             throw new NachaConfigException("CONCURRENCY_CONFLICT", "El perfil fue modificado por otro usuario.", 409, Convert.ToBase64String(profile.RowVersion));
+        }
+    }
+
+    private static void EnsureProfileIsBorrador(CfgProfile profile)
+    {
+        if (!string.Equals(profile.Status.Code, "BORRADOR", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NachaConfigException(
+                "INVALID_PROFILE_STATE",
+                "Solo se puede publicar un perfil en estado BORRADOR. Se requiere una nueva version para cambiar una publicacion existente.",
+                409,
+                Convert.ToBase64String(profile.RowVersion));
         }
     }
 

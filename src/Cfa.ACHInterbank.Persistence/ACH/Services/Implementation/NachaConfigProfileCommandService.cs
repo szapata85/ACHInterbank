@@ -28,19 +28,29 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
 
     public async Task<NachaConfigProfileDetailDto> CreateDraftAsync(NachaConfigCreateDraftRequest request, string actor, CancellationToken ct = default)
     {
+        ValidateCreateRequest(request);
         var createdId = await ExecuteInTransactionAsync(async () =>
         {
+            var profileCode = request.ProfileCode.Trim().ToUpperInvariant();
+            if (await _context.CfgProfiles.AnyAsync(x => x.ProfileCode == profileCode, ct))
+            {
+                throw new NachaConfigException(
+                    "PROFILE_CODE_ALREADY_EXISTS",
+                    $"Ya existe un perfil con el código {profileCode}.",
+                    409);
+            }
+
             var profile = new CfgProfile
             {
-                ProfileCode = request.ProfileCode.Trim(),
+                ProfileCode = profileCode,
                 NameEs = request.NombreEs.Trim(),
-                Description = request.Descripcion,
-                ClearingHouseId = await ResolveCatalogIdAsync<CatClearingHouse>(request.CamaraCode, ct),
-                FlowTypeId = await ResolveCatalogIdAsync<CatFlowType>(request.FlujoCode, ct),
-                DirectionId = await ResolveCatalogIdAsync<CatDirection>(request.DireccionCode, ct),
+                Description = request.Descripcion?.Trim(),
+                ClearingHouseId = await ResolveCatalogIdAsync<CatClearingHouse>(request.CamaraCode.Trim().ToUpperInvariant(), ct),
+                FlowTypeId = await ResolveCatalogIdAsync<CatFlowType>(request.FlujoCode.Trim().ToUpperInvariant(), ct),
+                DirectionId = await ResolveCatalogIdAsync<CatDirection>(request.DireccionCode.Trim().ToUpperInvariant(), ct),
                 ServiceClassId = string.IsNullOrWhiteSpace(request.ServicioCode)
                     ? null
-                    : await ResolveCatalogIdAsync<CatServiceClass>(request.ServicioCode, ct),
+                    : await ResolveCatalogIdAsync<CatServiceClass>(request.ServicioCode.Trim().ToUpperInvariant(), ct),
                 StatusId = await ResolveCatalogIdAsync<CatConfigStatus>("BORRADOR", ct),
                 EffectiveFrom = request.EffectiveFrom,
                 ContextPriority = 100,
@@ -61,6 +71,7 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
 
     public async Task<NachaConfigProfileDetailDto?> UpdateDraftAsync(int profileId, NachaConfigUpdateProfileRequest request, string actor, CancellationToken ct = default)
     {
+        ValidateEffectiveDates(request.EffectiveFrom, request.EffectiveTo);
         var exists = false;
         await ExecuteInTransactionAsync(async () =>
         {
@@ -74,12 +85,9 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             exists = true;
             EnsureExpectedRowVersion(profile, request.ExpectedRowVersion);
 
-            if (!string.Equals(profile.Status.Code, "BORRADOR", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new NachaConfigException("INVALID_PROFILE_STATE", "Solo se puede editar perfiles en estado BORRADOR.", 409, Convert.ToBase64String(profile.RowVersion));
-            }
+            EnsureProfileIsBorrador(profile);
 
-            var before = JsonSerializer.Serialize(profile);
+            var before = JsonSerializer.SerializeToElement(profile, AuditJsonOptions);
             profile.NameEs = request.NombreEs.Trim();
             profile.Description = request.Descripcion;
             profile.ContextPriority = request.ContextPriority;
@@ -96,13 +104,24 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
 
     public async Task<NachaConfigProfileDetailDto?> CloneProfileAsync(int profileId, NachaConfigCloneProfileRequest request, string actor, CancellationToken ct = default)
     {
+        if (request.EffectiveFrom == default)
+        {
+            throw new NachaConfigException("EFFECTIVE_FROM_REQUIRED", "La vigencia inicial es obligatoria.", 400);
+        }
+
         var cloneId = 0;
         await ExecuteInTransactionAsync(async () =>
         {
             var source = await _context.CfgProfiles
+                .Include(x => x.Tags)
                 .Include(x => x.Records)
                 .Include(x => x.LayoutVariants)
                     .ThenInclude(v => v.Fields)
+                        .ThenInclude(f => f.SourceDefinition)
+                .Include(x => x.LayoutVariants)
+                    .ThenInclude(v => v.Fields)
+                        .ThenInclude(f => f.Rules)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(x => x.Id == profileId, ct);
 
             if (source is null)
@@ -111,11 +130,27 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             }
 
             EnsureExpectedRowVersion(source, request.ExpectedRowVersion);
+            var profileCode = request.NuevoProfileCode.Trim().ToUpperInvariant();
+            if (await _context.CfgProfiles.AnyAsync(x => x.ProfileCode == profileCode, ct))
+            {
+                throw new NachaConfigException(
+                    "PROFILE_CODE_ALREADY_EXISTS",
+                    $"Ya existe un perfil con el código {profileCode}.",
+                    409);
+            }
 
             var draftStatusId = await ResolveCatalogIdAsync<CatConfigStatus>("BORRADOR", ct);
+            var highestMajorVersion = await _context.CfgProfiles
+                .Where(x =>
+                    x.ClearingHouseId == source.ClearingHouseId
+                    && x.FlowTypeId == source.FlowTypeId
+                    && x.DirectionId == source.DirectionId
+                    && x.ServiceClassId == source.ServiceClassId)
+                .MaxAsync(x => (int?)x.VersionMajor, ct)
+                ?? source.VersionMajor;
             var clone = new CfgProfile
             {
-                ProfileCode = request.NuevoProfileCode.Trim(),
+                ProfileCode = profileCode,
                 NameEs = request.NuevoNombreEs.Trim(),
                 Description = source.Description,
                 ClearingHouseId = source.ClearingHouseId,
@@ -126,26 +161,106 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
                 EffectiveFrom = request.EffectiveFrom,
                 EffectiveTo = source.EffectiveTo,
                 StatusId = draftStatusId,
-                VersionMajor = source.VersionMajor + 1,
+                VersionMajor = highestMajorVersion + 1,
                 VersionMinor = 0,
                 SupersedesProfileId = source.Id
             };
 
-            source.UpdatedAt = DateTimeOffset.UtcNow;
             _context.CfgProfiles.Add(clone);
             await _context.SaveChangesAsync(ct);
 
+            foreach (var tag in source.Tags)
+            {
+                clone.Tags.Add(new CfgProfileTag
+                {
+                    TagKey = tag.TagKey,
+                    TagValue = tag.TagValue
+                });
+            }
+
+            var clonedVariants = new Dictionary<int, CfgLayoutVariant>();
+            foreach (var variant in source.LayoutVariants)
+            {
+                var clonedVariant = new CfgLayoutVariant
+                {
+                    RecordCodeId = variant.RecordCodeId,
+                    VariantCode = variant.VariantCode,
+                    NameEs = variant.NameEs,
+                    Description = variant.Description,
+                    Priority = variant.Priority,
+                    EffectiveFrom = request.EffectiveFrom,
+                    EffectiveTo = variant.EffectiveTo,
+                    StatusId = draftStatusId,
+                    TotalLength = variant.TotalLength,
+                    SelectionPredicateJson = variant.SelectionPredicateJson,
+                    IsDefaultForRecord = variant.IsDefaultForRecord
+                };
+
+                foreach (var field in variant.Fields)
+                {
+                    var clonedField = new CfgLayoutField
+                    {
+                        FieldCode = field.FieldCode,
+                        FieldNameEs = field.FieldNameEs,
+                        StartPosition = field.StartPosition,
+                        Length = field.Length,
+                        PadChar = field.PadChar,
+                        Justification = field.Justification,
+                        FormatMask = field.FormatMask,
+                        SortOrder = field.SortOrder,
+                        IsVisibleInBackoffice = field.IsVisibleInBackoffice,
+                        IsEnabled = field.IsEnabled,
+                        TransformationPipelineJson = field.TransformationPipelineJson,
+                        SourceDefinition = new CfgFieldSourceDefinition
+                        {
+                            DataSourceTypeId = field.SourceDefinition.DataSourceTypeId,
+                            ConstantValue = field.SourceDefinition.ConstantValue,
+                            EntityName = field.SourceDefinition.EntityName,
+                            PropertyPath = field.SourceDefinition.PropertyPath,
+                            SqlObjectName = field.SourceDefinition.SqlObjectName,
+                            ExpressionDsl = field.SourceDefinition.ExpressionDsl,
+                            ExternalCatalogCode = field.SourceDefinition.ExternalCatalogCode,
+                            FallbackPolicyJson = field.SourceDefinition.FallbackPolicyJson
+                        }
+                    };
+
+                    foreach (var rule in field.Rules)
+                    {
+                        clonedField.Rules.Add(new CfgFieldRule
+                        {
+                            RuleTypeId = rule.RuleTypeId,
+                            RuleCode = rule.RuleCode,
+                            ErrorCode = rule.ErrorCode,
+                            ErrorMessageEs = rule.ErrorMessageEs,
+                            Severity = rule.Severity,
+                            ConditionDsl = rule.ConditionDsl,
+                            RuleConfigJson = rule.RuleConfigJson,
+                            Order = rule.Order,
+                            IsEnabled = rule.IsEnabled
+                        });
+                    }
+
+                    clonedVariant.Fields.Add(clonedField);
+                }
+
+                clone.LayoutVariants.Add(clonedVariant);
+                clonedVariants[variant.Id] = clonedVariant;
+            }
+
             foreach (var record in source.Records)
             {
-                _context.CfgProfileRecords.Add(new CfgProfileRecord
+                clone.Records.Add(new CfgProfileRecord
                 {
-                    ProfileId = clone.Id,
                     RecordCodeId = record.RecordCodeId,
                     Sequence = record.Sequence,
                     IsEnabled = record.IsEnabled,
                     MinOccurs = record.MinOccurs,
                     MaxOccurs = record.MaxOccurs,
                     SourceStrategy = record.SourceStrategy,
+                    LayoutVariant = record.LayoutVariantId.HasValue
+                        && clonedVariants.TryGetValue(record.LayoutVariantId.Value, out var clonedVariant)
+                            ? clonedVariant
+                            : null,
                     SemanticRuleSetId = record.SemanticRuleSetId
                 });
             }
@@ -176,6 +291,7 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             }
 
             EnsureExpectedRowVersion(profile, request.ExpectedRowVersion);
+            EnsureProfileIsBorrador(profile);
             var records = await _context.CfgProfileRecords.Where(x => x.ProfileId == profileId).ToListAsync(ct);
             if (records.Count == 0)
             {
@@ -264,7 +380,7 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             field.IsEnabled = request.IsEnabled;
             if (!string.IsNullOrWhiteSpace(request.PropertyPath))
             {
-                field.SourceDefinition.PropertyPath = request.PropertyPath.Trim();
+                await ApplyLegacyPropertyPathAsync(field, request.PropertyPath.Trim(), ct);
             }
 
             profile.UpdatedAt = DateTimeOffset.UtcNow;
@@ -275,6 +391,272 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
 
         return updated;
     }
+
+    public async Task<bool> UpdateFieldEditorAsync(int profileId, int fieldId, NachaConfigFieldEditorUpdateRequest request, string actor, CancellationToken ct = default)
+    {
+        var updated = false;
+        await ExecuteInTransactionAsync(async () =>
+        {
+            var profile = await _context.CfgProfiles
+                .Include(x => x.Status)
+                .FirstOrDefaultAsync(x => x.Id == profileId, ct);
+            if (profile is null)
+            {
+                return;
+            }
+
+            EnsureExpectedRowVersion(profile, request.ExpectedRowVersion);
+            EnsureProfileIsBorrador(profile);
+
+            var field = await _context.CfgLayoutFields
+                .Include(x => x.LayoutVariant)
+                .Include(x => x.SourceDefinition)
+                    .ThenInclude(x => x.DataSourceType)
+                .Include(x => x.Rules)
+                    .ThenInclude(x => x.RuleType)
+                .FirstOrDefaultAsync(x => x.Id == fieldId && x.LayoutVariant.ProfileId == profileId, ct);
+            if (field is null)
+            {
+                return;
+            }
+
+            ValidateFieldEditorRequest(field, request, profile.RowVersion);
+            if (!string.IsNullOrWhiteSpace(request.FormatMask)
+                && !string.Equals(request.FormatMask, field.FormatMask, StringComparison.Ordinal))
+            {
+                var formatIsAuthorized = await _context.CfgLayoutFields.AsNoTracking().AnyAsync(x =>
+                    x.LayoutVariant.Profile.ClearingHouseId == profile.ClearingHouseId
+                    && x.FormatMask == request.FormatMask, ct);
+                if (!formatIsAuthorized)
+                {
+                    throw new NachaConfigException(
+                        "FORMAT_NOT_AVAILABLE",
+                        "El formato seleccionado no está disponible para esta cámara.",
+                        400,
+                        Convert.ToBase64String(profile.RowVersion));
+                }
+            }
+
+            var before = FieldEditorAuditSnapshot(field);
+            var requestedSourceTypeCode = request.Source.SourceTypeCode.Trim().ToUpperInvariant();
+            var requestedSourceType = await _context.CatDataSourceTypes
+                .FirstOrDefaultAsync(x => x.Code == requestedSourceTypeCode, ct)
+                ?? throw new NachaConfigException(
+                    "SOURCE_TYPE_NOT_AVAILABLE",
+                    "El origen seleccionado ya no está disponible.",
+                    400,
+                    Convert.ToBase64String(profile.RowVersion));
+
+            if (requestedSourceTypeCode == "CONSTANTE")
+            {
+                await ApplyFixedSourceAsync(field, requestedSourceType.Id, request.Source.FixedValue, ct);
+            }
+            else
+            {
+                if (!request.Source.SourceDefinitionId.HasValue)
+                {
+                    throw new NachaConfigException(
+                        "SOURCE_OPTION_REQUIRED",
+                        "Selecciona el dato o cálculo autorizado que alimentará el campo.",
+                        400,
+                        Convert.ToBase64String(profile.RowVersion));
+                }
+
+                var source = await _context.CfgFieldSourceDefinitions
+                    .Include(x => x.DataSourceType)
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == request.Source.SourceDefinitionId.Value
+                        && x.DataSourceTypeId == requestedSourceType.Id
+                        && x.Fields.Any(f => f.LayoutVariant.Profile.ClearingHouseId == profile.ClearingHouseId), ct);
+                if (source is null)
+                {
+                    throw new NachaConfigException(
+                        "SOURCE_OPTION_NOT_AVAILABLE",
+                        "El dato o cálculo seleccionado no está disponible para esta cámara.",
+                        400,
+                        Convert.ToBase64String(profile.RowVersion));
+                }
+
+                field.SourceDefinition = source;
+                field.SourceDefinitionId = source.Id;
+            }
+
+            field.FieldNameEs = request.FieldNameEs.Trim();
+            field.StartPosition = request.StartPosition;
+            field.Length = request.Length;
+            field.PadChar = request.PadChar[0];
+            field.Justification = char.ToUpperInvariant(request.Justification[0]);
+            field.FormatMask = string.IsNullOrWhiteSpace(request.FormatMask) ? null : request.FormatMask.Trim();
+            field.IsEnabled = request.IsEnabled;
+
+            var rulesById = field.Rules.ToDictionary(x => x.Id);
+            foreach (var ruleUpdate in request.Rules)
+            {
+                if (!rulesById.TryGetValue(ruleUpdate.Id, out var rule))
+                {
+                    throw new NachaConfigException(
+                        "RULE_NOT_AVAILABLE",
+                        "Una de las validaciones ya no pertenece al campo seleccionado.",
+                        400,
+                        Convert.ToBase64String(profile.RowVersion));
+                }
+
+                var severity = ruleUpdate.Severity.Trim().ToUpperInvariant();
+                if (severity != "ERROR" && severity != "WARN")
+                {
+                    throw new NachaConfigException(
+                        "RULE_SEVERITY_NOT_AVAILABLE",
+                        "Selecciona un comportamiento ante error disponible.",
+                        400,
+                        Convert.ToBase64String(profile.RowVersion));
+                }
+
+                rule.ErrorMessageEs = ruleUpdate.ErrorMessageEs.Trim();
+                rule.Severity = severity;
+                rule.IsEnabled = ruleUpdate.IsEnabled;
+            }
+
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+            AppendChange(profileId, nameof(CfgLayoutField), field.Id.ToString(), "FIELD_EDITOR_UPDATE", actor, before, FieldEditorAuditSnapshot(field));
+            await _context.SaveChangesAsync(ct);
+            updated = true;
+        }, ct);
+
+        return updated;
+    }
+
+    private async Task ApplyLegacyPropertyPathAsync(CfgLayoutField field, string propertyPath, CancellationToken ct)
+    {
+        var current = field.SourceDefinition;
+        if (string.Equals(current.PropertyPath, propertyPath, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var referenceCount = await _context.CfgLayoutFields.CountAsync(x => x.SourceDefinitionId == current.Id, ct);
+        if (referenceCount > 1)
+        {
+            var isolated = new CfgFieldSourceDefinition
+            {
+                DataSourceTypeId = current.DataSourceTypeId,
+                ConstantValue = current.ConstantValue,
+                EntityName = current.EntityName,
+                PropertyPath = propertyPath,
+                SqlObjectName = current.SqlObjectName,
+                ExpressionDsl = current.ExpressionDsl,
+                ExternalCatalogCode = current.ExternalCatalogCode,
+                FallbackPolicyJson = current.FallbackPolicyJson
+            };
+            _context.CfgFieldSourceDefinitions.Add(isolated);
+            field.SourceDefinition = isolated;
+            return;
+        }
+
+        current.PropertyPath = propertyPath;
+    }
+
+    private async Task ApplyFixedSourceAsync(CfgLayoutField field, int dataSourceTypeId, string? fixedValue, CancellationToken ct)
+    {
+        var value = fixedValue ?? string.Empty;
+        var current = field.SourceDefinition;
+        var requiresChange = current.DataSourceTypeId != dataSourceTypeId
+            || !string.Equals(current.ConstantValue ?? string.Empty, value, StringComparison.Ordinal)
+            || current.EntityName is not null
+            || current.PropertyPath is not null
+            || current.SqlObjectName is not null
+            || current.ExpressionDsl is not null
+            || current.ExternalCatalogCode is not null;
+        if (!requiresChange)
+        {
+            return;
+        }
+
+        var referenceCount = await _context.CfgLayoutFields.CountAsync(x => x.SourceDefinitionId == current.Id, ct);
+        if (referenceCount > 1)
+        {
+            var isolated = new CfgFieldSourceDefinition
+            {
+                DataSourceTypeId = dataSourceTypeId,
+                ConstantValue = value,
+                FallbackPolicyJson = current.FallbackPolicyJson
+            };
+            _context.CfgFieldSourceDefinitions.Add(isolated);
+            field.SourceDefinition = isolated;
+            return;
+        }
+
+        current.DataSourceTypeId = dataSourceTypeId;
+        current.ConstantValue = value;
+        current.EntityName = null;
+        current.PropertyPath = null;
+        current.SqlObjectName = null;
+        current.ExpressionDsl = null;
+        current.ExternalCatalogCode = null;
+    }
+
+    private static void ValidateFieldEditorRequest(CfgLayoutField field, NachaConfigFieldEditorUpdateRequest request, byte[] rowVersion)
+    {
+        var currentVersion = Convert.ToBase64String(rowVersion);
+        if (string.IsNullOrWhiteSpace(request.FieldNameEs))
+        {
+            throw new NachaConfigException("FIELD_NAME_REQUIRED", "El nombre funcional del campo es obligatorio.", 400, currentVersion);
+        }
+        if (request.StartPosition <= 0 || request.Length <= 0 || request.StartPosition + request.Length - 1 > field.LayoutVariant.TotalLength)
+        {
+            throw new NachaConfigException("FIELD_RANGE_INVALID", "La posición y longitud deben quedar dentro del registro configurado.", 400, currentVersion);
+        }
+        if (request.PadChar.Length != 1)
+        {
+            throw new NachaConfigException("PAD_CHAR_INVALID", "El carácter de relleno debe tener un solo carácter.", 400, currentVersion);
+        }
+        if (request.Justification.Length != 1
+            || (char.ToUpperInvariant(request.Justification[0]) != 'L' && char.ToUpperInvariant(request.Justification[0]) != 'R'))
+        {
+            throw new NachaConfigException("JUSTIFICATION_INVALID", "Selecciona una alineación disponible.", 400, currentVersion);
+        }
+        if (request.Source is null || string.IsNullOrWhiteSpace(request.Source.SourceTypeCode))
+        {
+            throw new NachaConfigException("SOURCE_REQUIRED", "Selecciona el origen del valor del campo.", 400, currentVersion);
+        }
+        if (request.Rules.Any(x => string.IsNullOrWhiteSpace(x.ErrorMessageEs)))
+        {
+            throw new NachaConfigException("RULE_MESSAGE_REQUIRED", "Cada validación debe conservar un mensaje claro para Operaciones.", 400, currentVersion);
+        }
+    }
+
+    private static object FieldEditorAuditSnapshot(CfgLayoutField field)
+        => new
+        {
+            field.Id,
+            field.FieldNameEs,
+            field.StartPosition,
+            field.Length,
+            field.PadChar,
+            field.Justification,
+            field.FormatMask,
+            field.IsEnabled,
+            field.SourceDefinitionId,
+            Source = new
+            {
+                field.SourceDefinition.DataSourceTypeId,
+                field.SourceDefinition.ConstantValue,
+                field.SourceDefinition.EntityName,
+                field.SourceDefinition.PropertyPath,
+                field.SourceDefinition.SqlObjectName,
+                field.SourceDefinition.ExpressionDsl,
+                field.SourceDefinition.ExternalCatalogCode,
+                field.SourceDefinition.FallbackPolicyJson
+            },
+            Rules = field.Rules.OrderBy(x => x.Order).Select(x => new
+            {
+                x.Id,
+                x.RuleTypeId,
+                x.RuleCode,
+                x.ErrorMessageEs,
+                x.Severity,
+                x.IsEnabled
+            }).ToList()
+        };
 
     public async Task<bool> UpdateFieldRuleAsync(int profileId, int ruleId, NachaConfigFieldRuleEditDto request, string actor, CancellationToken ct = default)
     {
@@ -377,6 +759,42 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
         if (!string.Equals(profile.Status.Code, "BORRADOR", StringComparison.OrdinalIgnoreCase))
         {
             throw new NachaConfigException("INVALID_PROFILE_STATE", "Solo se puede editar perfiles en estado BORRADOR.", 409, Convert.ToBase64String(profile.RowVersion));
+        }
+    }
+
+    private static void ValidateCreateRequest(NachaConfigCreateDraftRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProfileCode)
+            || string.IsNullOrWhiteSpace(request.NombreEs)
+            || string.IsNullOrWhiteSpace(request.CamaraCode)
+            || string.IsNullOrWhiteSpace(request.FlujoCode)
+            || string.IsNullOrWhiteSpace(request.DireccionCode))
+        {
+            throw new NachaConfigException(
+                "REQUIRED_FIELDS_MISSING",
+                "Código, nombre, cámara, flujo y dirección son obligatorios.",
+                400);
+        }
+
+        if (request.EffectiveFrom == default)
+        {
+            throw new NachaConfigException("EFFECTIVE_FROM_REQUIRED", "La vigencia inicial es obligatoria.", 400);
+        }
+    }
+
+    private static void ValidateEffectiveDates(DateTime effectiveFrom, DateTime? effectiveTo)
+    {
+        if (effectiveFrom == default)
+        {
+            throw new NachaConfigException("EFFECTIVE_FROM_REQUIRED", "La vigencia inicial es obligatoria.", 400);
+        }
+
+        if (effectiveTo.HasValue && effectiveTo.Value < effectiveFrom)
+        {
+            throw new NachaConfigException(
+                "INVALID_EFFECTIVE_RANGE",
+                "La vigencia final no puede ser anterior a la vigencia inicial.",
+                400);
         }
     }
 

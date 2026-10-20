@@ -1,7 +1,9 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
-public class AddendaRecord
+public class AddendaRecord : AuditableEntity
 {
     public int AddendaID { get; set; }
     public string? CodeTypeAddendumRecord { get; set; }
@@ -13,13 +15,16 @@ public class AddendaRecord
     public string? CollectorId { get; set; }
     public string? ReceiverCustomerCode { get; set; }
     public string? ServiceDescription { get; set; }
+    public string? PaymentRelatedInformation { get; set; }
     public string? ReturnReasonCode { get; set; }
     public string? OriginalTraceNumber { get; set; }
     public string? NewTraceNumber { get; set; }
     public string? AddendumSequence { get; set; }
     public string? EntryDetailSequenceNumber { get; set; }
     public string? NachaID { get; set; }
+    public int? EntryDetailId { get; set; }
 
     [ForeignKey("NachaID")]
     public virtual NachaHeader? NachaHeader { get; set; }
+    public virtual EntryDetail? EntryDetail { get; set; }
 }

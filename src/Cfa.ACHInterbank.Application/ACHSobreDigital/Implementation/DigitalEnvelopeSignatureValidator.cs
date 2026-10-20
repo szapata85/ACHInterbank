@@ -39,12 +39,14 @@ public class DigitalEnvelopeSignatureValidator : IDigitalEnvelopeSignatureValida
         X509Certificate2 signerCertificate;
         try
         {
-            signerCertificate = X509CertificateLoader.LoadCertificate(Convert.FromBase64String(signedData.SignerInfo.Certificate.Replace("\n", "")));
+            signerCertificate = X509CertificateLoader.LoadCertificate(
+                Convert.FromBase64String(RemoveWhitespace(signedData.SignerInfo.Certificate)));
         }
         catch
         {
-            return Task.FromResult(Fail("SIGNER_CERTIFICATE_MISSING", "Certificado firmante inválido o no legible.", warnings));
+            return Task.FromResult(Fail("SIGNER_CERTIFICATE_MISSING", "El certificado firmante no es válido o no puede leerse.", warnings));
         }
+        using var signerCertificateScope = signerCertificate;
 
         if (_options.FailWhenSignerCertificateExpired)
         {
@@ -60,14 +62,13 @@ public class DigitalEnvelopeSignatureValidator : IDigitalEnvelopeSignatureValida
             }
         }
 
-        if (_options.ValidateSignerCertificateThumbprint
-            && !string.IsNullOrWhiteSpace(request.ExpectedSignerThumbprint)
+        if (!string.IsNullOrWhiteSpace(request.ExpectedSignerThumbprint)
             && !string.Equals(
-                signerCertificate.Thumbprint,
-                request.ExpectedSignerThumbprint,
+                NormalizeThumbprint(signerCertificate.Thumbprint),
+                NormalizeThumbprint(request.ExpectedSignerThumbprint),
                 StringComparison.OrdinalIgnoreCase))
         {
-            return Task.FromResult(Fail("SIGNED_CONTENT_MISMATCH", "Thumbprint del firmante no coincide con el esperado.", warnings, signerCertificate));
+            return Task.FromResult(Fail("SIGNED_CONTENT_MISMATCH", "El certificado firmante no corresponde a la cámara compensadora seleccionada.", warnings, signerCertificate));
         }
 
         if (_options.ValidateSignerCertificateChain)
@@ -81,30 +82,46 @@ public class DigitalEnvelopeSignatureValidator : IDigitalEnvelopeSignatureValida
             }
         }
 
-        var signatureAlgorithm = signedData.SignerInfo.SignatureAlgorithm;
+        var signatureAlgorithm = signedData.SignerInfo.SignatureAlgorithm?.Trim();
         if (!string.Equals(signatureAlgorithm, "SHA256withRSA", StringComparison.OrdinalIgnoreCase))
         {
-            return Task.FromResult(Fail("SIGNATURE_ALGORITHM_NOT_SUPPORTED", $"Algoritmo de firma no soportado: {signatureAlgorithm}.", warnings, signerCertificate));
+            return Task.FromResult(Fail("SIGNATURE_ALGORITHM_NOT_SUPPORTED", "El algoritmo de firma del sobre digital no está permitido.", warnings, signerCertificate));
         }
 
         byte[] signature;
         try
         {
-            signature = Convert.FromBase64String(signedData.EncryptedDigest.Replace("\n", ""));
+            signature = Convert.FromBase64String(RemoveWhitespace(signedData.EncryptedDigest));
         }
         catch
         {
             return Task.FromResult(Fail("SIGNATURE_VALIDATION_FAILED", "Firma no válida en formato Base64.", warnings, signerCertificate));
         }
 
-        var hash = SHA256.HashData(request.PlainContent);
         using var rsa = signerCertificate.GetRSAPublicKey();
         if (rsa == null)
         {
             return Task.FromResult(Fail("SIGNATURE_ALGORITHM_NOT_SUPPORTED", "No se encontró llave pública RSA en el certificado firmante.", warnings, signerCertificate));
         }
 
-        var verified = rsa.VerifyHash(hash, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var signedContent = request.SignedContent ?? request.PlainContent;
+        var verified = rsa.VerifyHash(
+            SHA256.HashData(signedContent),
+            signature,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        if (!verified && request.SignedContent is not null)
+        {
+            verified = rsa.VerifyHash(
+                SHA256.HashData(request.PlainContent),
+                signature,
+                HashAlgorithmName.SHA256,
+                RSASignaturePadding.Pkcs1);
+            if (verified)
+            {
+                warnings.Add("El sobre utiliza el esquema histórico de firma sobre contenido sin comprimir.");
+            }
+        }
         if (!verified)
         {
             return Task.FromResult(Fail("SIGNATURE_VALIDATION_FAILED", "La firma no corresponde al contenido firmado.", warnings, signerCertificate));
@@ -145,4 +162,10 @@ public class DigitalEnvelopeSignatureValidator : IDigitalEnvelopeSignatureValida
         warnings.Add(message);
         return Fail(code, message, warnings);
     }
+
+    private static string NormalizeThumbprint(string? value)
+        => string.Concat((value ?? string.Empty).Where(char.IsLetterOrDigit)).ToUpperInvariant();
+
+    private static string RemoveWhitespace(string? value)
+        => string.Concat((value ?? string.Empty).Where(character => !char.IsWhiteSpace(character)));
 }

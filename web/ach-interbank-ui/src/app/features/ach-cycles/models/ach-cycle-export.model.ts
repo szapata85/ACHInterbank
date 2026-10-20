@@ -3,7 +3,9 @@ export interface ExportableAchCycle {
   cycleId?: string | null;
   cycleName: string;
   processingDate: string;
+  clearingHouseId?: number;
   clearingHouseName?: string;
+  batchCount?: number;
   transactionCount: number;
   isExportable?: boolean;
   exportUnavailableReason?: string | null;
@@ -11,6 +13,11 @@ export interface ExportableAchCycle {
   nachaId?: string | null;
   fileHash?: string | null;
   hash?: string | null;
+  hasGeneratedFile?: boolean;
+  hasDigitalEnvelope?: boolean;
+  fileName?: string | null;
+  generatedAtUtc?: string | null;
+  protectedAtUtc?: string | null;
 }
 
 export interface ExportableAchCycleFilter {

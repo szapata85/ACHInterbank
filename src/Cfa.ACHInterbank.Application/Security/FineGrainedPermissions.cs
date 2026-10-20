@@ -21,6 +21,12 @@ public static class FineGrainedPermissions
         public const string PolicyPreview = "Transactions.PolicyPreview";
     }
 
+    public static class OutgoingTransactions
+    {
+        public const string MonitorRead = "OutgoingTransactions.Monitor.Read";
+        public const string MonitorTechnicalDetailRead = "OutgoingTransactions.Monitor.TechnicalDetail.Read";
+    }
+
     public static class Nacha
     {
         public const string Read = "Nacha.Read";
@@ -30,6 +36,15 @@ public static class FineGrainedPermissions
         public const string Configure = "Nacha.Configure";
         public const string PublishConfig = "Nacha.PublishConfig";
         public const string ArchiveConfig = "Nacha.ArchiveConfig";
+    }
+
+    public static class NachaSimulator
+    {
+        public const string Read = "NachaSimulator.Read";
+        public const string GenerateIncoming = "NachaSimulator.GenerateIncoming";
+        public const string GenerateDifferential = "NachaSimulator.GenerateDifferential";
+        public const string Download = "NachaSimulator.Download";
+        public const string Live = "NachaSimulator.Live";
     }
 
     public static class NachaSecurity
@@ -63,6 +78,26 @@ public static class FineGrainedPermissions
     {
         public const string Read = "Reports.Read";
         public const string Export = "Reports.Export";
+    }
+
+    public static class AuditLogs
+    {
+        public const string Read = "AuditLogs.Read";
+    }
+
+    public static class AuthLogs
+    {
+        public const string Read = "AuthLogs.Read";
+    }
+
+    public static class NavigationLogs
+    {
+        public const string Read = "NavigationLogs.Read";
+    }
+
+    public static class NavigationMenu
+    {
+        public const string Manage = "NavigationMenu.Manage";
     }
 
     public static class Cenit
@@ -102,6 +137,15 @@ public static class FineGrainedPermissions
         public const string GenerateFile = "Returns.GenerateFile";
     }
 
+    public static class Claims
+    {
+        public const string Read = "Claims.Read";
+        public const string CreateDev14 = "Claims.CreateDev14";
+        public const string Progress = "Claims.Progress";
+        public const string Resolve = "Claims.Resolve";
+        public const string Expire = "Claims.Expire";
+    }
+
     public static class Users
     {
         public const string Read = "Users.Read";
@@ -134,9 +178,21 @@ public static class FineGrainedPermissions
         public const string Manage = "Config.Manage";
     }
 
+    public static class ClearingHouses
+    {
+        public const string View = "ClearingHouses.View";
+        public const string Create = "ClearingHouses.Create";
+        public const string Update = "ClearingHouses.Update";
+        public const string ChangeStatus = "ClearingHouses.ChangeStatus";
+        public const string ManageCycles = "ClearingHouses.ManageCycles";
+        public const string ManageSpecialDates = "ClearingHouses.ManageSpecialDates";
+    }
+
     public static class Integrations
     {
         public const string Read = "Integrations.Read";
+        public const string ManageContracts = "Integrations.ManageContracts";
+        public const string ManageConnections = "Integrations.ManageConnections";
         public const string ManageMappings = "Integrations.ManageMappings";
         public const string Validate = "Integrations.Validate";
         public const string Publish = "Integrations.Publish";
@@ -148,31 +204,65 @@ public static class FineGrainedPermissions
         public const string Read = "RegulatoryCatalogs.Read";
     }
 
+    public static class OperationalRestrictions
+    {
+        public const string Read = "OperationalRestrictions.Read";
+        public const string Manage = "OperationalRestrictions.Manage";
+    }
+
+    public static class TestTools
+    {
+        public const string Access = "TestTools.Access";
+    }
+
     public static class Maintenance
     {
         public const string Seed = "Maintenance.Seed";
         public const string RunAdminTask = "Maintenance.RunAdminTask";
     }
 
+    public static class Scheduler
+    {
+        public const string View = "Scheduler.View";
+        public const string HistoryView = "Scheduler.History.View";
+        public const string Execute = "Scheduler.Execute";
+        public const string ManageSchedule = "Scheduler.ManageSchedule";
+        public const string PauseResume = "Scheduler.PauseResume";
+        public const string ViewInstances = "Scheduler.ViewInstances";
+        public const string ViewTechnical = "Scheduler.Technical.View";
+    }
+
     public static IReadOnlyList<string> AllPermissions { get; } =
     [
+        CanManageCertificates,
+        CanViewPaymentRailCapabilityRegistry,
         Transactions.Read, Transactions.Create, Transactions.BulkSubmit, Transactions.PolicyPreview,
+        OutgoingTransactions.MonitorRead, OutgoingTransactions.MonitorTechnicalDetailRead,
         Nacha.Read, Nacha.Upload, Nacha.Export, Nacha.Generate, Nacha.Configure, Nacha.PublishConfig, Nacha.ArchiveConfig,
+        NachaSimulator.Read, NachaSimulator.GenerateIncoming, NachaSimulator.GenerateDifferential, NachaSimulator.Download, NachaSimulator.Live,
         NachaSecurity.Read, NachaSecurity.GenerateEncrypted, NachaSecurity.ManualEncrypt, NachaSecurity.ManualDecrypt, NachaSecurity.AuthorizeDownload,
         DigitalEnvelope.Encrypt, DigitalEnvelope.Decrypt, DigitalEnvelope.Test,
         Certificates.Read, Certificates.UploadPublic, Certificates.RegisterPrivate, Certificates.Activate, Certificates.Revoke, Certificates.Validate, Certificates.Audit,
         Reports.Read, Reports.Export,
+        AuditLogs.Read, AuthLogs.Read, NavigationLogs.Read, NavigationMenu.Manage,
         Cenit.ReadQueues, Cenit.ReadNetPositions, Cenit.ReadOptimization, Cenit.ReadTraceability,
         CommandCenter.Read, CommandCenter.Retry, CommandCenter.Unblock, CommandCenter.Requeue, CommandCenter.MarkFailedFinal,
         BulkIngestion.Upload, BulkIngestion.Read, BulkIngestion.Retry, BulkIngestion.Cancel,
         Traceability.Read, Traceability.CertifySol02,
         Returns.Read, Returns.GenerateFile,
+        Claims.Read, Claims.CreateDev14, Claims.Progress, Claims.Resolve, Claims.Expire,
         Users.Read, Users.Create, Users.Update, Users.Deactivate, Users.AssignRoles, Users.ManageBranding, Users.ManagePasswordRules, Users.ManageLockout,
         Roles.Read, Roles.Create, Roles.Update, Roles.Delete,
         Permissions.Read, Permissions.Assign,
         Config.Read, Config.Manage,
-        Integrations.Read, Integrations.ManageMappings, Integrations.Validate, Integrations.Publish, Integrations.Compare,
+        ClearingHouses.View, ClearingHouses.Create, ClearingHouses.Update, ClearingHouses.ChangeStatus,
+        ClearingHouses.ManageCycles, ClearingHouses.ManageSpecialDates,
+        Integrations.Read, Integrations.ManageContracts, Integrations.ManageConnections, Integrations.ManageMappings, Integrations.Validate, Integrations.Publish, Integrations.Compare,
         RegulatoryCatalogs.Read,
-        Maintenance.Seed, Maintenance.RunAdminTask
+        OperationalRestrictions.Read, OperationalRestrictions.Manage,
+        TestTools.Access,
+        Maintenance.Seed, Maintenance.RunAdminTask,
+        Scheduler.View, Scheduler.HistoryView, Scheduler.Execute, Scheduler.ManageSchedule, Scheduler.PauseResume, Scheduler.ViewInstances,
+        Scheduler.ViewTechnical
     ];
 }

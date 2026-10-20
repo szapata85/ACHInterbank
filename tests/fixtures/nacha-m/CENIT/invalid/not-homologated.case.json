@@ -1,0 +1,7 @@
+{
+  "caseId": "CENIT-LIVE-NOT-HOMOLOGATED",
+  "fixtureClassification": "PLACEHOLDER_EXPLICITLY_NON_NORMATIVE",
+  "expectedError": "CENIT_NOT_HOMOLOGATED",
+  "expectedRuleId": "CENIT-FORMAT-NACHAM",
+  "containsRealData": false
+}

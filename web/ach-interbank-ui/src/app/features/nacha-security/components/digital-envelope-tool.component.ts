@@ -1,141 +1,378 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { finalize } from 'rxjs';
-import { SharedModule } from '../../../shared/shared.module';
+import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { RouterModule } from '@angular/router';
+import { finalize, forkJoin } from 'rxjs';
+import { OperationalErrorView } from '../../../core/models/operational-error.model';
+import { AuthService } from '../../../core/services/auth.service';
+import { BlobDownloadService, SavedDownload } from '../../../core/services/blob-download.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { SobreDigitalService } from '../services/sobre-digital.service';
-import { sanitizeDownloadFileName } from '../utils/download-file-name.util';
+import { presentNachaError } from '../../../core/utils/nacha-error-presentation.util';
+import { OperationalErrorPanelComponent } from '../../../shared/components/operational-error-panel.component';
+import { PageHeaderComponent } from '../../../shared/components/page-header.component';
+import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
+import {
+  certificateEnvironmentCode,
+  certificateEnvironmentLabel,
+  certificatePurposeCode,
+  certificatePurposeLabel
+} from '../presentation/certificate-presentation';
+import { NACHA_SECURITY_PERMISSIONS } from '../nacha-security-permissions';
+import { SobreDigitalCertificate, SobreDigitalService } from '../services/sobre-digital.service';
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+type EnvelopeMode = 'encrypt' | 'decrypt';
+
+interface EnvelopeResult {
+  mode: EnvelopeMode;
+  fileName: string;
+  size: number;
+  completedAt: Date;
+  certificate: SobreDigitalCertificate;
+  clearingHouseId: number;
+  cryptographicProfile?: string | null;
+}
 
 @Component({
   selector: 'app-digital-envelope-tool',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule,
+    PageHeaderComponent,
+    OperationalErrorPanelComponent,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatDividerModule,
+    MatExpansionModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatProgressBarModule,
+    MatSelectModule,
+    MatTabsModule,
+    MatTooltipModule
+  ],
   templateUrl: './digital-envelope-tool.component.html',
   styleUrls: ['./digital-envelope-tool.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class DigitalEnvelopeToolComponent {
+export class DigitalEnvelopeToolComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(SobreDigitalService);
+  private readonly clearingHousesApi = inject(ClearingHousesApiService);
+  private readonly auth = inject(AuthService);
+  private readonly downloads = inject(BlobDownloadService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  encrypting = false;
-  decrypting = false;
+  processingMode: EnvelopeMode | null = null;
+  loadingConfiguration = true;
+  certificates: SobreDigitalCertificate[] = [];
+  clearingHouses: ClearingHouseOption[] = [];
+  operationError: OperationalErrorView | null = null;
+  result: EnvelopeResult | null = null;
+  private lastResponse: HttpResponse<Blob> | null = null;
+  private lastAttemptMode: EnvelopeMode = 'encrypt';
 
-  readonly encryptForm = this.fb.group({
-    file: [null as File | null, Validators.required]
-  });
+  readonly encryptForm = this.buildForm();
+  readonly decryptForm = this.buildForm();
 
-  readonly decryptForm = this.fb.group({
-    file: [null as File | null, Validators.required]
-  });
+  get canEncrypt(): boolean {
+    return this.auth.hasPermission([
+      NACHA_SECURITY_PERMISSIONS.digitalEnvelopeEncrypt,
+      NACHA_SECURITY_PERMISSIONS.canManageAch
+    ]);
+  }
 
-  onFileSelected(formType: 'encrypt' | 'decrypt', event: Event): void {
+  get canDecrypt(): boolean {
+    return this.auth.hasPermission([
+      NACHA_SECURITY_PERMISSIONS.digitalEnvelopeDecrypt,
+      NACHA_SECURITY_PERMISSIONS.canManageAch
+    ]);
+  }
+
+  ngOnInit(): void {
+    forkJoin({
+      certificates: this.service.listCertificates(),
+      clearingHouses: this.clearingHousesApi.list()
+    }).pipe(finalize(() => {
+      this.loadingConfiguration = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: ({ certificates, clearingHouses }) => {
+        this.certificates = certificates;
+        this.clearingHouses = clearingHouses;
+        this.initializeContext('encrypt');
+        this.initializeContext('decrypt');
+        this.registerAutomaticResolution('encrypt');
+        this.registerAutomaticResolution('decrypt');
+      },
+      error: error => void this.handleError(error, 'No fue posible consultar la configuración criptográfica.')
+    });
+  }
+
+  availableHouses(mode: EnvelopeMode): ClearingHouseOption[] {
+    if (mode === 'decrypt') {
+      return this.clearingHouses.filter(house => house.isActive !== false);
+    }
+    const ids = new Set(this.certificatesForMode(mode).map(certificate => certificate.clearingHouseId));
+    return this.clearingHouses.filter(house => ids.has(house.id));
+  }
+
+  selectedCertificate(mode: EnvelopeMode): SobreDigitalCertificate | null {
+    const id = this.formFor(mode).controls['certificateVersionId'].value as number | null;
+    return this.certificates.find(certificate => certificate.id === id) ?? null;
+  }
+
+  configurationCandidates(mode: EnvelopeMode): SobreDigitalCertificate[] {
+    const form = this.formFor(mode);
+    const clearingHouseId = form.controls['clearingHouseId'].value as number | null;
+    const environment = form.controls['environment'].value as string | null;
+    return this.certificatesForMode(mode)
+      .filter(certificate =>
+        (mode === 'decrypt' || certificate.clearingHouseId === clearingHouseId)
+        && certificateEnvironmentCode(certificate.environment) === environment)
+      .sort((left, right) => right.versionNumber - left.versionNumber || right.id - left.id);
+  }
+
+  hasDuplicateConfiguration(mode: EnvelopeMode): boolean {
+    return this.configurationCandidates(mode).length > 1;
+  }
+
+  certificatePurposeLabel = certificatePurposeLabel;
+  environmentLabel = certificateEnvironmentLabel;
+
+  clearingHouseName(id: number): string {
+    return this.clearingHouses.find(house => house.id === id)?.name ?? 'Cámara no disponible';
+  }
+
+  onFileSelected(mode: EnvelopeMode, event: Event): void {
+    this.operationError = null;
+    this.result = null;
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
+    const control = this.formFor(mode).controls['file'];
+    control.setValue(file);
+    control.markAsTouched();
 
-    if (formType === 'encrypt') {
-      this.encryptForm.patchValue({ file });
-      this.encryptForm.markAsDirty();
+    if (!file) {
+      control.setErrors({ required: true });
+    } else if (file.size === 0) {
+      control.setErrors({ empty: true });
+    } else if (file.size > MAX_FILE_SIZE) {
+      control.setErrors({ maxSize: true });
+    } else if (mode === 'decrypt' && !file.name.toUpperCase().endsWith('.ENV')) {
+      control.setErrors({ envelopeExtension: true });
     } else {
-      this.decryptForm.patchValue({ file });
-      this.decryptForm.markAsDirty();
+      control.setErrors(null);
     }
+    this.cdr.markForCheck();
+  }
+
+  removeFile(mode: EnvelopeMode, input: HTMLInputElement): void {
+    this.formFor(mode).controls['file'].reset();
+    input.value = '';
+    this.result = null;
+  }
+
+  selectedFile(mode: EnvelopeMode): File | null {
+    return this.formFor(mode).controls['file'].value as File | null;
+  }
+
+  fileError(mode: EnvelopeMode): string | null {
+    const control = this.formFor(mode).controls['file'];
+    if (!control.touched || !control.errors) {
+      return null;
+    }
+    if (control.hasError('required')) return 'Selecciona un archivo.';
+    if (control.hasError('empty')) return 'El archivo está vacío.';
+    if (control.hasError('maxSize')) return 'El archivo supera el máximo de 50 MB.';
+    if (control.hasError('envelopeExtension')) return 'El archivo para descifrar debe terminar en .ENV.';
+    return 'El archivo seleccionado no es válido.';
   }
 
   submitEncrypt(): void {
-    if (this.encryptForm.invalid) {
-      this.encryptForm.markAllAsTouched();
-      return;
-    }
-
-    const file = this.encryptForm.value.file;
-    if (!file) {
-      return;
-    }
-
-    this.encrypting = true;
-    this.cdr.markForCheck();
-
-    this.service
-      .encrypt(file)
-      .pipe(finalize(() => {
-        this.encrypting = false;
-        this.cdr.markForCheck();
-      }))
-      .subscribe({
-        next: (response) => {
-          const fallbackName = `${file.name}.ENV`;
-          this.downloadResponse(response, fallbackName);
-          this.encryptForm.reset();
-        },
-        error: () => {
-          this.notifications.error('No fue posible cifrar el archivo.');
-        }
-      });
+    this.submit('encrypt');
   }
 
   submitDecrypt(): void {
-    if (this.decryptForm.invalid) {
-      this.decryptForm.markAllAsTouched();
+    this.submit('decrypt');
+  }
+
+  retry(): void {
+    if (this.operationError && !this.processingMode) {
+      this.submit(this.lastAttemptMode);
+    }
+  }
+
+  async downloadAgain(): Promise<void> {
+    if (!this.lastResponse || !this.result) {
+      return;
+    }
+    try {
+      await this.downloads.save(this.lastResponse);
+    } catch (error) {
+      await this.handleError(error, 'No fue posible descargar nuevamente el resultado.');
+    }
+  }
+
+  formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} bytes`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  private buildForm(): FormGroup {
+    return this.fb.group({
+      clearingHouseId: [null as number | null, Validators.required],
+      environment: ['Test', Validators.required],
+      operationMode: [null as 'LIVE' | null, Validators.required],
+      certificateVersionId: [null as number | null, Validators.required],
+      file: [null as File | null, Validators.required]
+    });
+  }
+
+  private formFor(mode: EnvelopeMode): FormGroup {
+    return mode === 'encrypt' ? this.encryptForm : this.decryptForm;
+  }
+
+  private certificatesForMode(mode: EnvelopeMode): SobreDigitalCertificate[] {
+    const requiredPurpose = mode === 'encrypt' ? 'OutboundEncryption' : 'CfaSigningAndDecryption';
+    return this.certificates.filter(certificate =>
+      certificatePurposeCode(certificate.purpose) === requiredPurpose
+      && (mode === 'encrypt' ? certificate.canEncrypt : certificate.canDecrypt));
+  }
+
+  private initializeContext(mode: EnvelopeMode): void {
+    const candidates = this.certificatesForMode(mode)
+      .sort((left, right) => right.versionNumber - left.versionNumber || right.id - left.id);
+    const first = candidates[0];
+    const form = this.formFor(mode);
+    form.patchValue({
+      clearingHouseId: mode === 'decrypt'
+        ? this.clearingHouses.find(house => house.isActive !== false)?.id ?? null
+        : first?.clearingHouseId ?? null,
+      environment: first ? certificateEnvironmentCode(first.environment) : 'Test'
+    }, { emitEvent: false });
+    this.resolveCertificate(mode);
+  }
+
+  private registerAutomaticResolution(mode: EnvelopeMode): void {
+    const form = this.formFor(mode);
+    form.controls['clearingHouseId'].valueChanges.subscribe(() => this.resolveCertificate(mode));
+    form.controls['environment'].valueChanges.subscribe(() => this.resolveCertificate(mode));
+  }
+
+  private resolveCertificate(mode: EnvelopeMode): void {
+    const candidates = this.configurationCandidates(mode);
+    this.formFor(mode).controls['certificateVersionId'].setValue(candidates[0]?.id ?? null, { emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  private submit(mode: EnvelopeMode): void {
+    if (!this.canExecute(mode)) {
+      this.notifications.error(
+        mode === 'encrypt'
+          ? 'No tienes autorización para cifrar archivos mediante sobre digital.'
+          : 'No tienes autorización para descifrar archivos mediante sobre digital.'
+      );
+      return;
+    }
+    if (this.processingMode) {
+      return;
+    }
+    const form = this.formFor(mode);
+    form.markAllAsTouched();
+    if (form.invalid) {
       return;
     }
 
-    const file = this.decryptForm.value.file;
-    if (!file) {
+    const file = form.controls['file'].value as File | null;
+    const certificateVersionId = form.controls['certificateVersionId'].value as number | null;
+    const clearingHouseId = form.controls['clearingHouseId'].value as number | null;
+    const operationMode = form.controls['operationMode'].value as 'LIVE' | null;
+    const certificate = this.selectedCertificate(mode);
+    if (!file || !certificateVersionId || !clearingHouseId || operationMode !== 'LIVE' || !certificate) {
       return;
     }
 
-    this.decrypting = true;
+    this.operationError = null;
+    this.result = null;
+    this.lastResponse = null;
+    this.lastAttemptMode = mode;
+    this.processingMode = mode;
     this.cdr.markForCheck();
 
-    this.service
-      .decrypt(file)
-      .pipe(finalize(() => {
-        this.decrypting = false;
-        this.cdr.markForCheck();
-      }))
-      .subscribe({
-        next: (response) => {
-          const defaultName = file.name.replace(/\.env$/i, '') || `NACHA_${this.buildTimestamp()}.txt`;
-          this.downloadResponse(response, defaultName);
-          this.decryptForm.reset();
-        },
-        error: () => {
-          this.notifications.error('No fue posible descifrar el archivo.');
-        }
-      });
+    const request = mode === 'encrypt'
+      ? this.service.encrypt(file, certificateVersionId, clearingHouseId, operationMode)
+      : this.service.decrypt(file, clearingHouseId, operationMode);
+
+    request.pipe(finalize(() => {
+      this.processingMode = null;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: response => void this.completeOperation(mode, response, certificate),
+      error: (error: HttpErrorResponse) => void this.handleError(
+        error,
+        mode === 'encrypt' ? 'No fue posible cifrar el archivo.' : 'No fue posible descifrar el archivo.'
+      )
+    });
   }
 
-  private downloadResponse(response: { body: Blob | null; headers: { get: (name: string) => string | null } }, fallbackName: string): void {
-    const fileName = sanitizeDownloadFileName(this.extractFileName(response.headers.get('content-disposition')), fallbackName);
-    const blob = response.body ?? new Blob();
-    const url = window.URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    link.click();
-
-    window.URL.revokeObjectURL(url);
+  private canExecute(mode: EnvelopeMode): boolean {
+    return mode === 'encrypt' ? this.canEncrypt : this.canDecrypt;
   }
 
-  private extractFileName(contentDisposition: string | null): string | null {
-    if (!contentDisposition) {
-      return null;
+  private async completeOperation(
+    mode: EnvelopeMode,
+    response: HttpResponse<Blob>,
+    certificate: SobreDigitalCertificate
+  ): Promise<void> {
+    try {
+      const saved: SavedDownload = await this.downloads.save(response);
+      this.lastResponse = response;
+      this.result = {
+        mode,
+        fileName: saved.fileName,
+        size: saved.size,
+        completedAt: new Date(),
+        certificate,
+        clearingHouseId: this.formFor(mode).controls['clearingHouseId'].value as number,
+        cryptographicProfile: response.headers.get('x-cryptographic-profile')
+      };
+      this.notifications.success(
+        mode === 'encrypt'
+          ? `Archivo cifrado: ${saved.fileName}`
+          : `Archivo descifrado: ${saved.fileName}`
+      );
+      this.formFor(mode).controls['file'].reset();
+      this.cdr.markForCheck();
+    } catch (error) {
+      await this.handleError(error, 'No fue posible preparar la descarga.');
     }
-
-    const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(contentDisposition);
-    const fileName = match?.[1] ?? match?.[2];
-
-    return fileName ? decodeURIComponent(fileName) : null;
   }
 
-  private buildTimestamp(): string {
-    const now = new Date();
-    const pad = (value: number) => value.toString().padStart(2, '0');
-    return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  private async handleError(error: unknown, fallback: string): Promise<void> {
+    const parsed = await this.downloads.fromHttpError(error, fallback);
+    this.operationError = presentNachaError(parsed, fallback);
+    this.notifications.error(`${this.operationError.title}. ${this.operationError.message}`);
+    this.cdr.markForCheck();
   }
 }

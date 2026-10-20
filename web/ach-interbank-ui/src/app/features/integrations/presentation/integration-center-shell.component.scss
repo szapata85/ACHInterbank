@@ -1,0 +1,114 @@
+.integration-center {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.integration-center__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.integration-center__eyebrow {
+  margin: 0 0 0.2rem;
+  color: var(--color-primary);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(1.35rem, 3vw, 1.9rem);
+  line-height: 1.15;
+}
+
+.integration-center__header p:last-child {
+  max-width: 72ch;
+  margin: 0.4rem 0 0;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.integration-center__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: stretch;
+}
+
+.integration-center__forbidden {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+  padding: 1rem;
+}
+
+
+@media (max-width: 1199px) {
+  .integration-center__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .integration-center__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* P7.4 responsive/accessibility hardening */
+:host {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.integration-center,
+.integration-center * {
+  min-width: 0;
+}
+
+.integration-center h1,
+.integration-center h2,
+.integration-center p,
+.integration-center strong,
+.integration-center span {
+  overflow-wrap: anywhere;
+}
+
+.integration-center button,
+.integration-center a {
+  min-height: 2.75rem;
+  white-space: normal;
+}
+
+.integration-center button:focus-visible,
+.integration-center a:focus-visible {
+  outline: 3px solid var(--mat-sys-primary, var(--color-primary));
+  outline-offset: 3px;
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .integration-center__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .integration-center__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .integration-center__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,14 +1,38 @@
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Persistence;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
 
 public class PersistenceDependencyInjectionTests
 {
+    [Fact]
+    public void AddPersistence_ShouldRejectEnabledCenitLocalGatewayInProduction()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Database:Provider"] = "sqlserver",
+            ["ConnectionStrings:SqlConnection"] = "Server=(localdb)\\MSSQLLocalDB;Database=AchInterbank;Trusted_Connection=True;",
+            ["CenitLocalGateway:Enabled"] = "true"
+        }).Build();
+
+        services.AddPersistence(configuration, new TestHostEnvironment { EnvironmentName = Environments.Production });
+        using var provider = services.BuildServiceProvider();
+
+        var ex = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<CenitLocalGatewayOptions>>().Value);
+
+        Assert.Contains("CENIT_LOCAL_GATEWAY_NOT_ALLOWED_IN_PRODUCTION", ex.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AddPersistence_FallsBackToSqlServerWhenPostgresIsConfiguredButMissing()
     {
@@ -123,6 +147,26 @@ public class PersistenceDependencyInjectionTests
     }
 
     [Fact]
+    public void AddPersistence_RegistersCenitIncomingReturnPolicyAndRawGate_AsScoped()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Database:Provider"] = "sqlserver",
+            ["ConnectionStrings:SqlConnection"] = "Server=(localdb)\\MSSQLLocalDB;Database=AchInterbank;Trusted_Connection=True;"
+        }).Build();
+
+        services.AddPersistence(configuration);
+
+        var policy = services.Single(x => x.ServiceType == typeof(ICenitIncomingReturnPolicy));
+        Assert.Equal(typeof(CenitIncomingReturnPolicy), policy.ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, policy.Lifetime);
+        var gate = services.Single(x => x.ServiceType == typeof(ICenitRawReturnContractGate));
+        Assert.Equal(typeof(CenitRawReturnContractGate), gate.ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, gate.Lifetime);
+    }
+
+    [Fact]
     public void AddPersistence_RegistersNachaOperationalReadStore()
     {
         var services = new ServiceCollection();
@@ -157,5 +201,14 @@ public class PersistenceDependencyInjectionTests
 
         Assert.Contains("ConnectionStrings:PostgresConnection", ex.Message, StringComparison.Ordinal);
         Assert.Contains("ConnectionStrings:SqlConnection", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("configure-visualstudio-development.ps1", ex.Message, StringComparison.Ordinal);
+    }
+
+    private sealed class TestHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+        public string ApplicationName { get; set; } = string.Empty;
+        public string ContentRootPath { get; set; } = string.Empty;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
 }

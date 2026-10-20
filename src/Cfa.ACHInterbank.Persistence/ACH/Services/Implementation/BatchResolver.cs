@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
+using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -17,22 +19,35 @@ public class BatchResolver : IBatchResolver
     private readonly IAchBatchRepository _batchRepository;
     private readonly IRoutingStrategyService _routing;
     private readonly TimeProvider _timeProvider;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
+    private readonly IOrdinaryTransactionCodeAuthority _transactionCodeAuthority;
 
     public BatchResolver(
         AchDbContext context,
         IAchBatchRepository batchRepository,
         IRoutingStrategyService routing,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IOperationalCycleWindowResolver? windowResolver = null,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null,
+        IOrdinaryTransactionCodeAuthority? transactionCodeAuthority = null)
     {
         _context = context;
         _batchRepository = batchRepository;
         _routing = routing;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
+            new ClearingHouseToPaymentRailMapper(),
+            new CycleNumberResolver());
+        _transactionCodeAuthority = transactionCodeAuthority
+            ?? new OrdinaryTransactionCodeAuthority(new NachaConfigResolver(context));
     }
 
     public async Task<TransactionBatchContext> ResolveAsync(AchTransactionRequestData request, CancellationToken ct = default)
     {
-        var source = await _context.FinancialInstitutions
+        var sourceCandidates = await _context.FinancialInstitutions
             .AsNoTracking()
             .Where(fi => fi.IsDefaultSource && fi.Status == FinancialInstitutionStatus.Active)
             .Select(fi => new
@@ -42,9 +57,18 @@ public class BatchResolver : IBatchResolver
                 fi.RoutingNumber,
                 fi.TransitCode,
                 fi.CheckDigit
+                ,fi.IsDefaultSource
             })
-            .FirstOrDefaultAsync(ct)
-            ?? throw new InvalidOperationException("No existe institución de origen por defecto y activa.");
+            .ToListAsync(ct);
+        if (sourceCandidates.Count == 0)
+        {
+            throw new InvalidOperationException("No existe una institución de origen por defecto y activa.");
+        }
+        if (sourceCandidates.Count > 1)
+        {
+            throw new InvalidOperationException("Existe más de una institución de origen por defecto activa. La configuración requiere revisión antes de crear transacciones.");
+        }
+        var source = sourceCandidates[0];
 
         string sourceRouting = source.RoutingNumber?.Trim() ?? string.Empty;
         string sourceTransit = source.TransitCode?.Trim() ?? string.Empty;
@@ -69,6 +93,7 @@ public class BatchResolver : IBatchResolver
                 fi.RoutingNumber,
                 fi.TransitCode,
                 fi.CheckDigit
+                ,fi.IsDefaultSource
             })
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Institución destino no encontrada o inactiva.");
@@ -87,27 +112,45 @@ public class BatchResolver : IBatchResolver
             throw new InvalidOperationException($"La institución destino tiene una longitud inválida para el ruteo: {destinationBase}.");
         }
 
-        var now = _timeProvider.GetLocalNow().LocalDateTime;
-        string achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(request.DestinationInstitutionId, now, ct);
+        var nowInstant = _timeProvider.GetUtcNow();
+        string achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(
+            request.DestinationInstitutionId,
+            nowInstant.UtcDateTime,
+            ct);
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .Include(c => c.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .FirstOrDefaultAsync(c => c.Id == achCycleId, ct)
             ?? throw new InvalidOperationException("No se encontró el ciclo ACH para la transacción.");
         DateTime effectiveEntryDate = cycle.ProcessingDate.Date;
 
-        var (windowStart, windowEnd) = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
-        bool isOutsideWindow = now < windowStart || now > windowEnd;
+        var window = _windowResolver.Resolve(
+            cycle.ProcessingDate,
+            cycle.StartTime,
+            cycle.CutoffTime,
+            ClearingHouseOperationalTimeZone.Resolve(cycle),
+            nowInstant);
+        bool isOutsideWindow = !window.IsInside;
         var isCenit = string.Equals(cycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase);
 
         if (isOutsideWindow && !isCenit)
         {
-            EnsureCycleIsOpenForTransactions(cycle, now);
+            EnsureCycleIsOpenForTransactions(cycle, window);
         }
 
-        if (request.Type == TransactionTypeEnum.Debit && !request.IsPrenotification && IsCycleFive(cycle.CycleName))
+        var regulatoryDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+            cycle.ClearingHouseId,
+            cycle.ClearingHouseCycleConfigId,
+            cycle.ProcessingDate,
+            cycle.ClearingHouse?.Code,
+            cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+            cycle.CycleName,
+            request.Type,
+            request.IsPrenotification), ct);
+        if (!regulatoryDecision.IsAllowed)
         {
-            throw new InvalidOperationException("No se aceptan transacciones débito en el Ciclo 5.");
+            throw new InvalidOperationException($"{regulatoryDecision.ReasonCode}: {regulatoryDecision.Message}");
         }
 
         string companyName = request.CompanyName.Trim();
@@ -116,11 +159,25 @@ public class BatchResolver : IBatchResolver
         var companyEntryDescriptionCatalog = await _context.CompanyEntryDescriptionCatalogs
             .AsNoTracking()
             .Where(item => item.Id == request.CompanyEntryDescriptionId && item.IsActive)
-            .Select(item => new { item.Id, item.Term })
+            .Select(item => new { item.Id, item.Term, item.StandardEntryClassCode })
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("El concepto de lote seleccionado no existe o está inactivo.");
 
         string companyEntryDescription = companyEntryDescriptionCatalog.Term.Trim().ToUpperInvariant();
+        var clearingHouseCode = await NachaClearingHouseProfileCodeResolver.ResolveAsync(_context, cycle, ct);
+        var sourceServiceClassCode = companyEntryDescriptionCatalog.StandardEntryClassCode.Trim().ToUpperInvariant();
+        var resolvedTransactionCode = await _transactionCodeAuthority.ResolveAsync(
+            new OrdinaryTransactionCodeAuthorityContext(
+                clearingHouseCode,
+                cycle.ClearingHouseId,
+                cycle.CycleName ?? string.Empty,
+                cycle.ProcessingDate,
+                sourceServiceClassCode),
+            new OrdinaryTransactionCodeSemanticRequest(
+                request.Type,
+                request.AccountType,
+                request.IsPrenotification),
+            ct);
 
         var batch = await _batchRepository.FindForTransactionAsync(
             achCycleId,
@@ -149,6 +206,8 @@ public class BatchResolver : IBatchResolver
         {
             Batch = batch,
             AchCycleId = achCycleId,
+            ClearingHouseCode = clearingHouseCode,
+            CycleName = cycle.CycleName ?? string.Empty,
             EffectiveEntryDate = effectiveEntryDate,
             OriginatingDfi = originBase,
             ReceivingDfi = destinationBase,
@@ -158,8 +217,12 @@ public class BatchResolver : IBatchResolver
             CompanyEntryDescriptionId = companyEntryDescriptionCatalog.Id,
             ReturnSlaDeadlineAtUtc = await CalculateReturnSlaDeadlineAtUtcAsync(cycle, ct),
             ServiceClassCode = "200",
+            SourceServiceClassCode = sourceServiceClassCode,
+            ResolvedTransactionCode = resolvedTransactionCode,
             SourceInstitutionId = source.Id,
+            SourceInstitutionIsDefault = source.IsDefaultSource,
             DestinationInstitutionId = dest.Id,
+            DestinationInstitutionIsDefault = dest.IsDefaultSource,
             ClearingHouseId = cycle.ClearingHouseId,
             MustQueueForTargetCycle = isCenit && isOutsideWindow,
             QueueReason = isCenit && isOutsideWindow
@@ -169,40 +232,17 @@ public class BatchResolver : IBatchResolver
     }
 
 
-    private static void EnsureCycleIsOpenForTransactions(AchCycle cycle, DateTime nowLocal)
+    private static void EnsureCycleIsOpenForTransactions(AchCycle cycle, OperationalCycleWindow window)
     {
-        var (windowStart, windowEnd) = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
-
-        if (nowLocal < windowStart)
+        if (window.Status == OperationalCycleWindowStatus.Before)
         {
-            throw new InvalidOperationException($"El ciclo {cycle.CycleName} aún no está abierto. Ventana operativa: {windowStart:yyyy-MM-dd HH:mm} - {windowEnd:yyyy-MM-dd HH:mm}.");
+            throw new InvalidOperationException($"El ciclo {cycle.CycleName} aún no está abierto para recepción. Ventana de entrada: {window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}.");
         }
 
-        if (nowLocal > windowEnd)
+        if (window.Status == OperationalCycleWindowStatus.After)
         {
-            throw new InvalidOperationException($"El ciclo {cycle.CycleName} está cerrado para recepción de transacciones. Ventana operativa: {windowStart:yyyy-MM-dd HH:mm} - {windowEnd:yyyy-MM-dd HH:mm}.");
+            throw new InvalidOperationException($"El ciclo {cycle.CycleName} está cerrado para recepción de transacciones. Ventana de entrada: {window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}.");
         }
-    }
-
-    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
-    {
-        if (startTime <= endTime)
-        {
-            return (processingDate.Date + startTime, processingDate.Date + endTime);
-        }
-
-        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
-    }
-
-    private static bool IsCycleFive(string cycleName)
-    {
-        if (string.IsNullOrWhiteSpace(cycleName))
-        {
-            return false;
-        }
-
-        var digits = new string(cycleName.Where(char.IsDigit).ToArray());
-        return int.TryParse(digits, out var cycleNumber) && cycleNumber == 5;
     }
 
     private async Task<DateTime?> CalculateReturnSlaDeadlineAtUtcAsync(AchCycle currentCycle, CancellationToken ct)
@@ -221,7 +261,7 @@ public class BatchResolver : IBatchResolver
 
         var deadlineCycle = orderedCycles[4];
         var deadlineLocal = deadlineCycle.ProcessingDate.Date + deadlineCycle.CutoffTime;
-        return DateTime.SpecifyKind(deadlineLocal, DateTimeKind.Local).ToUniversalTime();
+        return _windowResolver.ConvertLocalToInstant(deadlineLocal, ClearingHouseOperationalTimeZone.Resolve(currentCycle)).UtcDateTime;
     }
 
 

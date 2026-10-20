@@ -55,7 +55,7 @@ public class RegulatoryCatalogSeederReturnCodesByClearingHouseTests
     }
 
     [Fact]
-    public async Task Seeder_ShouldAssignOperadorRegulatorySourceToAchColombia()
+    public async Task Seeder_ShouldNotKeepDev14ActiveForAchColombiaReturnOut()
     {
         await using var context = await CreateContextAsync();
         await EnsureClearingHouseAsync(context, "CENIT", "CENIT");
@@ -64,9 +64,8 @@ public class RegulatoryCatalogSeederReturnCodesByClearingHouseTests
         var sut = new RegulatoryCatalogSeeder(context);
         await sut.SeedAsync();
 
-        var rows = await context.AchReturnCodes.Where(x => x.RegulatorySource == "OPERADOR").ToListAsync();
-        Assert.NotEmpty(rows);
-        Assert.All(rows, row => Assert.Equal(ach.Id, row.ClearingHouseId));
+        var rows = await context.AchReturnCodes.Where(x => x.ClearingHouseId == ach.Id).ToListAsync();
+        Assert.DoesNotContain(rows, row => row.Code == "DEV14" && row.IsActive);
     }
 
     [Fact]

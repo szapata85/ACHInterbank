@@ -28,13 +28,13 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
         await using var contextA = new AchDbContext(options);
         await using var contextB = new AchDbContext(options);
 
-        var request = new GenerateReturnsFileRequest("ACH-SQL-1", [new ReturnSelectionItemDto(9101, "DEV14")]);
-        var sutA = BuildSut(contextA, 9101, "DEV14", new AchReturnGenerationLockService());
-        var sutB = BuildSut(contextB, 9101, "DEV14", new AchReturnGenerationLockService());
+        var request = new GenerateReturnsFileRequest("ACH-SQL-1", [new ReturnSelectionItemDto(9101, "R01")]);
+        var sutA = BuildSut(contextA, 9101, "R01", new AchReturnGenerationLockService());
+        var sutB = BuildSut(contextB, 9101, "R01", new AchReturnGenerationLockService());
 
         await sutA.GenerateReturnsFileAsync(request, CancellationToken.None);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() =>
             sutB.GenerateReturnsFileAsync(request, CancellationToken.None));
 
         Assert.Contains("devolución registrada", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -60,9 +60,9 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
         await using var contextA = new AchDbContext(options);
         await using var contextB = new AchDbContext(options);
 
-        var request = new GenerateReturnsFileRequest("ACH-SQL-2", [new ReturnSelectionItemDto(9102, "DEV14")]);
-        var sutA = BuildSut(contextA, 9102, "DEV14", new AchReturnGenerationLockService());
-        var sutB = BuildSut(contextB, 9102, "DEV14", new AchReturnGenerationLockService());
+        var request = new GenerateReturnsFileRequest("ACH-SQL-2", [new ReturnSelectionItemDto(9102, "R01")]);
+        var sutA = BuildSut(contextA, 9102, "R01", new AchReturnGenerationLockService());
+        var sutB = BuildSut(contextB, 9102, "R01", new AchReturnGenerationLockService());
 
         var t1 = ExecuteIgnoringFailureAsync(() => sutA.GenerateReturnsFileAsync(request, CancellationToken.None));
         var t2 = ExecuteIgnoringFailureAsync(() => sutB.GenerateReturnsFileAsync(request, CancellationToken.None));
@@ -81,19 +81,19 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldAllowSameTransactionDifferentReason_OnlyAsCurrentBusinessRule()
+    public async Task GenerateReturnsFileAsync_ShouldRejectSameTransactionWithDifferentReason_PerV35Invariant()
     {
         await using var context = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
         SeedSqliteScenario(context, 9103, "ACH-SQL-3");
-        var request = new GenerateReturnsFileRequest("ACH-SQL-3", [new ReturnSelectionItemDto(9103, "DEV14")]);
-        var sut = BuildSut(context, 9103, "DEV14", new TestReturnGenerationLockService());
+        var request = new GenerateReturnsFileRequest("ACH-SQL-3", [new ReturnSelectionItemDto(9103, "R01")]);
+        var sut = BuildSut(context, 9103, "R01", new TestReturnGenerationLockService());
 
         await sut.GenerateReturnsFileAsync(request, CancellationToken.None);
 
         var secondReasonRequest = new GenerateReturnsFileRequest("ACH-SQL-3", [new ReturnSelectionItemDto(9103, "R01")]);
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(secondReasonRequest, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(secondReasonRequest, CancellationToken.None));
 
         Assert.Contains("ya cuenta con una devolución registrada", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -113,7 +113,7 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
         {
             OriginalTransactionId = 9104,
             ReturnCycleId = "ACH-SQL-4",
-            ReturnReasonCode = "DEV14",
+            ReturnReasonCode = "R01",
             Amount = 1,
             NewSequenceNumber = "000000000000001",
             OriginalSequenceNumber = "000000000000002",
@@ -128,7 +128,7 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
         {
             OriginalTransactionId = 9104,
             ReturnCycleId = "ACH-SQL-4",
-            ReturnReasonCode = "DEV14",
+            ReturnReasonCode = "R01",
             Amount = 1,
             NewSequenceNumber = "000000000000003",
             OriginalSequenceNumber = "000000000000004",
@@ -155,7 +155,8 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
             returnGenerationLockService: lockService,
-            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(),
+            nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
     }
 
     private static void SeedSqliteScenario(AchDbContext context, int transactionId, string cycleId)

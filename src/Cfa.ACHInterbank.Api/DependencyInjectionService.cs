@@ -1,5 +1,11 @@
-using Cfa.ACHInterbank.Application.Helpers.AddressIp;
-using Cfa.ACHInterbank.Application.Helpers.Middleware;
+using Cfa.ACHInterbank.Api.Helpers.AddressIp;
+using Cfa.ACHInterbank.Api.Filters;
+using Cfa.ACHInterbank.Api.Logging;
+using Cfa.ACHInterbank.Api.Middleware;
+using Cfa.ACHInterbank.Api.Security;
+using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
+using Cfa.ACHInterbank.Api.Configuration;
 using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Api.Mappers.AchResponses;
 using Cfa.ACHInterbank.Api.Validation.AchResponses;
@@ -7,22 +13,48 @@ using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.Extensions.Options;
+using System.Text.Json.Schema;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 using NLog.Extensions.Logging;
 using Npgsql;
 using Scalar.AspNetCore;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Quartz;
 
 namespace Cfa.ACHInterbank.Api;
 
 public static class DependencyInjectionService
 {
+    private static IEnumerable<Type> EnumerateSchemaTypes(Type type)
+    {
+        yield return type;
+
+        if (type.HasElementType && type.GetElementType() is { } elementType)
+        {
+            foreach (var nested in EnumerateSchemaTypes(elementType))
+                yield return nested;
+        }
+
+        if (type.IsGenericType)
+        {
+            foreach (var argument in type.GetGenericArguments())
+                foreach (var nested in EnumerateSchemaTypes(argument))
+                    yield return nested;
+        }
+    }
+
     private const string CorsPolicyName = "CorsPolicy";
 
     public static IServiceCollection AddWebApi(this IServiceCollection services, IConfiguration configuration)
     {
+        var inboundRateLimit = ApiRateLimitingOptions.FromConfiguration(configuration);
+
         // Configuración del formato Json que reciben los controladores
         services.AddControllers().AddJsonOptions(options =>
         {
@@ -36,15 +68,21 @@ public static class DependencyInjectionService
 
         services.Configure<FormOptions>(options =>
         {
-            options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10 MB
+            options.MultipartBodyLengthLimit = 50 * 1024 * 1024; // Sobre digital: máximo controlado de 50 MB.
             options.MultipartHeadersLengthLimit = 16 * 1024;
         });
 
         services.AddEndpointsApiExplorer();
         services.AddOpenApi("v1", options =>
         {
-            options.AddOperationTransformer<ScalarOperationDocumentationTransformer>();
+            options.AddOperationTransformer<OpenApiOperationIdTransformer>();
+            options.AddOperationTransformer<OpenApiIntegrationTagsTransformer>();
+            options.AddOperationTransformer<OpenApiSc508PublicContractDocumentationTransformer>();
+            options.AddOperationTransformer<OpenApiTransversalHeadersTransformer>();
+            options.AddOperationTransformer<OpenApiExamplesTransformer>();
+            options.AddOperationTransformer<OpenApiResponseDescriptionsTransformer>();
             options.AddOperationTransformer<OpenApiSecurityMetadataTransformer>();
+            options.AddDocumentTransformer<OpenApiDocumentMetadataTransformer>();
             options.AddDocumentTransformer<OpenApiBearerSecuritySchemeTransformer>();
         });
 
@@ -53,56 +91,75 @@ public static class DependencyInjectionService
             options.SerializerOptions.MaxDepth = 256;
             options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
             options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            options.SerializerOptions.TypeInfoResolverChain.Insert(0, OpenApiSchemaJsonTypeInfoResolver.Create());
         });
 
         services.AddLogging(loggingBuilder =>
         {
             loggingBuilder.SetMinimumLevel(LogLevel.Debug);
+            loggingBuilder.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.Information);
             loggingBuilder.AddNLog();
         });
 
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = (context, _) =>
+            {
+                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                {
+                    context.HttpContext.Response.Headers.RetryAfter =
+                        Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+                }
+
+                return ValueTask.CompletedTask;
+            };
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
                 return RateLimitPartition.GetFixedWindowLimiter(
                     AddressIp.GetAddressIp(context.Request),
-                    partition => new FixedWindowRateLimiterOptions
+                    _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromSeconds(1),
-                        QueueLimit = 2,
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                        PermitLimit = inboundRateLimit.PermitLimit,
+                        Window = TimeSpan.FromSeconds(inboundRateLimit.WindowSeconds),
+                        QueueLimit = inboundRateLimit.QueueLimit,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        AutoReplenishment = true
                     });
             });
         });
 
         services.AddCors(options => options.AddPolicy(CorsPolicyName, builder =>
         {
-            var configuredOrigins = configuration.GetSection("Cors:Origins").Get<string[]>();
-            var origins = configuredOrigins?.Length > 0
-                ? configuredOrigins
-                : new[]
-                {
-                    "http://localhost:4200",
-                    "https://localhost:4200",
-                    "http://localhost:7269",
-                    "https://localhost:7269",
-                    "http://cfaach.ddns.net:743",
-                    "http://192.168.150.6:843",
-                    "http://192.168.150.6:743"
-                };
+            var origins = configuration.GetSection("Cors:Origins")
+                .Get<string[]>()?
+                .Where(origin => !string.IsNullOrWhiteSpace(origin))
+                .Select(origin => origin.Trim().TrimEnd('/'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray() ?? [];
 
             builder
-                .WithOrigins(origins)
                 .AllowAnyMethod()
                 .AllowAnyHeader()
-                .AllowCredentials();
+                .AllowCredentials()
+                .WithExposedHeaders("Retry-After");
+
+            if (origins.Length > 0)
+            {
+                builder.WithOrigins(origins);
+            }
+            else
+            {
+                // Fail closed when an environment has no explicit CORS configuration.
+                builder.SetIsOriginAllowed(_ => false);
+            }
         }));
 
         services.AddHttpClient();
         services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
+        services.AddTransient<ILoggerManager, LoggerManager>();
+        services.AddScoped<PostFilter>();
         services.AddScoped<AchInitializationService>();
         services.AddScoped<ProcesarRespuestaAchApiMapper>();
         services.AddScoped<NotificarRespuestaAchApiMapper>();
@@ -115,8 +172,78 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
-        app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
-        app.MapScalarApiReference().AllowAnonymous();
+        // Keep the OpenAPI endpoint deliberately simple. Scalar consumes this exact route.
+        // Caching/compression at this layer can make a generated document failure look like
+        // a Scalar UI problem, so the documentation endpoint is served directly.
+        app.MapOpenApi("/openapi/{documentName}.json")
+            .AllowAnonymous();
+        app.MapScalarApiReference(options => options
+                .WithOpenApiRoutePattern("/openapi/{documentName}.json")
+                .DisableAgent()
+                .DisableMcp()
+                .HideDeveloperTools())
+            .AllowAnonymous();
+
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapGet("/openapi/_diagnostics", async (IServiceProvider services, CancellationToken cancellationToken) =>
+            {
+                try
+                {
+                    var provider = services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
+                    var document = await provider.GetOpenApiDocumentAsync(cancellationToken);
+                    await using var stream = new MemoryStream();
+                    await document.SerializeAsJsonAsync(stream, OpenApiSpecVersion.OpenApi3_1, cancellationToken);
+
+                    return Results.Ok(new
+                    {
+                        document = "v1",
+                        status = "Healthy",
+                        serializedBytes = stream.Length
+                    });
+                }
+                catch (Exception exception)
+                {
+                    return Results.Problem(
+                        title: "OpenAPI generation failed",
+                        detail: exception.ToString(),
+                        statusCode: StatusCodes.Status500InternalServerError);
+                }
+            }).AllowAnonymous().ExcludeFromDescription();
+
+            // Development-only: isolate the response contract whose JSON schema cannot be exported.
+            // This operates before custom OpenAPI transformers, where Guid/default-value failures occur.
+            app.MapGet("/openapi/_schema-diagnostics", (
+                IApiDescriptionGroupCollectionProvider descriptions,
+                IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> jsonOptions) =>
+            {
+                var types = descriptions.ApiDescriptionGroups.Items
+                    .SelectMany(group => group.Items)
+                    .SelectMany(api => api.SupportedResponseTypes)
+                    .Select(response => response.Type)
+                    .Where(type => type is not null)
+                    .SelectMany(type => EnumerateSchemaTypes(type!))
+                    .Where(type => type.Namespace?.StartsWith("Cfa.ACHInterbank", StringComparison.Ordinal) == true)
+                    .Distinct()
+                    .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                    .ToArray();
+
+                var failures = new List<object>();
+                foreach (var type in types)
+                {
+                    try
+                    {
+                        _ = jsonOptions.Value.SerializerOptions.GetJsonSchemaAsNode(type);
+                    }
+                    catch (Exception exception)
+                    {
+                        failures.Add(new { type = type.FullName, error = exception.ToString() });
+                    }
+                }
+
+                return Results.Ok(new { schemaTypesChecked = types.Length, failures });
+            }).AllowAnonymous().ExcludeFromDescription();
+        }
 
         app.MapGet("/", context =>
         {
@@ -130,7 +257,43 @@ public static class DependencyInjectionService
             return Task.CompletedTask;
         }).AllowAnonymous();
 
-        app.MapGet("/health/live", () =>
+        app.MapPublicHealthEndpoints();
+
+        app.UseMiddleware<GlobalExceptionMiddleware>();
+
+        app.UseRouting();
+        app.UseCors(CorsPolicyName);
+
+        app.UseWhen(
+            context => !IsOpenApiOrScalarRequest(context.Request.Path),
+            branch =>
+            {
+                branch.UseMiddleware<WafMiddleware>();
+                branch.UseMiddleware<RequestResponseLoggingMiddleware>();
+                branch.UseMiddleware<TokenJwtMiddleware>();
+            });
+
+        app.UseMiddleware<SecurityHeadersMiddleware>();
+
+        if (app.Configuration.GetValue<bool>("EnableHttpsRedirection", true))
+        {
+            app.UseHttpsRedirection();
+        }
+
+        // Scalar and the generated OpenAPI document are documentation endpoints.
+        // They must not compete with the API fixed-window limiter during page bootstrap/reloads.
+        app.UseWhen(
+            context => !IsOpenApiOrScalarRequest(context.Request.Path),
+            branch => branch.UseRateLimiter());
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.MapControllers();
+    }
+
+
+    public static void MapPublicHealthEndpoints(this WebApplication app)
+    {
+        var liveEndpoint = app.MapGet("/health/live", () =>
         {
             return Results.Ok(new
             {
@@ -140,10 +303,19 @@ public static class DependencyInjectionService
                 timestampUtc = DateTime.UtcNow
             });
         }).AllowAnonymous();
+        liveEndpoint
+            .WithTags("Auditoría y observabilidad")
+            .WithSummary("Consultar liveness del servicio")
+            .WithDescription("Expone la señal pública de liveness del proceso. Responde 200 con un body JSON anónimo que contiene status=Healthy, check=live, service=ACHInterbank y timestampUtc; no ejecuta comprobaciones de dependencias.")
+            .Produces(StatusCodes.Status200OK, contentType: "application/json");
 
-        app.MapGet("/health/ready", async (IServiceProvider services, CancellationToken ct) =>
+        var readyEndpoint = app.MapGet("/health/ready", async (IServiceProvider services, CancellationToken ct) =>
         {
             var database = "Skipped";
+            var dataProtectionKeyRing = "Skipped";
+            var scheduler = "Skipped";
+            var persistentStore = "Skipped";
+            var clusterInstance = "Skipped";
             var statusCode = StatusCodes.Status200OK;
             var status = "Healthy";
 
@@ -163,17 +335,58 @@ public static class DependencyInjectionService
                         status = "Unhealthy";
                         statusCode = StatusCodes.Status503ServiceUnavailable;
                     }
+                    else
+                    {
+                        var hasKeys = await dbContext.DataProtectionKeys
+                            .AsNoTracking()
+                            .AnyAsync(timeoutCts.Token);
+                        dataProtectionKeyRing = hasKeys ? "Healthy" : "Unhealthy";
+                        if (!hasKeys)
+                        {
+                            status = "Unhealthy";
+                            statusCode = StatusCodes.Status503ServiceUnavailable;
+                        }
+
+                        var schedulerFactory = scope.ServiceProvider.GetService<ISchedulerFactory>();
+                        if (schedulerFactory is not null)
+                        {
+                            var quartzScheduler = await schedulerFactory.GetScheduler(timeoutCts.Token);
+                            var metadata = await quartzScheduler.GetMetaData(timeoutCts.Token);
+                            scheduler = quartzScheduler.IsStarted && !quartzScheduler.IsShutdown ? "Healthy" : "Unhealthy";
+                            persistentStore = metadata.JobStoreSupportsPersistence ? "Healthy" : "Unhealthy";
+                            clusterInstance = await dbContext.SchedulerInstanceStates.AsNoTracking().AnyAsync(
+                                x => x.SchedulerName == quartzScheduler.SchedulerName
+                                     && x.InstanceId == quartzScheduler.SchedulerInstanceId,
+                                timeoutCts.Token)
+                                ? "Healthy"
+                                : "Starting";
+
+                            if (scheduler == "Unhealthy")
+                            {
+                                status = "Unhealthy";
+                                statusCode = StatusCodes.Status503ServiceUnavailable;
+                            }
+                        }
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
                 database = "Unhealthy";
+                dataProtectionKeyRing = "Unhealthy";
+                scheduler = "Unhealthy";
+                persistentStore = "Unhealthy";
+                clusterInstance = "Unhealthy";
                 status = "Unhealthy";
                 statusCode = StatusCodes.Status503ServiceUnavailable;
             }
             catch
             {
                 database = "Unhealthy";
+                dataProtectionKeyRing = "Unhealthy";
+                scheduler = "Unhealthy";
+                persistentStore = "Unhealthy";
+                clusterInstance = "Unhealthy";
                 status = "Unhealthy";
                 statusCode = StatusCodes.Status503ServiceUnavailable;
             }
@@ -183,78 +396,19 @@ public static class DependencyInjectionService
                 status,
                 check = "ready",
                 database,
+                dataProtectionKeyRing,
+                scheduler,
+                persistentStore,
+                clusterInstance,
                 timestampUtc = DateTime.UtcNow
             }, statusCode: statusCode);
         }).AllowAnonymous();
-
-        app.UseMiddleware<GlobalExceptionMiddleware>();
-
-        var applyMigrations = app.Configuration.GetValue("Database:ApplyMigrations", !IsRunningInContainer());
-        if (applyMigrations)
-        {
-            using var scope = app.Services.CreateScope();
-            AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-            try
-            {
-                EnsureLegacyPostgresTableNames(Context);
-                Context.Database.Migrate();
-            }
-            catch (PostgresException ex) when (ex.SqlState == "3D000")
-            {
-                app.Logger.LogWarning("Database does not exist. Skipping migration at startup. Create DB first or disable Database:ApplyMigrations. Detail: {Detail}", ex.MessageText);
-            }
-        }
-        else
-        {
-            app.Logger.LogInformation("Skipping database migrations. Set Database__ApplyMigrations=true to enable.");
-        }
-
-        app.UseRouting();
-        app.UseCors(CorsPolicyName);
-
-        app.Use(async (context, next) =>
-        {
-            if (HttpMethods.IsOptions(context.Request.Method))
-            {
-                var origin = context.Request.Headers["Origin"].ToString();
-                if (!string.IsNullOrEmpty(origin))
-                {
-                    context.Response.Headers.TryAdd("Access-Control-Allow-Origin", origin);
-                    context.Response.Headers.TryAdd("Vary", "Origin");
-                }
-
-                context.Response.Headers.TryAdd("Access-Control-Allow-Credentials", "true");
-                context.Response.Headers.TryAdd("Access-Control-Allow-Headers", "*");
-                context.Response.Headers.TryAdd("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-
-                context.Response.StatusCode = StatusCodes.Status200OK;
-                await context.Response.CompleteAsync();
-                return;
-            }
-
-            await next();
-        });
-
-        app.UseWhen(
-            context => !IsOpenApiOrScalarRequest(context.Request.Path),
-            branch =>
-            {
-                branch.UseMiddleware<WafMiddleware>();
-                branch.UseMiddleware<RequestResponseLoggingMiddleware>();
-                branch.UseMiddleware<TokenJwtMiddleware>();
-            });
-
-        app.UseMiddleware<SecurityHeadersMiddleware>();
-
-        if (app.Configuration.GetValue<bool>("EnableHttpsRedirection", true))
-        {
-            app.UseHttpsRedirection();
-        }
-
-        app.UseRateLimiter();
-        app.UseAuthentication();
-        app.UseAuthorization();
-        app.MapControllers();
+        readyEndpoint
+            .WithTags("Auditoría y observabilidad")
+            .WithSummary("Consultar readiness del servicio")
+            .WithDescription("Expone la señal pública de readiness. Conserva las comprobaciones existentes de conectividad de base de datos, presencia de claves de Data Protection y estado del scheduler cuando esos servicios están registrados, con timeout enlazado de 5 segundos. Responde 200 o 503 con el mismo body JSON anónimo que contiene status, check=ready, database, dataProtectionKeyRing, scheduler, persistentStore, clusterInstance y timestampUtc.")
+            .Produces(StatusCodes.Status200OK, contentType: "application/json")
+            .Produces(StatusCodes.Status503ServiceUnavailable, contentType: "application/json");
     }
 
     private static bool IsRunningInContainer()

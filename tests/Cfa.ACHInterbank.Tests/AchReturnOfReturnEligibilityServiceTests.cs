@@ -241,15 +241,15 @@ public class AchReturnOfReturnEligibilityServiceTests
         await using var context = BuildContext();
         SeedBase(context, returnReasonCode: " r01 ", clearingHouseId: 7001);
         var catalog = new Mock<IAchRegulatoryCatalogService>();
-        catalog.Setup(x => x.ValidateReturnOfReturnAsync(7001, "R01", "DEV14", "ReturnedByOperator", It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        catalog.Setup(x => x.ValidateReturnOfReturnAsync(7001, "R01", "R02", "ReturnedByOperator", It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
         var sut = new AchReturnOfReturnEligibilityService(context, catalog.Object);
 
-        var result = await sut.EvaluateAsync(new AchReturnOfReturnEligibilityRequest(20, " dev14 ", DateTime.UtcNow), CancellationToken.None);
+        var result = await sut.EvaluateAsync(new AchReturnOfReturnEligibilityRequest(20, " r02 ", DateTime.UtcNow), CancellationToken.None);
 
         Assert.True(result.IsEligible);
         Assert.Equal("R01", result.OriginalReturnReasonCode);
-        Assert.Equal("DEV14", result.NewReturnReasonCode);
+        Assert.Equal("R02", result.NewReturnReasonCode);
     }
 
     [Fact]

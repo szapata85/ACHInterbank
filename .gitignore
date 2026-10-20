@@ -221,6 +221,8 @@ ClientBin/
 *.dbproj.schemaview
 *.jfm
 *.pfx
+*.p12
+docs/uat/certificados_pruebas/pass.txt
 *.publishsettings
 orleans.codegen.cs
 
@@ -269,6 +271,10 @@ FakesAssemblies/
 node_modules/
 web/ach-interbank-ui/playwright-report/
 web/ach-interbank-ui/test-results/
+
+# Generated CI and local Playwright reports (never source fixtures).
+/_ci_artifacts/
+/pt-results/
 
 # Visual Studio 6 build log
 *.plg
@@ -353,3 +359,4 @@ compose.effective*.yml
 .env.*.local
 !.env.example
 !.env.test.example
+.runtime/

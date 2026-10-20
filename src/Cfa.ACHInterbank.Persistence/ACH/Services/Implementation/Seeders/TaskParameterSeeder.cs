@@ -108,6 +108,12 @@ public class TaskParameterSeeder : IDbSeeder
                 Value = "100"
             });
         }
+        var reprocessDispatcher = await _context.TaskDefinitions
+            .SingleOrDefaultAsync(x => x.Code == "ach-response-reprocess-dispatcher");
+        if (reprocessDispatcher is not null && !_context.TaskParameters.Any(p => p.TaskDefinitionId == reprocessDispatcher.Id && p.Key == "BatchSize"))
+            _context.TaskParameters.Add(new TaskParameter { TaskDefinitionId = reprocessDispatcher.Id, Key = "BatchSize", Value = "50" });
+        if (reprocessDispatcher is not null && !_context.TaskParameters.Any(p => p.TaskDefinitionId == reprocessDispatcher.Id && p.Key == "LeaseSeconds"))
+            _context.TaskParameters.Add(new TaskParameter { TaskDefinitionId = reprocessDispatcher.Id, Key = "LeaseSeconds", Value = "120" });
 
         await _context.SaveChangesAsync();
     }

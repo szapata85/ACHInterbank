@@ -103,6 +103,11 @@ public class MenuItemsService : IMenuItemsService
             {
                 throw new ArgumentException($"No existe un elemento padre con el Id {request.ParentId}.");
             }
+
+            if (await WouldCreateCycleAsync(id, request.ParentId.Value, ct))
+            {
+                throw new ArgumentException("Un descendiente no puede convertirse en padre porque crearía un ciclo en el menú.");
+            }
         }
 
         menuItem.ParentId = request.ParentId;
@@ -117,6 +122,36 @@ public class MenuItemsService : IMenuItemsService
         await _dbContext.SaveChangesAsync(ct);
 
         return await GetMenuItemAsync(menuItem.Id, ct);
+    }
+
+    private async Task<bool> WouldCreateCycleAsync(int menuItemId, int requestedParentId, CancellationToken ct)
+    {
+        var parentById = await _dbContext.MenuItems
+            .AsNoTracking()
+            .Select(item => new { item.Id, item.ParentId })
+            .ToDictionaryAsync(item => item.Id, item => item.ParentId, ct);
+
+        var visited = new HashSet<int>();
+        int? currentId = requestedParentId;
+
+        while (currentId.HasValue)
+        {
+            if (currentId.Value == menuItemId)
+            {
+                return true;
+            }
+
+            if (!visited.Add(currentId.Value))
+            {
+                return true;
+            }
+
+            currentId = parentById.TryGetValue(currentId.Value, out var parentId)
+                ? parentId
+                : null;
+        }
+
+        return false;
     }
 
     public async Task<bool> DeleteAsync(int id, CancellationToken ct = default)

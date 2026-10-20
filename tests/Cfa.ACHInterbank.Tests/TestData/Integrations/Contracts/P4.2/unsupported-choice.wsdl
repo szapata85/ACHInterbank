@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:cfa:p42:choice"
+                  targetNamespace="urn:cfa:p42:choice">
+  <wsdl:types>
+    <xs:schema targetNamespace="urn:cfa:p42:choice">
+      <xs:element name="ChoiceOperation">
+        <xs:complexType>
+          <xs:choice>
+            <xs:element name="a" type="xs:string" />
+            <xs:element name="b" type="xs:string" />
+          </xs:choice>
+        </xs:complexType>
+      </xs:element>
+    </xs:schema>
+  </wsdl:types>
+  <wsdl:message name="ChoiceOperationSoapIn"><wsdl:part name="parameters" element="tns:ChoiceOperation" /></wsdl:message>
+  <wsdl:portType name="IChoice"><wsdl:operation name="ChoiceOperation"><wsdl:input message="tns:ChoiceOperationSoapIn" /></wsdl:operation></wsdl:portType>
+  <wsdl:binding name="ChoiceSoap" type="tns:IChoice">
+    <soap:binding transport="http://schemas.xmlsoap.org/soap/http" style="document" />
+    <wsdl:operation name="ChoiceOperation"><soap:operation soapAction="urn:cfa:p42:choice/ChoiceOperation" /><wsdl:input><soap:body use="literal" /></wsdl:input></wsdl:operation>
+  </wsdl:binding>
+</wsdl:definitions>

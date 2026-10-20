@@ -10,17 +10,18 @@ type SmokeRoute = {
 const refreshEndpoint = /\/auth\/refresh$/;
 const navigationEndpoint = /\/navigation\/menu$/;
 const runRealRuntime = process.env['RUN_REAL_RUNTIME_E2E'] === 'true';
-const legacyRoutes = [
+const notFoundRoutes = [
   '/ach-cycles/nacha/layouts',
   '/ach-cycles/nacha/definitions',
   '/nacha-layouts',
-  '/nacha-record-definitions'
+  '/nacha-record-definitions',
+  '/aliases'
 ];
 
 const routes: SmokeRoute[] = [
   { id: 'nacha-config-profiles', path: '/nacha-config-admin/perfiles', title: /Configuración NACHA-M/i, marker: /perfiles de configuración oficiales/i },
-  { id: 'nacha-config-records', path: '/nacha-config-admin/records', title: /Registros oficiales NACHA-M/i, marker: /nacha-config profiles es la fuente oficial/i },
-  { id: 'nacha-config-variants-fields', path: '/nacha-config-admin/variants-fields', title: /Variantes y campos NACHA-M/i, marker: /Espacio administrativo oficial/i },
+  { id: 'nacha-config-records', path: '/nacha-config-admin/records', title: /Parametrización NACHA-M/i, marker: /Estructura del archivo|Campos/i },
+  { id: 'nacha-config-variants-fields', path: '/nacha-config-admin/variants-fields', title: /Parametrización NACHA-M/i, marker: /Estructura del archivo|Campos/i },
   { id: 'nacha-config-profile-10', path: '/nacha-config-admin/perfiles/10', title: /Perfil CENIT-OUT-220/i },
   { id: 'cenit-home', path: '/cenit', title: /Centro de operación CENIT/i, marker: /Centro de operación CENIT/i },
   { id: 'cenit-regulatorio-causales-devolucion', path: '/cenit/regulatorio/causales-devolucion', title: /Causales de devoluci[oó]n/i, marker: /Causales de devoluci[oó]n \(Rxx\)/i },
@@ -38,11 +39,11 @@ const routes: SmokeRoute[] = [
   { id: 'ach-operational-file-detail', path: '/ach/nacha/operational-dashboard/files/demo-ach-in-001', title: /Detalle operativo NACHA-M/i, marker: /Detalle operativo NACHA-M/i },
   { id: 'ach-soap-uat-console', path: '/ach/nacha/soap-uat-console', title: /Consola SOAP\/UAT solo lectura/i, marker: /SOAP\/UAT/i },
   { id: 'ach-reconciliation', path: '/ach/reconciliation', title: /Consola de conciliación ACH/i, marker: /Detalle conciliación/i },
-  { id: 'incoming-ingestions', path: '/incoming-nacha-command-center', title: /Command Center inbound NACHA/i, marker: /Inbound NACHA/i },
-  { id: 'incoming-ingestion-detail', path: '/incoming-nacha-command-center/ingestions/ing-1', title: /Detalle de ingesta inbound NACHA/i, marker: /Detalle de ingesta/i },
-  { id: 'incoming-observability', path: '/incoming-nacha-command-center/observability', title: /Observabilidad inbound NACHA/i, marker: /Observabilidad/i },
-  { id: 'incoming-queue', path: '/incoming-nacha-command-center/queue', title: /Cola dispatch inbound NACHA/i, marker: /Cola dispatch/i },
-  { id: 'incoming-queue-detail', path: '/incoming-nacha-command-center/queue/q-1', title: /Detalle de item de cola inbound NACHA/i, marker: /Detalle de item de cola/i },
+  { id: 'incoming-files', path: '/incoming-nacha-command-center', title: /Seguimiento de archivos NACHA-M/i, marker: /Seguimiento de archivos NACHA-M/i },
+  { id: 'incoming-file-detail', path: '/incoming-nacha-command-center/ingestions/ing-1', title: /Trazabilidad del archivo NACHA-M/i, marker: /Detalle del archivo/i },
+  { id: 'incoming-observability', path: '/incoming-nacha-command-center/observability', title: /Indicadores operativos NACHA-M/i, marker: /Indicadores operativos/i },
+  { id: 'incoming-queue', path: '/incoming-nacha-command-center/queue', title: /Cola de procesamiento NACHA-M/i, marker: /Cola de procesamiento/i },
+  { id: 'incoming-queue-detail', path: '/incoming-nacha-command-center/queue/q-1', title: /Detalle del procesamiento/i, marker: /Detalle del procesamiento/i },
   { id: 'reports-home', path: '/reports', title: /Reportes ACH/i, marker: /M[oó]dulo corporativo de reportes/i },
   { id: 'reports-traceability', path: '/reports/traceability', title: /Reporte de trazabilidad ACH/i, marker: /Trazabilidad ACH/i },
   { id: 'reports-sent', path: '/reports/sent', title: /Enviados/i, marker: /Transacciones enviadas/i },
@@ -62,14 +63,13 @@ const routes: SmokeRoute[] = [
   { id: 'ach-responses-attempts', path: '/ach-responses/resp-1/notification-attempts', title: /Intentos de notificaci[oó]n ACH/i, marker: /Intentos/i },
   { id: 'payment-rail-capability-registry', path: '/payment-rail-capability-registry', title: /Capability Registry multi-riel/i, marker: /Capability Registry por riel/i },
   { id: 'catalogs', path: '/catalogs', title: /Cat[aá]logos/i, marker: /Instituciones financieras/i },
-  { id: 'ach-cycles-list', path: '/ach-cycles', title: /Ciclos ACH/i, marker: /Ciclos ACH/i },
-  { id: 'ach-cycles-export', path: '/ach-cycles/nacha/export', title: /Exportar NACHA-M/i, marker: /Exportable/i },
+  { id: 'ach-cycles-list', path: '/ach-cycles', title: /Configuraci[oó]n de ciclos/i, marker: /Reglas de procesamiento/i },
+  { id: 'ach-cycles-export', path: '/ach-cycles/nacha/export', title: /Exportación NACHA-M/i, marker: /Ciclos disponibles/i },
   { id: 'dashboard-home', path: '/dashboard', title: /.+/ },
   { id: 'users-home', path: '/users', title: /.+/ },
   { id: 'users-branding', path: '/users/branding', title: /.+/ },
   { id: 'users-password-rules', path: '/users/password-rules', title: /.+/ },
   { id: 'users-login-lockout', path: '/users/login-lockout', title: /.+/ },
-  { id: 'aliases-home', path: '/aliases', title: /.+/ },
   { id: 'customers-home', path: '/customers', title: /.+/ },
   { id: 'navigation-root', path: '/navigation', title: /.+/ },
   { id: 'navigation-menu-items', path: '/navigation/menu-items', title: /.+/ },
@@ -101,7 +101,8 @@ const omittedRoutes = [
   { path: '/ach-cycles/nacha/layouts', reason: 'Legacy route controlled by not-found only.' },
   { path: '/ach-cycles/nacha/definitions', reason: 'Legacy route controlled by not-found only.' },
   { path: '/nacha-layouts', reason: 'Legacy API route controlled by not-found only.' },
-  { path: '/nacha-record-definitions', reason: 'Legacy API route controlled by not-found only.' }
+  { path: '/nacha-record-definitions', reason: 'Legacy API route controlled by not-found only.' },
+  { path: '/aliases', reason: 'Alias frontend feature retired in 4C.3A.1; handled by the existing not-found route.' }
 ];
 
 test.use({ ignoreHTTPSErrors: true });
@@ -189,9 +190,9 @@ test.describe('SPA route smoke', () => {
     });
   }
 
-  test('LegacyRoutes_ShouldEndInNotFound', async ({ page }) => {
-    for (const legacyRoute of legacyRoutes) {
-      await page.goto(legacyRoute);
+  test('UnavailableRoutes_ShouldEndInNotFound', async ({ page }) => {
+    for (const routePath of notFoundRoutes) {
+      await page.goto(routePath);
       await expect(page).toHaveURL(/\/not-found$/);
       await expect(page.getByText('404', { exact: true })).toBeVisible();
     }
@@ -262,11 +263,10 @@ async function mockNavigation(page: Page): Promise<void> {
         ]},
         { id: 13, label: 'Respuestas ACH', route: '/ach-responses' },
         { id: 14, label: 'Reportes', route: '/reports' },
-        { id: 15, label: 'Command Center inbound NACHA', route: '/incoming-nacha-command-center' },
+        { id: 15, label: 'Seguimiento de archivos NACHA-M', route: '/incoming-nacha-command-center' },
         { id: 16, label: 'Ciclos ACH', route: '/ach-cycles' },
         { id: 17, label: 'Capability Registry', route: '/payment-rail-capability-registry' },
         { id: 18, label: 'Clientes', route: '/customers' },
-        { id: 19, label: 'Alias', route: '/aliases' },
         { id: 20, label: 'Panel operativo', route: '/ach' }
       ])
     });
@@ -400,10 +400,15 @@ async function loginByApi(apiBaseUrl: string, user: string, pass: string): Promi
 }
 
 async function mockBackend(page: Page): Promise<void> {
-  await page.route(/(?:https?:\/\/[^/]+)?\/(?:api\/.*|nacha-config\/catalogos-filtro|financial-institutions|clearing-houses|customers|transactions\/company-entry-descriptions|ach-cycles(?:\/exportable)?|incoming-nacha-command-center\/.*|NachaExport\/.*)(?:\?.*)?$/i, async route => {
+  await page.route(/(?:https?:\/\/[^/]+)?\/(?:api\/.*|nacha-config\/.*|financial-institutions|clearing-houses|customers|navigation\/menu-items|transactions(?:\/.*)?|return-reasons|ach-cycles(?:\/exportable)?|incoming-nacha-command-center\/.*|NachaUpload\/records|NachaExport\/.*)(?:\?.*)?$/i, async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     const method = route.request().method().toUpperCase();
+
+    if (route.request().resourceType() === 'document') {
+      await route.continue();
+      return;
+    }
 
     if (method === 'GET' && path === '/api/users') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildUsersPage()) });
@@ -465,7 +470,7 @@ async function mockBackend(page: Page): Promise<void> {
       return;
     }
 
-    if (method === 'GET' && path === '/api/transactions') {
+    if (method === 'GET' && (path === '/api/transactions' || path === '/transactions')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildTransactions()) });
       return;
     }
@@ -480,8 +485,23 @@ async function mockBackend(page: Page): Promise<void> {
       return;
     }
 
-    if (method === 'GET' && path === '/api/navigation/menu-items') {
+    if (method === 'GET' && (path === '/api/navigation/menu-items' || path === '/navigation/menu-items')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildNavigationMenuItems()) });
+      return;
+    }
+
+    if (method === 'GET' && path === '/NachaUpload/records') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      return;
+    }
+
+    if (method === 'GET' && path === '/return-reasons') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      return;
+    }
+
+    if (method === 'GET' && path === '/api/nacha-security/certificates/management') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
       return;
     }
 
@@ -581,11 +601,10 @@ async function mockBackend(page: Page): Promise<void> {
         ]},
         { id: 13, label: 'Respuestas ACH', route: '/ach-responses' },
         { id: 14, label: 'Reportes', route: '/reports' },
-        { id: 15, label: 'Command Center inbound NACHA', route: '/incoming-nacha-command-center' },
+        { id: 15, label: 'Seguimiento de archivos NACHA-M', route: '/incoming-nacha-command-center' },
         { id: 16, label: 'Ciclos ACH', route: '/ach-cycles' },
         { id: 17, label: 'Capability Registry', route: '/payment-rail-capability-registry' },
         { id: 18, label: 'Clientes', route: '/customers' },
-        { id: 19, label: 'Alias', route: '/aliases' },
         { id: 20, label: 'Panel operativo', route: '/ach' }
       ])
       });
@@ -803,11 +822,10 @@ async function mockBackend(page: Page): Promise<void> {
         ]},
         { id: 13, label: 'Respuestas ACH', route: '/ach-responses' },
         { id: 14, label: 'Reportes', route: '/reports' },
-        { id: 15, label: 'Command Center inbound NACHA', route: '/incoming-nacha-command-center' },
+        { id: 15, label: 'Seguimiento de archivos NACHA-M', route: '/incoming-nacha-command-center' },
         { id: 16, label: 'Ciclos ACH', route: '/ach-cycles' },
         { id: 17, label: 'Capability Registry', route: '/payment-rail-capability-registry' },
         { id: 18, label: 'Clientes', route: '/customers' },
-        { id: 19, label: 'Alias', route: '/aliases' },
         { id: 20, label: 'Panel operativo', route: '/ach' }
       ])
       });
@@ -1551,12 +1569,25 @@ function buildReconciliation(path: string): unknown {
 function buildIncomingNacha(path: string): unknown {
   if (path.endsWith('/observability/summary')) {
     return {
+      generatedAtUtc: '2026-07-18T12:00:00Z',
       windowHours: 24,
-      totalIngestions: 1,
-      totalFiles: 1,
-      totalQueueItems: 1,
-      blockingCount: 0,
-      warnings: []
+      pipelineHealth: {
+        totalIngestions: 1,
+        totalQueueItems: 1,
+        backlogItems: 0,
+        blockedItems: 0,
+        retryPendingItems: 0,
+        waitingWindowItems: 0,
+        failedFinalItems: 0,
+        confirmedItems: 1,
+        averageQueueAgeMinutes: 0,
+        oldestQueueAgeMinutes: 0
+      },
+      ingestionsByStatus: [{ key: 'Processed', count: 1 }],
+      queueByStatus: [{ key: 'Confirmed', count: 1 }],
+      byClearingHouseCycle: [],
+      topErrors: [],
+      timeline: []
     };
   }
 
@@ -1565,13 +1596,21 @@ function buildIncomingNacha(path: string): unknown {
       items: [
         {
           id: 'ing-1',
-          fileName: 'IN_001.ach',
-          fileType: 'ACH',
-          status: 'Processed',
-          receivedAtUtc: '2026-05-24T14:00:00Z'
+          fileName: '0001283.001.20260718.1.OUT',
+          correlationId: 'smoke-ing-1',
+          ingestionStatus: 'Processed',
+          cycleResolutionStatus: 'Resolved',
+          parsingStatus: 'Parsed',
+          resolvedClearingHouseId: 1,
+          resolvedAchCycleId: 'cycle-1',
+          operationalDate: '2026-07-18',
+          isReprocess: false,
+          uploadedAtUtc: '2026-07-18T12:00:00Z',
+          queueItems: 1,
+          processingEvents: 1
         }
       ],
-      total: 1,
+      totalItems: 1,
       page: 1,
       pageSize: 20
     };
@@ -1580,9 +1619,18 @@ function buildIncomingNacha(path: string): unknown {
   if (/\/ingestions\/[^/]+$/.test(path)) {
     return {
       id: 'ing-1',
-      fileName: 'IN_001.ach',
-      status: 'Processed',
-      summary: {},
+      fileName: '0001283.001.20260718.1.OUT',
+      correlationId: 'smoke-ing-1',
+      ingestionStatus: 'Processed',
+      cycleResolutionStatus: 'Resolved',
+      parsingStatus: 'Parsed',
+      detectedClearingHouseId: 1,
+      resolvedClearingHouseId: 1,
+      resolvedAchCycleId: 'cycle-1',
+      operationalDate: '2026-07-18',
+      notes: '',
+      isReprocess: false,
+      queue: [],
       events: []
     };
   }
@@ -1592,12 +1640,29 @@ function buildIncomingNacha(path: string): unknown {
       items: [
         {
           id: 'q-1',
-          fileName: 'IN_001.ach',
-          status: 'Queued',
-          queueReason: 'Pending review'
+          ingestionId: 'ing-1',
+          achTransactionId: 1,
+          achCycleId: 'cycle-1',
+          clearingHouseId: 1,
+          queueStatus: 'Confirmed',
+          priority: 1,
+          attemptCount: 1,
+          lastErrorCode: '',
+          lastErrorMessage: '',
+          lastResponseCode: '00',
+          confirmedAtUtc: '2026-07-18T12:01:00Z',
+          createdAtUtc: '2026-07-18T12:00:00Z',
+          allowedActions: {
+            currentStatus: 'Confirmed',
+            canRetry: false,
+            canUnblock: false,
+            canRequeue: false,
+            canMarkFailedFinal: false,
+            allowedActions: []
+          }
         }
       ],
-      total: 1,
+      totalItems: 1,
       page: 1,
       pageSize: 20
     };
@@ -1605,10 +1670,55 @@ function buildIncomingNacha(path: string): unknown {
 
   if (/\/queue\/[^/]+$/.test(path)) {
     return {
-      id: 'q-1',
-      ingestion: { id: 'ing-1', fileName: 'IN_001.ach' },
-      events: [],
-      manualActions: []
+      queue: {
+        id: 'q-1',
+        ingestionId: 'ing-1',
+        achTransactionId: 1,
+        achCycleId: 'cycle-1',
+        clearingHouseId: 1,
+        queueStatus: 'Confirmed',
+        priority: 1,
+        attemptCount: 1,
+        lastErrorCode: '',
+        lastErrorMessage: '',
+        lastResponseCode: '00',
+        confirmedAtUtc: '2026-07-18T12:01:00Z',
+        createdAtUtc: '2026-07-18T12:00:00Z',
+        allowedActions: {
+          currentStatus: 'Confirmed',
+          canRetry: false,
+          canUnblock: false,
+          canRequeue: false,
+          canMarkFailedFinal: false,
+          allowedActions: []
+        }
+      },
+      ingestion: {
+        id: 'ing-1',
+        fileName: '0001283.001.20260718.1.OUT',
+        correlationId: 'smoke-ing-1',
+        ingestionStatus: 'Processed',
+        cycleResolutionStatus: 'Resolved',
+        parsingStatus: 'Parsed',
+        resolvedClearingHouseId: 1,
+        resolvedAchCycleId: 'cycle-1',
+        operationalDate: '2026-07-18',
+        isReprocess: false,
+        uploadedAtUtc: '2026-07-18T12:00:00Z',
+        queueItems: 1,
+        processingEvents: 1
+      },
+      classification: {
+        id: 'class-1',
+        entryDetailId: 1,
+        functionalClass: 'Transaction',
+        eligibilityStatus: 'Eligible',
+        requiresManualResolution: false,
+        prenoteStatus: 'None',
+        businessMeaning: 'Transacción inbound controlada'
+      },
+      executions: [],
+      events: []
     };
   }
 

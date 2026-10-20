@@ -1,0 +1,161 @@
+{
+  "phase": "NAV4.2J",
+  "baseline": "NAV4.2I",
+  "baseline_src_app_sha256": "5885f1a7c83c3c979d1a5909555ab372aa29d7b01dba1472547e5d933273b77f",
+  "changes": [
+    {
+      "file": "web/ach-interbank-ui/src/app/features/clearing-houses/clearing-houses.component.html",
+      "old": "Centro administrativo de cámaras",
+      "new": "Cámaras compensadoras",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Nombre accesible de la superficie Cámaras compensadoras"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/clearing-houses/transaction-policies.component.html",
+      "old": "'Acciones de política de ' + typeLabel(row.transactionType)",
+      "new": "'Acciones de la versión de política para ' + typeLabel(row.transactionType)",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Menú icon-only de acciones sobre una versión de política de prenotificación"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/clearing-houses/transaction-policies.component.html",
+      "old": "Acciones de versión",
+      "new": "Ver acciones de la versión",
+      "mechanism": "MAT_TOOLTIP",
+      "control_context": "Ayuda del menú de acciones de una versión de política"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/operational-restrictions/operational-restrictions.component.html",
+      "old": "'Acciones de restricción ' + row.id",
+      "new": "'Acciones de la restricción ' + row.id",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Menú icon-only de acciones sobre una restricción operacional"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/operational-restrictions/operational-restrictions.component.html",
+      "old": "Acciones",
+      "new": "Ver acciones de la restricción",
+      "mechanism": "MAT_TOOLTIP",
+      "control_context": "Ayuda del menú de acciones de una restricción operacional"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/incoming-nacha-command-center/pages/nacha-operational-dashboard.component.html",
+      "old": "'Ver detalle del archivo ' + row.fileName",
+      "new": "'Consultar trazabilidad del archivo ' + row.fileName",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Botón móvil visible Consultar trazabilidad"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/incoming-nacha-command-center/pages/nacha-operational-file-detail.component.html",
+      "old": "Copiar identificador",
+      "new": "Copiar identificador de correlación",
+      "mechanism": "MAT_TOOLTIP",
+      "control_context": "Botón icon-only que copia el identificador de correlación"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/catalogs/components/clearing-house-special-dates.component.html",
+      "old": "'Acciones de fecha ' + dateText(row.date)",
+      "new": "'Acciones de la fecha especial ' + dateText(row.date)",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Menú icon-only de acciones sobre una fecha especial"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "'Acciones de ' + row.cycleName",
+      "new": "'Acciones de configuración para ' + row.cycleName",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Menú icon-only de acciones sobre una configuración de ciclo"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Acciones de configuración",
+      "new": "Ver acciones de configuración",
+      "mechanism": "MAT_TOOLTIP",
+      "control_context": "Ayuda del menú de acciones de configuración de ciclo"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/integrations/pages/contract-import-stepper.component.html",
+      "old": "Resumen del diff",
+      "new": "Resumen de cambios",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Resumen accesible de cambios frente a la versión contractual base"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-list/transaction-list.component.html",
+      "old": "Selector de columnas para la grilla",
+      "new": "Selector de columnas visibles",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Selector accesible de columnas de la lista de transacciones"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/nacha-operational/pages/ach-reconciliation-console.component.html",
+      "old": "Fuente conciliación",
+      "new": "Fuente de conciliación",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Región que identifica la fuente de la conciliación ACH"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/nacha-operational/pages/ach-reconciliation-console.component.html",
+      "old": "Resumen conciliación ACH",
+      "new": "Resumen de conciliación ACH",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Región resumen de conciliación ACH"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/nacha-operational/pages/ach-reconciliation-console.component.html",
+      "old": "Badges conciliación",
+      "new": "Estados de conciliación",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Grupo accesible de estados de conciliación"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/auth-logs/components/auth-log.component.html",
+      "old": "Consulta del registro de autenticaciones",
+      "new": "Consulta del registro de accesos",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Nombre accesible de la superficie Registro de accesos"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/auth-logs/components/auth-log.component.html",
+      "old": "Filtros del registro de autenticaciones",
+      "new": "Filtros del registro de accesos",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Formulario de filtros del Registro de accesos"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/auth-logs/components/auth-log.component.html",
+      "old": "Cargando registros de autenticación",
+      "new": "Cargando registros de accesos",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Nombre accesible del indicador de carga del Registro de accesos"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/auth-logs/components/auth-log.component.html",
+      "old": "Cargando registros de autenticación.",
+      "new": "Cargando registros de accesos.",
+      "mechanism": "SR_ONLY",
+      "control_context": "Estado de carga sólo para lector de pantalla del Registro de accesos"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/auth-logs/components/auth-log.component.html",
+      "old": "Resultados de autenticación. La tabla admite desplazamiento horizontal.",
+      "new": "Resultados del registro de accesos. La tabla admite desplazamiento horizontal.",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Región desplazable de resultados del Registro de accesos"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/auth-logs/components/auth-log.component.html",
+      "old": "Registros de autenticación",
+      "new": "Registros de accesos",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Tabla del Registro de accesos"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/auth-logs/components/auth-log.component.html",
+      "old": "Paginación del registro de autenticaciones",
+      "new": "Paginación del registro de accesos",
+      "mechanism": "ARIA_LABEL",
+      "control_context": "Paginador del Registro de accesos"
+    }
+  ]
+}

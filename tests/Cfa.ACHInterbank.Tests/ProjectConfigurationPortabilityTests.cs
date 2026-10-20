@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Xml.Linq;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -6,15 +7,28 @@ public class ProjectConfigurationPortabilityTests
 {
     private static readonly string RepoRoot = FindRepositoryRoot();
 
-    [Fact]
-    public void ApiProject_DocumentationFile_ShouldNotUseWindowsAbsolutePath()
+    [Theory]
+    [InlineData("Cfa.ACHInterbank.Api")]
+    [InlineData("Cfa.ACHInterbank.Application")]
+    [InlineData("Cfa.ACHInterbank.Domain")]
+    public void OpenApiContractProject_ShouldGenerateDocumentationXmlWithoutWindowsAbsolutePath(string projectName)
     {
-        var projectPath = Path.Combine(RepoRoot, "src", "Cfa.ACHInterbank.Api", "Cfa.ACHInterbank.Api.csproj");
-        var content = File.ReadAllText(projectPath);
+        var projectPath = Path.Combine(RepoRoot, "src", projectName, $"{projectName}.csproj");
+        var project = XDocument.Load(projectPath);
 
-        content.Should().Contain("<GenerateDocumentationFile>True</GenerateDocumentationFile>");
-        content.Should().NotMatchRegex(@"<DocumentationFile>[A-Za-z]:\\");
-        content.Should().Contain(@"<DocumentationFile>bin\$(Configuration)\$(TargetFramework)\Cfa.ACHInterbank.Api.xml</DocumentationFile>");
+        var generateDocumentationFile = project
+            .Descendants()
+            .FirstOrDefault(element => element.Name.LocalName == "GenerateDocumentationFile");
+
+        generateDocumentationFile.Should().NotBeNull($"{projectName} expone documentación usada por OpenAPI");
+        bool.TryParse(generateDocumentationFile!.Value, out var enabled).Should().BeTrue();
+        enabled.Should().BeTrue($"{projectName} debe generar su XML de documentación");
+
+        foreach (var documentationFile in project.Descendants().Where(element => element.Name.LocalName == "DocumentationFile"))
+        {
+            documentationFile.Value.Trim().Should().NotMatchRegex(@"^(?:[A-Za-z]:[\\/]|\\\\)",
+                $"{projectName} no debe depender de una ruta absoluta de Windows para generar XML");
+        }
     }
 
     [Fact]
@@ -30,11 +44,39 @@ public class ProjectConfigurationPortabilityTests
     [Fact]
     public void DockerCompose_ShouldNotKeepLegacyHardcodedPostgresDefaults()
     {
-        var compose = File.ReadAllText(Path.Combine(RepoRoot, "docker-compose.yml"));
+        var baseCompose = File.ReadAllText(Path.Combine(RepoRoot, "docker-compose.yml"));
+        var postgresCompose = File.ReadAllText(Path.Combine(RepoRoot, "docker-compose.postgres.yml"));
+        var sqlServerCompose = File.ReadAllText(Path.Combine(RepoRoot, "docker-compose.sqlserver.yml"));
 
-        compose.Should().NotContain("Cooperativa");
-        compose.Should().NotContain("POSTGRES_USER:-sa");
-        compose.Should().Contain("example_password_change_me");
+        baseCompose.Should().NotContain("Cooperativa");
+        baseCompose.Should().NotContain("example_password_change_me");
+        baseCompose.Should().NotContain("MSSQL_SA_PASSWORD:-");
+        baseCompose.Should().NotContain("POSTGRES_PASSWORD:-");
+
+        postgresCompose.Should().Contain("POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}");
+        postgresCompose.Should().Contain("ConnectionStrings__PostgresConnection");
+        postgresCompose.Should().NotContain("example_password_change_me");
+        postgresCompose.Should().NotContain("Cooperativa");
+
+        sqlServerCompose.Should().Contain("MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatoria}");
+        sqlServerCompose.Should().Contain("ConnectionStrings__SqlConnection");
+        sqlServerCompose.Should().NotContain("Example_sqlServer_2026*");
+        sqlServerCompose.Should().NotContain("Cooperativa");
+    }
+
+    [Fact]
+    public void SqlServerRuntimeScript_ShouldUseContainerShellPasswordAndAvoidVisibleArguments()
+    {
+        var script = File.ReadAllText(Path.Combine(RepoRoot, "scripts", "start-sqlserver-runtime.ps1"));
+
+        script.Should().Contain("'sqlserver', 'sh', '-lc'");
+        script.Should().Contain("SQLCMDPASSWORD=\"$MSSQL_SA_PASSWORD\"");
+        script.Should().Contain("/opt/mssql-tools18/bin/sqlcmd");
+        script.Should().Contain("/opt/mssql-tools/bin/sqlcmd");
+        script.Should().NotContain("SQLCMDPASSWORD=$env:MSSQL_SA_PASSWORD");
+        script.Should().NotContain("-P $env:MSSQL_SA_PASSWORD");
+        script.Should().NotContain("-P \"$env:MSSQL_SA_PASSWORD\"");
+        script.Should().NotContain("-e \"SQLCMDPASSWORD=");
     }
 
     private static string FindRepositoryRoot()

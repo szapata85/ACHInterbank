@@ -1,5 +1,14 @@
+using System.Xml.Linq;
+using Cfa.ACHInterbank.Application.Integrations.Registries;
+using Cfa.ACHInterbank.Application.Integrations.Services;
+using Cfa.ACHInterbank.Application.Integrations.Transformations;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+using Cfa.ACHInterbank.Persistence.Integrations.Providers;
+using Microsoft.Extensions.Options;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Integrations.Dtos;
+using Cfa.ACHInterbank.Application.Integrations.Exceptions;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -57,6 +66,56 @@ public class IntegrationMappingEndToEndTests
     }
 
     [Fact]
+    public async Task MappingWorkspace_GuidedParameterEdit_UsesBackendMetadataAndRevision()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var draft = await fixture.MappingSetService.CreateDraftAsync(
+            new CreateIntegrationMappingSetRequest(fixture.MethodId, "Guided edit", "", "tester"));
+        var workspace = await fixture.MappingSetService.GetWorkspaceAsync(draft.Id);
+
+        Assert.NotNull(workspace);
+        Assert.NotEmpty(workspace!.SourceGroups);
+        Assert.NotEmpty(workspace.SourceCompatibility);
+
+        var compatibility = workspace.SourceCompatibility.First();
+        var source = workspace.SourceGroups
+            .SelectMany(group => group.Fields)
+            .Single(item => item.Id == compatibility.SourceCatalogFieldId);
+        var selectedTransformation = compatibility.AllowsNoTransformation
+            ? null
+            : compatibility.Transformations.First();
+        var formatMask = selectedTransformation?.RequiresFormatMask == true ? "yyyyMMdd" : null;
+
+        var updated = await fixture.MappingSetService.UpdateParameterMappingAsync(
+            draft.Id,
+            compatibility.ParameterId,
+            new UpdateIntegrationParameterMappingRequest(
+                draft.Revision,
+                source.Id,
+                selectedTransformation?.Code,
+                formatMask,
+                "tester"));
+
+        Assert.Equal(draft.Revision + 1, updated.Revision);
+        var rule = Assert.Single(updated.Rules, item => item.ParameterId == compatibility.ParameterId);
+        Assert.Equal(source.Id, rule.SourceCatalogFieldId);
+        Assert.Equal(source.FieldPath, rule.SourceFieldPath);
+        Assert.Equal(selectedTransformation?.Code, rule.TransformationCode);
+        Assert.Null(rule.ConditionExpression);
+
+        await Assert.ThrowsAsync<IntegrationMappingRevisionConflictException>(() =>
+            fixture.MappingSetService.UpdateParameterMappingAsync(
+                draft.Id,
+                compatibility.ParameterId,
+                new UpdateIntegrationParameterMappingRequest(
+                    draft.Revision,
+                    source.Id,
+                    selectedTransformation?.Code,
+                    formatMask,
+                    "tester")));
+    }
+
+    [Fact]
     public async Task MappingSet_CanCreateAndEditDraft()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
@@ -72,6 +131,38 @@ public class IntegrationMappingEndToEndTests
         await using var fixture = await IntegrationFixture.CreateAsync();
         var created = await fixture.CreateDraftWithRulesAsync("BulkUpsert");
         Assert.NotEmpty(created.Rules);
+    }
+
+    [Fact]
+    public async Task MappingSet_PreservesContractSignificantTrailingSpaces()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var draft = await fixture.CreateDraftWithRulesAsync("FixedWidthSoapValue");
+        var original = draft.Rules.First();
+
+        var updated = await fixture.MappingSetService.UpsertRulesAsync(
+            draft.Id,
+            new UpsertIntegrationMappingRulesRequest("tester", [
+                new UpsertIntegrationMappingRuleRequest(
+                    original.Id,
+                    fixture.MethodId,
+                    original.ParameterId,
+                    IntegrationSourceKindEnum.Constant,
+                    null,
+                    string.Empty,
+                    "TRANSFER  ",
+                    "TRANSFER  ",
+                    null,
+                    null,
+                    1,
+                    original.RequiredOverride,
+                    true,
+                    null)
+            ]));
+
+        var rule = Assert.Single(updated.Rules, item => item.Id == original.Id);
+        Assert.Equal("TRANSFER  ", rule.FixedValue);
+        Assert.Equal("TRANSFER  ", rule.DefaultValue);
     }
 
     [Fact]
@@ -93,6 +184,46 @@ public class IntegrationMappingEndToEndTests
     }
 
     [Fact]
+    public async Task MappingSet_Validation_ShouldRejectSourceCatalogFieldFromAnotherMethod()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var draft = await fixture.MappingSetService.CreateDraftAsync(
+            new CreateIntegrationMappingSetRequest(fixture.MethodId, "Cross-method source", "", "p8.3-test"));
+        var required = fixture.Parameters.First(parameter => parameter.Required);
+        var foreignSource = await fixture.Context.IntegrationSourceCatalogFields
+            .AsNoTracking()
+            .FirstAsync(source => source.MethodId != fixture.MethodId && source.IsActive);
+
+        await fixture.MappingSetService.UpsertRulesAsync(
+            draft.Id,
+            new UpsertIntegrationMappingRulesRequest("p8.3-test",
+            [
+                new UpsertIntegrationMappingRuleRequest(
+                    null,
+                    fixture.MethodId,
+                    required.Id,
+                    foreignSource.SourceKind,
+                    foreignSource.Id,
+                    foreignSource.FieldPath,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    null,
+                    true,
+                    null)
+            ]));
+
+        var validation = await fixture.MappingSetService.ValidateAsync(
+            draft.Id,
+            new ValidateIntegrationMappingSetRequest(true));
+
+        Assert.False(validation.IsValid);
+        Assert.Contains(validation.Issues, issue => issue.Code == "SOURCE_FIELD_NOT_FOUND");
+    }
+
+    [Fact]
     public async Task MappingSet_Preview_ReturnsItemsAndPayload()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
@@ -101,6 +232,57 @@ public class IntegrationMappingEndToEndTests
         var preview = await fixture.MappingSetService.PreviewAsync(draft.Id, new PreviewIntegrationMappingSetRequest(UseControlledSample: true, MaxItems: 20));
         Assert.NotEmpty(preview.Items);
         Assert.Contains("{", preview.PayloadPreviewJson);
+        Assert.NotNull(preview.Validation);
+        Assert.All(preview.Items, item => Assert.False(string.IsNullOrWhiteSpace(item.FunctionalName)));
+    }
+
+    [Fact]
+    public async Task MappingSet_Preview_MasksSensitiveValues_AndIncludesFunctionalValidation()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        const string fullAccountNumber = "123456789012";
+        fixture.Transaction.SourceAccountNumber = fullAccountNumber;
+        await fixture.Context.SaveChangesAsync();
+
+        var draft = await fixture.MappingSetService.CreateDraftAsync(
+            new CreateIntegrationMappingSetRequest(fixture.MethodId, "Sanitized preview", "", "tester"));
+        var workspace = await fixture.MappingSetService.GetWorkspaceAsync(draft.Id);
+        Assert.NotNull(workspace);
+
+        var accountSource = workspace!.SourceGroups
+            .SelectMany(group => group.Fields)
+            .Single(field => field.FieldPath == "transaction.sourceAccountNumber");
+        var compatibility = workspace.SourceCompatibility
+            .First(item => item.SourceCatalogFieldId == accountSource.Id && item.AllowsNoTransformation);
+
+        var updated = await fixture.MappingSetService.UpdateParameterMappingAsync(
+            draft.Id,
+            compatibility.ParameterId,
+            new UpdateIntegrationParameterMappingRequest(
+                draft.Revision,
+                accountSource.Id,
+                null,
+                null,
+                "tester"));
+
+        var preview = await fixture.MappingSetService.PreviewAsync(
+            updated.Id,
+            new PreviewIntegrationMappingSetRequest(
+                SampleTransactionId: fixture.Transaction.Id,
+                MaxItems: 100,
+                UseControlledSample: false));
+
+        var item = Assert.Single(preview.Items, current => current.ParameterId == compatibility.ParameterId);
+        Assert.True(item.IsMasked);
+        Assert.NotEqual(fullAccountNumber, item.PreviewValue);
+        Assert.NotNull(item.PreviewValue);
+        Assert.EndsWith("9012", item.PreviewValue!);
+        Assert.Equal(accountSource.DisplayName, item.SourceDisplayName);
+        Assert.False(string.IsNullOrWhiteSpace(item.FunctionalName));
+        Assert.NotNull(item.ValidationIssues);
+        Assert.DoesNotContain(fullAccountNumber, preview.PayloadPreviewJson);
+        Assert.DoesNotContain(fullAccountNumber, preview.RawPreviewJson);
+        Assert.Equal(preview.MappingSetId, preview.Validation.MappingSetId);
     }
 
     [Fact]
@@ -109,8 +291,26 @@ public class IntegrationMappingEndToEndTests
         await using var fixture = await IntegrationFixture.CreateAsync();
         var draft = await fixture.CreateDraftWithRulesAsync("Publish");
 
-        var published = await fixture.MappingSetService.PublishAsync(draft.Id, new PublishIntegrationMappingSetRequest("tester", "ok"));
+        var published = await fixture.MappingSetService.PublishAsync(draft.Id, new PublishIntegrationMappingSetRequest(draft.Revision, "tester", "ok"));
         Assert.Equal(IntegrationMappingSetStatusEnum.Published, published.Status);
+    }
+
+    [Fact]
+    public async Task MappingSet_Publish_RejectsStaleRevision_WithoutPublishing()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var draft = await fixture.CreateDraftWithRulesAsync("Publish conflict");
+
+        var exception = await Assert.ThrowsAsync<IntegrationMappingRevisionConflictException>(() =>
+            fixture.MappingSetService.PublishAsync(
+                draft.Id,
+                new PublishIntegrationMappingSetRequest(draft.Revision - 1, "tester")));
+
+        Assert.Equal(draft.Revision - 1, exception.ExpectedRevision);
+        Assert.Equal(draft.Revision, exception.CurrentRevision);
+        var current = await fixture.MappingSetService.GetByIdAsync(draft.Id);
+        Assert.NotNull(current);
+        Assert.Equal(IntegrationMappingSetStatusEnum.Draft, current!.Status);
     }
 
     [Fact]
@@ -138,11 +338,104 @@ public class IntegrationMappingEndToEndTests
     }
 
     [Fact]
-    public async Task Resolver_ReturnsNull_WhenNoPublishedMapping_AllowingHybridFallback()
+    public async Task Resolver_UsesBootstrapPublishedBaseMapping_ByDefault()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
         var result = await fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow);
-        Assert.Null(result);
+        Assert.NotNull(result);
+        Assert.NotNull(result!.Contract);
+        Assert.False(result.UsedFallback);
+        Assert.Equal(fixture.Transaction.Reference, result.Contract.OFIDTX);
+        Assert.Equal(fixture.Transaction.Amount, result.Contract.OFMONDEB);
+        Assert.Equal("D", result.Contract.OFDD);
+        Assert.Equal(fixture.Transaction.Id, result.Contract.OFIDEBAPLI);
+    }
+
+    [Fact]
+    public async Task ProcContrapartidas_ContractDrivenFeatureFlag_ShouldMatchLegacyTypedSoapBaseline()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var executionDate = new DateTime(2026, 10, 12, 15, 0, 0, DateTimeKind.Utc);
+
+        var legacyMapper = new ProcContrapartidasRequestMapper(fixture.Resolver);
+        var legacyResolution = await legacyMapper.ResolveAsync(
+            fixture.Cycle,
+            [fixture.Transaction],
+            executionDate);
+
+        var contractDrivenMapper = CreateContractDrivenProcContrapartidasMapper(fixture);
+        var contractDrivenResolution = await contractDrivenMapper.ResolveAsync(
+            fixture.Cycle,
+            [fixture.Transaction],
+            executionDate);
+
+        var resolved = Assert.IsType<Cfa.ACHInterbank.Application.Integrations.Models.ResolvedIntegrationRequest>(
+            contractDrivenResolution.Contract.ContractDrivenRequest);
+        Assert.Equal(legacyResolution.MappingSetId, contractDrivenResolution.MappingSetId);
+        Assert.Equal(legacyResolution.MappingVersion, contractDrivenResolution.MappingVersion);
+        Assert.Equal(legacyResolution.MappingSnapshotHash, contractDrivenResolution.MappingSnapshotHash);
+        Assert.Equal("WSCFAACH.Proc_Contrapartidas", resolved.MethodCode);
+        Assert.Equal("Proc_Contrapartidas", resolved.OperationName);
+        Assert.Equal("http://tempuri.org/", resolved.TargetNamespace);
+        Assert.Equal("http://tempuri.org/IWSCFAACH/Proc_Contrapartidas", resolved.SoapAction);
+
+        AssertProcContrapartidasSoapParity(
+            legacyMapper.BuildSoapBody(legacyResolution.Contract),
+            contractDrivenMapper.BuildSoapBody(contractDrivenResolution.Contract));
+    }
+
+    [Fact]
+    public async Task ProcContrapartidas_ContractDrivenFeatureFlag_ShouldPreserveLegacyRequiredSourceGuard()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        fixture.Transaction.Reference = string.Empty;
+        await fixture.Context.SaveChangesAsync();
+        var mapper = CreateContractDrivenProcContrapartidasMapper(fixture);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            mapper.ResolveAsync(
+                fixture.Cycle,
+                [fixture.Transaction],
+                new DateTime(2026, 10, 12, 15, 0, 0, DateTimeKind.Utc)));
+
+        Assert.Contains("INTEGRATION_MAPPING_SOURCE_REQUIRED", error.Message);
+        Assert.Contains("OFIDTX", error.Message);
+    }
+
+    [Fact]
+    public async Task Resolver_ShouldFailControlled_WhenRequiredReferenceSourceIsMissing()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        fixture.Transaction.Reference = string.Empty;
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
+
+        Assert.Contains("INTEGRATION_MAPPING_SOURCE_REQUIRED", error.Message);
+        Assert.Contains("OFIDTX", error.Message);
+    }
+
+    [Fact]
+    public async Task Resolver_ShouldUseInvariantMonetaryConversion()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
+        var originalUiCulture = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+            System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo("de-DE");
+
+            var result = await fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow);
+
+            Assert.NotNull(result);
+            Assert.Equal(75.5m, result!.Contract.OFMONDEB);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = originalCulture;
+            System.Globalization.CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     [Fact]
@@ -176,6 +469,53 @@ public class IntegrationMappingEndToEndTests
         Assert.Equal(left.Id, compare.Left.MappingSetId);
         Assert.Equal(right.Id, compare.Right.MappingSetId);
         Assert.Contains(compare.Rules, x => x.ChangeType is "Modified" or "Equal");
+    }
+
+    private static ProcContrapartidasRequestMapper CreateContractDrivenProcContrapartidasMapper(IntegrationFixture fixture)
+    {
+        var sourceRegistry = new IntegrationSourceProviderRegistry(
+            new CurrentIntegrationSourceProviderFactory(fixture.Context).Create());
+        var transformationRegistry = new IntegrationTransformationRegistry(
+            StandardIntegrationTransformationCatalog.Create());
+        var requestResolver = new IntegrationRequestResolver(
+            new IntegrationExecutionContractResolver(fixture.Context),
+            new IntegrationParameterValueResolver(sourceRegistry, transformationRegistry));
+
+        return new ProcContrapartidasRequestMapper(
+            fixture.Resolver,
+            Options.Create(new ProcContrapartidasDispatchOptions
+            {
+                Mode = "DryRun",
+                UseContractDrivenRequest = true
+            }),
+            requestResolver,
+            new ContractDrivenSoapBodyWriter(),
+            new ProcContrapartidasRequestParityPolicy());
+    }
+
+    private static void AssertProcContrapartidasSoapParity(string legacyXml, string contractDrivenXml)
+    {
+        var expected = ExtractSoapOperation(legacyXml);
+        var actual = ExtractSoapOperation(contractDrivenXml);
+
+        Assert.Equal(expected.Name, actual.Name);
+        var expectedElements = expected.Elements().ToArray();
+        var actualElements = actual.Elements().ToArray();
+        Assert.Equal(22, actualElements.Length);
+        Assert.Equal(expectedElements.Select(element => element.Name).ToArray(), actualElements.Select(element => element.Name).ToArray());
+        Assert.Equal(expectedElements.Select(element => element.Value).ToArray(), actualElements.Select(element => element.Value).ToArray());
+    }
+
+    private static XElement ExtractSoapOperation(string xml)
+    {
+        var root = Assert.IsType<XElement>(XDocument.Parse(xml, LoadOptions.PreserveWhitespace).Root);
+        if (!string.Equals(root.Name.LocalName, "Envelope", StringComparison.Ordinal))
+        {
+            return root;
+        }
+
+        var body = Assert.Single(root.Elements().Where(element => element.Name.LocalName == "Body"));
+        return Assert.Single(body.Elements());
     }
 
     private sealed class IntegrationFixture : IAsyncDisposable
@@ -289,8 +629,8 @@ public class IntegrationMappingEndToEndTests
                 AchBatchId = batch.Id,
                 Amount = 75.5m,
                 Reference = "TX-REF-001",
-                Type = TransactionTypeEnum.Credit,
-                TransactionCode = "22",
+                Type = TransactionTypeEnum.Debit,
+                TransactionCode = "27",
                 TraceNumber = "TRACE001",
                 CompanyIdentification = "900",
                 OriginatingDFI = "001",
@@ -329,7 +669,7 @@ public class IntegrationMappingEndToEndTests
             {
                 var (kind, path, fixedVal) = parameter.ParameterPath switch
                 {
-                    "OFIDLOT" => (IntegrationSourceKindEnum.Cycle, "cycle.id", (string?)null),
+                    "OFIDLOT" => (IntegrationSourceKindEnum.Batch, "batch.id", (string?)null),
                     "OFIDTX" => (IntegrationSourceKindEnum.Transaction, "transaction.transactionExternalId", (string?)null),
                     "CycleId" => (IntegrationSourceKindEnum.Cycle, "cycle.id", (string?)null),
                     "CycleName" => (IntegrationSourceKindEnum.Cycle, "cycle.cycleName", (string?)null),
@@ -346,8 +686,8 @@ public class IntegrationMappingEndToEndTests
                 rules.Add(new UpsertIntegrationMappingRuleRequest(null, MethodId, parameter.Id, kind, null, path, fixedVal, DefaultFor(parameter), null, null, 1, null, true, null));
             }
 
-            await MappingSetService.UpsertRulesAsync(draft.Id, new UpsertIntegrationMappingRulesRequest("tester", rules));
-            return await MappingSetService.PublishAsync(draft.Id, new PublishIntegrationMappingSetRequest("tester"));
+            var mapped = await MappingSetService.UpsertRulesAsync(draft.Id, new UpsertIntegrationMappingRulesRequest("tester", rules));
+            return await MappingSetService.PublishAsync(mapped.Id, new PublishIntegrationMappingSetRequest(mapped.Revision, "tester"));
         }
 
         private static string DefaultFor(IntegrationMethodParameter parameter)

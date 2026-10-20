@@ -1,0 +1,74 @@
+<h2 mat-dialog-title data-testid="mapping-publication-dialog-title">Publicar configuración CFA</h2>
+
+<mat-dialog-content class="mapping-publication-dialog" data-testid="mapping-publication-dialog">
+  <p class="mapping-publication-dialog__intro">
+    Revise el alcance antes de publicar. La decisión de elegibilidad proviene del servicio y no se recalcula en esta pantalla.
+  </p>
+
+  <dl class="mapping-publication-dialog__summary" aria-label="Resumen de publicación">
+    <div>
+      <dt>Servicio</dt>
+      <dd>{{ data.serviceName }}</dd>
+    </div>
+    <div>
+      <dt>Versión contractual</dt>
+      <dd>{{ data.contractVersion }}</dd>
+    </div>
+    <div>
+      <dt>Cobertura</dt>
+      <dd>{{ data.complete }} de {{ data.total }} datos completos</dd>
+    </div>
+    <div>
+      <dt>Pendientes requeridos</dt>
+      <dd data-testid="mapping-publication-pending-count">{{ pendingLabel() }}</dd>
+    </div>
+  </dl>
+
+  <section
+    *ngIf="data.pendingRequired > 0"
+    class="mapping-publication-dialog__pending"
+    role="status"
+    aria-labelledby="mapping-publication-pending-title"
+    data-testid="mapping-publication-pending"
+  >
+    <h3 id="mapping-publication-pending-title">Qué falta antes de publicar</h3>
+    <p>Completa los datos requeridos informados por el sistema.</p>
+    <ul>
+      <li *ngFor="let name of data.pendingRequiredNames">{{ name }}</li>
+    </ul>
+  </section>
+
+  <section
+    *ngIf="data.pendingRequired === 0 && data.blockingIssues > 0"
+    class="mapping-publication-dialog__pending"
+    role="status"
+  >
+    <h3>La configuración todavía requiere atención</h3>
+    <p>El servicio reporta {{ data.blockingIssues }} observación(es) bloqueante(s). Revise la validación general antes de publicar.</p>
+  </section>
+
+  <p *ngIf="data.canPublish" class="mapping-publication-dialog__ready" role="status">
+    El servicio informa que esta configuración puede publicarse.
+  </p>
+
+  <details class="mapping-publication-dialog__technical" data-testid="mapping-publication-technical-detail">
+    <summary>Detalle técnico para soporte</summary>
+    <dl>
+      <div><dt>Configuración</dt><dd>{{ data.mappingSetName }}</dd></div>
+      <div><dt>Revision esperada</dt><dd>{{ data.revision }}</dd></div>
+    </dl>
+  </details>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" mat-dialog-close>Cancelar</button>
+  <button
+    mat-flat-button
+    type="button"
+    [mat-dialog-close]="true"
+    [disabled]="!data.canPublish || data.pendingRequired > 0"
+    data-testid="mapping-publication-confirm"
+  >
+    Confirmar publicación
+  </button>
+</mat-dialog-actions>

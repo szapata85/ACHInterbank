@@ -1,7 +1,7 @@
 {
   "scenarioId": "ACH-CO-OUT-001",
   "clearingHouseCode": "ACH",
-  "profileCode": "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0",
+  "profileCode": "OFFICIAL_ACH_SALIDA_ORIGINAL_V35_0",
   "flowType": "Outgoing",
   "expectedFileName": "1234567.001.1",
   "dataClassification": "synthetic-anonymized"

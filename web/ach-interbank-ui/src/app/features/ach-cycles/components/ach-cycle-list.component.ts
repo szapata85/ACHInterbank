@@ -1,8 +1,14 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
-import { Router } from '@angular/router';
-import { AchCyclesApiService, ClearingHousesApiService } from '../services/ach-cycles-api.service';
-import { AchCycleFilter, AchCycleSummary, ClearingHouseOption } from '../models/ach-cycle.model';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { ActivatedRoute, Router } from '@angular/router';
+import { AchCyclesApiService } from '../../../core/services/ach-cycles-api.service';
+import { AchCycleFilter, AchCycleSummary } from '../../../core/models/ach-cycle.model';
+import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
@@ -14,13 +20,14 @@ import { finalize, Subscription } from 'rxjs';
   styleUrls: ['./ach-cycle-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [SharedModule, RouterModule]
+  imports: [SharedModule, RouterModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule]
 })
 export class AchCycleListComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(AchCyclesApiService);
   private readonly clearingHouseApi = inject(ClearingHousesApiService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly dateFormatter = new Intl.DateTimeFormat('es-CO', {
@@ -44,10 +51,13 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
   total = 0;
   today = new Date();
   loading = false;
+  loadError = false;
 
   ngOnInit(): void {
     this.loadClearingHouses();
-    this.load();
+    if (!this.route.snapshot.queryParamMap.get('clearingHouseCode')) {
+      this.load();
+    }
   }
 
   ngOnDestroy(): void {
@@ -66,6 +76,7 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
       clearingHouseId: this.filterForm.value.clearingHouseId ?? undefined
     };
     this.loading = true;
+    this.loadError = false;
     this.cdr.markForCheck();
     this.requestSub = this.api
       .search(filter)
@@ -89,6 +100,7 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.loadError = true;
           this.notifications.error('No fue posible cargar los ciclos ACH');
           this.cdr.markForCheck();
         }
@@ -99,6 +111,13 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
     this.clearingHouseApi.list().subscribe({
       next: (items) => {
         this.clearingHouses = items;
+        const requestedCode = this.route.snapshot.queryParamMap.get('clearingHouseCode');
+        if (requestedCode) {
+          const selected = items.find((item) =>
+            item.name.replace(/\s+/g, '').toUpperCase().includes(requestedCode.replace(/\s+/g, '').toUpperCase()));
+          this.filterForm.patchValue({ clearingHouseId: selected?.id ?? null, page: 1 });
+          this.load();
+        }
         this.cdr.markForCheck();
       },
       error: () => {

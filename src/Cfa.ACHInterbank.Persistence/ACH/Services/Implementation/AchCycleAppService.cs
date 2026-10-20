@@ -1,5 +1,6 @@
 using AutoMapper;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -14,11 +15,23 @@ public class AchCycleAppService : IAchCycleAppService
 {
     private readonly AchDbContext _context;
     private readonly IMapper _mapper;
+    private readonly TimeProvider _timeProvider;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly IClearingHouseCyclePolicyResolver _cyclePolicyResolver;
 
-    public AchCycleAppService(AchDbContext context, IMapper mapper)
+    public AchCycleAppService(
+        AchDbContext context,
+        IMapper mapper,
+        TimeProvider? timeProvider = null,
+        IOperationalCycleWindowResolver? windowResolver = null,
+        IClearingHouseCyclePolicyResolver? cyclePolicyResolver = null)
     {
         _context = context;
         _mapper = mapper;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _cyclePolicyResolver = cyclePolicyResolver
+            ?? new ClearingHouseCyclePolicyResolver(context, new Cfa.ACHInterbank.Application.ACH.Services.CycleNumberResolver());
     }
 
     public async Task<IEnumerable<AchCycleDto>> GetAsync(
@@ -30,6 +43,7 @@ public class AchCycleAppService : IAchCycleAppService
         var query = _context.AchCycles
             .AsNoTracking()
             .Include(cycle => cycle.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .AsQueryable();
 
         if (clearingHouseId.HasValue)
@@ -72,6 +86,7 @@ public class AchCycleAppService : IAchCycleAppService
         var entity = await _context.AchCycles
             .AsNoTracking()
             .Include(cycle => cycle.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .FirstOrDefaultAsync(cycle => cycle.Id == id, ct);
 
         var dto = _mapper.Map<AchCycleDto?>(entity);
@@ -81,10 +96,11 @@ public class AchCycleAppService : IAchCycleAppService
     public async Task<AchCycleDto> CreateAsync(AchCycleRequest request, CancellationToken ct = default)
     {
         await ValidateClearingHouseAsync(request.ClearingHouseId, ct);
+        var configuration = await ResolveCycleConfigurationAsync(request, null, ct);
 
         var entity = _mapper.Map<AchCycle>(request);
-        entity.Id = AchCycleIdHelper.GenerateId(request.ClearingHouseId, request.CycleName, request.ProcessingDate.Date);
-        entity.ProcessingDate = entity.ProcessingDate.Date;
+        ApplyCanonicalConfiguration(entity, configuration, request.ProcessingDate);
+        entity.Id = AchCycleIdHelper.GenerateId(request.ClearingHouseId, configuration.CycleName, request.ProcessingDate.Date);
 
         _context.AchCycles.Add(entity);
         await _context.SaveChangesAsync(ct);
@@ -99,13 +115,63 @@ public class AchCycleAppService : IAchCycleAppService
             ?? throw new KeyNotFoundException("Ciclo ACH no encontrado");
 
         await ValidateClearingHouseAsync(request.ClearingHouseId, ct);
+        var configuration = await ResolveCycleConfigurationAsync(request, entity.ClearingHouseCycleConfigId, ct);
+        var configurationChanged = entity.ClearingHouseCycleConfigId != configuration.Id;
+        if (configurationChanged && await _context.AchTransactions.AnyAsync(x => x.AchCycleId == entity.Id, ct))
+        {
+            throw new InvalidOperationException(
+                "No es posible cambiar la configuración canónica de un ciclo que ya tiene transacciones.");
+        }
 
         _mapper.Map(request, entity);
-        entity.ProcessingDate = entity.ProcessingDate.Date;
+        ApplyCanonicalConfiguration(entity, configuration, request.ProcessingDate);
 
         await _context.SaveChangesAsync(ct);
 
         return (await GetByIdAsync(entity.Id, ct))!;
+    }
+
+    public async Task<AchCycleConfigurationLinkRepairResult> RepairConfigurationLinksAsync(CancellationToken ct = default)
+    {
+        var cycles = await _context.AchCycles
+            .Where(x => x.ClearingHouseCycleConfigId == null)
+            .OrderBy(x => x.Id)
+            .ToListAsync(ct);
+
+        if (cycles.Count == 0)
+        {
+            return new AchCycleConfigurationLinkRepairResult(true, 0, 0, 0, 0, []);
+        }
+
+        var houseIds = cycles.Select(x => x.ClearingHouseId).Distinct().ToArray();
+        var configurations = await _context.ClearingHouseCycleConfigs
+            .AsNoTracking()
+            .Where(x => houseIds.Contains(x.ClearingHouseId))
+            .ToListAsync(ct);
+
+        var decisions = cycles
+            .Select(cycle => ResolveHistoricalConfiguration(cycle, configurations))
+            .ToList();
+        var ambiguous = decisions.Where(x => x.Status == HistoricalLinkStatus.Ambiguous).ToList();
+        var unmatched = decisions.Where(x => x.Status == HistoricalLinkStatus.Unmatched).ToList();
+
+        if (ambiguous.Count > 0)
+        {
+            return BuildRepairResult(false, cycles.Count, [], ambiguous, unmatched);
+        }
+
+        var repairable = decisions.Where(x => x.Status == HistoricalLinkStatus.Unique).ToList();
+        foreach (var decision in repairable)
+        {
+            decision.Cycle.ClearingHouseCycleConfigId = decision.ConfigurationId;
+        }
+
+        if (repairable.Count > 0)
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+
+        return BuildRepairResult(true, cycles.Count, repairable, [], unmatched);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
@@ -125,7 +191,9 @@ public class AchCycleAppService : IAchCycleAppService
     {
         var query = _context.AchCycles
             .AsNoTracking()
-            .Where(cycle => cycle.Transactions.Any())
+            .Where(cycle => _context.AchTransactions.Any(transaction =>
+                transaction.AchCycleId == cycle.Id
+                && NachaExportEligibility.ExportableStates.Contains(transaction.State)))
             .AsQueryable();
 
         if (clearingHouseId.HasValue)
@@ -136,13 +204,15 @@ public class AchCycleAppService : IAchCycleAppService
         if (startDate.HasValue)
         {
             var start = startDate.Value.Date;
-            query = query.Where(cycle => cycle.Transactions.Any(t => t.EffectiveEntryDate >= start));
+            query = query.Where(cycle => _context.AchTransactions.Any(transaction =>
+                transaction.AchCycleId == cycle.Id && transaction.EffectiveEntryDate >= start));
         }
 
         if (endDate.HasValue)
         {
             var end = endDate.Value.Date;
-            query = query.Where(cycle => cycle.Transactions.Any(t => t.EffectiveEntryDate <= end));
+            query = query.Where(cycle => _context.AchTransactions.Any(transaction =>
+                transaction.AchCycleId == cycle.Id && transaction.EffectiveEntryDate <= end));
         }
 
         return await query
@@ -152,13 +222,42 @@ public class AchCycleAppService : IAchCycleAppService
                 CycleId = cycle.Id,
                 ExportIdentifier = cycle.Id,
                 CycleName = cycle.CycleName,
-                ProcessingDate = cycle.Transactions.Min(t => t.EffectiveEntryDate),
+                ProcessingDate = cycle.ProcessingDate,
+                ClearingHouseId = cycle.ClearingHouseId,
                 ClearingHouseName = cycle.ClearingHouse != null ? cycle.ClearingHouse.Name : null,
-                TransactionCount = cycle.Transactions.Count,
-                IsExportable = cycle.Batches.Any(),
-                ExportUnavailableReason = cycle.Batches.Any()
+                BatchCount = _context.AchBatches.Count(batch => batch.AchCycleId == cycle.Id),
+                TransactionCount = _context.AchTransactions.Count(transaction =>
+                    transaction.AchCycleId == cycle.Id
+                    && NachaExportEligibility.ExportableStates.Contains(transaction.State)),
+                IsExportable = _context.AchBatches.Any(batch => batch.AchCycleId == cycle.Id)
+                    && _context.AchTransactions.Any(transaction =>
+                        transaction.AchCycleId == cycle.Id
+                        && NachaExportEligibility.ExportableStates.Contains(transaction.State)),
+                ExportUnavailableReason = _context.AchBatches.Any(batch => batch.AchCycleId == cycle.Id)
+                    && _context.AchTransactions.Any(transaction =>
+                        transaction.AchCycleId == cycle.Id
+                        && NachaExportEligibility.ExportableStates.Contains(transaction.State))
                     ? null
-                    : "El ciclo tiene transacciones, pero no tiene lotes NACHA-M exportables asociados."
+                    : "El ciclo no tiene lotes y transacciones NACHA-M en estado exportable.",
+                HasGeneratedFile = _context.AchFileExports.Any(export =>
+                    export.AchCycleId == cycle.Id && !export.IsEncrypted),
+                HasDigitalEnvelope = _context.AchFileExports.Any(export =>
+                    export.AchCycleId == cycle.Id && export.IsEncrypted),
+                FileName = _context.AchFileExports
+                    .Where(export => export.AchCycleId == cycle.Id && !export.IsEncrypted)
+                    .OrderByDescending(export => export.GeneratedAtUtc)
+                    .Select(export => export.FileName)
+                    .FirstOrDefault(),
+                GeneratedAtUtc = _context.AchFileExports
+                    .Where(export => export.AchCycleId == cycle.Id && !export.IsEncrypted)
+                    .OrderByDescending(export => export.GeneratedAtUtc)
+                    .Select(export => (DateTime?)export.GeneratedAtUtc)
+                    .FirstOrDefault(),
+                ProtectedAtUtc = _context.AchFileExports
+                    .Where(export => export.AchCycleId == cycle.Id && export.IsEncrypted)
+                    .OrderByDescending(export => export.GeneratedAtUtc)
+                    .Select(export => (DateTime?)export.GeneratedAtUtc)
+                    .FirstOrDefault()
             })
             .OrderByDescending(cycle => cycle.ProcessingDate)
             .ThenBy(cycle => cycle.Id)
@@ -174,26 +273,20 @@ public class AchCycleAppService : IAchCycleAppService
         }
     }
 
-    private static AchCycleDto ApplyOperationalMetadata(AchCycleDto dto, AchCycle cycle)
+    private AchCycleDto ApplyOperationalMetadata(AchCycleDto dto, AchCycle cycle)
     {
-        var now = DateTime.UtcNow;
-        var window = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
+        var window = _windowResolver.Resolve(
+            cycle.ProcessingDate,
+            cycle.StartTime,
+            cycle.EndTime,
+            ClearingHouseOperationalTimeZone.Resolve(cycle),
+            _timeProvider.GetUtcNow());
 
-        dto.WindowLabel = $"{window.Start:yyyy-MM-dd HH:mm} - {window.End:yyyy-MM-dd HH:mm}";
-        dto.AcceptsTransactions = now >= window.Start && now <= window.End;
-        dto.OperationalStatus = now < window.Start ? "Scheduled" : dto.AcceptsTransactions ? "Open" : "Closed";
+        dto.WindowLabel = $"{window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}";
+        dto.AcceptsTransactions = window.IsInside;
+        dto.OperationalStatus = window.Status == OperationalCycleWindowStatus.Before ? "Scheduled" : dto.AcceptsTransactions ? "Open" : "Closed";
         dto.IsContingencyCycle = IsContingencyCycle(cycle.CycleName);
         return dto;
-    }
-
-    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
-    {
-        if (startTime <= endTime)
-        {
-            return (processingDate.Date + startTime, processingDate.Date + endTime);
-        }
-
-        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
     }
 
     private static bool IsContingencyCycle(string cycleName)
@@ -203,4 +296,150 @@ public class AchCycleAppService : IAchCycleAppService
                || normalized.Contains("REPROC", StringComparison.Ordinal)
                || normalized.Contains("CONTING", StringComparison.Ordinal);
     }
+
+    private async Task<ClearingHouseCycleConfig> ResolveCycleConfigurationAsync(
+        AchCycleRequest request,
+        int? existingConfigurationId,
+        CancellationToken ct)
+    {
+        if (request.ProcessingDate == default)
+        {
+            throw new InvalidOperationException("La fecha operativa del ciclo es requerida.");
+        }
+
+        var processingDate = request.ProcessingDate.Date;
+        var requestedId = request.ClearingHouseCycleConfigId ?? existingConfigurationId;
+        var effectiveConfigurations = (await _cyclePolicyResolver.ResolveAsync(
+            request.ClearingHouseId,
+            processingDate,
+            ct)).Cycles;
+
+        if (requestedId.HasValue)
+        {
+            var selected = effectiveConfigurations.SingleOrDefault(x => x.Id == requestedId.Value)
+                ?? throw new InvalidOperationException(
+                    "La configuración seleccionada no existe, está inactiva, no está vigente o pertenece a otra cámara.");
+            EnsureConfigurationIsNotAmbiguous(selected, effectiveConfigurations);
+            return selected;
+        }
+
+        var windowMatches = effectiveConfigurations
+            .Where(x => WindowMatches(x, request.StartTime, request.EndTime, request.CutoffTime))
+            .ToList();
+        var resolved = ResolveUniqueCandidate(windowMatches, request.CycleName);
+        return resolved ?? throw new InvalidOperationException(windowMatches.Count == 0
+            ? "No existe una configuración activa y vigente que corresponda al ciclo solicitado. Seleccione una configuración de ciclo."
+            : "La configuración del ciclo es ambigua. Seleccione explícitamente una configuración canónica.");
+    }
+
+    private static void EnsureConfigurationIsNotAmbiguous(
+        ClearingHouseCycleConfig selected,
+        IReadOnlyCollection<ClearingHouseCycleConfig> effectiveConfigurations)
+    {
+        var normalizedName = NormalizeCycleName(selected.CycleName);
+        if (effectiveConfigurations.Count(x => NormalizeCycleName(x.CycleName) == normalizedName) > 1)
+        {
+            throw new InvalidOperationException(
+                "Existen configuraciones activas superpuestas para el ciclo seleccionado. Corrija la ambigüedad antes de crear la instancia operativa.");
+        }
+    }
+
+    private static ClearingHouseCycleConfig? ResolveUniqueCandidate(
+        IReadOnlyCollection<ClearingHouseCycleConfig> windowMatches,
+        string? cycleName)
+    {
+        if (windowMatches.Count == 1)
+        {
+            return windowMatches.Single();
+        }
+
+        if (windowMatches.Count == 0)
+        {
+            return null;
+        }
+
+        var normalizedName = NormalizeCycleName(cycleName);
+        var nameMatches = windowMatches
+            .Where(x => NormalizeCycleName(x.CycleName) == normalizedName)
+            .ToList();
+        return nameMatches.Count == 1 ? nameMatches[0] : null;
+    }
+
+    private static HistoricalLinkDecision ResolveHistoricalConfiguration(
+        AchCycle cycle,
+        IReadOnlyCollection<ClearingHouseCycleConfig> configurations)
+    {
+        var date = cycle.ProcessingDate.Date;
+        var windowMatches = configurations
+            .Where(config => config.ClearingHouseId == cycle.ClearingHouseId
+                && config.EffectiveFrom.Date <= date
+                && (!config.EffectiveTo.HasValue || config.EffectiveTo.Value.Date >= date)
+                && WindowMatches(config, cycle.StartTime, cycle.EndTime, cycle.CutoffTime))
+            .ToList();
+        var resolved = ResolveUniqueCandidate(windowMatches, cycle.CycleName);
+        if (resolved is not null)
+        {
+            return new HistoricalLinkDecision(cycle, resolved.Id, HistoricalLinkStatus.Unique,
+                "Coincidencia única por cámara, vigencia y ventana operativa.");
+        }
+
+        return windowMatches.Count == 0
+            ? new HistoricalLinkDecision(cycle, null, HistoricalLinkStatus.Unmatched,
+                "No existe una configuración históricamente aplicable con la misma ventana operativa.")
+            : new HistoricalLinkDecision(cycle, null, HistoricalLinkStatus.Ambiguous,
+                "Existe más de una configuración históricamente aplicable para la misma ventana operativa.");
+    }
+
+    private static AchCycleConfigurationLinkRepairResult BuildRepairResult(
+        bool completed,
+        int inspected,
+        IReadOnlyCollection<HistoricalLinkDecision> repaired,
+        IReadOnlyCollection<HistoricalLinkDecision> ambiguous,
+        IReadOnlyCollection<HistoricalLinkDecision> unmatched)
+    {
+        var items = repaired.Concat(ambiguous).Concat(unmatched)
+            .OrderBy(x => x.Cycle.Id)
+            .Select(x => new AchCycleConfigurationLinkRepairItem(
+                x.Cycle.Id,
+                x.ConfigurationId,
+                x.Status.ToString(),
+                x.Detail))
+            .ToList();
+        return new AchCycleConfigurationLinkRepairResult(
+            completed, inspected, repaired.Count, ambiguous.Count, unmatched.Count, items);
+    }
+
+    private static void ApplyCanonicalConfiguration(
+        AchCycle cycle,
+        ClearingHouseCycleConfig configuration,
+        DateTime processingDate)
+    {
+        cycle.ProcessingDate = processingDate.Date;
+        cycle.ClearingHouseCycleConfigId = configuration.Id;
+        cycle.CycleName = configuration.CycleName.Trim();
+        cycle.StartTime = configuration.StartTime;
+        cycle.EndTime = configuration.EndTime;
+        cycle.CutoffTime = configuration.CutoffTime;
+        cycle.OutputReleaseTime = configuration.OutputReleaseTime;
+    }
+
+    private static bool WindowMatches(
+        ClearingHouseCycleConfig configuration,
+        TimeSpan startTime,
+        TimeSpan endTime,
+        TimeSpan cutoffTime)
+        => configuration.StartTime == startTime
+            && configuration.EndTime == endTime
+            && configuration.CutoffTime == cutoffTime;
+
+    private static string NormalizeCycleName(string? value)
+        => (value ?? string.Empty).Trim().ToUpperInvariant();
+
+    private enum HistoricalLinkStatus { Unique, Ambiguous, Unmatched }
+
+    private sealed record HistoricalLinkDecision(
+        AchCycle Cycle,
+        int? ConfigurationId,
+        HistoricalLinkStatus Status,
+        string Detail);
 }

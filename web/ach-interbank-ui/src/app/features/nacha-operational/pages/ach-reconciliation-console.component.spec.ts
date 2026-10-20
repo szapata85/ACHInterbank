@@ -9,7 +9,7 @@ describe('AchReconciliationConsoleComponent', () => {
   let service: jasmine.SpyObj<AchReconciliationService>;
 
   beforeEach(async () => {
-    service = jasmine.createSpyObj<AchReconciliationService>('AchReconciliationService', ['getConsoleData', 'getItem']);
+    service = jasmine.createSpyObj<AchReconciliationService>('AchReconciliationService', ['getConsoleData', 'getItem', 'resolveException']);
     service.getConsoleData.and.returnValue(of(data()));
     service.getItem.and.returnValue(of(detail()));
 
@@ -33,8 +33,8 @@ describe('AchReconciliationConsoleComponent', () => {
     expect(text()).toContain('Productivo NO-GO');
   });
 
-  it('ReconciliationComponent_ShouldRenderReadOnlyBanner', () => {
-    expect(text()).toContain('Solo lectura sanitizada');
+  it('ReconciliationComponent_ShouldRenderOperationalResolution', () => {
+    expect(text()).toContain('Excepciones operacionales');
   });
 
   it('ReconciliationComponent_ShouldRenderNoMonetaryMovementBanner', () => {
@@ -76,6 +76,12 @@ describe('AchReconciliationConsoleComponent', () => {
     expect(text()).toContain('Advertencias parciales');
   });
 
+  it('ReconciliationComponent_ShouldRequireResolutionReason', () => {
+    fixture.componentInstance.selectException(data().exceptions[0]);
+    fixture.componentInstance.resolveSelectedException();
+    expect(fixture.componentInstance.error).toContain('justificación');
+  });
+
   it('ReconciliationService_ShouldHandleErrorState', () => {
     service.getConsoleData.and.returnValue(throwError(() => new Error('fallo controlado')));
     const errorFixture = TestBed.createComponent(AchReconciliationConsoleComponent);
@@ -111,7 +117,12 @@ function data() {
       isPartialData: true,
       warnings: ['Datos parciales solo lectura.']
     },
-    items: [item()]
+    items: [item()],
+    exceptions: [{
+      id: 'case-1', clearingHouseId: 1, achResponseId: 'response-1',
+      exceptionType: 'ResponseWithoutTransaction', status: 'Open', reference: 'synthetic-ref',
+      details: 'Sin correlación', detectedAtUtc: '2026-05-31T12:00:00Z', version: 'version-1'
+    }]
   };
 }
 

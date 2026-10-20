@@ -48,7 +48,7 @@ export class NavigationLogService {
         };
 
         this.api
-          .post('api/navigation-logs', payload)
+          .post('api/navigation-logs', payload, { headers: { 'X-Skip-Loading': 'true' } })
           .pipe(catchError(() => of(null)))
           .subscribe();
 

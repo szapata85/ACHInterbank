@@ -1,4 +1,5 @@
 name: angular-ci
+run-name: "Angular CI · ${{ github.event_name }} · ${{ github.ref_name }}"
 
 on:
   push:
@@ -6,17 +7,17 @@ on:
     paths:
       - ".github/workflows/angular-ci.yml"
       - "web/ach-interbank-ui/**"
+      - "docker-compose.postgres.yml"
   pull_request:
     paths:
       - ".github/workflows/angular-ci.yml"
       - "web/ach-interbank-ui/**"
+      - "docker-compose.postgres.yml"
   workflow_dispatch:
-    inputs:
-      run_e2e:
-        description: "Run runtime-backed Playwright E2E"
-        required: false
-        default: false
-        type: boolean
+
+concurrency:
+  group: angular-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -34,25 +35,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Publish execution context
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          {
+            echo '## Contexto de ejecución'
+            echo "- Evento: ${EVENT_NAME}"
+            echo "- Rama: ${REF_NAME}"
+            echo "- Commit: ${HEAD_SHA}"
+            if [[ "${EVENT_NAME}" == 'push' ]]; then echo "- Commit anterior: ${PUSH_BEFORE}"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.x"
+          node-version: "24.21.0"
           cache: npm
           cache-dependency-path: web/ach-interbank-ui/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=low
+
+      - name: Reject any known development vulnerability
+        run: npm audit --audit-level=low
+
       - name: Build
         run: npm run build
+
+      - name: Install Chromium for Karma
+        run: npx playwright install --with-deps chromium
 
       - name: Test
         run: npm test -- --watch=false --browsers=ChromeHeadless
 
   runtime-backed-e2e:
     needs: build-and-test
-    if: ${{ vars.RUN_E2E == 'true' || inputs.run_e2e == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -67,9 +92,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.x"
+          node-version: "24.21.0"
           cache: npm
           cache-dependency-path: web/ach-interbank-ui/package-lock.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.402"
 
       - name: Install dependencies
         run: npm ci
@@ -77,13 +107,38 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Prepare isolated runtime credentials
+        shell: bash
+        run: |
+          db_password="Db_$(openssl rand -hex 24)"
+          admin_password="Aa1!$(openssl rand -hex 20)"
+          echo "::add-mask::$db_password"
+          echo "::add-mask::$admin_password"
+          {
+            echo "POSTGRES_DB=ACHInterbank"
+            echo "POSTGRES_USER=example_user"
+            echo "POSTGRES_PASSWORD=$db_password"
+            echo "DATABASE_APPLY_MIGRATIONS=true"
+            echo "RATE_LIMITING_PERMIT_LIMIT=30"
+            echo "RATE_LIMITING_WINDOW_SECONDS=1"
+            echo "RATE_LIMITING_QUEUE_LIMIT=10"
+            echo "ACH_USER=admin"
+            echo "ACH_PASS=$admin_password"
+            echo "E2E_DB_HOST=127.0.0.1"
+            echo "E2E_DB_PORT=5432"
+            echo "E2E_DB_NAME=ACHInterbank"
+            echo "E2E_DB_USER=example_user"
+            echo "E2E_DB_PASSWORD=$db_password"
+            echo "COMPOSE_PROJECT_NAME=achinterbank_ci_postgres"
+          } >> "$GITHUB_ENV"
+
+      - name: Validate PostgreSQL runtime Compose
+        run: |
+          docker compose -f ../../docker-compose.postgres.yml config --quiet
+          docker compose -f ../../docker-compose.postgres.yml config --services
+
       - name: Start runtime stack
-        env:
-          POSTGRES_DB: ACHInterbank
-          POSTGRES_USER: example_user
-          POSTGRES_PASSWORD: example_password_change_me
-          DATABASE_APPLY_MIGRATIONS: "true"
-        run: docker compose -f ../../docker-compose.yml up -d --build postgres achinterbank-api achinterbank-spa
+        run: docker compose -f ../../docker-compose.postgres.yml up -d --build
 
       - name: Wait for API readiness
         run: |
@@ -96,6 +151,16 @@ jobs:
           done
           echo "API readiness timed out"
           exit 1
+
+      - name: Bootstrap isolated administrator
+        shell: bash
+        run: |
+          admin_hash="$(printf '%s' "$ACH_PASS" | sha256sum | cut -d' ' -f1)"
+          docker compose -f ../../docker-compose.postgres.yml exec -T \
+            -e PGPASSWORD="$POSTGRES_PASSWORD" \
+            postgres \
+            psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+            -c "UPDATE \"Users\" SET \"PasswordHash\" = '$admin_hash', \"FailedLoginAttempts\" = 0, \"LockoutEnd\" = NULL, \"UpdatedAt\" = NOW() WHERE \"Username\" = 'admin';"
 
       - name: Wait for SPA readiness
         run: |
@@ -113,34 +178,29 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:743
           E2E_API_BASE_URL: http://localhost:843
-        run: npm run test:e2e:cycle-configs
+          ACH_E2E_PROVIDER: PostgreSQL
+        run: npm run test:e2e:job6
 
-      - name: Dump container logs on failure
-        if: failure()
-        run: docker compose -f ../../docker-compose.yml logs --no-color postgres achinterbank-api achinterbank-spa
+      - name: Collect container logs
+        if: always()
+        run: |
+          mkdir -p ../../artifacts/job6-runtime
+          docker compose -f ../../docker-compose.postgres.yml ps -a > ../../artifacts/job6-runtime/docker-compose-ps.log 2>&1 || true
+          docker compose -f ../../docker-compose.postgres.yml logs --no-color > ../../artifacts/job6-runtime/docker-compose.log 2>&1 || true
 
-      - name: Upload Playwright report
+      - name: Upload Playwright diagnostics
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: playwright-report
-          path: web/ach-interbank-ui/playwright-report
-          if-no-files-found: warn
-
-      - name: Upload Playwright test results
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: playwright-test-results
-          path: web/ach-interbank-ui/test-results
-          if-no-files-found: warn
-
-      - name: Upload UAT Playwright evidence
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: uat-evidence-playwright
+          name: job6-playwright-runtime
           path: |
             web/ach-interbank-ui/playwright-report
             web/ach-interbank-ui/test-results
+            artifacts/job6-runtime/docker-compose.log
+            artifacts/job6-runtime/docker-compose-ps.log
           if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop runtime stack
+        if: always()
+        run: docker compose -f ../../docker-compose.postgres.yml down --volumes --remove-orphans || true

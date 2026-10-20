@@ -1,0 +1,208 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { of, Subject, throwError } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { AuthService } from '../../core/services/auth.service';
+import { ClearingHousesComponent } from './clearing-houses.component';
+import { ClearingHousesService } from '../../core/services/clearing-houses.service';
+import { OperationalConfirmDialogComponent } from '../../shared/components/operational-confirm-dialog.component';
+
+describe('ClearingHousesComponent', () => {
+  let fixture: ComponentFixture<ClearingHousesComponent>;
+  let api: jasmine.SpyObj<ClearingHousesService>;
+  let dialog: MatDialog;
+  let openDialog: jasmine.Spy;
+  const row = { id: 3, code: 'NUEVARED', name: 'Nueva Red', originCode: '900', isActive: false,
+    timeZoneId: 'America/Bogota', holidayStrategy: 'Colombian', requiresNachaProfile: false,
+    paymentRailCode: null,
+    activeCycleCount: 0, isReady: false, missingRequirements: ['Al menos un ciclo activo y vigente'], createdAt: new Date().toISOString() };
+
+  beforeEach(async () => {
+    api = jasmine.createSpyObj('ClearingHousesService', ['list', 'get', 'create', 'update', 'changeStatus', 'profiles', 'paymentRailOptions']);
+    api.list.and.returnValue(of({ items: [row], page: 1, pageSize: 20, totalCount: 1, totalPages: 1 }));
+    api.profiles.and.returnValue(of([]));
+    api.paymentRailOptions.and.returnValue(of([
+      { code: 'ACH_COLOMBIA', name: 'ACH Colombia' },
+      { code: 'CENIT', name: 'CENIT' },
+      { code: 'UNKNOWN', name: 'Desconocida' }
+    ]));
+    await TestBed.configureTestingModule({
+      imports: [ClearingHousesComponent],
+      providers: [provideRouter([]), provideNoopAnimations(), { provide: ClearingHousesService, useValue: api },
+        { provide: AuthService, useValue: { hasPermission: () => true } }]
+    }).compileComponents();
+    fixture = TestBed.createComponent(ClearingHousesComponent);
+    dialog = (fixture.componentInstance as any).dialog as MatDialog;
+    openDialog = spyOn(dialog, 'open').and.returnValue({ afterClosed: () => of(true) } as any);
+    fixture.detectChanges();
+  });
+
+  it('renderiza lista, estado y configuración incompleta en español', () => {
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Cámaras compensadoras'); expect(text).toContain('NUEVARED'); expect(text).toContain('Inactiva');
+    fixture.componentInstance.view(row); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Configuración incompleta');
+    expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
+  });
+
+  it('busca y filtra activas desde el DOM', () => {
+    fixture.componentInstance.filterForm.setValue({ search: 'nueva', state: 'active' });
+    fixture.componentInstance.applyFilters();
+    expect(api.list).toHaveBeenCalledWith('nueva', true, 1);
+  });
+
+  it('normaliza y crea una cámara evitando doble envío', () => {
+    const pending = new Subject<typeof row>(); api.create.and.returnValue(pending); fixture.componentInstance.create();
+    fixture.componentInstance.form.setValue({ code: ' nuevared ', name: 'Nueva Red', originCode: '900', timeZoneId: 'America/Bogota', holidayStrategy: 'Colombian', paymentRailCode: null, requiresNachaProfile: false, nachaProfileId: null });
+    fixture.componentInstance.save(); fixture.componentInstance.save();
+    expect(api.create).toHaveBeenCalledTimes(1); expect(api.create.calls.mostRecent().args[0].code).toBe('NUEVARED');
+  });
+
+  it('muestra conflicto funcional sin object Object', () => {
+    api.create.and.returnValue(throwError(() => ({ error: { detail: 'Ya existe una cámara con ese código.' } })));
+    fixture.componentInstance.create(); fixture.componentInstance.form.setValue({ code: 'NUEVARED', name: 'Nueva Red', originCode: '900', timeZoneId: 'America/Bogota', holidayStrategy: 'Colombian', paymentRailCode: null, requiresNachaProfile: false, nachaProfileId: null });
+    fixture.componentInstance.save(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Ya existe una cámara'); expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
+  });
+
+  it('reactiva y conserva las acciones de ciclos', () => {
+    api.changeStatus.and.returnValue(of({ ...row, isActive: true, isReady: true, activeCycleCount: 1, missingRequirements: [] }));
+    fixture.componentInstance.changeStatus(row); fixture.detectChanges();
+    expect(api.changeStatus).toHaveBeenCalledWith(3, true);
+    expect(fixture.componentInstance.canCycles).toBeTrue();
+  });
+
+  it('carga estrategias registradas, excluye Unknown y muestra Sin configurar', () => {
+    fixture.componentInstance.view(row); fixture.detectChanges();
+    expect(api.paymentRailOptions).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.paymentRailOptions.map(x => x.code)).toEqual(['ACH_COLOMBIA', 'CENIT']);
+    expect(fixture.nativeElement.textContent).toContain('Sin configurar');
+    expect(fixture.nativeElement.textContent).not.toContain('UNKNOWN');
+  });
+
+  it('conserva la estrategia al editar y la envía como selección controlada', () => {
+    const configured = { ...row, paymentRailCode: 'CENIT' };
+    api.update.and.returnValue(of(configured));
+    fixture.componentInstance.edit(configured);
+    expect(fixture.componentInstance.form.controls.paymentRailCode.value).toBe('CENIT');
+    fixture.componentInstance.save();
+    expect(api.update.calls.mostRecent().args[1].paymentRailCode).toBe('CENIT');
+  });
+
+  it('bloquea la estrategia de una cámara activa, mantiene el valor visible y explica la regla', () => {
+    const active = { ...row, isActive: true, paymentRailCode: 'ACH_COLOMBIA' };
+    fixture.componentInstance.edit(active); fixture.detectChanges();
+
+    expect(fixture.componentInstance.form.controls.paymentRailCode.disabled).toBeTrue();
+    expect(fixture.componentInstance.form.controls.paymentRailCode.value).toBe('ACH_COLOMBIA');
+    expect(fixture.nativeElement.textContent).toContain('Para cambiarla, primero desactive la cámara.');
+  });
+
+  it('recalcula el selector al crear o alternar entre cámaras activas e inactivas', () => {
+    fixture.componentInstance.edit({ ...row, isActive: true, paymentRailCode: 'ACH_COLOMBIA' });
+    expect(fixture.componentInstance.form.controls.paymentRailCode.disabled).toBeTrue();
+
+    fixture.componentInstance.edit({ ...row, isActive: false, paymentRailCode: 'CENIT' });
+    expect(fixture.componentInstance.form.controls.paymentRailCode.enabled).toBeTrue();
+    fixture.componentInstance.create();
+    expect(fixture.componentInstance.form.controls.paymentRailCode.enabled).toBeTrue();
+  });
+
+  it('conserva la estrategia bloqueada al guardar y muestra el conflicto 409 en español', () => {
+    const active = { ...row, isActive: true, paymentRailCode: 'ACH_COLOMBIA' };
+    api.update.and.returnValue(throwError(() => ({ error: { detail: 'No es posible cambiar la estrategia operativa mientras la cámara está activa.' } })));
+    fixture.componentInstance.edit(active);
+    fixture.componentInstance.form.controls.name.setValue('Nueva Red actualizada');
+    fixture.componentInstance.save(); fixture.detectChanges();
+
+    expect(api.update.calls.mostRecent().args[1].paymentRailCode).toBe('ACH_COLOMBIA');
+    expect(fixture.nativeElement.textContent).toContain('No es posible cambiar la estrategia operativa mientras la cámara está activa.');
+    expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
+  });
+
+  it('muestra el requisito funcional devuelto al intentar activar sin estrategia', () => {
+    api.changeStatus.and.returnValue(throwError(() => ({ error: { missingRequirements: ['Estrategia operativa registrada'] } })));
+    fixture.componentInstance.changeStatus(row); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Estrategia operativa registrada');
+    expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
+  });
+
+  it('mantiene el acceso a restricciones operacionales desde el centro administrativo de cámaras', () => {
+    const link = fixture.nativeElement.querySelector('a[href="/operational-restrictions"]') as HTMLAnchorElement | null;
+    expect(link).toBeTruthy();
+    expect(link?.textContent).toContain('Restricciones operativas');
+  });
+
+  it('usa foundation 4C.1, Material y filtros tipados sin ui-boton', () => {
+    expect(fixture.nativeElement.querySelector('app-page-header')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('mat-card')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('table[mat-table]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('ui-etiqueta-estado')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('ui-boton')).toBeFalsy();
+    expect(fixture.nativeElement.querySelectorAll('h1').length).toBe(0);
+    fixture.componentInstance.filterForm.setValue({ search: 'CENIT', state: 'inactive' });
+    fixture.componentInstance.clearFilters();
+    expect(fixture.componentInstance.filterForm.getRawValue()).toEqual({ search: '', state: 'all' });
+  });
+
+  it('usa los estados shared para loading, error y vacío', () => {
+    fixture.componentInstance.loading = true;
+    (fixture.componentInstance as any).cdr.markForCheck();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('ui-estado-carga')).toBeTruthy();
+
+    fixture.componentInstance.loading = false;
+    fixture.componentInstance.error = 'Fallo controlado';
+    (fixture.componentInstance as any).cdr.markForCheck();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('ui-estado-error')).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain('Fallo controlado');
+
+    fixture.componentInstance.error = '';
+    fixture.componentInstance.rows = [];
+    (fixture.componentInstance as any).cdr.markForCheck();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('ui-estado-vacio')).toBeTruthy();
+  });
+
+  it('preserva expectedUpdatedAt al editar para control de concurrencia', () => {
+    const updatedAt = '2026-10-02T12:34:56Z';
+    const configured = { ...row, updatedAt, paymentRailCode: 'CENIT' };
+    api.update.and.returnValue(of(configured));
+    fixture.componentInstance.edit(configured);
+    fixture.componentInstance.form.controls.name.setValue('Nueva Red actualizada');
+    fixture.componentInstance.save();
+
+    expect(api.update).toHaveBeenCalled();
+    expect(api.update.calls.mostRecent().args[1].expectedUpdatedAt).toBe(updatedAt);
+  });
+
+  it('confirma el cambio de estado con el diálogo operacional compartido', () => {
+    api.changeStatus.and.returnValue(of({ ...row, isActive: true, isReady: true, activeCycleCount: 1, missingRequirements: [] }));
+    fixture.componentInstance.changeStatus(row);
+
+    expect(openDialog).toHaveBeenCalledWith(OperationalConfirmDialogComponent, jasmine.objectContaining({
+      data: jasmine.objectContaining({
+        title: 'Activar cámara',
+        confirmLabel: 'Activar',
+        icon: 'play_circle',
+        destructive: false
+      }),
+      width: 'min(92vw, 520px)'
+    }));
+    expect(api.changeStatus).toHaveBeenCalledWith(row.id, true);
+  });
+
+  it('respeta cancelar y conserva destructive al desactivar', () => {
+    const active = { ...row, isActive: true };
+    openDialog.and.returnValue({ afterClosed: () => of(false) } as any);
+
+    fixture.componentInstance.changeStatus(active);
+
+    expect(openDialog).toHaveBeenCalledWith(OperationalConfirmDialogComponent, jasmine.objectContaining({
+      data: jasmine.objectContaining({ confirmLabel: 'Desactivar', destructive: true })
+    }));
+    expect(api.changeStatus).not.toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,281 @@
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
+import { Subject, of, throwError } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Sort } from '@angular/material/sort';
+import { OutgoingTransactionMonitoringApiService } from './outgoing-transaction-monitoring-api.service';
+import { OutgoingTransactionMonitoringListComponent } from './outgoing-transaction-monitoring-list.component';
+
+describe('OutgoingTransactionMonitoringListComponent', () => {
+  let fixture: ComponentFixture<OutgoingTransactionMonitoringListComponent>;
+  let component: OutgoingTransactionMonitoringListComponent;
+  let api: jasmine.SpyObj<OutgoingTransactionMonitoringApiService>;
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    api = jasmine.createSpyObj('OutgoingTransactionMonitoringApiService', ['search', 'getClearingHouses', 'getDestinationInstitutions', 'getCycles']);
+    api.search.and.returnValue(of({ items: [], pageNumber: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false }));
+    api.getClearingHouses.and.returnValue(of([]));
+    api.getDestinationInstitutions.and.returnValue(of([]));
+    api.getCycles.and.returnValue(of([
+      { id: 'CYCLE-1', cycleName: 'Ciclo 1', clearingHouseId: 1, clearingHouseName: 'ACH Colombia', cutoffTime: '08:30:00' },
+      { id: 'CYCLE-2', cycleName: 'Ciclo 2', clearingHouseId: 2, clearingHouseName: 'CENIT', cutoffTime: '10:00:00' }
+    ]));
+    await TestBed.configureTestingModule({
+      imports: [OutgoingTransactionMonitoringListComponent],
+      providers: [
+        provideNoopAnimations(), provideRouter([]),
+        { provide: OutgoingTransactionMonitoringApiService, useValue: api }
+      ]
+    }).compileComponents();
+    fixture = TestBed.createComponent(OutgoingTransactionMonitoringListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('carga inicialmente los últimos siete días con paginación del servidor', () => {
+    expect(api.search).toHaveBeenCalledTimes(1);
+    const query = api.search.calls.mostRecent().args[0];
+    expect(query.pageNumber).toBe(1);
+    expect(query.pageSize).toBe(25);
+    expect(query.sortBy).toBe('createdAt');
+    expect(query.fromUtc).toBeTruthy();
+    expect(query.toUtc).toBeTruthy();
+  });
+
+  it('limpia filtros y conserva el rango inicial útil', () => {
+    component.form.patchValue({ transactionExternalId: 'TX-001', processStatus: 'Processed' });
+    component.clearFilters();
+    expect(component.form.controls.transactionExternalId.value).toBeNull();
+    expect(component.form.controls.fromDate.value).toBeTruthy();
+    expect(api.search).toHaveBeenCalledTimes(2);
+  });
+
+  it('solo expone la acción Ver detalle', () => {
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).not.toContain('Reprocesar');
+    expect(text).not.toContain('Aprobar');
+    expect(text).not.toContain('Rechazar');
+  });
+
+  it('navega al detalle por una ruta recargable', () => {
+    const router = TestBed.inject(Router);
+    spyOn(router, 'navigate').and.resolveTo(true);
+    component.viewDetail({ id: 9, transactionExternalId: 'TX-9' } as never);
+    expect(router.navigate).toHaveBeenCalledWith(['/transactions/outgoing-monitoring', 9]);
+  });
+
+  it('impide consultar rangos de fechas o importes inválidos', () => {
+    const calls = api.search.calls.count();
+    component.form.patchValue({
+      fromDate: new Date('2026-08-10'),
+      toDate: new Date('2026-08-01'),
+      minimumAmount: 200,
+      maximumAmount: 100
+    });
+
+    component.search();
+
+    expect(component.form.hasError('dateOrder')).toBeTrue();
+    expect(component.form.hasError('amountOrder')).toBeTrue();
+    expect(api.search.calls.count()).toBe(calls);
+  });
+
+  it('vuelve a la primera página al aplicar filtros y conserva paginación del servidor', () => {
+    component.pageChanged({ pageIndex: 2, pageSize: 50, length: 120 });
+    expect(api.search.calls.mostRecent().args[0].pageNumber).toBe(3);
+    expect(api.search.calls.mostRecent().args[0].pageSize).toBe(50);
+
+    component.form.patchValue({ transactionExternalId: '  TX-001  ' });
+    component.search();
+
+    const query = api.search.calls.mostRecent().args[0];
+    expect(query.pageNumber).toBe(1);
+    expect(query.transactionExternalId).toBe('TX-001');
+  });
+
+  it('normaliza y envia el codigo de respuesta al servidor', () => {
+    component.form.patchValue({ responseCode: '  r01  ' });
+
+    component.search();
+
+    expect(api.search.calls.mostRecent().args[0].responseCode).toBe('R01');
+  });
+
+  it('carga el catálogo real y envía el identificador estable del ciclo seleccionado', () => {
+    expect(api.getCycles).toHaveBeenCalledWith(undefined);
+    expect(fixture.nativeElement.querySelector('mat-select[formcontrolname="cycleId"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="cycleId"]')).toBeNull();
+
+    component.form.patchValue({ cycleId: 'CYCLE-1' });
+    component.search();
+
+    expect(api.search.calls.mostRecent().args[0].cycleId).toBe('CYCLE-1');
+  });
+
+  it('recarga ciclos por cámara y limpia una selección incompatible', () => {
+    component.form.patchValue({ cycleId: 'CYCLE-1' });
+    api.getCycles.and.returnValue(of([
+      { id: 'CYCLE-2', cycleName: 'Ciclo 2', clearingHouseId: 2, clearingHouseName: 'CENIT', cutoffTime: '10:00:00' }
+    ]));
+
+    component.form.controls.clearingHouseId.setValue(2);
+
+    expect(api.getCycles).toHaveBeenCalledWith(2);
+    expect(component.form.controls.cycleId.value).toBeNull();
+    expect(component.cycles().map(cycle => cycle.id)).toEqual(['CYCLE-2']);
+  });
+
+  it('presenta error recuperable y permite reintentar el catálogo de ciclos', () => {
+    api.getCycles.and.returnValue(throwError(() => new Error('catálogo no disponible')));
+
+    component.retryCycleCatalog();
+    fixture.detectChanges();
+
+    expect(component.cyclesError()).toBeTrue();
+    expect(fixture.nativeElement.textContent).toContain('No fue posible consultar los ciclos.');
+
+    api.getCycles.and.returnValue(of([]));
+    component.retryCycleCatalog();
+    fixture.detectChanges();
+
+    expect(component.cyclesError()).toBeFalse();
+    expect(fixture.nativeElement.textContent).toContain('No hay ciclos disponibles.');
+  });
+
+  it('restaura los filtros al regresar del detalle', async () => {
+    sessionStorage.setItem('outgoing-monitoring-filters', JSON.stringify({
+      transactionExternalId: 'TX-GUARDADA',
+      fromDate: '2026-08-01T00:00:00.000Z',
+      toDate: '2026-08-02T00:00:00.000Z'
+    }));
+    fixture.destroy();
+    fixture = TestBed.createComponent(OutgoingTransactionMonitoringListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.form.controls.transactionExternalId.value).toBe('TX-GUARDADA');
+    expect(component.form.controls.fromDate.value instanceof Date).toBeTrue();
+  });
+
+  it('preserva todos los filtros, trims y valores enviados al request', () => {
+    component.form.patchValue({
+      clearingHouseId: 2,
+      cycleId: 'CYCLE-2',
+      destinationInstitutionId: 77,
+      transactionExternalId: '  TX-EXT-9  ',
+      traceNumber: '  TRACE-1  ',
+      responseCode: '  r03  ',
+      transactionType: 2,
+      processStatus: 'Processed',
+      initialResult: 'Accepted',
+      subsequentSituation: 'ReturnedLater',
+      hasReturn: true,
+      requiresAttention: false,
+      minimumAmount: 100,
+      maximumAmount: 900
+    });
+
+    component.search();
+
+    const query = api.search.calls.mostRecent().args[0];
+    expect(query.clearingHouseId).toBe(2);
+    expect(query.cycleId).toBe('CYCLE-2');
+    expect(query.destinationInstitutionId).toBe(77);
+    expect(query.transactionExternalId).toBe('TX-EXT-9');
+    expect(query.traceNumber).toBe('TRACE-1');
+    expect(query.responseCode).toBe('R03');
+    expect(query.transactionType).toBe(2);
+    expect(query.processStatus).toBe('Processed');
+    expect(query.initialResult).toBe('Accepted');
+    expect(query.subsequentSituation).toBe('ReturnedLater');
+    expect(query.hasReturn).toBeTrue();
+    expect(query.requiresAttention).toBeFalse();
+    expect(query.minimumAmount).toBe(100);
+    expect(query.maximumAmount).toBe(900);
+  });
+
+  it('rechaza rangos superiores a 90 días sin consultar el API', () => {
+    const calls = api.search.calls.count();
+    component.form.patchValue({
+      fromDate: new Date('2026-01-01T12:00:00'),
+      toDate: new Date('2026-04-05T12:00:00')
+    });
+
+    component.search();
+
+    expect(component.form.hasError('dateRangeExceeded')).toBeTrue();
+    expect(api.search.calls.count()).toBe(calls);
+  });
+
+  it('preserva sorting backend y vuelve a la primera página al ordenar', () => {
+    component.pageChanged({ pageIndex: 3, pageSize: 50, length: 250 });
+
+    component.sortChanged({ active: 'amount', direction: 'asc' } as Sort);
+
+    const query = api.search.calls.mostRecent().args[0];
+    expect(query.pageNumber).toBe(1);
+    expect(query.pageSize).toBe(50);
+    expect(query.sortBy).toBe('amount');
+    expect(query.sortDirection).toBe('asc');
+  });
+
+  it('ignora respuestas tardías de catálogos de ciclos al cambiar de cámara', () => {
+    const first = new Subject<any[]>();
+    const second = new Subject<any[]>();
+    api.getCycles.and.callFake((clearingHouseId?: number) => {
+      if (clearingHouseId === 1) return first.asObservable();
+      if (clearingHouseId === 2) return second.asObservable();
+      return of([]);
+    });
+
+    component.form.controls.clearingHouseId.setValue(1);
+    component.form.controls.clearingHouseId.setValue(2);
+    second.next([{ id: 'LATEST', cycleName: 'Actual', clearingHouseId: 2, clearingHouseName: 'CENIT', cutoffTime: '10:00:00' }]);
+    first.next([{ id: 'STALE', cycleName: 'Viejo', clearingHouseId: 1, clearingHouseName: 'ACH', cutoffTime: '08:00:00' }]);
+
+    expect(component.cycles().map(cycle => cycle.id)).toEqual(['LATEST']);
+  });
+
+  it('muestra error de permisos y conserva filtros para reintentar', () => {
+    component.form.patchValue({ transactionExternalId: 'TX-PERMISO' });
+    api.search.and.returnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+
+    component.search(false);
+    fixture.detectChanges();
+
+    expect(component.error()).toBeTrue();
+    expect(component.errorMessage()).toBe('No tienes permiso para consultar este monitoreo.');
+    expect(fixture.nativeElement.querySelector('ui-estado-error')).not.toBeNull();
+    expect(component.form.controls.transactionExternalId.value).toBe('TX-PERMISO');
+  });
+
+  it('muestra error general y el reintento vuelve a consultar sin perder filtros', () => {
+    component.form.patchValue({ traceNumber: 'TRACE-RETRY' });
+    api.search.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    component.search(false);
+    fixture.detectChanges();
+
+    expect(component.errorMessage()).toBe('No fue posible consultar las transacciones en este momento.');
+    const callsAfterFailure = api.search.calls.count();
+    api.search.and.returnValue(of({ items: [], pageNumber: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false }));
+
+    const retryButton = fixture.nativeElement.querySelector('ui-estado-error button') as HTMLButtonElement;
+    expect(retryButton).not.toBeNull();
+    retryButton.click();
+    fixture.detectChanges();
+
+    expect(api.search.calls.count()).toBe(callsAfterFailure + 1);
+    expect(api.search.calls.mostRecent().args[0].traceNumber).toBe('TRACE-RETRY');
+    expect(component.error()).toBeFalse();
+  });
+
+  it('usa foundation 4C.1 sin reemplazar MatTable', () => {
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-page-header')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('table[mat-table]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.page-heading')).toBeNull();
+  });
+
+});

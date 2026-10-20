@@ -2,17 +2,17 @@
   <header class="hero" *ngIf="branding$ | async as branding">
     <div class="logo" [class.with-image]="branding.publicLogo">
       <ng-container *ngIf="branding.publicLogo; else defaultPublicLogo">
-        <img [src]="branding.publicLogo" alt="Logo de la aplicación" />
+        <img [src]="branding.publicLogo" alt="" />
       </ng-container>
       <ng-template #defaultPublicLogo>ACH</ng-template>
     </div>
-    <div>
-      <p class="title">ACH Interbank</p>
-      <small>Acceso seguro al portal</small>
+    <div class="brand-copy">
+      <p class="title">{{ productName }}</p>
+      <small>Operación financiera segura</small>
     </div>
   </header>
 
-  <main class="panel">
+  <main class="panel" [attr.aria-label]="'Acceso a ' + productName">
     <router-outlet></router-outlet>
   </main>
 </div>

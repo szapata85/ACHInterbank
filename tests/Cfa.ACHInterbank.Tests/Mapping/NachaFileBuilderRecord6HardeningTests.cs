@@ -109,6 +109,7 @@ public class NachaFileBuilderRecord6HardeningTests
         var options = Options.Create(new NachaGenerationOptions
         {
             Mode = shadowMode ? "SHADOW_COMPARE" : "HYBRID",
+            ExecutionScope = "DEVELOPMENT",
             EnableRecord6MappingEngine = enableRecord6,
             Record6MappingDiagnostics = true
         });

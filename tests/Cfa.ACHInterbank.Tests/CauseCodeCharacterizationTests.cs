@@ -24,7 +24,7 @@ public class CauseCodeCharacterizationTests
         Assert.Contains("R10", achCodes);
         Assert.Contains("R29", achCodes);
         Assert.Contains("R31", achCodes);
-        Assert.Contains("DEV14", achCodes);
+        Assert.DoesNotContain("DEV14", achCodes);
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class CauseCodeCharacterizationTests
         await new RegulatoryCatalogSeeder(context).SeedAsync();
 
         var cenitCodes = await context.AchReturnCodes.Where(x => x.ClearingHouseId == cenit.Id).Select(x => x.Code).ToListAsync();
-        foreach (var code in new[] { "R01", "R02", "R03", "R04", "R06", "R08", "R09", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R23" })
+        foreach (var code in new[] { "R01", "R02", "R03", "R04", "R06", "R07", "R08", "R09", "R10", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R23", "R29", "R31", "R32", "R33", "R34", "R35" })
             Assert.Contains(code, cenitCodes);
     }
 
@@ -71,11 +71,14 @@ public class CauseCodeCharacterizationTests
         await new RegulatoryCatalogSeeder(context).SeedAsync();
         var sut = new AchRegulatoryCatalogService(context);
 
-        foreach (var code in new[] { "R07", "R10", "R29", "R31", "DEV14" })
+        foreach (var code in new[] { "R07", "R10", "R29", "R31" })
         {
             var result = await sut.ValidateReturnCodeAsync(ach.Id, code, TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
             Assert.True(result.IsAllowed, $"ACH code should be allowed in current catalog: {code}");
         }
+
+        var dev14 = await sut.ValidateReturnCodeAsync(ach.Id, "DEV14", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
+        Assert.False(dev14.IsAllowed);
     }
 
     [Fact]
@@ -86,10 +89,16 @@ public class CauseCodeCharacterizationTests
         await new RegulatoryCatalogSeeder(context).SeedAsync();
         var sut = new AchRegulatoryCatalogService(context);
 
-        foreach (var code in new[] { "R01", "R02", "R03", "R04", "R06", "R08", "R09", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R23" })
+        foreach (var code in new[] { "R01", "R02", "R03", "R04", "R06", "R07", "R08", "R09", "R10", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R29", "R33", "R34", "R35" })
         {
             var result = await sut.ValidateReturnCodeAsync(cenit.Id, code, TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
             Assert.True(result.IsAllowed, $"CENIT code should be allowed in current catalog: {code}");
+        }
+
+        foreach (var code in new[] { "R02", "R03", "R04", "R06", "R16", "R17", "R20", "R23", "R32", "R33", "R34", "R35" })
+        {
+            var result = await sut.ValidateReturnCodeAsync(cenit.Id, code, TransactionTypeEnum.Credit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
+            Assert.True(result.IsAllowed, $"CENIT credit code should be allowed in current catalog: {code}");
         }
     }
 
@@ -125,9 +134,41 @@ public class CauseCodeCharacterizationTests
         await new RegulatoryCatalogSeeder(context).SeedAsync();
         var sut = new TransactionValidator(context);
 
-        var dto = new AddendaDto { AddendaType = "99", BusinessType = AchAddendaBusinessType.Return, ReturnReasonCode = " dev14 ", OriginalTraceNumber = "123456789012345", NewTraceNumber = "543210987654321" };
+        var dto = new AddendaDto { AddendaType = "99", BusinessType = AchAddendaBusinessType.Return, ReturnReasonCode = " r10 ", OriginalTraceNumber = "123456789012345", NewTraceNumber = "543210987654321" };
         var normalized = sut.NormalizeAndValidateAddenda(dto, TransactionTypeEnum.Return, false, "RETORNO");
-        Assert.Equal("DEV14", normalized.ReturnReasonCode);
+        Assert.Equal("R10", normalized.ReturnReasonCode);
+    }
+
+
+    [Fact]
+    public async Task TransactionValidator_ShouldRejectDev14AsPhysicalReturnReason()
+    {
+        await using var context = await CreateContextAsync();
+        var (_, ach) = await SeedClearingHousesAsync(context);
+        context.AchReturnCodes.Add(new AchReturnCode
+        {
+            ClearingHouseId = ach.Id,
+            Code = "DEV14",
+            Description = "Registro obsoleto de devolución",
+            AppliesToDebit = true,
+            AppliesToReturn = true,
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var sut = new TransactionValidator(context);
+        var dto = new AddendaDto
+        {
+            AddendaType = "99",
+            BusinessType = AchAddendaBusinessType.Return,
+            ReturnReasonCode = "DEV14",
+            OriginalTraceNumber = "123456789012345",
+            NewTraceNumber = "543210987654321"
+        };
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+            sut.NormalizeAndValidateAddenda(dto, TransactionTypeEnum.Return, false, "RETORNO"));
+        Assert.Contains("^R\\d{2}$", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

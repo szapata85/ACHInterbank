@@ -29,7 +29,7 @@ public class IncomingNachaEntryClassificationConfiguration : IEntityTypeConfigur
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.EntryDetail)
-            .WithMany()
+            .WithMany(x => x.Classifications)
             .HasForeignKey(x => x.EntryDetailId)
             .OnDelete(DeleteBehavior.Restrict);
 

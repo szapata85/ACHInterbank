@@ -20,15 +20,22 @@ export interface TableColumn {
       [columnas]="columnDefs"
       [datos]="data"
       [cargando]="loading"
-      [error]="false"
+      [error]="error"
       [paginacion]="total > pageSize"
       [tamanoPagina]="pageSize"
-      [mensajeVacio]="'No hay registros para mostrar'"
-      [mensajeCargando]="'Cargando información...'"
+      [tituloVacio]="emptyTitle"
+      [mensajeVacio]="emptyMessage"
+      [mensajeCargando]="loadingMessage"
+      [mensajeError]="errorMessage"
     ></ui-grilla-empresarial>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
+/**
+ * Compatibility wrapper over AG Grid. New simple tables should use Angular
+ * Material table primitives; keep this wrapper only where its current contract
+ * is already consumed.
+ */
 export class TableComponent {
   @Input() columns: TableColumn[] = [];
   @Input() data: any[] = [];
@@ -36,6 +43,11 @@ export class TableComponent {
   @Input() page = 1;
   @Input() pageSize = 10;
   @Input() total = 0;
+  @Input() error = false;
+  @Input() loadingMessage = 'Cargando información...';
+  @Input() emptyTitle = 'Sin resultados';
+  @Input() emptyMessage = 'No hay registros para mostrar.';
+  @Input() errorMessage = 'No fue posible cargar la información.';
   @Input() rowActions?: TemplateRef<any> | null;
   @ContentChild('rowActions') rowActionsContenido?: TemplateRef<any>;
 
@@ -59,6 +71,9 @@ export class TableComponent {
         minWidth: 220,
         width: 260,
         maxWidth: 340,
+        pinned: 'right',
+        lockPinned: true,
+        suppressMovable: true,
         sortable: false,
         filter: false,
         floatingFilter: false,

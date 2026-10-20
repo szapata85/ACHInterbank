@@ -1,0 +1,44 @@
+<section class="integration-center" aria-labelledby="integration-center-title">
+  <header class="integration-center__header">
+    <div>
+      <p class="integration-center__eyebrow">Integraciones</p>
+      <h1 id="integration-center-title">{{ copy.centerTitle }}</h1>
+      <p>{{ copy.centerDescription }}</p>
+    </div>
+  </header>
+
+  @if (status === 'idle' || status === 'loading') {
+    <div role="status" aria-live="polite">
+      <ui-estado-carga [mensaje]="copy.loading"></ui-estado-carga>
+    </div>
+  } @else if (status === 'error') {
+    <div role="alert">
+      <ui-estado-error
+        [titulo]="copy.errorTitle"
+        [mensaje]="error?.message || 'La solicitud no pudo completarse.'"
+        [textoReintentar]="copy.retry"
+        (reintentar)="retry.emit()"
+      ></ui-estado-error>
+    </div>
+  } @else if (status === 'forbidden') {
+    <div class="integration-center__forbidden" role="alert">
+      <strong>{{ copy.forbiddenTitle }}</strong>
+      <span>{{ error?.message || copy.forbidden }}</span>
+    </div>
+  } @else if (status === 'empty') {
+    <ui-estado-vacio
+      [titulo]="copy.emptyTitle"
+      [mensaje]="copy.empty"
+      [sugerencia]="''"
+    ></ui-estado-vacio>
+  } @else if (status === 'ready') {
+    <div class="integration-center__grid" aria-label="Servicios CFA">
+      @for (service of services; track service.methodId) {
+        <app-integration-service-card
+          [service]="service"
+          [canManage]="service.canManageConnection ?? permissions.canManage"
+        ></app-integration-service-card>
+      }
+    </div>
+  }
+</section>

@@ -49,12 +49,12 @@ public class P1Group2FineGrainedPolicyMigrationTests
     public async Task PoliciesP1_Grupo2_CompatibilidadOr()
     {
         await AssertPolicy(P1Policies.CertificatesRead, FineGrainedPermissions.Certificates.Read, "CanReadAch", "CanManageAch");
-        await AssertPolicy(P1Policies.CertificatesUploadPublic, FineGrainedPermissions.Certificates.UploadPublic, "CanManageAch", "CanReadAch");
-        await AssertPolicy(P1Policies.CertificatesRegisterPrivate, FineGrainedPermissions.Certificates.RegisterPrivate, "CanManageAch", "CanReadAch");
-        await AssertPolicy(P1Policies.CertificatesActivate, FineGrainedPermissions.Certificates.Activate, "CanManageAch", "CanReadAch");
-        await AssertPolicy(P1Policies.CertificatesRevoke, FineGrainedPermissions.Certificates.Revoke, "CanManageAch", "CanReadAch");
-        await AssertPolicy(P1Policies.CertificatesValidate, FineGrainedPermissions.Certificates.Validate, "CanReadAch", "CanManageAch");
-        await AssertPolicy(P1Policies.CertificatesAudit, FineGrainedPermissions.Certificates.Audit, "CanReadAch", "CanManageAch");
+        await AssertCertificateManagementPolicy(P1Policies.CertificatesUploadPublic, FineGrainedPermissions.Certificates.UploadPublic);
+        await AssertCertificateManagementPolicy(P1Policies.CertificatesRegisterPrivate, FineGrainedPermissions.Certificates.RegisterPrivate);
+        await AssertCertificateManagementPolicy(P1Policies.CertificatesActivate, FineGrainedPermissions.Certificates.Activate);
+        await AssertCertificateManagementPolicy(P1Policies.CertificatesRevoke, FineGrainedPermissions.Certificates.Revoke);
+        await AssertCertificateManagementPolicy(P1Policies.CertificatesValidate, FineGrainedPermissions.Certificates.Validate);
+        await AssertCertificateManagementPolicy(P1Policies.CertificatesAudit, FineGrainedPermissions.Certificates.Audit);
         await AssertPolicy(P1Policies.DigitalEnvelopeEncrypt, FineGrainedPermissions.DigitalEnvelope.Encrypt, "CanManageAch", "CanReadAch");
         await AssertPolicy(P1Policies.DigitalEnvelopeDecrypt, FineGrainedPermissions.DigitalEnvelope.Decrypt, "CanManageAch", "CanReadAch");
         await AssertPolicy(P1Policies.DigitalEnvelopeTest, FineGrainedPermissions.DigitalEnvelope.Test, "CanManageAch", "CanReadAch");
@@ -73,6 +73,18 @@ public class P1Group2FineGrainedPolicyMigrationTests
         Assert.True((await auth.AuthorizeAsync(User(fine), null, policy)).Succeeded);
         Assert.True((await auth.AuthorizeAsync(User(okLegacy), null, policy)).Succeeded);
         Assert.False((await auth.AuthorizeAsync(User(badLegacy), null, policy)).Succeeded);
+        Assert.False((await auth.AuthorizeAsync(new ClaimsPrincipal(new ClaimsIdentity()), null, policy)).Succeeded);
+    }
+
+    private static async Task AssertCertificateManagementPolicy(string policy, string fine)
+    {
+        using var p = Provider();
+        var auth = p.GetRequiredService<IAuthorizationService>();
+
+        Assert.True((await auth.AuthorizeAsync(User(fine), null, policy)).Succeeded);
+        Assert.True((await auth.AuthorizeAsync(User(FineGrainedPermissions.CanManageCertificates), null, policy)).Succeeded);
+        Assert.False((await auth.AuthorizeAsync(User("CanManageAch"), null, policy)).Succeeded);
+        Assert.False((await auth.AuthorizeAsync(User("CanReadAch"), null, policy)).Succeeded);
         Assert.False((await auth.AuthorizeAsync(new ClaimsPrincipal(new ClaimsIdentity()), null, policy)).Succeeded);
     }
 

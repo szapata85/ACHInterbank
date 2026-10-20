@@ -5,14 +5,14 @@ import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
 import { SharedModule } from '../../../shared/shared.module';
 import { AchReconciliationDetail, AchReconciliationItem } from '../models/nacha-operational.models';
-import { AchReconciliationConsoleData, AchReconciliationService } from '../services/ach-reconciliation.service';
+import { AchReconciliationConsoleData, AchReconciliationException, AchReconciliationService } from '../services/ach-reconciliation.service';
 
 @Component({
   selector: 'app-ach-reconciliation-console',
   standalone: true,
   imports: [CommonModule, FormsModule, SharedModule],
   templateUrl: './ach-reconciliation-console.component.html',
-  styleUrls: ['./nacha-operational-dashboard.component.scss'],
+  styleUrls: ['./nacha-operational-console.shared.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AchReconciliationConsoleComponent implements OnInit {
@@ -27,19 +27,23 @@ export class AchReconciliationConsoleComponent implements OnInit {
   camara = '';
   tipo = '';
   soloRevision = false;
+  selectedException?: AchReconciliationException;
+  resolution = '';
+  resolutionReason = '';
+  resolving = false;
 
   readonly columnas: ColDef<AchReconciliationItem>[] = [
-    { field: 'reconciliationId', headerName: 'ID', minWidth: 170 },
-    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },
+    { field: 'reconciliationId', headerName: 'ID de conciliación', minWidth: 170 },
+    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 180 },
     { field: 'fileName', headerName: 'Archivo', minWidth: 180 },
     { field: 'clearingHouseCode', headerName: 'Cámara', minWidth: 110 },
     { field: 'flowType', headerName: 'Flujo', minWidth: 170 },
     { field: 'responseType', headerName: 'Respuesta', minWidth: 180 },
     { field: 'reasonCode', headerName: 'Causal', minWidth: 110 },
-    { field: 'traceNumberMasked', headerName: 'Trace', minWidth: 130 },
+    { field: 'traceNumberMasked', headerName: 'Número de rastreo', minWidth: 130 },
     { field: 'internalStatus', headerName: 'Estado interno', minWidth: 170 },
     { field: 'reconciliationStatus', headerName: 'Conciliación', minWidth: 150 },
-    { field: 'soapOperationCandidate', headerName: 'SOAP candidato', minWidth: 190 }
+    { field: 'soapOperationCandidate', headerName: 'Operación SOAP candidata', minWidth: 190 }
   ];
 
   ngOnInit(): void {
@@ -54,6 +58,11 @@ export class AchReconciliationConsoleComponent implements OnInit {
       && (!this.tipo || item.responseType === this.tipo || item.flowType === this.tipo)
       && (!this.soloRevision || item.requiresManualReview)
     );
+  }
+
+  get clearingHouseOptions(): string[] {
+    return [...new Set((this.data?.items ?? []).map((item) => item.clearingHouseCode).filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right));
   }
 
   cargar(): void {
@@ -86,6 +95,36 @@ export class AchReconciliationConsoleComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  selectException(item: AchReconciliationException): void {
+    this.selectedException = item;
+    this.resolution = '';
+    this.resolutionReason = '';
+  }
+
+  resolveSelectedException(): void {
+    const item = this.selectedException;
+    if (!item || this.resolution.trim().length < 3 || this.resolutionReason.trim().length < 5) {
+      this.error = 'La resolución y la justificación son obligatorias.';
+      return;
+    }
+    this.resolving = true;
+    this.error = '';
+    this.service.resolveException(item.id, item.version, this.resolution.trim(), this.resolutionReason.trim())
+      .pipe(finalize(() => { this.resolving = false; this.cdr.markForCheck(); }))
+      .subscribe({
+        next: (updated) => {
+          const index = this.data?.exceptions.findIndex(x => x.id === updated.id) ?? -1;
+          if (this.data && index >= 0) this.data.exceptions[index] = updated;
+          this.selectedException = updated;
+        },
+        error: (err) => {
+          this.error = err?.status === 409
+            ? 'La excepción cambió; recargue la versión vigente.'
+            : err?.message ?? 'No fue posible resolver la excepción.';
+        }
+      });
   }
 
   badgeClass(value: string | boolean | undefined): string {

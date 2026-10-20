@@ -17,13 +17,14 @@ public class RegulatoryCatalogSeederTests
 
         await sut.SeedAsync();
 
-        Assert.True(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14" && x.IsActive));
+        Assert.False(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14" && x.IsActive));
         Assert.True(await context.AchReturnPolicies.AnyAsync(x => x.TransactionType == "Debit" && x.IsActive));
         Assert.True(await context.AchPrenotificationPolicies.AnyAsync(x => x.TransactionType == "Debit" && x.IsRequired));
         Assert.True(await context.ClearingHouseTransactionRules.AnyAsync(x =>
             x.TransactionNature == TransactionNature.Debit
             && x.RequiresPrenotification
             && x.PrenotificationMode == PrenotificationRequirementMode.Mandatory
+            && x.PrenotificationLeadBusinessDays == 3
             && x.NormativeSource.Contains("MAN-004")));
         Assert.True(await context.ClearingHouseTransactionRules.AnyAsync(x =>
             x.TransactionNature == TransactionNature.Credit
@@ -32,6 +33,43 @@ public class RegulatoryCatalogSeederTests
             && x.NormativeSource.Contains("CENIT")));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "ITIMEOUT" && x.IsRetryable));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "IFUNC" && !x.IsRetryable));
+    }
+
+    [Fact]
+    public async Task SeedAsync_IsInsertOnlyAndPreservesAdministrativeChanges()
+    {
+        await using var context = await CreateContextAsync();
+        var sut = new RegulatoryCatalogSeeder(context);
+        await sut.SeedAsync();
+
+        Assert.Equal(4, await context.ClearingHouseTransactionRules.CountAsync());
+        var policy = await context.ClearingHouseTransactionRules
+            .Include(x => x.ClearingHouse)
+            .SingleAsync(x => x.ClearingHouse.Code == "ACHCOL" && x.TransactionNature == TransactionNature.Debit);
+
+        policy.IsActive = false;
+        policy.PrenotificationMode = PrenotificationRequirementMode.Optional;
+        policy.RequiresPrenotification = false;
+        policy.PrenotificationLeadBusinessDays = null;
+        policy.EffectiveTo = new DateTime(2028, 12, 31);
+        policy.NormativeReference = "CAMBIO-ADMINISTRATIVO";
+        policy.Notes = "No debe ser sobrescrito por bootstrap.";
+        await context.SaveChangesAsync();
+
+        await sut.SeedAsync();
+        context.ChangeTracker.Clear();
+
+        var persisted = await context.ClearingHouseTransactionRules
+            .Include(x => x.ClearingHouse)
+            .SingleAsync(x => x.ClearingHouse.Code == "ACHCOL" && x.TransactionNature == TransactionNature.Debit);
+        Assert.Equal(4, await context.ClearingHouseTransactionRules.CountAsync());
+        Assert.False(persisted.IsActive);
+        Assert.Equal(PrenotificationRequirementMode.Optional, persisted.PrenotificationMode);
+        Assert.False(persisted.RequiresPrenotification);
+        Assert.Null(persisted.PrenotificationLeadBusinessDays);
+        Assert.Equal(new DateTime(2028, 12, 31), persisted.EffectiveTo);
+        Assert.Equal("CAMBIO-ADMINISTRATIVO", persisted.NormativeReference);
+        Assert.Equal("No debe ser sobrescrito por bootstrap.", persisted.Notes);
     }
 
     [Fact]
@@ -84,6 +122,29 @@ public class RegulatoryCatalogSeederTests
             IsRetryable = true,
             IsActive = false
         });
+        context.ReturnReasons.Add(new ReturnReason
+        {
+            Id = 56,
+            Code = "DEV14",
+            Description = "Registro obsoleto del modelo Return",
+            Category = "R",
+            IsForReturn = true
+        });
+
+        context.AchReturnCodes.Add(new AchReturnCode
+        {
+            ClearingHouseId = clearingHouse.Id,
+            Code = "R96",
+            FlowType = AchReturnFlowType.Any,
+            Description = "Éxito global legado",
+            BusinessOutcome = IncomingNachaBusinessOutcome.Successful,
+            AppliesToDebit = true,
+            AppliesToCredit = true,
+            AppliesToReturn = false,
+            EffectiveFrom = new DateTime(2000, 1, 1),
+            RegulatorySource = "CENIT",
+            IsActive = true
+        });
 
         await context.SaveChangesAsync();
 
@@ -101,8 +162,29 @@ public class RegulatoryCatalogSeederTests
         Assert.Equal("Fatal", repairedD01.Severity);
         Assert.False(repairedD01.IsRetryable);
         Assert.True(repairedD01.IsActive);
+        Assert.Equal(clearingHouse.Id, repairedD01.ClearingHouseId);
+        Assert.Equal("El archivo está dirigido a una entidad receptora diferente de la esperada.", repairedD01.Description);
 
-        Assert.True(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14"));
+        var repairedD04 = await context.AchFileRejectionCodes.AsNoTracking().SingleAsync(x => x.Code == "D04");
+        Assert.Equal(clearingHouse.Id, repairedD04.ClearingHouseId);
+        Assert.Equal("El archivo ya fue recibido y corresponde a un duplicado.", repairedD04.Description);
+
+        var cenitFileCodes = await context.AchFileRejectionCodes.AsNoTracking()
+            .Where(x => x.ClearingHouseId == clearingHouse.Id && x.Code.StartsWith("D"))
+            .ToDictionaryAsync(x => x.Code);
+        Assert.Equal("Protection", cenitFileCodes["D02"].AppliesToStage);
+        Assert.Contains("firmado o cifrado", cenitFileCodes["D02"].Description);
+        Assert.Equal("Parser", cenitFileCodes["D03"].AppliesToStage);
+        Assert.Contains("formato incorrecto", cenitFileCodes["D03"].Description);
+        Assert.Contains("nombre externo", cenitFileCodes["D05"].Description);
+        Assert.Contains("distribución", cenitFileCodes["D06"].Description);
+
+        var legacyR96 = await context.AchReturnCodes.AsNoTracking().SingleAsync(x => x.Code == "R96");
+        Assert.False(legacyR96.IsActive);
+        Assert.Equal(IncomingNachaBusinessOutcome.NotProcessed, legacyR96.BusinessOutcome);
+
+        Assert.False(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14" && x.IsActive));
+        Assert.False(await context.ReturnReasons.AnyAsync(x => x.Code == "DEV14"));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "I503" && x.IsRetryable));
     }
 
@@ -118,7 +200,7 @@ public class RegulatoryCatalogSeederTests
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
         await EnsureClearingHouseAsync(context, "CENIT", "CENIT");
-        await EnsureClearingHouseAsync(context, "ACH", "ACH Colombia");
+        await EnsureClearingHouseAsync(context, "ACHCOL", "ACH Colombia");
         return context;
     }
 

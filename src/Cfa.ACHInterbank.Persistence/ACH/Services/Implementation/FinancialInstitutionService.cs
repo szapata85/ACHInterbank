@@ -70,5 +70,6 @@ public class FinancialInstitutionService : IFinancialInstitutionService
         entity.Status = newStatus;
         await _context.SaveChangesAsync(ct);
     }
+
 }
 

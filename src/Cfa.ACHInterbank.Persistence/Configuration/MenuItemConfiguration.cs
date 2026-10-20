@@ -8,7 +8,6 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
 {
     public const int DashboardId = 1;
     public const int UsersId = 2;
-    public const int AliasesId = 3;
     public const int AchCyclesId = 4;
     public const int CatalogsId = 5;
     public const int TransactionsId = 6;
@@ -37,11 +36,13 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int IntegrationsId = 29;
     public const int SoapIntegrationSettingsId = 30;
     public const int TransactionsReturnsId = 31;
-    public const int ClearingHouseTransactionRulesId = 32;
     public const int UatSimulatorsId = 33;
     public const int NachaInboundSimulatorId = 34;
     public const int NachaConfigRecordsId = 2802;
     public const int NachaConfigVariantsFieldsId = 2803;
+    public const int ClearingHousesAdminId = 2804;
+    public const int NachaCertificatesId = 2805;
+    public const int AchCyclesCatalogId = 2806;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -158,7 +159,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             {
                 Id = AchCyclesId,
                 MenuId = MenuConfiguration.MainMenuId,
-                Label = "Ciclos ACH",
+                Label = "Configuración de ciclos",
                 Route = "/ach-cycles",
                 Icon = "schedule",
                 Order = 4,
@@ -182,7 +183,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Id = NachaLayoutsId,
                 MenuId = MenuConfiguration.MainMenuId,
                 Label = "Configuración NACHA-M",
-                Route = "/nacha-config-admin/perfiles",
+                Route = "/nacha-config-admin",
                 Icon = "tune",
                 Order = 2,
                 Exact = true,
@@ -459,18 +460,6 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             },
             new MenuItem
             {
-                Id = ClearingHouseTransactionRulesId,
-                MenuId = MenuConfiguration.MainMenuId,
-                ParentId = TransactionsId,
-                Label = "Reglas por cámara",
-                Route = "/transactions/clearing-house-rules",
-                Icon = "rule",
-                Order = 6,
-                Exact = true,
-                IsActive = true
-            },
-            new MenuItem
-            {
                 Id = DigitalEnvelopeId,
                 MenuId = MenuConfiguration.MainMenuId,
                 ParentId = NachaSecurityId,
@@ -478,6 +467,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/nacha-security/sobre-digital",
                 Icon = "lock",
                 Order = 1,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = ClearingHousesAdminId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = CatalogsId,
+                Label = "Cámaras compensadoras",
+                Route = "/clearing-houses",
+                Icon = "account_balance",
+                Order = 5,
                 Exact = true,
                 IsActive = true
             });

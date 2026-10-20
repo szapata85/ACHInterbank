@@ -127,3 +127,33 @@ export interface CenitOptimizationDecisionRow {
   toCycleId?: string | null;
   decidedAtUtc: string;
 }
+
+export interface CenitChamberResponseRow {
+  id: string;
+  isDuplicate: boolean;
+  sourceResponseId: string;
+  sourceFileName: string;
+  rawTechnicalReference: string;
+  responseType: 'Unknown' | 'Ack' | 'Nack' | 'OperatorRejected' | 'Reconciliation' | 'NoActivity';
+  state: 'Pending' | 'Accepted' | 'Rejected' | 'OperatorRejected' | 'Reconciliation' | 'NoActivity';
+  correlationOutcome: 'Pending' | 'Matched' | 'NotFound' | 'Ambiguous' | 'TransactionNotFound' | 'TransactionAmbiguous' | 'Invalid' | 'InvalidTransition';
+  relatedFileId?: number | null;
+  relatedFileName?: string | null;
+  achCycleId?: string | null;
+  xmlNamespace?: string | null;
+  messageGroupId?: string | null;
+  messageStatus?: string | null;
+  messageCreatedAtUtc?: string | null;
+  originatingSender?: string | null;
+  relatedReference?: string | null;
+  relatedTransactionId?: number | null;
+  transactionTraceNumber?: string | null;
+  reasonCode?: string | null;
+  description?: string | null;
+  receivedAtUtc: string;
+  processedAtUtc?: string | null;
+  isApplied: boolean;
+  problemCode?: string | null;
+  itemSequence?: number;
+  itemCount?: number;
+}

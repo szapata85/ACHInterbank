@@ -6,7 +6,6 @@ using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Persistence.Configuration;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Navigation.Seeders;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -15,7 +14,7 @@ namespace Cfa.ACHInterbank.Tests;
 public class NavigationMenuNachaConfigTests
 {
     [Fact]
-    public async Task NavigationMenu_ShouldExposeOfficialNachaConfigAndHideLegacyRoutes()
+    public async Task NavigationMenu_ShouldUsePersistedSourceWithoutInjectingMissingRoutes()
     {
         var readAch = new Permission { Id = PermissionConfiguration.ReadAchPermissionId, Name = "CanReadAch" };
         var repo = new FakeMenuQueryRepository([
@@ -23,33 +22,68 @@ public class NavigationMenuNachaConfigTests
             MenuItem(2, "Definiciones NACHA", "/ach-cycles/nacha/definitions", readAch),
             MenuItem(20, "Config Profiles", "/nacha-config-admin/perfiles", readAch)
         ]);
-        var http = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity([
-                    new Claim("permission", "CanReadAch")
-                ], "test"))
-            }
-        };
-        var handler = new GetMenuForCurrentUserHandler(repo, http);
+        var currentUser = new TestCurrentUserContext([new Claim("permission", "CanReadAch")]);
+        var handler = new GetMenuForCurrentUserHandler(repo, currentUser);
 
         var menu = await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
         var routes = FlattenRoutes(menu).ToList();
         var labels = FlattenLabels(menu).ToList();
 
+        Assert.Single(menu);
+        Assert.Equal(1, routes.Count(x => x == "/nacha-config-admin/perfiles"));
         Assert.Contains("/nacha-config-admin/perfiles", routes);
-        Assert.Contains("/nacha-config-admin/records", routes);
-        Assert.Contains("/nacha-config-admin/variants-fields", routes);
+        Assert.DoesNotContain("/nacha-config-admin/records", routes);
+        Assert.DoesNotContain("/nacha-config-admin/variants-fields", routes);
         Assert.DoesNotContain("/ach-cycles/nacha/layouts", routes);
         Assert.DoesNotContain("/ach-cycles/nacha/definitions", routes);
         Assert.DoesNotContain("/nacha-layouts", routes);
         Assert.DoesNotContain("/nacha-record-definitions", routes);
         Assert.DoesNotContain("Layouts NACHA", labels);
         Assert.DoesNotContain("Definiciones NACHA", labels);
-        Assert.Contains("Configuración NACHA-M", labels);
-        Assert.Contains("Registros oficiales", labels);
-        Assert.Contains("Variantes y campos", labels);
+        Assert.Contains("Config Profiles", labels);
+    }
+
+    [Fact]
+    public async Task NavigationMenu_ShouldKeepOfficialNachaConfigGroupRouteAndProfileChildDistinct()
+    {
+        var readAch = new Permission { Id = PermissionConfiguration.ReadAchPermissionId, Name = "CanReadAch" };
+        var repo = new FakeMenuQueryRepository([
+            MenuItem(MenuItemConfiguration.NachaLayoutsId, "Configuración NACHA-M", "/nacha-config-admin", readAch),
+            MenuItem(MenuItemConfiguration.NachaDefinitionsId, "Perfiles oficiales", "/nacha-config-admin/perfiles", readAch, MenuItemConfiguration.NachaLayoutsId),
+            MenuItem(MenuItemConfiguration.NachaConfigRecordsId, "Registros oficiales", "/nacha-config-admin/records", readAch, MenuItemConfiguration.NachaLayoutsId),
+            MenuItem(MenuItemConfiguration.NachaConfigVariantsFieldsId, "Variantes y campos", "/nacha-config-admin/variants-fields", readAch, MenuItemConfiguration.NachaLayoutsId)
+        ]);
+        var currentUser = new TestCurrentUserContext([new Claim("permission", "CanReadAch")]);
+        var handler = new GetMenuForCurrentUserHandler(repo, currentUser);
+
+        var menu = await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
+        var group = Assert.Single(menu, x => x.Id == MenuItemConfiguration.NachaLayoutsId);
+        var profiles = Assert.Single(group.Children, x => x.Id == MenuItemConfiguration.NachaDefinitionsId);
+        var routes = FlattenRoutes(menu).ToList();
+
+        Assert.Equal("/nacha-config-admin", group.Route);
+        Assert.Equal("/nacha-config-admin/perfiles", profiles.Route);
+        Assert.Equal(1, routes.Count(x => x == "/nacha-config-admin/perfiles"));
+        Assert.Contains(group.Children, x =>
+            x.Id == MenuItemConfiguration.NachaConfigRecordsId && x.Route == "/nacha-config-admin/records");
+        Assert.Contains(group.Children, x =>
+            x.Id == MenuItemConfiguration.NachaConfigVariantsFieldsId && x.Route == "/nacha-config-admin/variants-fields");
+    }
+
+    [Fact]
+    public async Task NavigationMenu_ShouldHideUatRoutes_WhenFeatureGateIsUnavailable()
+    {
+        var readAch = new Permission { Id = PermissionConfiguration.ReadAchPermissionId, Name = "CanReadAch" };
+        var repo = new FakeMenuQueryRepository([
+            MenuItem(MenuItemConfiguration.UatSimulatorsId, "UAT", "/uat", readAch),
+            MenuItem(MenuItemConfiguration.NachaInboundSimulatorId, "Simulador", "/uat/nacha-inbound-simulator", readAch, MenuItemConfiguration.UatSimulatorsId)
+        ]);
+        var currentUser = new TestCurrentUserContext([new Claim("permission", "CanReadAch")]);
+
+        var menu = await new GetMenuForCurrentUserHandler(repo, currentUser)
+            .Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
+
+        Assert.Empty(menu);
     }
 
     [Fact]
@@ -77,6 +111,7 @@ public class NavigationMenuNachaConfigTests
             .Select(x => x.Label)
             .ToListAsync();
 
+        Assert.Contains("/nacha-config-admin", activeRoutes);
         Assert.Contains("/nacha-config-admin/perfiles", activeRoutes);
         Assert.Contains("/nacha-config-admin/records", activeRoutes);
         Assert.Contains("/nacha-config-admin/variants-fields", activeRoutes);
@@ -89,6 +124,16 @@ public class NavigationMenuNachaConfigTests
         Assert.Contains("Configuración NACHA-M", labels);
         Assert.Contains("Registros oficiales", labels);
         Assert.Contains("Variantes y campos", labels);
+
+        var group = await context.MenuItems.SingleAsync(x => x.Id == MenuItemConfiguration.NachaLayoutsId);
+        var profiles = await context.MenuItems.SingleAsync(x => x.Id == MenuItemConfiguration.NachaDefinitionsId);
+        var profileRouteCount = await context.MenuItems.CountAsync(x =>
+            x.IsActive && x.Route == "/nacha-config-admin/perfiles");
+
+        Assert.Equal("/nacha-config-admin", group.Route);
+        Assert.Equal("/nacha-config-admin/perfiles", profiles.Route);
+        Assert.Equal(MenuItemConfiguration.NachaLayoutsId, profiles.ParentId);
+        Assert.Equal(1, profileRouteCount);
 
         var officialIds = new[]
         {
@@ -104,11 +149,68 @@ public class NavigationMenuNachaConfigTests
         Assert.False(await context.MenuItemRoles.AnyAsync(x => officialIds.Contains(x.MenuItemId)));
     }
 
-    private static MenuItem MenuItem(int id, string label, string route, Permission permission)
+    [Fact]
+    public async Task CyclesMenuSeeder_ShouldKeepOneCanonicalEntryAndDisableDuplicatesIdempotently()
+    {
+        await using var context = BuildContext();
+        context.MenuItems.AddRange(
+            new MenuItem { Id = 901, MenuId = MenuConfiguration.MainMenuId, Label = "Reglas de ciclos", Route = "/transactions/cycle-configs", Icon = "settings", Order = 90, Exact = true, IsActive = true },
+            new MenuItem { Id = 902, MenuId = MenuConfiguration.MainMenuId, Label = "Ciclos CENIT", Route = "/cenit/operacion/ciclos", Icon = "schedule", Order = 91, Exact = true, IsActive = true });
+        await context.SaveChangesAsync();
+
+        await new CyclesMenuSeeder(context).SeedAsync();
+        await new CyclesMenuSeeder(context).SeedAsync();
+
+        var canonical = await context.MenuItems.SingleAsync(x => x.Id == MenuItemConfiguration.AchCyclesId);
+        Assert.Equal("Configuración de ciclos", canonical.Label);
+        Assert.Equal("/ach-cycles", canonical.Route);
+        Assert.True(canonical.IsActive);
+        Assert.False(await context.MenuItems.AnyAsync(x =>
+            x.IsActive && (x.Route == "/transactions/cycle-configs" || x.Route == "/cenit/operacion/ciclos")));
+        Assert.Equal(1, await context.MenuItemPermissions.CountAsync(x =>
+            x.MenuItemId == MenuItemConfiguration.AchCyclesId
+            && x.PermissionId == PermissionConfiguration.ReadAchPermissionId));
+    }
+
+    [Fact]
+    public async Task UsersMenuSeeder_ShouldCreateOneAuthorizedManageUsersEntryAndPreserveExistingChildren()
+    {
+        await using var context = BuildContext();
+        context.MenuItems.AddRange(
+            new MenuItem { Id = MenuItemConfiguration.UsersId, MenuId = MenuConfiguration.MainMenuId, Label = "Usuarios", Route = "/users", Icon = "group", Order = 2, IsActive = false },
+            new MenuItem { Id = MenuItemConfiguration.BrandingId, MenuId = MenuConfiguration.MainMenuId, ParentId = MenuItemConfiguration.UsersId, Label = "Identidad y colores", Route = "/users/branding", Icon = "palette", Order = 2, Exact = true, IsActive = true },
+            new MenuItem { Id = MenuItemConfiguration.PasswordRulesId, MenuId = MenuConfiguration.MainMenuId, ParentId = MenuItemConfiguration.UsersId, Label = "Reglas de contraseña", Route = "/users/password-rules", Icon = "policy", Order = 3, Exact = true, IsActive = true });
+        await context.SaveChangesAsync();
+
+        var seeder = new UsersMenuSeeder(context);
+        await seeder.SeedAsync();
+        await seeder.SeedAsync();
+
+        var users = await context.MenuItems.SingleAsync(item => item.Id == MenuItemConfiguration.UsersId);
+        var management = Assert.Single(await context.MenuItems
+            .Where(item => item.ParentId == users.Id && item.Route == "/users/list")
+            .ToListAsync());
+
+        Assert.True(users.IsActive);
+        Assert.Equal("Administrar usuarios", management.Label);
+        Assert.Equal("manage_accounts", management.Icon);
+        Assert.Equal(1, management.Order);
+        Assert.True(management.Exact);
+        Assert.True(management.IsActive);
+        Assert.True(await context.MenuItemRoles.AnyAsync(item => item.MenuItemId == users.Id && item.RoleId == RoleConfiguration.AdminRoleId));
+        Assert.True(await context.MenuItemPermissions.AnyAsync(item => item.MenuItemId == users.Id && item.PermissionId == PermissionConfiguration.ManageUsersPermissionId));
+        Assert.True(await context.MenuItemRoles.AnyAsync(item => item.MenuItemId == management.Id && item.RoleId == RoleConfiguration.AdminRoleId));
+        Assert.True(await context.MenuItemPermissions.AnyAsync(item => item.MenuItemId == management.Id && item.PermissionId == PermissionConfiguration.ManageUsersPermissionId));
+        Assert.Contains(await context.MenuItems.ToListAsync(), item => item.Id == MenuItemConfiguration.BrandingId && item.ParentId == users.Id);
+        Assert.Contains(await context.MenuItems.ToListAsync(), item => item.Id == MenuItemConfiguration.PasswordRulesId && item.ParentId == users.Id);
+    }
+
+    private static MenuItem MenuItem(int id, string label, string route, Permission permission, int? parentId = null)
     {
         return new MenuItem
         {
             Id = id,
+            ParentId = parentId,
             Label = label,
             Route = route,
             Icon = "menu",

@@ -1,0 +1,43 @@
+<section class="history-panel" data-testid="nacha-config-history-panel" [attr.aria-busy]="loading">
+  <div class="panel-heading">
+    <div>
+      <h2>Historial</h2>
+      <p>Consulta quién cambió la configuración, cuándo ocurrió y a qué versión corresponde.</p>
+    </div>
+    <button mat-stroked-button type="button" [disabled]="loading" (click)="load()">Actualizar historial</button>
+  </div>
+
+  <div class="loading-state" *ngIf="loading" role="status" aria-live="polite">
+    <mat-spinner diameter="32"></mat-spinner><span>Cargando historial…</span>
+  </div>
+
+  <mat-card *ngIf="errorMessage" class="error-card" role="alert" aria-live="assertive">
+    <mat-card-content>{{ errorMessage }}</mat-card-content>
+  </mat-card>
+
+  <mat-card *ngIf="!loading && !errorMessage && items.length === 0" class="empty-card">
+    <mat-card-content>No hay eventos históricos registrados para esta configuración.</mat-card-content>
+  </mat-card>
+
+  <div class="history-list" *ngIf="!loading && !errorMessage && items.length > 0">
+    <mat-card *ngFor="let item of items" class="history-card">
+      <mat-card-header>
+        <mat-card-title>{{ item.actionNameEs }}</mat-card-title>
+        <mat-card-subtitle>{{ item.elementNameEs }} · Versión {{ item.version }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="event-meta">
+          <span><strong>Usuario</strong>{{ item.changedBy }}</span>
+          <span><strong>Fecha</strong>{{ item.changedAtUtc | date:'yyyy-MM-dd HH:mm:ss':'UTC' }} UTC</span>
+        </div>
+        <p>{{ item.summaryEs }}</p>
+        <button mat-button type="button" *ngIf="item.detailEs.length > 0" (click)="toggle(item)" [attr.aria-expanded]="expandedId === item.id">
+          {{ expandedId === item.id ? 'Ocultar detalle' : 'Ver detalle' }}
+        </button>
+        <ul *ngIf="expandedId === item.id" class="event-detail">
+          <li *ngFor="let detail of item.detailEs">{{ detail }}</li>
+        </ul>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</section>

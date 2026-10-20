@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
@@ -16,9 +17,12 @@ namespace Cfa.ACHInterbank.Tests.Mapping;
 public class NachaFileBuilderFileIntegrityClosureTests
 {
     [Theory]
-    [InlineData("ACH Colombia")]
-    [InlineData("CENIT")]
-    public async Task BuildNachaFileAsync_ShouldGenerateCompleteFile_WithExpectedIntegrity(string chamberName)
+    [InlineData("ACH Colombia", "ACH")]
+    [InlineData("ACH CENIT Legacy Label", "ACH")]
+    [InlineData("CENIT", "CENIT")]
+    public async Task BuildNachaFileAsync_ShouldGenerateCompleteFile_WithExpectedIntegrity(
+        string chamberName,
+        string chamberCode)
     {
         var loader = new Mock<INachaDataLoader>(MockBehavior.Strict);
         var renderer = new Mock<INachaFixedWidthRecordRenderer>(MockBehavior.Strict);
@@ -27,6 +31,7 @@ public class NachaFileBuilderFileIntegrityClosureTests
         var recordProvider = new Mock<INachaRecordDataProvider>(MockBehavior.Loose);
         var holiday = new Mock<IBankHoliday>(MockBehavior.Loose);
         var batchGenerator = new Mock<IBatchNumberGenerator>(MockBehavior.Strict);
+        var configResolver = new Mock<INachaConfigResolver>(MockBehavior.Strict);
 
         object? record8 = null;
         object? record9 = null;
@@ -108,12 +113,34 @@ public class NachaFileBuilderFileIntegrityClosureTests
                 1,
                 [new BatchNumberScopeTrace("DAILY_RESET_BY_CHAMBER_DATE_ORIGINATING_DFI", "scope", 14, 15, false, 1)]));
 
+        configResolver.Setup(x => x.ResolveAsync(It.IsAny<NachaConfigResolutionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaConfigResolutionResult
+            {
+                Success = true,
+                OutboundPolicy = chamberCode == "ACH" ? ResolveAchBatchPolicy() : null,
+                Trace = [],
+                Warnings = []
+            });
+
         var dbOptions = new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var db = new AchDbContext(dbOptions);
-        var options = Options.Create(new NachaGenerationOptions { Mode = "LEGACY" });
+        db.CatClearingHouses.Add(new CatClearingHouse
+        {
+            Id = 1,
+            Code = chamberCode,
+            Name = chamberName,
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var options = Options.Create(new NachaGenerationOptions
+        {
+            Mode = "LEGACY",
+            ExecutionScope = "DEVELOPMENT",
+            AllowNonHomologatedCenitDevelopment = true
+        });
 
         var sut = new NachaFileBuilder(db, holiday.Object, loader.Object, validation.Object, renderer.Object, recordProvider.Object, semantic.Object,
-            null, null, null, null, null, null, null, options, null, batchGenerator.Object);
+            configResolver.Object, null, null, null, null, null, null, options, null, batchGenerator.Object);
 
         var content = await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
@@ -128,7 +155,7 @@ public class NachaFileBuilderFileIntegrityClosureTests
         records[5][0].Should().Be('9');
         records.Skip(6).Should().OnlyContain(x => x.All(ch => ch == '9'));
 
-        ReadIntProperty(record8!, "BatchNumber").Should().Be(15);
+        ReadIntProperty(record8!, "BatchNumber").Should().Be(chamberCode == "ACH" ? 1 : 15);
         ReadIntProperty(record9!, "BatchCount").Should().Be(1);
         ReadIntProperty(record9!, "BlockCount").Should().Be(1);
         ReadIntProperty(record9!, "EntryAddendaCount").Should().Be(2);
@@ -148,5 +175,18 @@ public class NachaFileBuilderFileIntegrityClosureTests
         var prop = instance.GetType().GetProperty(propertyName);
         prop.Should().NotBeNull();
         return (long)(prop!.GetValue(instance) ?? 0L);
+    }
+
+    private static NachaOutboundPartitionPolicy ResolveAchBatchPolicy()
+    {
+        var result = NachaOutboundPolicyMetadata.Resolve("TEST_ACH_LEGACY", [
+            new(NachaOutboundPolicyMetadata.BatchNumberStrategyKey, "FileLocalOrdinal"),
+            new(NachaOutboundPolicyMetadata.BatchNumberScopeKey, "CurrentFile"),
+            new(NachaOutboundPolicyMetadata.BatchNumberStartingNumberKey, "1"),
+            new(NachaOutboundPolicyMetadata.BatchNumberMaximumKey, "9999999"),
+            new(NachaOutboundPolicyMetadata.BatchNumberPolicyIdentityKey, "ACHCOL_FILE_LOCAL_ORDINAL")
+        ]);
+        result.Status.Should().Be(NachaOutboundPolicyMetadataStatus.Resolved);
+        return result.Policy!;
     }
 }

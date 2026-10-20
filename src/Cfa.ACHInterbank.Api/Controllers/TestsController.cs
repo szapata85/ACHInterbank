@@ -1,4 +1,4 @@
-using Cfa.ACHInterbank.Application.Helpers.Filters;
+using Cfa.ACHInterbank.Api.Filters;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Transaction.Interfaces;
 using Microsoft.AspNetCore.Authorization;

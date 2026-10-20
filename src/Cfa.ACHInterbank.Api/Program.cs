@@ -1,17 +1,15 @@
 using Cfa.ACHInterbank.Api;
 using Cfa.ACHInterbank.Application;
-using Cfa.ACHInterbank.Application.Features;
-using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.External;
 using Cfa.ACHInterbank.Persistence;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Api.Encryption;
 using NLog.Web;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-AppSettings.Settings = builder.Configuration.GetSection("appSettings").Get<AppSettings>()!.GetMethodExtensions();
 
 builder.Host.UseNLog();
 //builder.WebHost.ConfigureKestrel(option =>
@@ -24,7 +22,7 @@ builder.Services.Configure<DigitalEnvelopeSignatureValidationOptions>(builder.Co
 builder.Services.AddSingleton<IDigitalEnvelopePolicy, DigitalEnvelopePolicy>();
 builder.Services.AddWebApi(builder.Configuration)
                 .AddApplication()
-                .AddPersistence(builder.Configuration)
+                .AddPersistence(builder.Configuration, builder.Environment)
                 .AddExternal(builder.Configuration);
 
 var crashLogPath = Path.Combine(builder.Environment.ContentRootPath, "crash.log");

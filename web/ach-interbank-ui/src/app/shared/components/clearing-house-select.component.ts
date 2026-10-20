@@ -1,13 +1,8 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnInit, forwardRef, inject } from '@angular/core';
 import { ControlValueAccessor, FormControl, NG_VALUE_ACCESSOR, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { ClearingHousesApiService } from '../../features/ach-cycles/services/ach-cycles-api.service';
-
-interface ClearingHouseOption {
-  id: number;
-  name: string;
-  code?: string;
-}
+import { ClearingHouseOption } from '../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../core/services/clearing-houses-api.service';
 
 @Component({
   selector: 'app-clearing-house-select',

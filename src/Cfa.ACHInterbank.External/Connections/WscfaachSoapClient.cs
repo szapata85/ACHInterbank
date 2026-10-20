@@ -1,9 +1,13 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
+using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.External.Connections;
 
@@ -13,15 +17,21 @@ public class WscfaachSoapClient : IWscfaachSoapClient
     private readonly ILoggerManager _logger;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
+    private readonly ControlledLocalSoapTransportOptions _controlledLocalTransport;
 
     public WscfaachSoapClient(
         ILoggerManager logger,
         ISoapIntegrationSettingsService soapSettingsService,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        IOptions<ControlledLocalSoapTransportOptions>? controlledLocalTransport = null)
     {
         _logger = logger;
         _soapSettingsService = soapSettingsService;
         _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
+        _controlledLocalTransport = controlledLocalTransport?.Value ?? new ControlledLocalSoapTransportOptions();
     }
 
     public Task<string> PLValidarUsuarioBVAsync(string requestXml, CancellationToken ct = default)
@@ -114,33 +124,67 @@ public class WscfaachSoapClient : IWscfaachSoapClient
 
     private async Task<string> SendAsync(string action, string requestXml, CancellationToken ct)
     {
-        var (endpoint, soapAction) = await ResolveConfigurationAsync(action, ct)
+        var (logicalEndpoint, soapAction, timeout) = await ResolveConfigurationAsync(action, ct)
             .ConfigureAwait(false);
-        var envelope = BuildEnvelope(requestXml);
+        var transport = ControlledLocalSoapTransportResolver.Resolve(
+            logicalEndpoint,
+            ResolveControlledLocalTransportOptions(),
+            _configuration["WSCFAACH:HostHeader"]);
+        var envelope = EnsureEnvelope(requestXml);
 
-        using var client = _httpClientFactory.CreateClient(nameof(WscfaachSoapClient));
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        using var client = _httpClientFactory.CreateClient(ExternalHttpClientNames.WscfaachSoapNoRetry);
+        client.Timeout = timeout;
+        using var request = new HttpRequestMessage(HttpMethod.Post, transport.TransportEndpoint);
         request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
         request.Headers.Add("SOAPAction", soapAction);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
-
-        _logger.LogInfo($"SOAP request {action} -> {endpoint}");
-
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
-            .ConfigureAwait(false);
-
-        var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-
-        if (!response.IsSuccessStatusCode)
+        if (!string.IsNullOrWhiteSpace(transport.HostHeader))
         {
-            _logger.LogError($"SOAP error {action}: {response.StatusCode} - {responseContent}");
-            throw new InvalidOperationException($"SOAP error {action}: {response.StatusCode}");
+            request.Headers.Host = transport.HostHeader;
         }
 
-        return responseContent;
+        var started = Stopwatch.GetTimestamp();
+        _logger.LogInfo(
+            $"SOAP request {action}; endpoint={ExternalLogSanitizer.Endpoint(logicalEndpoint)}; " +
+            $"transport={ExternalLogSanitizer.Endpoint(transport.TransportEndpoint)}; retry=disabled.");
+
+        try
+        {
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
+                .ConfigureAwait(false);
+
+            var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    $"SOAP error {action}; HTTP={(int)response.StatusCode}; contentLength={responseContent.Length}; " +
+                    $"elapsedMs={elapsedMs:F0}; responseBody=redacted; retry=disabled.");
+                throw new InvalidOperationException($"SOAP error {action}: {response.StatusCode}");
+            }
+
+            _logger.LogInfo(
+                $"SOAP response {action}; HTTP={(int)response.StatusCode}; elapsedMs={elapsedMs:F0}; " +
+                $"bodyLength={responseContent.Length}.");
+            return responseContent;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _logger.LogWarn($"SOAP {action} cancelled by caller; retry=disabled.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            _logger.LogError(
+                $"SOAP {action} transport failure; elapsedMs={elapsedMs:F0}; exception={ex.GetType().Name}; " +
+                $"outcome=uncertain; retry=disabled.");
+            throw;
+        }
     }
 
-    private async Task<(string Endpoint, string SoapAction)> ResolveConfigurationAsync(
+    private async Task<(Uri Endpoint, string SoapAction, TimeSpan Timeout)> ResolveConfigurationAsync(
         string action,
         CancellationToken ct)
     {
@@ -169,8 +213,47 @@ public class WscfaachSoapClient : IWscfaachSoapClient
             throw new InvalidOperationException($"SOAP action for '{action}' is not configured in database.");
         }
 
-        return (mapping.Endpoint, mapping.SoapAction);
+        if (!string.Equals(mapping.OperatingMode, "Live", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"SOAP method '{action}' is not enabled for Live execution by database configuration.");
+        }
+
+        if (mapping.TimeoutSeconds is < 1 or > 300)
+        {
+            throw new InvalidOperationException(
+                $"SOAP timeout for '{action}' is not valid in database configuration.");
+        }
+
+        if (!Uri.TryCreate(mapping.Endpoint, UriKind.Absolute, out var endpoint)
+            || !string.IsNullOrEmpty(endpoint.UserInfo)
+            || !string.IsNullOrEmpty(endpoint.Fragment))
+        {
+            throw new InvalidOperationException(
+                $"SOAP endpoint for '{action}' is not a safe absolute URI in database configuration.");
+        }
+
+        return (endpoint, mapping.SoapAction, TimeSpan.FromSeconds(mapping.TimeoutSeconds));
     }
+
+    private ControlledLocalSoapTransportOptions ResolveControlledLocalTransportOptions()
+        => new()
+        {
+            TransportHost = string.IsNullOrWhiteSpace(_controlledLocalTransport.TransportHost)
+                ? _configuration["WSCFAACH:TransportHost"]
+                : _controlledLocalTransport.TransportHost,
+            HostHeader = _controlledLocalTransport.HostHeader
+        };
+
+    private static string EnsureEnvelope(string body)
+        => IsSoapEnvelope(body) ? body : BuildEnvelope(body);
+
+    private static bool IsSoapEnvelope(string body)
+        => !string.IsNullOrWhiteSpace(body)
+            && (body.Contains("<Envelope", StringComparison.OrdinalIgnoreCase)
+                || body.Contains(":Envelope", StringComparison.OrdinalIgnoreCase))
+            && (body.Contains("</Envelope>", StringComparison.OrdinalIgnoreCase)
+                || body.Contains(":Envelope>", StringComparison.OrdinalIgnoreCase));
 
     private static string BuildEnvelope(string body)
     {

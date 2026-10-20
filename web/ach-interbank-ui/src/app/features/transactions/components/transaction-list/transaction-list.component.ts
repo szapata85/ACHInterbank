@@ -1,14 +1,27 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { FormBuilder } from '@angular/forms';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { AbstractControl, FormBuilder, FormControl, ValidationErrors, ValidatorFn } from '@angular/forms';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatButtonModule } from '@angular/material/button';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef, RowSelectionOptions } from 'ag-grid-community';
+import { finalize } from 'rxjs';
 import { SharedModule } from '../../../../shared/shared.module';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionListItem } from '../../transactions.models';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { TransactionTypeEnum } from '../../transactions.types';
-import { AchCyclesApiService, ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
-import { AchCycleSummary, ClearingHouseOption } from '../../../ach-cycles/models/ach-cycle.model';
+import { TransactionTypeEnum } from '../../../../core/models/transaction-types.model';
+import { ClearingHouseOption } from '../../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../../core/services/clearing-houses-api.service';
+import { AchCyclesApiService } from '../../../../core/services/ach-cycles-api.service';
+import { AchCycleSummary } from '../../../../core/models/ach-cycle.model';
+import { TransactionIntegrationResult } from '../../transactions.models';
+import { TransactionIntegrationResultComponent } from '../transaction-integration-result/transaction-integration-result.component';
 
 type TransactionListRow = TransactionListItem & {
   typeLabel: string;
@@ -31,20 +44,57 @@ interface AchCycleOption {
   name: string;
 }
 
+interface ClearingHouseSearchOption {
+  id: number | null;
+  label: string;
+}
+
+interface CycleSearchOption {
+  id: string | null;
+  label: string;
+}
+
+type ClearingHouseSearchValue = string | ClearingHouseSearchOption | null;
+type CycleSearchValue = string | CycleSearchOption | null;
+
 interface ColumnOption {
   field: keyof TransactionListRow;
   label: string;
 }
 
+const validOptionalDate: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
+  const value = control.value;
+  if (value == null || value === '') {
+    return null;
+  }
+
+  return value instanceof Date && !Number.isNaN(value.getTime())
+    ? null
+    : { invalidDate: true };
+};
+
 @Component({
   selector: 'app-transaction-list',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [
+    SharedModule,
+    RouterModule,
+    MatAutocompleteModule,
+    MatButtonModule,
+    MatDatepickerModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatNativeDateModule,
+    MatProgressSpinnerModule,
+    TransactionIntegrationResultComponent
+  ],
   templateUrl: './transaction-list.component.html',
   styleUrls: ['./transaction-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TransactionListComponent implements OnInit {
+  @ViewChild('selectedDateInput') private selectedDateInput?: ElementRef<HTMLInputElement>;
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(TransactionsApiService);
   private readonly achCyclesApi = inject(AchCyclesApiService);
@@ -65,32 +115,32 @@ export class TransactionListComponent implements OnInit {
 
   private readonly allColumnDefs: ColDef<TransactionListRow>[] = [
     { field: 'id', headerName: 'ID', width: 90, maxWidth: 120, sortable: true },
-    { field: 'transactionExternalId', headerName: 'ID operación', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
-    { field: 'reference', headerName: 'Referencia legado', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'transactionExternalId', headerName: 'ID de operación', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'reference', headerName: 'Referencia heredada', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
     { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agTextColumnFilter' },
     { field: 'transactionNatureLabel', headerName: 'Naturaleza', width: 170, filter: 'agTextColumnFilter' },
-    { field: 'returnManagementLabel', headerName: 'Gestión devolución', width: 220, filter: 'agTextColumnFilter' },
+    { field: 'returnManagementLabel', headerName: 'Gestión de devolución', width: 220, filter: 'agTextColumnFilter' },
     { field: 'achCycleName', headerName: 'Ciclo', width: 200, filter: 'agTextColumnFilter' },
     { field: 'clearingHouseName', headerName: 'Cámara', width: 200, filter: 'agTextColumnFilter' },
     { field: 'amountText', headerName: 'Monto', width: 140, maxWidth: 180, cellClass: 'text-end' },
-    { field: 'sourceAccountNumber', headerName: 'Cuenta origen', filter: 'agTextColumnFilter' },
-    { field: 'destinationAccountNumber', headerName: 'Cuenta destino', filter: 'agTextColumnFilter' },
-    { field: 'destinationInstitutionName', headerName: 'Institución destino', filter: 'agTextColumnFilter', flex: 1 },
+    { field: 'sourceAccountNumber', headerName: 'Cuenta de origen', filter: 'agTextColumnFilter' },
+    { field: 'destinationAccountNumber', headerName: 'Cuenta de destino', filter: 'agTextColumnFilter' },
+    { field: 'destinationInstitutionName', headerName: 'Institución de destino', filter: 'agTextColumnFilter', flex: 1 },
     { field: 'effectiveEntryDateText', headerName: 'Fecha efectiva', width: 160 }
   ];
 
   readonly columnOptions: ColumnOption[] = [
-    { field: 'transactionExternalId', label: 'ID operación' },
-    { field: 'reference', label: 'Referencia legado' },
+    { field: 'transactionExternalId', label: 'ID de operación' },
+    { field: 'reference', label: 'Referencia heredada' },
     { field: 'typeLabel', label: 'Tipo' },
     { field: 'transactionNatureLabel', label: 'Naturaleza' },
-    { field: 'returnManagementLabel', label: 'Gestión devolución' },
+    { field: 'returnManagementLabel', label: 'Gestión de devolución' },
     { field: 'achCycleName', label: 'Ciclo' },
     { field: 'clearingHouseName', label: 'Cámara' },
     { field: 'amountText', label: 'Monto' },
-    { field: 'sourceAccountNumber', label: 'Cuenta origen' },
-    { field: 'destinationAccountNumber', label: 'Cuenta destino' },
-    { field: 'destinationInstitutionName', label: 'Institución destino' },
+    { field: 'sourceAccountNumber', label: 'Cuenta de origen' },
+    { field: 'destinationAccountNumber', label: 'Cuenta de destino' },
+    { field: 'destinationInstitutionName', label: 'Institución de destino' },
     { field: 'effectiveEntryDateText', label: 'Fecha efectiva' }
   ];
 
@@ -123,7 +173,8 @@ export class TransactionListComponent implements OnInit {
   };
 
   readonly rowSelection = {
-    mode: 'singleRow'
+    mode: 'singleRow',
+    enableClickSelection: true
   } satisfies RowSelectionOptions;
 
   readonly noRowsTemplate = 'No hay transacciones registradas.';
@@ -134,14 +185,36 @@ export class TransactionListComponent implements OnInit {
   groups: TransactionGroup[] = [];
   cycles: AchCycleOption[] = [];
   clearingHouses: ClearingHouseOption[] = [];
+  filteredClearingHouseOptions: ClearingHouseSearchOption[] = [
+    { id: null, label: 'Todas las cámaras' }
+  ];
+  filteredCycleOptions: CycleSearchOption[] = [
+    { id: null, label: 'Todos los ciclos' }
+  ];
+  selectedIntegrationResult: TransactionIntegrationResult | null = null;
+  loadingIntegrationResult = false;
+  loadError = false;
+  searchAttempted = false;
   readonly filtrosForm = this.fb.group({
-    selectedCycleId: [null as string | null],
-    selectedClearingHouseId: [null as number | null],
-    selectedDate: ['']
+    selectedCycleId: new FormControl<string | null>(null),
+    selectedClearingHouseId: new FormControl<number | null>(null),
+    selectedDate: new FormControl<Date | null>(null, validOptionalDate)
   });
+  readonly clearingHouseSearchControl = new FormControl<ClearingHouseSearchValue>('');
+  readonly cycleSearchControl = new FormControl<CycleSearchValue>('');
+  readonly displayClearingHouseOption = (value: ClearingHouseSearchValue): string =>
+    typeof value === 'string' ? value : value?.label ?? '';
+  readonly displayCycleOption = (value: CycleSearchValue): string =>
+    typeof value === 'string' ? value : value?.label ?? '';
+
+  get totalTransactions(): number {
+    return this.groups.reduce((total, group) => total + group.items.length, 0);
+  }
 
   ngOnInit(): void {
     this.filtrosForm.controls.selectedClearingHouseId.valueChanges.subscribe(() => this.onClearingHouseChange());
+    this.clearingHouseSearchControl.valueChanges.subscribe((value) => this.filterClearingHouseOptions(value));
+    this.cycleSearchControl.valueChanges.subscribe((value) => this.filterCycleOptions(value));
     this.loadClearingHouses();
     this.loadCycles();
   }
@@ -159,17 +232,128 @@ export class TransactionListComponent implements OnInit {
   }
 
   applyFilters(): void {
+    if (this.loading) {
+      return;
+    }
+
+    this.searchAttempted = true;
+    this.filtrosForm.updateValueAndValidity();
+    if (this.filtrosForm.invalid) {
+      this.filtrosForm.markAllAsTouched();
+      this.focusFirstInvalidControl();
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.loadTransactions();
+  }
+
+  clearFilters(): void {
+    if (this.loading) {
+      return;
+    }
+
+    this.filtrosForm.reset({
+      selectedCycleId: null,
+      selectedClearingHouseId: null,
+      selectedDate: null
+    }, { emitEvent: false });
+    this.clearingHouseSearchControl.setValue('', { emitEvent: false });
+    this.cycleSearchControl.setValue('', { emitEvent: false });
+    this.filterClearingHouseOptions('');
+    this.filterCycleOptions('');
+    this.filtrosForm.markAsPristine();
+    this.filtrosForm.markAsUntouched();
+    this.searchAttempted = false;
+    this.returnView = 'all';
+    this.selectedIntegrationResult = null;
+    this.loadError = false;
+    this.loadCycles(true, false);
+    this.cdr.markForCheck();
+  }
+
+  shouldShowDateError(): boolean {
+    const control = this.filtrosForm.controls.selectedDate;
+    return control.invalid && (control.touched || control.dirty || this.searchAttempted);
   }
 
   onClearingHouseChange(): void {
     this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
+    this.cycleSearchControl.setValue('', { emitEvent: false });
+    this.filterCycleOptions('');
+    if (this.filtrosForm.controls.selectedDate.invalid) {
+      return;
+    }
     this.loadCycles(false);
   }
 
   onDateChange(): void {
     this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
+    this.cycleSearchControl.setValue('', { emitEvent: false });
+    this.filterCycleOptions('');
+    if (this.filtrosForm.controls.selectedDate.invalid) {
+      return;
+    }
     this.loadCycles(false);
+  }
+
+  filterClearingHouseOptions(value: ClearingHouseSearchValue): void {
+    const term = this.normalizeSearchText(typeof value === 'string' ? value : value?.label ?? '');
+    this.filteredClearingHouseOptions = this.getClearingHouseSearchOptions()
+      .filter((option) => this.normalizeSearchText(option.label).includes(term));
+
+    if (typeof value === 'string') {
+      const selectedId = this.filtrosForm.controls.selectedClearingHouseId.value;
+      const selectedOption = this.getClearingHouseSearchOptions().find((option) => option.id === selectedId);
+      if (selectedId !== null && this.normalizeSearchText(selectedOption?.label ?? '') !== term) {
+        this.filtrosForm.controls.selectedClearingHouseId.setValue(null);
+      }
+    }
+
+    this.cdr.markForCheck();
+  }
+
+  filterCycleOptions(value: CycleSearchValue): void {
+    const term = this.normalizeSearchText(typeof value === 'string' ? value : value?.label ?? '');
+    this.filteredCycleOptions = this.getCycleSearchOptions()
+      .filter((option) => this.normalizeSearchText(option.label).includes(term));
+
+    if (typeof value === 'string') {
+      const selectedId = this.filtrosForm.controls.selectedCycleId.value;
+      const selectedOption = this.getCycleSearchOptions().find((option) => option.id === selectedId);
+      if (selectedId !== null && this.normalizeSearchText(selectedOption?.label ?? '') !== term) {
+        this.filtrosForm.controls.selectedCycleId.setValue(null, { emitEvent: false });
+      }
+    }
+
+    this.cdr.markForCheck();
+  }
+
+  selectClearingHouse(option: ClearingHouseSearchOption): void {
+    this.clearingHouseSearchControl.setValue(option, { emitEvent: false });
+    this.filteredClearingHouseOptions = this.getClearingHouseSearchOptions();
+    this.filtrosForm.controls.selectedClearingHouseId.setValue(option.id);
+  }
+
+  selectCycle(option: CycleSearchOption): void {
+    this.cycleSearchControl.setValue(option, { emitEvent: false });
+    this.filteredCycleOptions = this.getCycleSearchOptions();
+    this.filtrosForm.controls.selectedCycleId.setValue(option.id, { emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  clearClearingHouseSearch(): void {
+    const hadSelectedClearingHouse = this.filtrosForm.controls.selectedClearingHouseId.value !== null;
+    this.clearingHouseSearchControl.setValue('');
+    if (!hadSelectedClearingHouse) {
+      this.onClearingHouseChange();
+    }
+  }
+
+  clearCycleSearch(): void {
+    this.cycleSearchControl.setValue('');
+    this.filtrosForm.controls.selectedCycleId.setValue(null, { emitEvent: false });
+    this.cdr.markForCheck();
   }
 
   isColumnVisible(field: keyof TransactionListRow): boolean {
@@ -207,6 +391,8 @@ export class TransactionListComponent implements OnInit {
     this.clearingHousesApi.list().subscribe({
       next: (items) => {
         this.clearingHouses = items ?? [];
+        this.filteredClearingHouseOptions = this.getClearingHouseSearchOptions();
+        this.restoreClearingHouseSearchText();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -215,14 +401,19 @@ export class TransactionListComponent implements OnInit {
     });
   }
 
-  private loadCycles(autoLoadTransactions = true): void {
+  private loadCycles(autoLoadTransactions = true, restoreSearchText = true): void {
+    if (this.filtrosForm.controls.selectedDate.invalid) {
+      return;
+    }
+
+    const selectedDate = this.formatApiDate(this.filtrosForm.controls.selectedDate.value);
     this.achCyclesApi
       .search({
         page: 1,
         pageSize: 100,
         clearingHouseId: this.filtrosForm.controls.selectedClearingHouseId.value ?? undefined,
-        startDate: this.filtrosForm.controls.selectedDate.value || undefined,
-        endDate: this.filtrosForm.controls.selectedDate.value || undefined
+        startDate: selectedDate,
+        endDate: selectedDate
       })
       .subscribe({
         next: (response) => {
@@ -241,6 +432,11 @@ export class TransactionListComponent implements OnInit {
             this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
           }
 
+          this.filteredCycleOptions = this.getCycleSearchOptions();
+          if (restoreSearchText) {
+            this.restoreCycleSearchText();
+          }
+
           if (autoLoadTransactions) {
             this.loadTransactions();
           }
@@ -255,11 +451,16 @@ export class TransactionListComponent implements OnInit {
   }
 
   private loadTransactions(): void {
+    if (this.loading || this.filtrosForm.invalid) {
+      return;
+    }
+
     this.loading = true;
+    this.loadError = false;
     this.cdr.markForCheck();
     const selectedClearingHouseId = this.filtrosForm.controls.selectedClearingHouseId.value;
     const selectedCycleId = this.filtrosForm.controls.selectedCycleId.value;
-    const selectedDate = this.filtrosForm.controls.selectedDate.value;
+    const selectedDate = this.formatApiDate(this.filtrosForm.controls.selectedDate.value);
     const useCycleName = selectedClearingHouseId == null;
     this.api
       .getAll({
@@ -268,6 +469,12 @@ export class TransactionListComponent implements OnInit {
         effectiveDate: selectedDate || undefined,
         clearingHouseId: selectedClearingHouseId ?? undefined
       })
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.markForCheck();
+        })
+      )
       .subscribe({
         next: (items) => {
           const normalized = (items ?? []).map((item) => this.mapRow(item));
@@ -292,12 +499,9 @@ export class TransactionListComponent implements OnInit {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.groups = [];
+          this.loadError = true;
           this.notifications.error('No fue posible cargar las transacciones');
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-        complete: () => {
-          this.loading = false;
           this.cdr.markForCheck();
         }
       });
@@ -337,7 +541,38 @@ export class TransactionListComponent implements OnInit {
 
   setReturnView(view: 'all' | 'received' | 'sent'): void {
     this.returnView = view;
-    this.loadTransactions();
+    this.applyFilters();
+  }
+
+  onTransactionSelection(rows: TransactionListRow[]): void {
+    const transaction = rows[0];
+    if (!transaction) {
+      this.selectedIntegrationResult = null;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.loadingIntegrationResult = true;
+    this.api.getIntegrationResult(transaction.id).subscribe({
+      next: (result) => {
+        this.selectedIntegrationResult = result;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.selectedIntegrationResult = null;
+        this.notifications.error('No fue posible consultar el resultado del procesamiento interno.');
+        this.cdr.markForCheck();
+      },
+      complete: () => {
+        this.loadingIntegrationResult = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  closeIntegrationResult(): void {
+    this.selectedIntegrationResult = null;
+    this.cdr.markForCheck();
   }
 
   private matchesReturnView(item: TransactionListRow): boolean {
@@ -372,6 +607,57 @@ export class TransactionListComponent implements OnInit {
 
     const date = new Date(value);
     return isNaN(date.getTime()) ? value : this.dateFormatter.format(date);
+  }
+
+  private getClearingHouseSearchOptions(): ClearingHouseSearchOption[] {
+    return [
+      { id: null, label: 'Todas las cámaras' },
+      ...this.clearingHouses.map((house) => ({ id: house.id, label: house.name }))
+    ];
+  }
+
+  private getCycleSearchOptions(): CycleSearchOption[] {
+    return [
+      { id: null, label: 'Todos los ciclos' },
+      ...this.cycles.map((cycle) => ({ id: cycle.id, label: cycle.label }))
+    ];
+  }
+
+  private restoreClearingHouseSearchText(): void {
+    const selectedId = this.filtrosForm.controls.selectedClearingHouseId.value;
+    const selectedOption = this.getClearingHouseSearchOptions().find((option) => option.id === selectedId);
+    this.clearingHouseSearchControl.setValue(selectedOption ?? '', { emitEvent: false });
+  }
+
+  private restoreCycleSearchText(): void {
+    const selectedId = this.filtrosForm.controls.selectedCycleId.value;
+    const selectedOption = this.getCycleSearchOptions().find((option) => option.id === selectedId);
+    this.cycleSearchControl.setValue(selectedOption ?? '', { emitEvent: false });
+  }
+
+  private normalizeSearchText(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLocaleLowerCase();
+  }
+
+  private formatApiDate(value: Date | null): string | undefined {
+    if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+      return undefined;
+    }
+
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private focusFirstInvalidControl(): void {
+    if (this.filtrosForm.controls.selectedDate.invalid) {
+      setTimeout(() => this.selectedDateInput?.nativeElement.focus());
+    }
   }
 
   private formatType(type: TransactionTypeEnum): string {

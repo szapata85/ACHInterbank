@@ -18,6 +18,7 @@ public class LiquidityOptimizationDecisionConfiguration : IEntityTypeConfigurati
         builder.Property(x => x.FromCycleId).HasMaxLength(40).IsRequired();
         builder.Property(x => x.ToCycleId).HasMaxLength(40);
         builder.HasIndex(x => new { x.CenitCycleExecutionId, x.DecisionType });
+        builder.HasIndex(x => new { x.CenitCycleExecutionId, x.AchTransactionId }).IsUnique();
 
         builder.HasOne(x => x.CenitCycleExecution)
             .WithMany(x => x.OptimizationDecisions)

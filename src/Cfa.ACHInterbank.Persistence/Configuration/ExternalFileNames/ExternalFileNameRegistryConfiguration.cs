@@ -29,7 +29,15 @@ public class ExternalFileNameRegistryConfiguration : IEntityTypeConfiguration<Ex
             .HasForeignKey(x => x.RegistryId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasOne<ExternalFileNameReservation>()
+            .WithMany()
+            .HasForeignKey(x => x.GenerationReservationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(x => new { x.ClearingHouseId, x.ExternalFileName, x.ProcessingDate });
         builder.HasIndex(x => new { x.ClearingHouseId, x.CycleId, x.ExternalFileType, x.CreatedAtUtc });
+        builder.HasIndex(x => x.GenerationReservationId)
+            .IsUnique()
+            .HasDatabaseName("UX_ExternalFileNameRegistry_GenerationReservation");
     }
 }

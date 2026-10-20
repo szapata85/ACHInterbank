@@ -80,6 +80,19 @@ public class AchReconciliationReadModelTests
     }
 
     [Fact]
+    public async Task Reconciliation_ShouldNotProjectPersistedReturnAsExternallyReconciled()
+    {
+        using var context = BuildContext();
+        SeedAll(context);
+
+        var item = (await new AchReconciliationReadModelService(context).GetItemsAsync())
+            .Single(x => x.ReconciliationId == "return-1");
+
+        item.ReconciliationStatus.Should().Be("PendienteEvidencia");
+        item.Warning.Should().Contain("evidencia externa");
+    }
+
+    [Fact]
     public async Task Reconciliation_ShouldClassifyManualReviewWhenAmbiguous()
     {
         using var context = BuildContext();
@@ -127,6 +140,55 @@ public class AchReconciliationReadModelTests
 
         context.SaveChangesCount.Should().Be(0);
         context.SaveChangesAsyncCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Reconciliation_ShouldExplainProfileGateAndDuplicateLoad()
+    {
+        using var context = BuildContext();
+        var ingestion = new IncomingNachaFileIngestion
+        {
+            Id = Guid.NewGuid(),
+            FileName = "0000001.001.20260723.1.OUT",
+            FileHashSha256 = new string('A', 64),
+            FileSize = 106,
+            ContentType = "application/octet-stream",
+            UploadedBy = "job5-test",
+            CorrelationId = "job5-correlation",
+            IngestionStatus = IncomingNachaIngestionStatus.Bloqueado
+        };
+        context.IncomingNachaFileIngestions.Add(ingestion);
+        context.IncomingNachaProcessingEvents.AddRange(
+            new IncomingNachaProcessingEvent
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                Ingestion = ingestion,
+                EventType = "NachaProfileSelection",
+                EventStatus = NachaProfileSelectionStatus.ProfileNotFound.ToString(),
+                Message = "Procesamiento diferencial bloqueado antes del parser."
+            },
+            new IncomingNachaProcessingEvent
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                Ingestion = ingestion,
+                EventType = "DuplicateUploadAttempt",
+                EventStatus = IncomingNachaIngestionStatus.Duplicado.ToString(),
+                Message = "Segundo intento auditado sin efectos."
+            });
+        await context.SaveChangesAsync();
+
+        var items = await new AchReconciliationReadModelService(context).GetItemsAsync();
+
+        items.Should().Contain(x =>
+            x.ResponseType == "Seleccion de perfil NACHA-M"
+            && x.ReconciliationStatus == "Inconsistente"
+            && x.RequiresManualReview
+            && x.SoapOperationCandidate == "None");
+        items.Should().Contain(x =>
+            x.ResponseType == "Doble carga"
+            && x.ReconciliationStatus == "Conciliado"
+            && !x.RequiresManualReview
+            && x.SoapOperationCandidate == "None");
     }
 
     [Fact]

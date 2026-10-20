@@ -7,8 +7,8 @@ import { ChangeDetectionStrategy, Component, Input, TemplateRef } from '@angular
   imports: [CommonModule],
   template: `
     <header class="page-header">
-      <div>
-        <p class="eyebrow">{{ subtitle || description }}</p>
+      <div class="page-header__copy">
+        <p class="eyebrow" *ngIf="subtitle || description">{{ subtitle || description }}</p>
         <h2>{{ title }}</h2>
       </div>
       <div class="actions" *ngIf="actionsTemplate">
@@ -18,29 +18,55 @@ import { ChangeDetectionStrategy, Component, Input, TemplateRef } from '@angular
   `,
   styles: [
     `
+      :host {
+        display: block;
+      }
+
       .page-header {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 1rem;
+        gap: var(--space-4);
+        margin-bottom: var(--space-4);
       }
+
+      .page-header__copy {
+        min-width: 0;
+      }
+
       h2 {
         margin: 0;
+        color: var(--color-text);
         font-size: 1.5rem;
-        color: #111827;
+        line-height: 1.25;
       }
+
       .eyebrow {
-        margin: 0;
-        color: #6b7280;
-        text-transform: uppercase;
+        margin: 0 0 var(--space-1);
+        color: var(--color-text-muted);
+        font-size: var(--font-xs);
+        font-weight: 700;
         letter-spacing: 0.05em;
-        font-size: 0.75rem;
+        text-transform: uppercase;
       }
+
       .actions {
         display: flex;
-        gap: 0.5rem;
         align-items: center;
+        justify-content: flex-end;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+      }
+
+      @media (max-width: 640px) {
+        .page-header {
+          flex-direction: column;
+        }
+
+        .actions {
+          width: 100%;
+          justify-content: flex-start;
+        }
       }
     `
   ],
@@ -50,5 +76,5 @@ export class PageHeaderComponent {
   @Input() title = '';
   @Input() subtitle = '';
   @Input() description = '';
-  @Input() actionsTemplate?: TemplateRef<any> | null;
+  @Input() actionsTemplate?: TemplateRef<unknown> | null;
 }

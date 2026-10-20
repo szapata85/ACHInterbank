@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 
 namespace Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
@@ -12,6 +13,8 @@ public interface ICertificateLoadService
 {
     Task<CertificateVersionDto> LoadPublicCertificateAsync(LoadPublicCertificateRequest request, CancellationToken cancellationToken = default);
     Task<CertificateVersionDto> RegisterPrivateCertificateAsync(RegisterPrivateCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<CertificatePreviewDto> PreviewManagedCertificateAsync(PreviewManagedCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<CertificateVersionDto> SaveManagedCertificateAsync(SaveManagedCertificateRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface ICertificateSelectionService
@@ -23,6 +26,11 @@ public interface ICertificateActivationService
 {
     Task<CertificateVersionDto> ActivateVersionAsync(ActivateCertificateVersionRequest request, CancellationToken cancellationToken = default);
     Task<CertificateVersionDto> RevokeVersionAsync(RevokeCertificateVersionRequest request, CancellationToken cancellationToken = default);
+}
+
+public interface ICertificateDeletionService
+{
+    Task<DeleteCertificateVersionResultDto> DeleteVersionAsync(DeleteCertificateVersionRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface ICertificateRotationService
@@ -38,6 +46,12 @@ public interface ICertificateValidationService
 public interface ICertificateSecretProtector
 {
     Task EnsureAcceptableAsync(CertificateStorageMode mode, string? secretRef, string? password, CancellationToken cancellationToken = default);
+}
+
+public interface ICertificatePrivateMaterialProtector
+{
+    byte[] Protect(byte[] rawPkcs12, string password);
+    X509Certificate2 Unprotect(byte[] protectedMaterial);
 }
 
 public interface ICertificateAuditService

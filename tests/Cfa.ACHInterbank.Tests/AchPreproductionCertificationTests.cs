@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Implementation;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -76,7 +77,7 @@ public class AchPreproductionCertificationTests
     [InlineData(TransactionTypeEnum.Debit, "27", false, 2500, "900000002", "CLIENTE DEBITO", "RECAUDOS", "123456780000002")]
     [InlineData(TransactionTypeEnum.Prenotification, "23", true, 0, "", "CLIENTE PRENOTE", "PAGOS PSE", "123456780000003")]
     [InlineData(TransactionTypeEnum.Reversal, "27", false, 4100, "900000004", "CLIENTE REVERSO", "REVERSO", "123456780000004")]
-    public async Task BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification(
+    public async Task LegacyGoldenScenario_ShouldBeBlockedForLiveAndNotCountAsCertification(
         TransactionTypeEnum type,
         string transactionCode,
         bool isPrenotification,
@@ -93,7 +94,7 @@ public class AchPreproductionCertificationTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(x => x.GetHolidays(It.IsAny<int>())).Returns([]);
         var loader = new NachaDataLoader(context);
-        var validation = new NachaTransactionValidationService(context, holidayService.Object);
+        var validation = new NachaTransactionValidationService(context, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(context);
         var builder = new NachaFileBuilder(
@@ -104,16 +105,17 @@ public class AchPreproductionCertificationTests
             renderer,
             recordDataProvider,
             new NachaSemanticValidator(),
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "LIVE" }));
 
-        var content = await builder.BuildNachaFileAsync([100], CancellationToken.None);
-        var expected = BuildExpectedNachaGoldenMaster(type, transactionCode, isPrenotification, amount, recipientIdNumber, receiverName, batchDescription, traceNumber);
+        var exception = await Assert.ThrowsAsync<NachaGenerationException>(
+            () => builder.BuildNachaFileAsync([100], CancellationToken.None));
 
-        Assert.Equal(expected, content);
+        Assert.Equal("NACHA_LIVE_OFFICIAL_MODE_REQUIRED", exception.Code);
+        Assert.Equal("ACHCOL-GENERATION-FAIL-CLOSED", exception.RuleId);
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_MatchesGoldenMasterForDev14Return()
+    public async Task GenerateReturnsFileAsync_UsesCanonicalReturnOutBuilderAndOfficialName()
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
@@ -123,24 +125,24 @@ public class AchPreproductionCertificationTests
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AchReturnEligibilityRequest req, CancellationToken _) => new AchReturnEligibilityResult(true, req.ReturnReasonCode.Trim().ToUpperInvariant(), 1, "Debit", "Pending", []));
-        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context), eligibility.Object, new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create("2345678.001.RET"));
+        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context), eligibility.Object, new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create("2345678.001.1"), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var response = await service.GenerateReturnsFileAsync(
-            new GenerateReturnsFileRequest("cycle-ret", [new ReturnSelectionItemDto(501, "DEV14")]),
+            new GenerateReturnsFileRequest("cycle-ret", [new ReturnSelectionItemDto(501, "R01")]),
             CancellationToken.None);
 
-        var expected = BuildExpectedReturnGoldenMaster(fixedNow.UtcDateTime);
-        Assert.Contains("A094101ACH-RET", expected, StringComparison.Ordinal);
-
-        Assert.Equal("2345678.001.RET", response.FileName);
-        Assert.Equal(expected, Encoding.UTF8.GetString(response.Content));
+        Assert.Equal("2345678.001.1", response.FileName);
+        var records = Encoding.UTF8.GetString(response.Content).Chunk(106).Select(x => new string(x)).ToArray();
+        Assert.Equal(10, records.Length);
+        Assert.Equal(new[] { '1', '5', '6', '7', '8', '9' }, records.Take(6).Select(x => x[0]).ToArray());
+        Assert.All(records, record => Assert.Equal(106, record.Length));
     }
 
     [Fact]
     public void ClearingHouseStrategies_KeepSensitiveRulesSeparatedBetweenAchAndCenit()
     {
-        var achStrategy = new AchClearingHouseStrategy();
-        var cenitStrategy = new CenitClearingHouseStrategy();
+        var achStrategy = new AchClearingHouseStrategy(new CycleNumberResolver());
+        var cenitStrategy = new CenitClearingHouseStrategy(new CycleNumberResolver());
 
         var reversal = new AchTransaction
         {
@@ -389,7 +391,7 @@ public class AchPreproductionCertificationTests
     {
         SeedReferenceData(context);
         SeedInstitutions(context);
-        SeedCustomer(context, "CLIENTE DEV14", "900000014", "999988887777");
+        SeedCustomer(context, "CLIENTE R01", "900000014", "999988887777");
         var companyEntryDescriptionId = SeedCompanyEntryDescription(context, "RECAUDOS");
 
         context.AchCycles.Add(new AchCycle
@@ -407,7 +409,7 @@ public class AchPreproductionCertificationTests
         {
             Id = 501,
             Amount = 3200m,
-            Reference = "PAGO DEV14",
+            Reference = "PAGO R01",
             Type = TransactionTypeEnum.Debit,
             TransactionCode = "27",
             ServiceClassCode = "225",
@@ -444,7 +446,7 @@ public class AchPreproductionCertificationTests
         context.AchReturnCodes.Add(new AchReturnCode
         {
             ClearingHouseId = returnClearingHouseId,
-            Code = "DEV14",
+            Code = "R01",
             Description = "No consentimiento",
             AppliesToDebit = true,
             AppliesToReturn = true,
@@ -456,7 +458,7 @@ public class AchPreproductionCertificationTests
         {
             ClearingHouseId = returnClearingHouseId,
             TransactionType = "Debit",
-            AllowedReturnCodesCsv = "DEV14",
+            AllowedReturnCodesCsv = "R01",
             MaxDays = 60,
             RequiredOriginalTransactionState = "Pending",
             RequiresAddenda = true,
@@ -484,28 +486,6 @@ public class AchPreproductionCertificationTests
             BuildNachaAddenda(type, batchDescription, traceNumber, recipientIdNumber, receiverName),
             BuildNachaBatchControl(type, amount),
             BuildNachaFileControl(type, amount)
-        };
-
-        while (records.Count < 10)
-        {
-            records.Add(new string('9', 106));
-        }
-
-        return string.Concat(records);
-    }
-
-    private static string BuildExpectedReturnGoldenMaster(DateTime nowUtc)
-    {
-        const string newSequence = "765432100000001";
-        const string originalTrace = "123456780000501";
-        var records = new List<string>
-        {
-            BuildReturnHeader(nowUtc),
-            BuildReturnBatchHeader(nowUtc),
-            BuildReturnEntryDetail(),
-            BuildReturnAddenda(originalTrace, newSequence),
-            BuildReturnBatchControl(),
-            BuildReturnFileControl()
         };
 
         while (records.Count < 10)
@@ -624,93 +604,6 @@ public class AchPreproductionCertificationTests
         Write(buffer, 22, Num("76543210", 10));
         Write(buffer, 32, type is TransactionTypeEnum.Debit or TransactionTypeEnum.Reversal or TransactionTypeEnum.Return ? Num(((long)(amount * 100)).ToString(), 18) : new string('0', 18));
         Write(buffer, 50, type is TransactionTypeEnum.Debit or TransactionTypeEnum.Reversal or TransactionTypeEnum.Return ? new string('0', 18) : Num(((long)(amount * 100)).ToString(), 18));
-        return new string(buffer);
-    }
-
-    private static string BuildReturnHeader(DateTime nowUtc)
-    {
-        var buffer = CreateRecord('1');
-        Write(buffer, 2, Num("01", 2));
-        Write(buffer, 4, Num("000101006", 9));
-        Write(buffer, 13, Num("12345678", 9));
-        Write(buffer, 22, nowUtc.ToString("yyMMdd"));
-        Write(buffer, 28, nowUtc.ToString("HHmm"));
-        Write(buffer, 32, "A");
-        Write(buffer, 33, "094101");
-        Write(buffer, 39, Alpha("ACH-RET", 23));
-        Write(buffer, 62, "ACH Colombia".PadRight(23));
-        Write(buffer, 85, Alpha("RET", 22));
-        return new string(buffer);
-    }
-
-    private static string BuildReturnBatchHeader(DateTime nowUtc)
-    {
-        var buffer = CreateRecord('5');
-        Write(buffer, 2, "225");
-        Write(buffer, 5, Alpha("DEVOLUCIONES", 16));
-        Write(buffer, 21, Alpha(string.Empty, 20));
-        Write(buffer, 41, Alpha("BANCORET", 10));
-        Write(buffer, 51, "PPD");
-        Write(buffer, 54, Alpha("RETORNO", 10));
-        Write(buffer, 64, nowUtc.ToString("yyyyMMdd"));
-        Write(buffer, 72, nowUtc.ToString("yyyyMMdd"));
-        Write(buffer, 80, "000");
-        Write(buffer, 83, "1");
-        Write(buffer, 84, Num("12345678", 8));
-        Write(buffer, 92, "0000001");
-        return new string(buffer);
-    }
-
-    private static string BuildReturnEntryDetail()
-    {
-        var buffer = CreateRecord('6');
-        Write(buffer, 2, "27");
-        Write(buffer, 4, "12345678");
-        Write(buffer, 12, "0");
-        Write(buffer, 13, Alpha("111122223333", 17));
-        Write(buffer, 30, Num("320000", 18));
-        Write(buffer, 48, Alpha("900123456", 15));
-        Write(buffer, 63, Alpha("EMPRESA DEMO", 22));
-        Write(buffer, 85, Alpha("R", 2));
-        Write(buffer, 87, "1");
-        Write(buffer, 88, "765432100000001");
-        return new string(buffer);
-    }
-
-    private static string BuildReturnAddenda(string originalTrace, string newSequence)
-    {
-        var buffer = CreateRecord('7');
-        Write(buffer, 2, "99");
-        Write(buffer, 4, Alpha("DEV14", 5));
-        Write(buffer, 9, Num(originalTrace, 15));
-        Write(buffer, 82, Num(newSequence, 15));
-        Write(buffer, 100, "0000001");
-        return new string(buffer);
-    }
-
-    private static string BuildReturnBatchControl()
-    {
-        var buffer = CreateRecord('8');
-        Write(buffer, 2, "225");
-        Write(buffer, 5, "000002");
-        Write(buffer, 11, Num("12345678", 10));
-        Write(buffer, 21, Num("320000", 18));
-        Write(buffer, 39, new string('0', 18));
-        Write(buffer, 57, Alpha("BANCORET", 10));
-        Write(buffer, 92, Num("12345678", 8));
-        Write(buffer, 100, "0000001");
-        return new string(buffer);
-    }
-
-    private static string BuildReturnFileControl()
-    {
-        var buffer = CreateRecord('9');
-        Write(buffer, 2, "000001");
-        Write(buffer, 8, "000001");
-        Write(buffer, 14, "00000002");
-        Write(buffer, 22, Num("12345678", 10));
-        Write(buffer, 32, Num("320000", 18));
-        Write(buffer, 50, new string('0', 18));
         return new string(buffer);
     }
 
@@ -870,6 +763,18 @@ public class AchPreproductionCertificationTests
         var connection = new SqliteConnection("DataSource=:memory:");
         connection.Open();
         return connection;
+    }
+
+    private static ITransactionPrerequisitePolicyService CreatePermissivePrerequisitePolicy()
+    {
+        var policy = new Mock<ITransactionPrerequisitePolicyService>();
+        policy
+            .Setup(x => x.ValidateForNachaExportAsync(
+                It.IsAny<AchTransaction>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionPrerequisiteValidationResult(true, "OK", "Política satisfecha.", null));
+        return policy.Object;
     }
 
     private static AchDbContext CreateContext(SqliteConnection connection)

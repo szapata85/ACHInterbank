@@ -6,10 +6,12 @@ import { Observable } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class ClearingHouseSpecialDatesService {
   private readonly api = inject(ApiService);
-  private readonly basePath = 'clearing-house-special-dates';
+  private readonly basePath = 'api/clearing-house-special-dates';
 
-  list(year?: number): Observable<ClearingHouseSpecialDate[]> {
-    const params = year ? { year } : undefined;
+  list(year?: number, clearingHouseId?: number): Observable<ClearingHouseSpecialDate[]> {
+    const params: Record<string, number> = {};
+    if (year) params['year'] = year;
+    if (clearingHouseId) params['clearingHouseId'] = clearingHouseId;
     return this.api.get<ClearingHouseSpecialDate[]>(this.basePath, { params });
   }
 
@@ -21,7 +23,7 @@ export class ClearingHouseSpecialDatesService {
     return this.api.put<ClearingHouseSpecialDate>(`${this.basePath}/${payload.id}`, payload);
   }
 
-  delete(id: number): Observable<void> {
-    return this.api.delete<void>(`${this.basePath}/${id}`);
+  changeStatus(id: number, isActive: boolean): Observable<ClearingHouseSpecialDate> {
+    return this.api.patch<ClearingHouseSpecialDate>(`${this.basePath}/${id}/status`, { isActive });
   }
 }

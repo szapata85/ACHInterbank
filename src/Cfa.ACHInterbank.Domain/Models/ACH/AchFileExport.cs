@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
@@ -15,4 +16,20 @@ public class AchFileExport : AuditableEntity
     public int TotalTransactions { get; set; }
     public bool IsEncrypted { get; set; }
     public DateTime GeneratedAtUtc { get; set; } = DateTime.UtcNow;
+    public int? Version { get; set; }
+    public string? ContentSha256 { get; set; }
+    public AchFileExportLifecycleStatus LifecycleStatus { get; set; } = AchFileExportLifecycleStatus.HistoricalUnknown;
+    public string? TransmissionReference { get; set; }
+    public DateTime? TransmittedAtUtc { get; set; }
+    public DateTime? AcknowledgedAtUtc { get; set; }
+    public string? AcknowledgementCode { get; set; }
+    public CenitChamberResponseState ChamberResponseState { get; set; } = CenitChamberResponseState.Pending;
+    public DateTime? ChamberResponseUpdatedAtUtc { get; set; }
+    public ICollection<AchFileExportTransaction> Transactions { get; set; } = new List<AchFileExportTransaction>();
+    public ICollection<AchFileTransmissionAttempt> TransmissionAttempts { get; set; } = new List<AchFileTransmissionAttempt>();
+    public ICollection<AchFileTransportResult> TransportResults { get; set; } = new List<AchFileTransportResult>();
+    public ICollection<CenitChamberResponse> ChamberResponses { get; set; } = new List<CenitChamberResponse>();
+
+    public bool AllowsCenitChamberRetransmission()
+        => ChamberResponseState == CenitChamberResponseState.Pending;
 }

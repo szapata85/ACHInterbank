@@ -6,7 +6,10 @@ const routes: Routes = [
   {
     path: '',
     component: AuthLogComponent,
-    data: { breadcrumb: 'Log de autenticaciones', title: 'Log de autenticaciones' }
+    data: {
+      breadcrumb: 'Registro de accesos',
+      title: 'Registro de accesos'
+    }
   }
 ];
 

@@ -24,17 +24,59 @@ public class IntegrationMappingValidationService : IIntegrationMappingValidation
         _context = context;
     }
 
-    public async Task<IntegrationMappingValidationResultDto> ValidateAsync(Guid mappingSetId, bool includeWarnings = true, CancellationToken ct = default)
+    public Task<IntegrationMappingValidationResultDto> EvaluateAsync(
+        Guid mappingSetId,
+        bool includeWarnings = true,
+        CancellationToken ct = default)
+        => ValidateCoreAsync(mappingSetId, includeWarnings, persistSummary: false, ct);
+
+    public Task<IntegrationMappingValidationResultDto> ValidateAsync(
+        Guid mappingSetId,
+        bool includeWarnings = true,
+        CancellationToken ct = default)
+        => ValidateCoreAsync(mappingSetId, includeWarnings, persistSummary: true, ct);
+
+    private async Task<IntegrationMappingValidationResultDto> ValidateCoreAsync(
+        Guid mappingSetId,
+        bool includeWarnings,
+        bool persistSummary,
+        CancellationToken ct)
     {
         var set = await _context.Set<IntegrationMappingSet>()
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == mappingSetId, ct)
             ?? throw new KeyNotFoundException($"No existe MappingSet {mappingSetId}.");
 
-        var parameters = await _context.Set<IntegrationMethodParameter>()
+        IntegrationContractVersion? contract = null;
+        if (set.ContractVersionId.HasValue)
+        {
+            contract = await _context.IntegrationContractVersions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == set.ContractVersionId.Value, ct)
+                ?? throw new InvalidOperationException($"MappingSet {set.Id} referencia una ContractVersion inexistente.");
+            if (contract.MethodId != set.MethodId)
+            {
+                throw new InvalidOperationException("MappingSet y ContractVersion deben pertenecer al mismo método.");
+            }
+        }
+
+        var parameterQuery = _context.Set<IntegrationMethodParameter>()
             .AsNoTracking()
-            .Where(x => x.MethodId == set.MethodId && x.IsActive)
+            .Where(x => x.MethodId == set.MethodId && x.IsActive);
+        if (contract is not null)
+        {
+            parameterQuery = IsBaselineBridge(contract)
+                ? parameterQuery.Where(x => x.ContractVersionId == contract.Id || x.ContractVersionId == null)
+                : parameterQuery.Where(x => x.ContractVersionId == contract.Id);
+        }
+        else
+        {
+            parameterQuery = parameterQuery.Where(x => x.ContractVersionId == null);
+        }
+
+        var parameters = await parameterQuery
             .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Id)
             .ToListAsync(ct);
 
         var rules = await _context.Set<IntegrationMappingRule>()
@@ -49,16 +91,38 @@ public class IntegrationMappingValidationService : IIntegrationMappingValidation
 
         var issues = new List<IntegrationMappingValidationIssueDto>();
         var parameterSummaries = new List<IntegrationMappingParameterValidationDto>();
+        var contractParameterIds = parameters.Select(x => x.Id).ToHashSet();
+        var incompatibleClonePaths = await LoadIncompatibleCloneTargetPathsAsync(set.Id, ct);
+
+        foreach (var orphanRule in rules.Where(rule => !contractParameterIds.Contains(rule.ParameterId)))
+        {
+            issues.Add(new(
+                "Error",
+                "RULE_PARAMETER_NOT_IN_CONTRACT",
+                $"Regla {orphanRule.Id} referencia ParameterId {orphanRule.ParameterId} fuera de la ContractVersion del MappingSet.",
+                $"Parameter:{orphanRule.ParameterId}",
+                "Contract"));
+        }
 
         foreach (var parameter in parameters)
         {
+            var paramIssuesBefore = issues.Count;
+
+            if (contract is not null && !IsContractParameterSupported(parameter))
+            {
+                issues.Add(new(
+                    "Error",
+                    "CONTRACT_PARAMETER_UNSUPPORTED",
+                    $"El parámetro contractual {parameter.ParameterPath} no es soportado por el mapping no-code actual.",
+                    parameter.ParameterPath,
+                    "Contract"));
+            }
+
             var paramRules = rules
                 .Where(r => r.ParameterId == parameter.Id)
                 .OrderBy(r => r.Priority)
                 .ThenBy(r => r.Id)
                 .ToList();
-
-            var paramIssuesBefore = issues.Count;
 
             if (parameter.Required && paramRules.Count == 0)
             {
@@ -71,6 +135,16 @@ public class IntegrationMappingValidationService : IIntegrationMappingValidation
             }
 
             var enabledRules = paramRules.Where(r => r.Enabled).ToList();
+
+            if (incompatibleClonePaths.Contains(parameter.ParameterPath) && enabledRules.Count == 0)
+            {
+                issues.Add(new(
+                    "Error",
+                    "CLONED_MAPPING_INCOMPATIBLE",
+                    $"{parameter.ParameterPath} quedó marcado como incompatible durante la clonación entre ContractVersions y requiere mapping explícito.",
+                    parameter.ParameterPath,
+                    "Contract"));
+            }
 
             var duplicateByPriority = enabledRules
                 .GroupBy(r => r.Priority)
@@ -167,12 +241,76 @@ public class IntegrationMappingValidationService : IIntegrationMappingValidation
         var isValid = !issues.Any(i => i.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase))
                       && coverage.IncompleteParameters == 0;
 
-        var persisted = await _context.Set<IntegrationMappingSet>().FirstAsync(x => x.Id == mappingSetId, ct);
-        persisted.ValidationSummaryJson = JsonSerializer.Serialize(new { isValid, coverage, issues, parameters = parameterSummaries });
-        await _context.SaveChangesAsync(ct);
+        if (persistSummary)
+        {
+            var persisted = await _context.Set<IntegrationMappingSet>().FirstAsync(x => x.Id == mappingSetId, ct);
+            persisted.ValidationSummaryJson = JsonSerializer.Serialize(new { isValid, coverage, issues, parameters = parameterSummaries });
+            await _context.SaveChangesAsync(ct);
+        }
 
         return new IntegrationMappingValidationResultDto(mappingSetId, isValid, issues, coverage, parameterSummaries);
     }
+
+
+    private async Task<HashSet<string>> LoadIncompatibleCloneTargetPathsAsync(Guid mappingSetId, CancellationToken ct)
+    {
+        var historyJson = await _context.IntegrationMappingSetHistory
+            .AsNoTracking()
+            .Where(x => x.MappingSetId == mappingSetId && x.Action == "ClonedAcrossContractVersions")
+            .OrderByDescending(x => x.PerformedAtUtc)
+            .Select(x => x.SnapshotJson)
+            .FirstOrDefaultAsync(ct);
+
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(historyJson))
+        {
+            return paths;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(historyJson);
+            if (!document.RootElement.TryGetProperty("Evidence", out var evidence)
+                || !evidence.TryGetProperty("Classifications", out var classifications)
+                || classifications.ValueKind != JsonValueKind.Array)
+            {
+                return paths;
+            }
+
+            foreach (var item in classifications.EnumerateArray())
+            {
+                if (!item.TryGetProperty("Classification", out var classification)
+                    || !string.Equals(classification.GetString(), "Incompatible", StringComparison.Ordinal)
+                    || !item.TryGetProperty("TargetParameterPath", out var targetPath))
+                {
+                    continue;
+                }
+
+                var value = targetPath.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    paths.Add(value);
+                }
+            }
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException(
+                $"La evidencia histórica de clonación del MappingSet {mappingSetId} no es JSON válido; la validación falla de forma cerrada.",
+                exception);
+        }
+
+        return paths;
+    }
+
+    private static bool IsBaselineBridge(IntegrationContractVersion contract)
+        => contract.SourceType == IntegrationContractSourceTypeEnum.BaselineMigration
+           && string.Equals(contract.VersionLabel, "baseline-v1", StringComparison.Ordinal);
+
+    private static bool IsContractParameterSupported(IntegrationMethodParameter parameter)
+        => parameter.Direction == IntegrationParameterDirectionEnum.Input
+           && parameter.Cardinality == IntegrationParameterCardinalityEnum.Scalar
+           && string.Equals(parameter.SupportStatus, "Supported", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsFormatMaskValid(string? transformationCode, string? formatMask)
     {

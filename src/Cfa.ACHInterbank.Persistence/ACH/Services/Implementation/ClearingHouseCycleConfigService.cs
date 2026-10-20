@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -11,10 +12,17 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
 {
     private readonly AchDbContext _context;
+    private readonly ICycleNumberResolver _cycleNumberResolver;
+    private readonly TimeProvider _timeProvider;
 
-    public ClearingHouseCycleConfigService(AchDbContext context)
+    public ClearingHouseCycleConfigService(
+        AchDbContext context,
+        ICycleNumberResolver? cycleNumberResolver = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
+        _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<IReadOnlyList<ClearingHouseCycleConfigDto>> GetByClearingHouseAsync(int clearingHouseId, DateTime? effectiveAt, CancellationToken ct = default)
@@ -47,7 +55,7 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
     {
         await EnsureClearingHouseExists(clearingHouseId, ct);
 
-        var effectiveDate = NormalizeUtcDate(effectiveAt) ?? DateTime.UtcNow.Date;
+        var effectiveDate = NormalizeUtcDate(effectiveAt) ?? _timeProvider.GetUtcNow().UtcDateTime.Date;
 
         // EF provider compatibility note:
         // SQLite fails translating GroupBy(...).Select(First...).OrderBy(TimeSpan),
@@ -62,11 +70,15 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
                         (!c.EffectiveTo.HasValue || c.EffectiveTo.Value.Date >= effectiveDate.Date))
             .ToListAsync(ct);
 
-        var grouped = filteredConfigs
-            .GroupBy(c => c.CycleName)
-            .Select(g => g.OrderByDescending(c => c.EffectiveFrom).ThenByDescending(c => c.Id).First());
+        var versions = filteredConfigs
+            .GroupBy(c => NormalizePolicyVersion(c.PolicyVersion), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (versions.Count > 1)
+        {
+            throw new InvalidOperationException("Existen múltiples versiones de política de ciclos vigentes para la misma cámara y fecha.");
+        }
 
-        var configs = grouped
+        var configs = versions.SelectMany(group => group)
             .OrderBy(c => c.CutoffTime)
             .Select(c => MapToDto(c, effectiveDate))
             .ToList();
@@ -81,34 +93,64 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
 
         var effectiveFrom = NormalizeRequiredUtcDate(dto.EffectiveFrom);
         var cycleName = dto.CycleName.Trim();
-
         await EnsureNoHistoricalOverlapAsync(dto.ClearingHouseId, cycleName, effectiveFrom, ct);
-
-        var overlappingConfigs = await _context.ClearingHouseCycleConfigs
-            .Where(c => c.ClearingHouseId == dto.ClearingHouseId && c.CycleName == cycleName &&
-                        c.EffectiveFrom.Date <= effectiveFrom.Date &&
-                        (!c.EffectiveTo.HasValue || c.EffectiveTo.Value.Date >= effectiveFrom.Date))
-            .ToListAsync(ct);
-
-        foreach (var config in overlappingConfigs)
+        if (await _context.ClearingHouseCycleConfigs.AnyAsync(c =>
+                c.ClearingHouseId == dto.ClearingHouseId
+                && c.EffectiveFrom.Date == effectiveFrom.Date, ct))
         {
-            config.EffectiveTo = effectiveFrom.AddDays(-1);
-            config.IsActive = false;
+            throw new InvalidOperationException("Ya existe una versión de política con la misma vigencia inicial.");
         }
 
-        var entity = new ClearingHouseCycleConfig
+        var sourceDate = effectiveFrom.AddDays(-1);
+        var source = await _context.ClearingHouseCycleConfigs
+            .Where(c => c.ClearingHouseId == dto.ClearingHouseId
+                && c.IsActive
+                && c.EffectiveFrom.Date <= sourceDate.Date
+                && (!c.EffectiveTo.HasValue || c.EffectiveTo.Value.Date >= sourceDate.Date))
+            .ToListAsync(ct);
+        var sourceVersions = source
+            .GroupBy(c => NormalizePolicyVersion(c.PolicyVersion), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (sourceVersions.Count > 1)
         {
-            ClearingHouseId = dto.ClearingHouseId,
-            CycleName = cycleName,
-            StartTime = dto.StartTime,
-            EndTime = dto.EndTime,
-            CutoffTime = dto.CutoffTime,
-            EffectiveFrom = effectiveFrom,
-            EffectiveTo = null,
-            IsActive = true
-        };
+            throw new InvalidOperationException("La política predecesora es ambigua y no puede versionarse.");
+        }
 
-        _context.ClearingHouseCycleConfigs.Add(entity);
+        var policyVersion = string.IsNullOrWhiteSpace(dto.PolicyVersion)
+            ? $"V{effectiveFrom:yyyyMMdd}"
+            : dto.PolicyVersion.Trim();
+        var targetNumber = _cycleNumberResolver.Resolve(cycleName);
+        var inherited = source.SingleOrDefault(config =>
+            string.Equals(config.CycleName.Trim(), cycleName, StringComparison.OrdinalIgnoreCase)
+            || targetNumber.HasValue && _cycleNumberResolver.Resolve(config.CycleName) == targetNumber);
+        var entity = CreateConfiguredCycle(
+            dto.ClearingHouseId,
+            policyVersion,
+            cycleName,
+            dto,
+            inherited,
+            effectiveFrom);
+
+        var nextPolicyStart = await _context.ClearingHouseCycleConfigs
+            .Where(c => c.ClearingHouseId == dto.ClearingHouseId && c.EffectiveFrom.Date > effectiveFrom.Date)
+            .Select(c => (DateTime?)c.EffectiveFrom)
+            .OrderBy(date => date)
+            .FirstOrDefaultAsync(ct);
+        entity.EffectiveTo = nextPolicyStart?.AddDays(-1);
+
+        var newPolicy = source
+            .Where(config => config.Id != inherited?.Id)
+            .Select(config => CloneForPolicy(config, policyVersion, effectiveFrom, entity.EffectiveTo))
+            .Append(entity)
+            .ToList();
+        ValidatePolicyCycles(newPolicy);
+
+        foreach (var config in source.Where(config => !config.EffectiveTo.HasValue || config.EffectiveTo.Value.Date >= effectiveFrom.Date))
+        {
+            config.EffectiveTo = effectiveFrom.AddDays(-1);
+        }
+
+        _context.ClearingHouseCycleConfigs.AddRange(newPolicy);
         await _context.SaveChangesAsync(ct);
 
         var created = await _context.ClearingHouseCycleConfigs
@@ -140,6 +182,41 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
         return MapToDto(entity, normalizedEffectiveTo);
     }
 
+    public async Task<ClearingHouseCycleConfigDto> ChangeStatusAsync(
+        int id,
+        bool isActive,
+        DateTime? effectiveTo,
+        CancellationToken ct = default)
+    {
+        var entity = await _context.ClearingHouseCycleConfigs
+            .Include(x => x.ClearingHouse)
+            .FirstOrDefaultAsync(x => x.Id == id, ct)
+            ?? throw new InvalidOperationException("Configuración de ciclo no encontrada.");
+
+        if (entity.IsActive == isActive)
+        {
+            return MapToDto(entity, _timeProvider.GetUtcNow().UtcDateTime.Date);
+        }
+
+        if (!isActive)
+        {
+            return await InactivateAsync(id, effectiveTo ?? _timeProvider.GetUtcNow().UtcDateTime.Date, ct);
+        }
+
+        var duplicate = await _context.ClearingHouseCycleConfigs.AnyAsync(x =>
+            x.Id != id && x.ClearingHouseId == entity.ClearingHouseId &&
+            x.CycleName == entity.CycleName && x.IsActive, ct);
+        if (duplicate)
+        {
+            throw new InvalidOperationException("Ya existe una versión activa del ciclo.");
+        }
+
+        entity.IsActive = true;
+        entity.EffectiveTo = null;
+        await _context.SaveChangesAsync(ct);
+        return MapToDto(entity, _timeProvider.GetUtcNow().UtcDateTime.Date);
+    }
+
     private static ClearingHouseCycleConfigDto MapToDto(ClearingHouseCycleConfig entity, DateTime? effectiveAt)
     {
         return new ClearingHouseCycleConfigDto
@@ -147,10 +224,24 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
             Id = entity.Id,
             ClearingHouseId = entity.ClearingHouseId,
             ClearingHouseName = entity.ClearingHouse?.Name,
+            PolicyVersion = NormalizePolicyVersion(entity.PolicyVersion),
             CycleName = entity.CycleName,
             StartTime = entity.StartTime,
             EndTime = entity.EndTime,
             CutoffTime = entity.CutoffTime,
+            OutputReleaseTime = entity.OutputReleaseTime,
+            CompensationStatementStartTime = entity.CompensationStatementStartTime,
+            CompensationStatementEndTime = entity.CompensationStatementEndTime,
+            CompensationPaymentStartTime = entity.CompensationPaymentStartTime,
+            CompensationPaymentEndTime = entity.CompensationPaymentEndTime,
+            OutputReleaseStartTime = entity.OutputReleaseStartTime,
+            OutputReleaseEndTime = entity.OutputReleaseEndTime,
+            AllowsMonetaryCredit = entity.AllowsMonetaryCredit,
+            AllowsMonetaryDebit = entity.AllowsMonetaryDebit,
+            AllowsCreditPrenotification = entity.AllowsCreditPrenotification,
+            AllowsDebitPrenotification = entity.AllowsDebitPrenotification,
+            AllowsReturn = entity.AllowsReturn,
+            AllowsReturnOfReturn = entity.AllowsReturnOfReturn,
             IsActive = entity.IsActive,
             EffectiveFrom = entity.EffectiveFrom,
             EffectiveTo = entity.EffectiveTo,
@@ -200,6 +291,23 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
         {
             throw new InvalidOperationException("La hora de corte debe estar dentro de la ventana operativa configurada.");
         }
+
+        var release = dto.OutputReleaseTime ?? dto.EndTime;
+        var candidate = new ClearingHouseCycleConfig
+        {
+            CycleName = dto.CycleName,
+            StartTime = dto.StartTime,
+            CutoffTime = dto.CutoffTime,
+            EndTime = dto.EndTime,
+            OutputReleaseTime = release,
+            CompensationStatementStartTime = dto.CompensationStatementStartTime,
+            CompensationStatementEndTime = dto.CompensationStatementEndTime,
+            CompensationPaymentStartTime = dto.CompensationPaymentStartTime,
+            CompensationPaymentEndTime = dto.CompensationPaymentEndTime,
+            OutputReleaseStartTime = dto.OutputReleaseStartTime,
+            OutputReleaseEndTime = dto.OutputReleaseEndTime
+        };
+        ClearingHouseCyclePolicyResolver.ValidateStageOrder(candidate);
     }
 
     private async Task EnsureNoHistoricalOverlapAsync(int clearingHouseId, string cycleName, DateTime effectiveFrom, CancellationToken ct)
@@ -259,4 +367,96 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
             ? DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Utc)
             : null;
     }
+
+    private static ClearingHouseCycleConfig CreateConfiguredCycle(
+        int clearingHouseId,
+        string policyVersion,
+        string cycleName,
+        UpsertClearingHouseCycleConfigDto dto,
+        ClearingHouseCycleConfig? inherited,
+        DateTime effectiveFrom)
+        => new()
+        {
+            ClearingHouseId = clearingHouseId,
+            PolicyVersion = policyVersion,
+            CycleName = cycleName,
+            StartTime = dto.StartTime,
+            EndTime = dto.EndTime,
+            CutoffTime = dto.CutoffTime,
+            OutputReleaseTime = dto.OutputReleaseTime ?? dto.OutputReleaseEndTime ?? inherited?.OutputReleaseTime ?? dto.EndTime,
+            CompensationStatementStartTime = dto.CompensationStatementStartTime ?? inherited?.CompensationStatementStartTime,
+            CompensationStatementEndTime = dto.CompensationStatementEndTime ?? inherited?.CompensationStatementEndTime,
+            CompensationPaymentStartTime = dto.CompensationPaymentStartTime ?? inherited?.CompensationPaymentStartTime,
+            CompensationPaymentEndTime = dto.CompensationPaymentEndTime ?? inherited?.CompensationPaymentEndTime,
+            OutputReleaseStartTime = dto.OutputReleaseStartTime ?? inherited?.OutputReleaseStartTime,
+            OutputReleaseEndTime = dto.OutputReleaseEndTime ?? inherited?.OutputReleaseEndTime,
+            AllowsMonetaryCredit = dto.AllowsMonetaryCredit ?? inherited?.AllowsMonetaryCredit ?? true,
+            AllowsMonetaryDebit = dto.AllowsMonetaryDebit ?? inherited?.AllowsMonetaryDebit ?? true,
+            AllowsCreditPrenotification = dto.AllowsCreditPrenotification ?? inherited?.AllowsCreditPrenotification ?? true,
+            AllowsDebitPrenotification = dto.AllowsDebitPrenotification ?? inherited?.AllowsDebitPrenotification ?? true,
+            AllowsReturn = dto.AllowsReturn ?? inherited?.AllowsReturn ?? true,
+            AllowsReturnOfReturn = dto.AllowsReturnOfReturn ?? inherited?.AllowsReturnOfReturn ?? true,
+            EffectiveFrom = effectiveFrom,
+            IsActive = true
+        };
+
+    private static ClearingHouseCycleConfig CloneForPolicy(
+        ClearingHouseCycleConfig source,
+        string policyVersion,
+        DateTime effectiveFrom,
+        DateTime? effectiveTo)
+        => new()
+        {
+            ClearingHouseId = source.ClearingHouseId,
+            PolicyVersion = policyVersion,
+            CycleName = source.CycleName,
+            StartTime = source.StartTime,
+            EndTime = source.EndTime,
+            CutoffTime = source.CutoffTime,
+            OutputReleaseTime = source.OutputReleaseTime,
+            CompensationStatementStartTime = source.CompensationStatementStartTime,
+            CompensationStatementEndTime = source.CompensationStatementEndTime,
+            CompensationPaymentStartTime = source.CompensationPaymentStartTime,
+            CompensationPaymentEndTime = source.CompensationPaymentEndTime,
+            OutputReleaseStartTime = source.OutputReleaseStartTime,
+            OutputReleaseEndTime = source.OutputReleaseEndTime,
+            AllowsMonetaryCredit = source.AllowsMonetaryCredit,
+            AllowsMonetaryDebit = source.AllowsMonetaryDebit,
+            AllowsCreditPrenotification = source.AllowsCreditPrenotification,
+            AllowsDebitPrenotification = source.AllowsDebitPrenotification,
+            AllowsReturn = source.AllowsReturn,
+            AllowsReturnOfReturn = source.AllowsReturnOfReturn,
+            EffectiveFrom = effectiveFrom,
+            EffectiveTo = effectiveTo,
+            IsActive = true
+        };
+
+    private void ValidatePolicyCycles(IReadOnlyCollection<ClearingHouseCycleConfig> cycles)
+    {
+        var duplicateName = cycles
+            .GroupBy(cycle => cycle.CycleName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateName is not null)
+        {
+            throw new InvalidOperationException($"El ciclo '{duplicateName.Key}' está duplicado en la política.");
+        }
+
+        var duplicateNumber = cycles
+            .Select(cycle => _cycleNumberResolver.Resolve(cycle.CycleName))
+            .Where(number => number.HasValue)
+            .GroupBy(number => number!.Value)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateNumber is not null)
+        {
+            throw new InvalidOperationException($"El número de ciclo {duplicateNumber.Key} está duplicado en la política.");
+        }
+
+        foreach (var cycle in cycles)
+        {
+            ClearingHouseCyclePolicyResolver.ValidateStageOrder(cycle);
+        }
+    }
+
+    private static string NormalizePolicyVersion(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "LEGACY" : value.Trim();
 }

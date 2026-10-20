@@ -1,4 +1,4 @@
-using Cfa.ACHInterbank.Application.Exceptions;
+using Cfa.ACHInterbank.Api.Exceptions;
 using Cfa.ACHInterbank.Application.Features;
 using Cfa.ACHInterbank.Application.Services.TokenClient.Interfaces;
 using Cfa.ACHInterbank.Application.Services.TokenClient.Model;

@@ -4,17 +4,17 @@
 # For more information, please see https://aka.ms/containercompat
 
 # This stage is used when running from VS in fast mode (Default for Debug configuration)
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.8 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.13 AS base
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && apt-get install -y --no-install-recommends curl libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/*
 
 
 # This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.402 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj", "src/Cfa.ACHInterbank.Api/"]
@@ -22,6 +22,7 @@ COPY ["src/Cfa.ACHInterbank.Application/Cfa.ACHInterbank.Application.csproj", "s
 COPY ["src/Cfa.ACHInterbank.Domain/Cfa.ACHInterbank.Domain.csproj", "src/Cfa.ACHInterbank.Domain/"]
 COPY ["src/Cfa.ACHInterbank.External/Cfa.ACHInterbank.External.csproj", "src/Cfa.ACHInterbank.External/"]
 COPY ["src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj", "src/Cfa.ACHInterbank.Persistence/"]
+COPY ["src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/Cfa.ACHInterbank.Persistence.Migrations.SqlServer.csproj", "src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/"]
 RUN dotnet restore "./src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj"
 COPY . .
 WORKDIR "/src/src/Cfa.ACHInterbank.Api"

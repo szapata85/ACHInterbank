@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Responses.Queries.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +16,7 @@ public class AchResponseRepository : IAchResponseRepository
     public AchResponseRepository(AchDbContext context) => _context = context;
 
     public Task<AchResponse?> FindByIdempotencyHashAsync(string hashIdempotencia, CancellationToken cancellationToken = default)
-        => _context.AchResponses.AsNoTracking().FirstOrDefaultAsync(x => x.HashIdempotencia == hashIdempotencia, cancellationToken);
+        => _context.AchResponses.FirstOrDefaultAsync(x => x.HashIdempotencia == hashIdempotencia, cancellationToken);
 
     public async Task AddAsync(AchResponse response, CancellationToken cancellationToken = default)
         => await _context.AchResponses.AddAsync(response, cancellationToken);
@@ -25,6 +26,9 @@ public class AchResponseRepository : IAchResponseRepository
         _context.AchResponses.Update(response);
         return Task.CompletedTask;
     }
+
+    public async Task AddAuditAsync(AchResponseAudit audit, CancellationToken cancellationToken = default)
+        => await _context.AchResponseAudits.AddAsync(audit, cancellationToken);
 
     public async Task<PagedResult<AchResponseListItemModel>> SearchAsync(AchResponseSearchQuery query, CancellationToken cancellationToken = default)
     {
@@ -53,6 +57,32 @@ public class AchResponseRepository : IAchResponseRepository
         return new PagedResult<AchResponseListItemModel>(items, pageNumber, pageSize, totalCount);
     }
 
+    public async Task<AchResponseDashboardModel> GetDashboardAsync(
+        AchResponseDashboardQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var data = _context.AchResponses.AsNoTracking().AsQueryable();
+        if (query.FechaDesde.HasValue) data = data.Where(x => x.FechaRecepcion >= query.FechaDesde.Value);
+        if (query.FechaHasta.HasValue) data = data.Where(x => x.FechaRecepcion <= query.FechaHasta.Value);
+        if (query.TipoRespuesta.HasValue) data = data.Where(x => x.TipoRespuesta == query.TipoRespuesta.Value);
+
+        var dashboard = await data
+            .GroupBy(_ => 1)
+            .Select(group => new AchResponseDashboardModel(
+                group.Count(),
+                group.Count(x => x.EstadoProcesamiento == AchResponseProcessingStatus.Recibida),
+                group.Count(x => x.EstadoProcesamiento == AchResponseProcessingStatus.Homologada),
+                group.Count(x => x.EstadoProcesamiento == AchResponseProcessingStatus.Notificada),
+                group.Count(x => x.EstadoProcesamiento == AchResponseProcessingStatus.NoHomologada),
+                group.Count(x => x.EstadoProcesamiento == AchResponseProcessingStatus.RequiereRevisionManual),
+                group.Count(x => x.EstadoProcesamiento == AchResponseProcessingStatus.PendienteReintento),
+                group.Count(x => x.EstadoProcesamiento == AchResponseProcessingStatus.ErrorFuncional),
+                group.Count(x => x.EstadoProcesamiento == AchResponseProcessingStatus.Duplicada)))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return dashboard ?? new AchResponseDashboardModel(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+
     public async Task<AchResponseDetailModel?> FindDetailByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _context.AchResponses.AsNoTracking()
@@ -64,7 +94,7 @@ public class AchResponseRepository : IAchResponseRepository
                 x.MotivoNoHomologacion, x.PermiteNotificacion, x.CorrelationId, x.FechaRecepcion, x.FechaCreacion, x.FechaActualizacion,
                 x.NotificationAttempts.OrderBy(a => a.NumeroIntento)
                     .Select(a => new AchResponseNotificationAttemptModel(a.Id, a.AchResponseId, a.NumeroIntento, a.EstadoNotificacion.ToString(), a.IdCanal, a.NombreCanal, a.IdTransaccion, a.IdEstado, a.Causal, a.IdTransaccionServicioExterno, a.DescripcionCausal, a.ExisteError, a.CodigoError, a.DescripcionError, a.ErrorTecnico, a.FechaCreacion, a.FechaEnvio))
-                    .ToList()))
+                    .ToList(), x.ClearingHouseId ?? 0, x.AppliedMappingId, x.DuplicateReceiptCount, x.Version))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

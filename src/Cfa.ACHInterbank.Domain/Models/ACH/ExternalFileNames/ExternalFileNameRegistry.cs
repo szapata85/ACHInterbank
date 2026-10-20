@@ -24,6 +24,7 @@ public class ExternalFileNameRegistry
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public string CreatedBy { get; set; } = "system";
     public byte[] RowVersion { get; set; } = [];
+    public long? GenerationReservationId { get; set; }
 
     public ICollection<ExternalFileNameValidationLog> ValidationLogs { get; set; } = new List<ExternalFileNameValidationLog>();
 }

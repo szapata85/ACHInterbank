@@ -11,23 +11,18 @@ describe('AchResponseDashboardPageComponent', () => {
   let routerSpy: jasmine.SpyObj<Router>;
 
   beforeEach(() => {
-    apiSpy = jasmine.createSpyObj<AchResponsesApiService>('AchResponsesApiService', ['search']);
-    apiSpy.search.and.callFake((request: any) => {
-      const status = request?.estadoProcesamiento;
-      const counts: Record<string, number> = {
-        total: 10,
-        Recibida: 2,
-        Homologada: 5,
-        Notificada: 5,
-        NoHomologada: 1,
-        RequiereRevisionManual: 1,
-        PendienteReintento: 1,
-        ErrorFuncional: 1,
-        Duplicada: 0
-      };
-      const key = status ?? 'total';
-      return of({ totalCount: counts[key] ?? 0, items: [], pageNumber: 1, pageSize: 1, totalPages: 1 } as any);
-    });
+    apiSpy = jasmine.createSpyObj<AchResponsesApiService>('AchResponsesApiService', ['getDashboard']);
+    apiSpy.getDashboard.and.returnValue(of({
+      totalRespuestas: 10,
+      recibidas: 2,
+      homologadas: 5,
+      notificadas: 5,
+      noHomologadas: 1,
+      revisionManual: 1,
+      pendientesReintento: 1,
+      erroresFuncionales: 1,
+      duplicadas: 0
+    }));
 
     notificationSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['error']);
     routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate']);
@@ -52,19 +47,16 @@ describe('AchResponseDashboardPageComponent', () => {
     fixture.detectChanges();
     const component = fixture.componentInstance;
 
-    expect(apiSpy.search).toHaveBeenCalled();
+    expect(apiSpy.getDashboard).toHaveBeenCalledTimes(1);
     expect(component.kpis.some((kpi) => kpi.titulo === 'Total respuestas')).toBeTrue();
     expect(component.kpis.some((kpi) => kpi.titulo === 'Notificadas')).toBeTrue();
   });
 
-  it('AchResponseDashboardPageComponent_ShouldUsePageSizeOneForCounts', () => {
+  it('AchResponseDashboardPageComponent_ShouldUseSingleAggregatedRequest', () => {
     const fixture = TestBed.createComponent(AchResponseDashboardPageComponent);
     fixture.detectChanges();
 
-    apiSpy.search.calls.allArgs().forEach((args) => {
-      expect(args[0].pageNumber).toBe(1);
-      expect(args[0].pageSize).toBe(1);
-    });
+    expect(apiSpy.getDashboard).toHaveBeenCalledTimes(1);
   });
 
   it('AchResponseDashboardPageComponent_ShouldApplyFilters', () => {
@@ -75,7 +67,7 @@ describe('AchResponseDashboardPageComponent', () => {
     component.filtrosForm.patchValue({ fechaDesde: '2026-01-01', fechaHasta: '2026-01-31', tipoRespuesta: 'Transaccion' });
     component.applyFilters();
 
-    const request = apiSpy.search.calls.mostRecent().args[0];
+    const request = apiSpy.getDashboard.calls.mostRecent().args[0];
     expect(request.fechaDesde).toBe('2026-01-01');
     expect(request.fechaHasta).toBe('2026-01-31');
     expect(request.tipoRespuesta).toBe('Transaccion');
@@ -92,16 +84,17 @@ describe('AchResponseDashboardPageComponent', () => {
     expect(component.filtrosForm.controls.fechaDesde.value).toBe('');
     expect(component.filtrosForm.controls.fechaHasta.value).toBe('');
     expect(component.filtrosForm.controls.tipoRespuesta.value).toBe('');
-    expect(apiSpy.search).toHaveBeenCalled();
+    expect(apiSpy.getDashboard).toHaveBeenCalledTimes(2);
   });
 
   it('AchResponseDashboardPageComponent_ShouldHandleLoadError', () => {
-    apiSpy.search.and.returnValue(throwError(() => new Error('fail')));
+    apiSpy.getDashboard.and.returnValue(throwError(() => new Error('fail')));
     const fixture = TestBed.createComponent(AchResponseDashboardPageComponent);
     fixture.detectChanges();
 
     const component = fixture.componentInstance;
     expect(component.error).toBeTrue();
+    expect(component.loading).toBeFalse();
     expect(notificationSpy.error).toHaveBeenCalled();
   });
 

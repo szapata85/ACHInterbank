@@ -1,42 +1,18 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { permissionGuard } from '../../core/guards/permission.guard';
-import { NachaOperationalDashboardComponent } from './pages/nacha-operational-dashboard.component';
-import { NachaOperationalFileDetailComponent } from './pages/nacha-operational-file-detail.component';
-import { NachaSoapUatConsoleComponent } from './pages/nacha-soap-uat-console.component';
 import { AchReconciliationConsoleComponent } from './pages/ach-reconciliation-console.component';
 
-const routes: Routes = [
+export const NACHA_OPERATIONAL_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'nacha/operational-dashboard' },
   {
     path: 'nacha/operational-dashboard',
-    component: NachaOperationalDashboardComponent,
-    canActivate: [permissionGuard],
-    data: {
-      permissions: ['CanReadAch'],
-      breadcrumb: 'Preparación SOAP',
-      title: 'Consulta operativa NACHA-M y preparación SOAP'
-    }
+    pathMatch: 'full',
+    redirectTo: '/incoming-nacha-command-center'
   },
   {
     path: 'nacha/operational-dashboard/files/:fileId',
-    component: NachaOperationalFileDetailComponent,
-    canActivate: [permissionGuard],
-    data: {
-      permissions: ['CanReadAch'],
-      breadcrumb: 'Detalle archivo NACHA-M',
-      title: 'Detalle operativo NACHA-M solo lectura'
-    }
-  },
-  {
-    path: 'nacha/soap-uat-console',
-    component: NachaSoapUatConsoleComponent,
-    canActivate: [permissionGuard],
-    data: {
-      permissions: ['CanReadAch'],
-      breadcrumb: 'Consola SOAP/UAT',
-      title: 'Consola SOAP/UAT solo lectura'
-    }
+    redirectTo: '/incoming-nacha-command-center/files/:fileId'
   },
   {
     path: 'reconciliation',
@@ -44,8 +20,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanReadAch'],
-      breadcrumb: 'Conciliación ACH',
-      title: 'Consola de conciliación ACH solo lectura'
+      breadcrumb: 'Conciliación',
+      title: 'Conciliación'
     }
   },
   {
@@ -56,7 +32,7 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(routes)],
+  imports: [RouterModule.forChild(NACHA_OPERATIONAL_ROUTES)],
   exports: [RouterModule]
 })
 export class NachaOperationalRoutingModule {}

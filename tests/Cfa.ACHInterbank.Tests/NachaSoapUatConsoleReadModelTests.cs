@@ -141,12 +141,25 @@ public class NachaSoapUatConsoleReadModelTests
     [Fact]
     public async Task GetCandidate_ShouldReturnNotFoundForMissingCorrelation()
     {
-        var controller = new NachaSoapUatConsoleController(new NachaSoapUatConsoleReadModelService(ReadStore().Object));
+        var controller = CreateController(new NachaSoapUatConsoleReadModelService(ReadStore().Object));
 
         var result = await controller.GetCandidate("missing", default);
 
         result.Should().BeOfType<NotFoundObjectResult>();
     }
+
+    [Fact]
+    public async Task SoapUatConsole_ShouldRemainReadOnlyAndAvailableWithoutEnvironmentGate()
+    {
+        var controller = CreateController(new NachaSoapUatConsoleReadModelService(ReadStore().Object));
+
+        var result = await controller.GetDashboard(default);
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    private static NachaSoapUatConsoleController CreateController(INachaSoapUatConsoleReadModelService service)
+        => new(service);
 
     private static Mock<INachaOperationalReadStore> ReadStore(
         IReadOnlyList<NachaOperationalDecisionReadModel>? decisions = null,

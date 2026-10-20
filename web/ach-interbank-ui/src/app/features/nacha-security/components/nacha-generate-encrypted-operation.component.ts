@@ -1,17 +1,34 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { finalize } from 'rxjs';
-import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
-import { NachaSecurityOperationsApiService } from '../services/nacha-security-operations-api.service';
+import { PageHeaderComponent } from '../../../shared/components/page-header.component';
 import { NachaSecurityOperationResponse } from '../models/nacha-security-operation.model';
+import { NachaSecurityOperationsApiService } from '../services/nacha-security-operations-api.service';
+import { NachaOperationSummaryComponent } from './nacha-operation-summary.component';
 
 @Component({
   selector: 'app-nacha-generate-encrypted-operation',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    PageHeaderComponent,
+    NachaOperationSummaryComponent
+  ],
   templateUrl: './nacha-generate-encrypted-operation.component.html',
+  styleUrls: ['./nacha-operation-page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NachaGenerateEncryptedOperationComponent {

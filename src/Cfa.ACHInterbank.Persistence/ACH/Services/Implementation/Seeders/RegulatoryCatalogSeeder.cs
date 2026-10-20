@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
@@ -24,14 +25,27 @@ public class RegulatoryCatalogSeeder : IDbSeeder
     {
         var clearingHouseIds = await ResolveReturnClearingHouseIdsAsync();
         await UpsertReturnCodesAsync(clearingHouseIds);
-        await UpsertFileRejectionCodesAsync();
+        await UpsertFileRejectionCodesAsync(clearingHouseIds);
         await UpsertTransactionTypePoliciesAsync();
         await UpsertReturnPoliciesAsync(clearingHouseIds);
         await UpsertReturnOfReturnPoliciesAsync(clearingHouseIds);
         await UpsertPrenotificationPoliciesAsync();
         await UpsertClearingHouseTransactionRulesAsync(clearingHouseIds);
+        await RemoveStaleDev14ReturnReasonAsync();
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task RemoveStaleDev14ReturnReasonAsync()
+    {
+        var staleRows = await _context.ReturnReasons
+            .Where(x => x.Code == "DEV14")
+            .ToListAsync();
+
+        if (staleRows.Count > 0)
+        {
+            _context.ReturnReasons.RemoveRange(staleRows);
+        }
     }
 
     private async Task UpsertReturnCodesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
@@ -42,6 +56,25 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             .ToDictionary(x => $"{x.ClearingHouseId}|{x.Code}|{x.FlowType}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnCodes.ToListAsync();
 
+        foreach (var legacyR96 in existing.Where(x =>
+                     string.Equals(x.Code, "R96", StringComparison.OrdinalIgnoreCase)
+                     && string.Equals(x.FlowType, AchReturnFlowType.Any, StringComparison.OrdinalIgnoreCase)
+                     && !x.AppliesToReturn
+                     && x.EffectiveFrom.Year <= 2000))
+        {
+            legacyR96.IsActive = false;
+            legacyR96.BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed;
+            legacyR96.RegulatorySource = "R96_INTEGRATION_ONLY";
+        }
+
+        foreach (var dev14 in existing.Where(x =>
+                     x.ClearingHouseId == clearingHouseIds.AchColombiaId
+                     && string.Equals(x.Code, "DEV14", StringComparison.OrdinalIgnoreCase)))
+        {
+            dev14.IsActive = false;
+            dev14.EffectiveTo = DateTime.UtcNow.Date;
+        }
+
         foreach (var row in existing)
         {
             var key = $"{row.ClearingHouseId}|{row.Code}|{row.FlowType}";
@@ -51,6 +84,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             }
 
             row.Description = model.Description;
+            row.BusinessOutcome = model.BusinessOutcome;
             row.AppliesToDebit = model.AppliesToDebit;
             row.AppliesToCredit = model.AppliesToCredit;
             row.AppliesToPrenotification = model.AppliesToPrenotification;
@@ -73,16 +107,29 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private async Task UpsertFileRejectionCodesAsync()
+    private async Task UpsertFileRejectionCodesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        var desired = BuildFileRejectionCodes().ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+        var desired = BuildFileRejectionCodes(clearingHouseIds)
+            .ToDictionary(x => $"{x.ClearingHouseId}|{x.Code}|{x.AppliesToStage}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchFileRejectionCodes.ToListAsync();
 
         foreach (var row in existing)
         {
-            if (!desired.TryGetValue(row.Code, out var model))
+            if (!row.ClearingHouseId.HasValue && row.Code.StartsWith('D'))
             {
-                continue;
+                row.ClearingHouseId = clearingHouseIds.CenitId;
+            }
+
+            var key = $"{row.ClearingHouseId}|{row.Code}|{row.AppliesToStage}";
+            if (!desired.TryGetValue(key, out var model))
+            {
+                model = desired.Values.SingleOrDefault(x =>
+                    x.ClearingHouseId == row.ClearingHouseId
+                    && string.Equals(x.Code, row.Code, StringComparison.OrdinalIgnoreCase));
+                if (model is null)
+                {
+                    continue;
+                }
             }
 
             row.Description = model.Description;
@@ -90,9 +137,14 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.AppliesToStage = model.AppliesToStage;
             row.IsRetryable = model.IsRetryable;
             row.IsActive = model.IsActive;
+            row.EffectiveFrom = model.EffectiveFrom;
+            row.EffectiveTo = model.EffectiveTo;
+            row.RegulatorySource = model.RegulatorySource;
         }
 
-        foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.Code, x.Code, StringComparison.OrdinalIgnoreCase))))
+        foreach (var model in desired.Values.Where(x => existing.All(e =>
+                     e.ClearingHouseId != x.ClearingHouseId
+                     || !string.Equals(e.Code, x.Code, StringComparison.OrdinalIgnoreCase))))
         {
             _context.AchFileRejectionCodes.Add(model);
         }
@@ -143,6 +195,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
             row.AllowedReturnCodesCsv = model.AllowedReturnCodesCsv;
             row.MaxDays = model.MaxDays;
+            row.MaxCycles = model.MaxCycles;
             row.RequiredOriginalTransactionState = model.RequiredOriginalTransactionState;
             row.AllowsReturnOfReturn = model.AllowsReturnOfReturn;
             row.RequiresAddenda = model.RequiresAddenda;
@@ -208,18 +261,16 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             .ToListAsync();
 
         var cenit = clearingHouses.FirstOrDefault(x =>
-            ContainsToken(x.Code, "CENIT") ||
-            ContainsToken(x.Name, "CENIT"));
+            string.Equals(x.Code, "CENIT", StringComparison.OrdinalIgnoreCase));
         if (cenit is null)
         {
             throw new InvalidOperationException("No existe ClearingHouse CENIT para sembrar catálogos regulatorios de devolución.");
         }
 
         var achColombia = clearingHouses.FirstOrDefault(x =>
-            ContainsToken(x.Code, "ACH") ||
-            ContainsToken(x.Name, "ACH COLOMBIA") ||
-            ContainsToken(x.Name, "ACHCOLOMBIA") ||
-            ContainsToken(x.Name, "ACH"));
+            string.Equals(x.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+            ?? clearingHouses.FirstOrDefault(x =>
+                string.Equals(x.Code, "ACH", StringComparison.OrdinalIgnoreCase));
         if (achColombia is null)
         {
             throw new InvalidOperationException("No existe ClearingHouse ACH Colombia para sembrar catálogos regulatorios de devolución.");
@@ -227,10 +278,6 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
         return (cenit.Id, achColombia.Id);
     }
-
-    private static bool ContainsToken(string? source, string token)
-        => !string.IsNullOrWhiteSpace(source)
-           && source.Contains(token, StringComparison.OrdinalIgnoreCase);
 
     private async Task UpsertPrenotificationPoliciesAsync()
     {
@@ -272,12 +319,13 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
             row.RequiresPrenotification = model.RequiresPrenotification;
             row.PrenotificationMode = model.PrenotificationMode;
+            row.PrenotificationLeadBusinessDays = model.PrenotificationLeadBusinessDays;
+            row.PrenotificationResponseDeadlineMode = model.PrenotificationResponseDeadlineMode;
+            row.PrenotificationResponseWindowCycles = model.PrenotificationResponseWindowCycles;
+            row.TacitAcceptanceEnabled = model.TacitAcceptanceEnabled;
+            row.ValidationRetentionMonthsAfterLastMonetaryUse = model.ValidationRetentionMonthsAfterLastMonetaryUse;
             row.RequiresReceiverIdentificationValidation = model.RequiresReceiverIdentificationValidation;
             row.ReceiverIdentificationValidationMode = model.ReceiverIdentificationValidationMode;
-            row.AppliesToNachaExport = model.AppliesToNachaExport;
-            row.AppliesToMonetaryTransactions = model.AppliesToMonetaryTransactions;
-            row.EffectiveTo = model.EffectiveTo;
-            row.IsActive = model.IsActive;
             row.NormativeSource = model.NormativeSource;
             row.NormativeReference = model.NormativeReference;
             row.Notes = model.Notes;
@@ -316,37 +364,81 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             new AchReturnCode { Code = "R23", Description = "Entrada rechazada por receptor", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
             new AchReturnCode { Code = "R29", Description = "Asesor corporativo no autorizado", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "ACH" },
             new AchReturnCode { Code = "R31", Description = "Entrada permitida de retorno", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true, RegulatorySource = "ACH" },
-            new AchReturnCode { Code = "DEV14", Description = "No consentimiento / retorno de débito por operador", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "OPERADOR" }
+
         };
 
-        foreach (var row in rows)
+        var cenitRows = CenitIncomingReturnPolicy.CauseDefinitions.Select(cause => new AchReturnCode
         {
-            row.ClearingHouseId = string.Equals(row.RegulatorySource, "CENIT", StringComparison.OrdinalIgnoreCase)
-                ? clearingHouseIds.CenitId
-                : (string.Equals(row.RegulatorySource, "ACH", StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(row.RegulatorySource, "OPERADOR", StringComparison.OrdinalIgnoreCase))
-                    ? clearingHouseIds.AchColombiaId
-                    : throw new InvalidOperationException($"RegulatorySource no soportado para seed de devoluciones: {row.RegulatorySource}");
+            ClearingHouseId = clearingHouseIds.CenitId,
+            Code = cause.Code,
+            Description = cause.Description,
+            AppliesToDebit = cause.AppliesToDebitMonetary,
+            AppliesToCredit = cause.AppliesToCreditMonetary,
+            AppliesToPrenotification = cause.AppliesToDebitPrenotification || cause.AppliesToCreditPrenotification,
+            AppliesToReturn = true,
+            RequiresAddenda = true,
+            MaxDaysAllowed = cause.MaxCalendarDays,
+            IsActive = true,
+            EffectiveFrom = new DateTime(2023, 11, 28),
+            RegulatorySource = "CENIT"
+        }).ToList();
+        var cenitRorRows = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["R60"] = "Devolución de una Devolución solicitada por el Participante Receptor",
+            ["R61"] = "Devolución enviada al Participante incorrecto",
+            ["R62"] = "Número de secuencia incorrecto",
+            ["R63"] = "Valor incorrecto",
+            ["R64"] = "Número de Identificación incorrecto",
+            ["R65"] = "Código de Transacción incorrecto",
+            ["R66"] = "Identificación del Originador incorrecta",
+            ["R67"] = "Devolución duplicada",
+            ["R68"] = "Devolución extemporánea",
+            ["R69"] = "Múltiples errores",
+            ["R70"] = "Número de cuenta incorrecto",
+            ["R71"] = "Datos Discrecionales del Originador incorrectos",
+            ["R72"] = "Tipo de Servicio incorrecto",
+            ["R73"] = "Descripción de Lote incorrecta",
+            ["R74"] = "Devolución errada de una transacción crédito monetaria por la causal R32"
+        }.Select(item => new AchReturnCode
+        {
+            ClearingHouseId = clearingHouseIds.CenitId,
+            Code = item.Key,
+            FlowType = AchReturnFlowType.ReturnOfReturn,
+            Description = item.Value,
+            AppliesToReturn = true,
+            RequiresAddenda = true,
+            MaxDaysAllowed = 1,
+            IsActive = true,
+            EffectiveFrom = new DateTime(2026, 5, 7),
+            RegulatorySource = "CENIT Anexo A T2"
+        });
+
+        var achRows = rows.Where(row => !string.Equals(row.RegulatorySource, "CENIT", StringComparison.OrdinalIgnoreCase)).ToList();
+        foreach (var row in achRows)
+        {
+            row.ClearingHouseId = clearingHouseIds.AchColombiaId;
         }
 
-        return rows;
+        return cenitRows.Concat(cenitRorRows).Concat(achRows);
     }
 
-    private static IEnumerable<AchFileRejectionCode> BuildFileRejectionCodes()
+    private static IEnumerable<AchFileRejectionCode> BuildFileRejectionCodes((int CenitId, int AchColombiaId) clearingHouseIds)
     {
+        var effectiveFrom = new DateTime(2024, 1, 1);
+        const string cenitSource = "CENIT DSP-152 Anexo B; MATRIZ_REGLAS_CENIT";
         return new[]
         {
-            new AchFileRejectionCode { Code = "D01", Description = "Archivo duplicado detectado por hash/tamaño.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D02", Description = "Formato/estructura de archivo inválida o padding no conforme.", Severity = "Fatal", AppliesToStage = "Parser", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D03", Description = "Operador o canal de transmisión incorrecto.", Severity = "Fatal", AppliesToStage = "Transmission", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D04", Description = "Inconsistencia de secuencia, batch count o conteos físicos.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D05", Description = "Control hash/cuadres NACHA inválidos.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D06", Description = "Campo obligatorio ausente o registro fuera de orden esperado.", Severity = "Fatal", AppliesToStage = "Parser", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "I500", Description = "Error técnico de integración externa (HTTP 500).", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true },
-            new AchFileRejectionCode { Code = "I503", Description = "Servicio externo no disponible (HTTP 503).", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true },
-            new AchFileRejectionCode { Code = "ITIMEOUT", Description = "Timeout técnico en integración SOAP.", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true },
-            new AchFileRejectionCode { Code = "ISOAP", Description = "SOAP fault técnico recuperable.", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true },
-            new AchFileRejectionCode { Code = "IFUNC", Description = "Rechazo funcional de integración no reintentable automáticamente.", Severity = "Warning", AppliesToStage = "Integration", IsRetryable = false, IsActive = true }
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D01", Description = "El archivo está dirigido a una entidad receptora diferente de la esperada.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D02", Description = "El archivo fue firmado o cifrado para un operador receptor o usuarios no válidos.", Severity = "Fatal", AppliesToStage = "Protection", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D03", Description = "El archivo tiene formato incorrecto y no fue posible procesarlo.", Severity = "Fatal", AppliesToStage = "Parser", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D04", Description = "El archivo ya fue recibido y corresponde a un duplicado.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D05", Description = "El número de registros del nombre externo no coincide con el contenido del archivo.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D06", Description = "La distribución del archivo no corresponde al operador receptor según las reglas vigentes.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { Code = "I500", Description = "Error técnico de integración externa (HTTP 500).", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" },
+            new AchFileRejectionCode { Code = "I503", Description = "Servicio externo no disponible (HTTP 503).", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" },
+            new AchFileRejectionCode { Code = "ITIMEOUT", Description = "Tiempo de espera agotado en la integración SOAP.", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" },
+            new AchFileRejectionCode { Code = "ISOAP", Description = "Falla técnica SOAP recuperable.", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" },
+            new AchFileRejectionCode { Code = "IFUNC", Description = "Rechazo funcional de integración no reintentable automáticamente.", Severity = "Warning", AppliesToStage = "Integration", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" }
         };
     }
 
@@ -372,8 +464,8 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
         return new[]
         {
-            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", cenitCodes), MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
-            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", achCodes), MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31", cenitCodes), MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31", achCodes), MaxDays = 60, MaxCycles = 4, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
             new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Credit", AllowedReturnCodesCsv = FilterCodes("R03,R04,R20,R23,R31", cenitCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
             new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Credit", AllowedReturnCodesCsv = FilterCodes("R03,R04,R20,R23,R31", achCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
             new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Prenotification", AllowedReturnCodesCsv = FilterCodes("R03,R29", cenitCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
@@ -398,30 +490,35 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         };
 
         var result = new List<AchReturnOfReturnPolicy>();
+
+        var cenitRorCauses = FilterCodes(
+            string.Join(',', Enumerable.Range(60, 15).Select(value => $"R{value}")),
+            cenitCodes);
+        var cenitOrdinaryCauses = new[]
+        {
+            "R01", "R02", "R03", "R04", "R06", "R07", "R08", "R09", "R10", "R12",
+            "R13", "R14", "R15", "R16", "R17", "R20", "R23", "R29", "R31", "R32", "R33", "R34", "R35"
+        };
+        foreach (var originalCause in cenitOrdinaryCauses.Where(cenitCodes.Contains))
+        {
+            result.Add(new AchReturnOfReturnPolicy
+            {
+                ClearingHouseId = clearingHouseIds.CenitId,
+                OriginalReturnCode = originalCause,
+                AllowedNewReturnCodesCsv = cenitRorCauses,
+                MaxDays = 1,
+                RequiredOriginalState = "ReturnedByEpr",
+                IsUniquePerTransaction = true,
+                IsActive = true,
+                Direction = AchReturnDirection.Any,
+                FlowType = AchReturnFlowType.ReturnOfReturn,
+                EffectiveFrom = DateTime.UtcNow.Date,
+                EffectiveTo = null
+            });
+        }
+
         foreach (var rule in baseRules)
         {
-            if (cenitCodes.Contains(rule.OriginalReturnCode))
-            {
-                var allowed = FilterCodes(rule.AllowedNewReturnCodesCsv, cenitCodes);
-                if (!string.IsNullOrWhiteSpace(allowed))
-                {
-                    result.Add(new AchReturnOfReturnPolicy
-                    {
-                        ClearingHouseId = clearingHouseIds.CenitId,
-                        OriginalReturnCode = rule.OriginalReturnCode,
-                        AllowedNewReturnCodesCsv = allowed,
-                        MaxDays = rule.MaxDays,
-                        RequiredOriginalState = rule.RequiredOriginalState,
-                        IsUniquePerTransaction = rule.IsUniquePerTransaction,
-                        IsActive = rule.IsActive,
-                        Direction = AchReturnDirection.Any,
-                        FlowType = AchReturnFlowType.ReturnOfReturn,
-                        EffectiveFrom = DateTime.UtcNow.Date,
-                        EffectiveTo = null
-                    });
-                }
-            }
-
             if (achCodes.Contains(rule.OriginalReturnCode))
             {
                 var allowed = FilterCodes(rule.AllowedNewReturnCodesCsv, achCodes);
@@ -473,14 +570,18 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 TransactionType = TransactionTypeEnum.Debit,
                 RequiresPrenotification = true,
                 PrenotificationMode = PrenotificationRequirementMode.Mandatory,
+                PrenotificationLeadBusinessDays = 3,
+                PrenotificationResponseDeadlineMode = PrenotificationResponseDeadlineMode.CycleCount,
+                PrenotificationResponseWindowCycles = 4,
+                TacitAcceptanceEnabled = true,
                 RequiresReceiverIdentificationValidation = true,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Mandatory,
                 AppliesToNachaExport = true,
                 AppliesToMonetaryTransactions = true,
                 EffectiveFrom = effectiveFrom,
                 IsActive = true,
-                NormativeSource = "MAN-004 ACH Colombia V32",
-                NormativeReference = "2.11.4, 2.11.4.1, 2.11.4.2, 2.11.6",
+                NormativeSource = "DDS-DIS-MAN-004 ACH Colombia V35",
+                NormativeReference = "2.4.8; 2.11.4; 2.11.4.1; 2.11.4.2; 2.11.6",
                 Notes = "Debito ACH Colombia: prenotificacion tecnica obligatoria previa al proceso de debito; receptor valida cuenta e identificacion segun norma."
             },
             new ClearingHouseTransactionRule
@@ -490,15 +591,19 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 TransactionType = TransactionTypeEnum.Credit,
                 RequiresPrenotification = false,
                 PrenotificationMode = PrenotificationRequirementMode.Optional,
+                PrenotificationLeadBusinessDays = 3,
+                PrenotificationResponseDeadlineMode = PrenotificationResponseDeadlineMode.CycleCount,
+                PrenotificationResponseWindowCycles = 4,
+                TacitAcceptanceEnabled = true,
                 RequiresReceiverIdentificationValidation = false,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Optional,
                 AppliesToNachaExport = true,
                 AppliesToMonetaryTransactions = true,
                 EffectiveFrom = effectiveFrom,
                 IsActive = true,
-                NormativeSource = "MAN-004 ACH Colombia V32",
-                NormativeReference = "2.10.2, 2.10.3, 2.10.3.1, 2.10.3.2",
-                Notes = "Credito ACH Colombia: prenotificacion discrecional/opcional; no bloquea exportacion monetaria si no fue enviada."
+                NormativeSource = "DDS-DIS-MAN-004 ACH Colombia V35",
+                NormativeReference = "2.4.8; 2.10.2; 2.10.3; 2.10.3.1; 2.10.3.2",
+                Notes = "Credito ACH Colombia V35: prenotificacion opcional; si se usa debe respetar lead de tres días hábiles y ausencia de devolución dentro de la ventana configurada implica éxito."
             },
             new ClearingHouseTransactionRule
             {
@@ -507,6 +612,10 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 TransactionType = TransactionTypeEnum.Debit,
                 RequiresPrenotification = true,
                 PrenotificationMode = PrenotificationRequirementMode.Mandatory,
+                PrenotificationLeadBusinessDays = null,
+                PrenotificationResponseDeadlineMode = PrenotificationResponseDeadlineMode.OperationalDayEnd,
+                TacitAcceptanceEnabled = true,
+                ValidationRetentionMonthsAfterLastMonetaryUse = 13,
                 RequiresReceiverIdentificationValidation = true,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Mandatory,
                 AppliesToNachaExport = true,
@@ -514,8 +623,8 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 EffectiveFrom = effectiveFrom,
                 IsActive = true,
                 NormativeSource = "CENIT DSP-152 Anexo 2",
-                NormativeReference = "4.7 Prenotificaciones",
-                Notes = "Debito CENIT: antes de una entrada debito el originador debe enviar notificacion previa/prenotificacion con addenda."
+                NormativeReference = "4.7 Prenotificaciones; 4.8 Devolución de una prenotificación",
+                Notes = "Debito CENIT: prenotificacion obligatoria; devolución en la misma Fecha Valor hasta el último ciclo. Retención de validación se configura separadamente en meses tras último uso monetario."
             },
             new ClearingHouseTransactionRule
             {
@@ -524,6 +633,9 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 TransactionType = TransactionTypeEnum.Credit,
                 RequiresPrenotification = false,
                 PrenotificationMode = PrenotificationRequirementMode.Optional,
+                PrenotificationLeadBusinessDays = null,
+                PrenotificationResponseDeadlineMode = PrenotificationResponseDeadlineMode.OperationalDayEnd,
+                TacitAcceptanceEnabled = true,
                 RequiresReceiverIdentificationValidation = false,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Optional,
                 AppliesToNachaExport = true,
@@ -531,7 +643,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 EffectiveFrom = effectiveFrom,
                 IsActive = true,
                 NormativeSource = "CENIT DSP-152 Anexo 2",
-                NormativeReference = "4.7 Prenotificaciones",
+                NormativeReference = "4.7 Prenotificaciones; 4.8 Devolución de una prenotificación",
                 Notes = "Credito CENIT: la prenotificacion credito no es obligatoria segun documento fuente."
             }
         };

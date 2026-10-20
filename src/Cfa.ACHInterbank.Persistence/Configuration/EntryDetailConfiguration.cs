@@ -16,7 +16,16 @@ public class EntryDetailConfiguration : IEntityTypeConfiguration<EntryDetail>
         builder.Property(x => x.RecipIdNumber).HasMaxLength(15);
         builder.Property(x => x.RecipUserName).HasMaxLength(22);
 
-        builder.Property(p => p.Amount).HasColumnType("money");
+        builder.Property(p => p.Amount).HasPrecision(18, 2);
+
+        builder.HasIndex(x => x.BatchHeaderId);
+        builder.HasIndex(x => new { x.NachaID, x.SequenceNumber }).IsUnique();
+        builder.HasIndex(x => x.SequenceNumber);
+
+        builder.HasMany(x => x.AddendaRecords)
+            .WithOne(x => x.EntryDetail)
+            .HasForeignKey(x => x.EntryDetailId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         //builder.HasOne(x => x.BatchHeader)
         //       .WithMany(x => x.Entries)

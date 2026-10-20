@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
@@ -97,9 +98,9 @@ public class ContrapartidaDispatchPersistenceServiceTests
             Amount = 1000m,
             TransactionExternalId = "TX-OP-001",
             Reference = "REF-001",
-            Type = TransactionTypeEnum.Credit,
-            TransactionCode = "22",
-            ServiceClassCode = "220",
+            Type = TransactionTypeEnum.Debit,
+            TransactionCode = "27",
+            ServiceClassCode = "225",
             CompanyEntryDescriptionId = companyEntryDescriptionId,
             CompanyName = "EMPRESA",
             CompanyIdentification = "900123456",
@@ -110,6 +111,13 @@ public class ContrapartidaDispatchPersistenceServiceTests
             EffectiveEntryDate = cycle.ProcessingDate,
             AddendaRecordIndicator = true,
             IsPrenotification = false,
+            Direction = AchTransactionDirection.Outgoing,
+            Origin = AchTransactionOrigin.Cfa,
+            MonetaryIntegrationRoute = AchMonetaryIntegrationRoute.ProcContrapartidas,
+            ClassificationStatus = AchTransactionClassificationStatus.Determined,
+            SourceInstitutionWasDefaultAtCreation = true,
+            ClassifiedAtUtc = DateTime.UtcNow,
+            ClassificationVersion = 1,
             SourceAccountNumber = "111122223333",
             DestinationAccountNumber = "999988887777",
             SourceInstitutionId = 1,

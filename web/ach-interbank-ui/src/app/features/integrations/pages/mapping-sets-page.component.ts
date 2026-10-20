@@ -1,402 +1,548 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatRadioModule } from '@angular/material/radio';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTabsModule } from '@angular/material/tabs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { AuthService } from '../../../core/services/auth.service';
 import {
-  IntegrationMappingAdminService,
-  IntegrationMappingSet,
-  IntegrationMethod,
-  IntegrationMethodParameter,
-  IntegrationSourceCatalogField
-} from '../../../core/services/integration-mapping-admin.service';
-import { NotificationService } from '../../../core/services/notification.service';
-import { SharedModule } from '../../../shared/shared.module';
+  IntegrationMappingPreviewItemDto,
+  IntegrationMappingValidationIssueDto,
+  IntegrationMappingWorkspaceParameterStatus,
+  IntegrationMappingWorkspaceSourceCompatibilityDto,
+  IntegrationMappingWorkspaceSourceGroupDto,
+  IntegrationMappingWorkspaceTransformationOptionDto
+} from '../data-access/integration-api.models';
+import {
+  IntegrationInformationParameterReadModel,
+  toIntegrationInformationParameterReadModel
+} from '../data-access/integration-read.models';
+import { presentIntegrationStatus } from '../presentation/mapping-status.presenter';
+import {
+  PresentedIntegrationValidationIssue,
+  presentIntegrationValidationIssue
+} from '../presentation/mapping-validation.presenter';
+import { MappingWorkspaceStore } from '../state/mapping-workspace.store';
+import { MappingPublicationDialogComponent, MappingPublicationDialogData } from './mapping-publication-dialog.component';
 
-type MappingModalMode = 'detail' | 'edit' | 'draft' | null;
+type StatusFilter = 'All' | IntegrationMappingWorkspaceParameterStatus;
+
+type ParameterEditForm = FormGroup<{
+  sourceSearch: FormControl<string>;
+  sourceCatalogFieldId: FormControl<number | null>;
+  transformationCode: FormControl<string>;
+  formatMask: FormControl<string>;
+}>;
 
 @Component({
   selector: 'app-mapping-sets-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressBarModule,
+    MatRadioModule,
+    MatSelectModule,
+    MatTabsModule
+  ],
   templateUrl: './mapping-sets-page.component.html',
-  styleUrls: ['./mapping-sets-page.component.scss']
+  styleUrls: ['./mapping-sets-page.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [MappingWorkspaceStore]
 })
-export class MappingSetsPageComponent implements OnInit {
-  private readonly api = inject(IntegrationMappingAdminService);
-  private readonly notifications = inject(NotificationService);
-  private readonly fb = inject(FormBuilder);
-  private readonly router = inject(Router);
+export class MappingSetsPageComponent {
+  readonly store = inject(MappingWorkspaceStore);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly dialog = inject(MatDialog);
+  private readonly fb = inject(FormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly searchSignal = signal('');
+  private readonly statusFilterSignal = signal<StatusFilter>('All');
+  private readonly editingParameterIdSignal = signal<number | null>(null);
+  private readonly sourceSearchSignal = signal('');
+  private readonly sourceIdSignal = signal<number | null>(null);
+  private readonly transformationCodeSignal = signal('');
+  private readonly formatMaskSignal = signal('');
 
-  loading = false;
-  methods: IntegrationMethod[] = [];
-  mappingSets: IntegrationMappingSet[] = [];
-  sourceCatalog: IntegrationSourceCatalogField[] = [];
-  targetFields: IntegrationMethodParameter[] = [];
-  catalogLoadState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
-  creatingDraft = false;
-  modalMode: MappingModalMode = null;
-  selectedMapping: IntegrationMappingSet | null = null;
-  searchTerm = '';
-  statusFilter = 'all';
-  purposeFilter = 'all';
-  directionFilter = 'all';
+  readonly canManage = this.auth.hasPermission(['Integrations.ManageMappings', 'CanManageAch']);
+  readonly canValidate = this.auth.hasPermission(['Integrations.Validate', 'CanManageAch']);
+  readonly canPublish = this.auth.hasPermission(['Integrations.Publish', 'CanManageAch']);
 
-  readonly migas = [
-    { etiqueta: 'Inicio', ruta: '/' },
-    { etiqueta: 'Integraciones', ruta: '/integraciones' },
-    { etiqueta: 'Configuracion funcional' }
-  ];
-
-  readonly createDraftForm = this.fb.group({
-    methodId: [null as number | null, Validators.required],
-    name: ['', [Validators.required, Validators.maxLength(120)]],
-    notes: ['']
+  readonly filters = this.fb.nonNullable.group({
+    search: '',
+    status: 'All' as StatusFilter
   });
 
-  ngOnInit(): void {
-    this.loadMethods();
-  }
+  readonly parameterForm: ParameterEditForm = new FormGroup({
+    sourceSearch: new FormControl('', { nonNullable: true }),
+    sourceCatalogFieldId: new FormControl<number | null>(null, { validators: [Validators.required] }),
+    transformationCode: new FormControl('', { nonNullable: true }),
+    formatMask: new FormControl('', { nonNullable: true })
+  });
 
-  get selectedMethodId(): number | null {
-    return this.createDraftForm.controls.methodId.value;
-  }
+  readonly statusOptions: ReadonlyArray<{ value: StatusFilter; label: string }> = [
+    { value: 'All', label: 'Todos' },
+    { value: 'Complete', label: 'Completo' },
+    { value: 'Pending', label: 'Pendiente' },
+    { value: 'Invalid', label: 'Inválido' },
+    { value: 'NotApplicable', label: 'No aplica' }
+  ];
 
-  get selectedMethod(): IntegrationMethod | undefined {
-    return this.methods.find((x) => x.id === this.selectedMethodId);
-  }
+  readonly parameters = computed<IntegrationInformationParameterReadModel[]>(() =>
+    this.store.parameters().map(toIntegrationInformationParameterReadModel)
+  );
 
-  get stats() {
-    const total = this.mappingSets.length;
-    const draft = this.mappingSets.filter((x) => this.normalizeStatus(x.status) === 'Draft').length;
-    const published = this.mappingSets.filter((x) => this.normalizeStatus(x.status) === 'Published').length;
-    const archived = this.mappingSets.filter((x) => this.normalizeStatus(x.status) === 'Archived').length;
-    return { total, draft, published, archived, integrations: this.methods.length };
-  }
+  readonly previewByParameter = computed(() => new Map<number, IntegrationMappingPreviewItemDto>(
+    (this.store.preview()?.items ?? []).map(item => [item.parameterId, item])
+  ));
 
-  get filteredMappingSets(): IntegrationMappingSet[] {
-    const term = this.searchTerm.trim().toLowerCase();
-    return this.mappingSets.filter((set) => {
-      const normalizedStatus = this.normalizeStatus(set.status);
-      const statusMatches = this.statusFilter === 'all' || normalizedStatus === this.statusFilter;
-      if (!statusMatches) {
+  readonly generalValidationIssues = computed<PresentedIntegrationValidationIssue[]>(() =>
+    (this.store.preview()?.validation?.issues ?? []).map(issue =>
+      presentIntegrationValidationIssue(issue, this.functionalNameForIssue(issue))
+    )
+  );
+
+  readonly pendingRequiredParameters = computed(() =>
+    this.parameters().filter(parameter => parameter.required && parameter.status === 'Pending')
+  );
+
+  readonly publicationDisabled = computed(() => {
+    const workspace = this.store.workspace();
+    return !this.canPublish
+      || !workspace
+      || workspace.mappingSet.status !== 'Draft'
+      || workspace.publication.pendingRequired > 0
+      || !this.store.canPublish()
+      || this.store.publishing();
+  });
+
+  readonly filteredParameters = computed(() => {
+    const search = this.normalize(this.searchSignal());
+    const status = this.statusFilterSignal();
+
+    return this.parameters().filter((parameter) => {
+      const matchesStatus = status === 'All' || parameter.status === status;
+      if (!matchesStatus) {
         return false;
       }
 
-      const method = this.getMethodById(set.methodId);
-      if (this.purposeFilter !== 'all' && method?.mappingPurpose !== this.purposeFilter) {
-        return false;
-      }
-
-      if (this.directionFilter !== 'all' && method?.mappingDirection !== this.directionFilter) {
-        return false;
-      }
-
-      if (!term) {
+      if (!search) {
         return true;
       }
 
-      return [
-        set.name,
-        set.methodCode,
-        set.notes,
-        set.publishedBy,
-        this.getStatusLabel(set.status),
-        method?.mappingPurpose,
-        method?.mappingDirection,
-        method?.operationKey
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(term));
+      return [parameter.functionalName, parameter.functionalDescription, parameter.categoryLabel]
+        .some((value) => this.normalize(value).includes(search));
     });
-  }
+  });
 
-  get mappingPurposes(): string[] {
-    return [...new Set(this.methods.map((method) => method.mappingPurpose).filter(Boolean))].sort();
-  }
+  readonly selectedMethodIndex = computed(() => {
+    const methodId = this.store.methodId();
+    const index = this.store.methods().findIndex((method) => method.id === methodId);
+    return index < 0 ? 0 : index;
+  });
 
-  get mappingDirections(): string[] {
-    return [...new Set(this.methods.map((method) => method.mappingDirection).filter(Boolean))].sort();
-  }
+  readonly editingParameterId = this.editingParameterIdSignal.asReadonly();
+  readonly editingParameter = computed(() => {
+    const parameterId = this.editingParameterIdSignal();
+    return parameterId == null ? null : this.parameters().find(parameter => parameter.parameterId === parameterId) ?? null;
+  });
 
-  get sourceGroups(): Array<{ entityName: string; sourceKind: string; fields: IntegrationSourceCatalogField[] }> {
-    const groups = new Map<string, { entityName: string; sourceKind: string; fields: IntegrationSourceCatalogField[] }>();
-    for (const field of this.sourceCatalog) {
-      const sourceKind = this.normalizeSourceKind(field.sourceKind as any);
-      const key = `${field.entityName}|${sourceKind}`;
-      const existing = groups.get(key) ?? { entityName: field.entityName, sourceKind, fields: [] };
-      existing.fields.push(field);
-      groups.set(key, existing);
+  readonly selectedCompatibility = computed<IntegrationMappingWorkspaceSourceCompatibilityDto | null>(() => {
+    const workspace = this.store.workspace();
+    const parameterId = this.editingParameterIdSignal();
+    const sourceCatalogFieldId = this.sourceIdSignal();
+    if (!workspace || parameterId == null || sourceCatalogFieldId == null) {
+      return null;
     }
 
-    return Array.from(groups.values())
-      .map((group) => ({ ...group, fields: group.fields.sort((a, b) => a.sortOrder - b.sortOrder) }))
-      .sort((a, b) => a.entityName.localeCompare(b.entityName));
-  }
+    return workspace.sourceCompatibility.find(item =>
+      item.parameterId === parameterId && item.sourceCatalogFieldId === sourceCatalogFieldId) ?? null;
+  });
 
-  get visibleTargetFields(): IntegrationMethodParameter[] {
-    return [...this.targetFields].sort((a, b) => a.sortOrder - b.sortOrder);
-  }
+  readonly compatibleTreatments = computed<IntegrationMappingWorkspaceTransformationOptionDto[]>(() =>
+    this.selectedCompatibility()?.transformations ?? []
+  );
 
-  loadMethods(): void {
-    this.loading = true;
-    this.api.getMethods().subscribe({
-      next: (items) => {
-        this.methods = items ?? [];
-        const requestedMethodCode = this.route.snapshot.queryParamMap.get('method');
-        const requestedMethod = requestedMethodCode
-          ? this.methods.find((method) => method.code === requestedMethodCode)
-          : undefined;
-        if (requestedMethod) {
-          this.createDraftForm.patchValue({ methodId: requestedMethod.id });
-        } else if (!this.selectedMethodId && this.methods.length > 0) {
-          this.createDraftForm.patchValue({ methodId: this.methods[0].id });
-        }
-        this.loadCatalogForSelectedMethod();
-        this.loadMappingSets();
-      },
-      error: () => this.notifications.error('No fue posible cargar metodos de integracion.'),
-      complete: () => (this.loading = false)
-    });
-  }
+  readonly selectedTreatment = computed<IntegrationMappingWorkspaceTransformationOptionDto | null>(() => {
+    const code = this.transformationCodeSignal();
+    return this.compatibleTreatments().find(item => item.code === code) ?? null;
+  });
 
-  loadMappingSets(): void {
-    const methodId = this.selectedMethodId;
-    this.api.getMappingSets(methodId ?? undefined).subscribe({
-      next: (items) => (this.mappingSets = items ?? []),
-      error: () => this.notifications.error('No fue posible cargar las configuraciones funcionales.')
-    });
-  }
-
-  onMethodChange(): void {
-    this.loadCatalogForSelectedMethod();
-    this.loadMappingSets();
-  }
-
-  onSearchChange(value: string): void {
-    this.searchTerm = value;
-  }
-
-  onStatusFilterChange(value: string): void {
-    this.statusFilter = value;
-  }
-
-  onPurposeFilterChange(value: string): void {
-    this.purposeFilter = value;
-  }
-
-  onDirectionFilterChange(value: string): void {
-    this.directionFilter = value;
-  }
-
-  openDraftModal(): void {
-    this.selectedMapping = null;
-    this.modalMode = 'draft';
-  }
-
-  openDetail(mapping: IntegrationMappingSet): void {
-    this.selectedMapping = mapping;
-    this.modalMode = 'detail';
-  }
-
-  openEdit(mapping: IntegrationMappingSet): void {
-    this.selectedMapping = mapping;
-    this.modalMode = 'edit';
-  }
-
-  closeModal(): void {
-    this.modalMode = null;
-    this.selectedMapping = null;
-  }
-
-  openCompare(): void {
-    const method = this.selectedMethod;
-    if (!method) {
-      this.notifications.error('Selecciona un metodo para comparar versiones.');
-      return;
+  readonly treatmentSupportsMask = computed(() => {
+    const workspace = this.store.workspace();
+    const code = this.transformationCodeSignal();
+    if (!workspace || !code) {
+      return false;
     }
-    if (this.mappingSets.length < 2) {
-      this.notifications.error('Se requieren al menos dos versiones para comparar.');
-      return;
+    return workspace.transformations.some(item => item.code === code && item.supportsFormatMask);
+  });
+
+  readonly filteredSourceGroups = computed<IntegrationMappingWorkspaceSourceGroupDto[]>(() => {
+    const workspace = this.store.workspace();
+    const parameterId = this.editingParameterIdSignal();
+    if (!workspace || parameterId == null) {
+      return [];
     }
 
-    this.router.navigate(['/integraciones/mappings/compare', method.code]);
-  }
+    const allowedSourceIds = new Set(
+      workspace.sourceCompatibility
+        .filter(item => item.parameterId === parameterId)
+        .map(item => item.sourceCatalogFieldId)
+    );
+    const search = this.normalize(this.sourceSearchSignal());
 
-  openEditor(mapping: IntegrationMappingSet): void {
-    this.router.navigate(['/integraciones/mappings', mapping.methodCode, mapping.id]);
-  }
+    return workspace.sourceGroups
+      .map(group => ({
+        ...group,
+        fields: group.fields.filter(field => {
+          if (!allowedSourceIds.has(field.id)) {
+            return false;
+          }
+          if (!search) {
+            return true;
+          }
+          return [field.displayName, field.entityName, field.fieldPath, String(field.id)]
+            .some(value => this.normalize(value).includes(search));
+        })
+      }))
+      .filter(group => group.fields.length > 0);
+  });
 
-  goToSelectedEditor(): void {
-    if (this.selectedMapping) {
-      this.openEditor(this.selectedMapping);
+  readonly canSaveParameter = computed(() => {
+    const parameterId = this.editingParameterIdSignal();
+    const sourceId = this.sourceIdSignal();
+    const compatibility = this.selectedCompatibility();
+    const treatmentCode = this.transformationCodeSignal();
+    const treatment = this.selectedTreatment();
+    const mask = this.formatMaskSignal().trim();
+
+    if (!this.canManage || this.store.workspace()?.mappingSet.status !== 'Draft' || parameterId == null || sourceId == null || !compatibility) {
+      return false;
     }
-  }
-
-  createDraft(): void {
-    if (this.createDraftForm.invalid) {
-      this.createDraftForm.markAllAsTouched();
-      return;
+    if (!treatmentCode && !compatibility.allowsNoTransformation) {
+      return false;
     }
-
-    const methodId = this.createDraftForm.controls.methodId.value!;
-    const name = this.createDraftForm.controls.name.value!.trim();
-    const notes = this.createDraftForm.controls.notes.value?.trim() ?? '';
-    if (!name) {
-      this.notifications.error('El nombre del borrador es obligatorio.');
-      return;
+    if (treatmentCode && !treatment) {
+      return false;
     }
-
-    this.creatingDraft = true;
-    this.api.createDraft(methodId, name, notes, 'ui-admin').subscribe({
-      next: (created) => {
-        this.notifications.success('Borrador de configuracion creado.');
-        this.closeModal();
-        this.openEditor(created);
-      },
-      error: () => this.notifications.error('No fue posible crear el borrador de configuracion.'),
-      complete: () => (this.creatingDraft = false)
-    });
-  }
-
-  getStatusLabel(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
-    const normalized = this.normalizeStatus(status);
-    switch (normalized) {
-      case 'Draft':
-        return 'Borrador';
-      case 'Published':
-        return 'Publicado';
-      case 'Archived':
-        return 'Archivado';
-      default:
-        return normalized || 'Sin estado';
+    if (treatment?.requiresFormatMask && !mask) {
+      return false;
     }
-  }
+    return this.parameterForm.valid && this.store.savingParameterId() === null;
+  });
 
-  getStatusClass(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
-    return this.normalizeStatus(status).toLowerCase();
-  }
+  constructor() {
+    this.filters.controls.search.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => this.searchSignal.set(value));
+    this.filters.controls.status.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => this.statusFilterSignal.set(value));
 
-  getMethodLabel(method?: IntegrationMethod | null): string {
-    if (!method) {
-      return 'Sin integracion seleccionada';
-    }
+    this.parameterForm.controls.sourceSearch.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => this.sourceSearchSignal.set(value));
+    this.parameterForm.controls.sourceCatalogFieldId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => {
+        this.sourceIdSignal.set(value);
+        this.syncTreatmentForSource();
+      });
+    this.parameterForm.controls.transformationCode.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => {
+        this.transformationCodeSignal.set(value);
+        this.syncMaskValidation();
+      });
+    this.parameterForm.controls.formatMask.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => this.formatMaskSignal.set(value));
 
-    return `${method.integrationKey} / ${method.operationKey} - ${method.mappingPurpose}`;
-  }
-
-  getMethodSummary(method?: IntegrationMethod | null): string {
-    if (!method) {
-      return 'Seleccione una integracion para ver su clasificacion funcional.';
-    }
-
-    const money = method.movesMoney ? 'Mueve dinero' : 'No mueve dinero';
-    return `${method.functionalNature}. ${method.functionalOriginator}. ${money}. Direccion: ${method.mappingDirection}.`;
-  }
-
-  getMethodById(methodId: number): IntegrationMethod | undefined {
-    return this.methods.find((x) => x.id === methodId);
-  }
-
-  getSourceKindLabel(kind: string | null | undefined): string {
-    switch (this.normalizeSourceKind(kind as any).toLowerCase()) {
-      case 'nachaheader': return 'NachaHeaders';
-      case 'batchheader': return 'BatchHeaders';
-      case 'entrydetail': return 'EntryDetails';
-      case 'addendarecord': return 'AddendaRecords';
-      case 'batchcontrol': return 'BatchControls';
-      case 'filecontrol': return 'FileControls';
-      case 'transaction': return 'AchTransaction';
-      case 'prenotification': return 'Prenotification';
-      case 'differentialresponse': return 'DifferentialResponse';
-      case 'financialinstitution': return 'FinancialInstitution';
-      case 'clearinghouse': return 'ClearingHouse';
-      case 'cycle': return 'AchCycle';
-      default: return kind || 'Fuente';
-    }
-  }
-
-  isNachaSource(kind: string | null | undefined): boolean {
-    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol']
-      .includes(this.normalizeSourceKind(kind as any).toLowerCase());
-  }
-
-  private normalizeSourceKind(kind: string | number | null | undefined): string {
-    if (kind === null || kind === undefined) return '';
-    if (typeof kind === 'number') {
-      if (kind === 1) return 'Transaction';
-      if (kind === 2) return 'Addenda';
-      if (kind === 3) return 'Batch';
-      if (kind === 4) return 'Cycle';
-      if (kind === 5) return 'ClearingHouse';
-      if (kind === 6) return 'Constant';
-      if (kind === 7) return 'Expression';
-      if (kind === 8) return 'NachaHeader';
-      if (kind === 9) return 'BatchHeader';
-      if (kind === 10) return 'EntryDetail';
-      if (kind === 11) return 'AddendaRecord';
-      if (kind === 12) return 'BatchControl';
-      if (kind === 13) return 'FileControl';
-      if (kind === 14) return 'Prenotification';
-      if (kind === 15) return 'DifferentialResponse';
-      return String(kind);
-    }
-
-    const raw = String(kind).trim();
-    if (!raw) return '';
-    if (/^\d+$/.test(raw)) return this.normalizeSourceKind(Number(raw));
-    const lowered = raw.toLowerCase();
-    if (lowered === 'nachaheaders') return 'NachaHeader';
-    if (lowered === 'batchheaders') return 'BatchHeader';
-    if (lowered === 'entrydetails') return 'EntryDetail';
-    if (lowered === 'addendarecords') return 'AddendaRecord';
-    if (lowered === 'batchcontrols') return 'BatchControl';
-    if (lowered === 'filecontrols') return 'FileControl';
-    return raw;
-  }
-
-  private loadCatalogForSelectedMethod(): void {
-    const methodId = this.selectedMethodId;
-    this.sourceCatalog = [];
-    this.targetFields = [];
-    if (!methodId) {
-      this.catalogLoadState = 'idle';
-      return;
-    }
-
-    this.catalogLoadState = 'loading';
-    this.api.getSourceCatalog(methodId).subscribe({
-      next: (items) => {
-        this.sourceCatalog = items ?? [];
-        this.catalogLoadState = 'ready';
-      },
-      error: () => {
-        this.catalogLoadState = 'error';
-        this.notifications.error('No fue posible cargar el catalogo de campos origen.');
+    effect(() => {
+      const savedParameterId = this.store.saveSucceededParameterId();
+      if (savedParameterId == null || savedParameterId !== this.editingParameterIdSignal()) {
+        return;
+      }
+      const refreshed = this.parameters().find(parameter => parameter.parameterId === savedParameterId);
+      if (refreshed) {
+        this.hydrateParameterForm(refreshed);
       }
     });
 
-    this.api.getMethodParameters(methodId).subscribe({
-      next: (items) => (this.targetFields = items ?? []),
-      error: () => this.notifications.error('No fue posible cargar campos destino SOAP/XML.')
+    this.store.load(this.route.snapshot.queryParamMap.get('method'), this.canValidate);
+  }
+
+  onMethodTabChange(index: number): void {
+    const method = this.store.methods()[index];
+    if (!method) {
+      return;
+    }
+
+    this.cancelEdit();
+    this.clearFilters();
+    this.store.selectMethod(method.id);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { method: method.operationKey },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
     });
   }
 
-  private normalizeStatus(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
-    if (status === null || status === undefined) return '';
-    if (typeof status === 'number') {
-      if (status === 0) return 'Draft';
-      if (status === 1) return 'Published';
-      if (status === 2) return 'Archived';
-      return String(status);
+  clearFilters(): void {
+    this.filters.setValue({ search: '', status: 'All' });
+  }
+
+  retry(): void {
+    this.cancelEdit();
+    this.store.reload();
+  }
+
+  retryPreview(): void {
+    if (!this.canValidate) return;
+    this.store.refreshPreview();
+  }
+
+  reloadAfterRevisionConflict(): void {
+    this.cancelEdit();
+    this.store.reloadAfterRevisionConflict();
+  }
+
+  reviewPublication(): void {
+    if (!this.canPublish) return;
+    this.openPublicationDialog();
+  }
+
+  publishConfiguration(): void {
+    if (this.publicationDisabled()) {
+      return;
+    }
+    this.openPublicationDialog();
+  }
+
+  previewFor(parameterId: number): IntegrationMappingPreviewItemDto | null {
+    return this.previewByParameter().get(parameterId) ?? null;
+  }
+
+  validationIssuesFor(parameterId: number): PresentedIntegrationValidationIssue[] {
+    const parameter = this.parameters().find(item => item.parameterId === parameterId);
+    const preview = this.previewFor(parameterId);
+    return (preview?.validationIssues ?? []).map(issue =>
+      presentIntegrationValidationIssue(issue, parameter?.functionalName)
+    );
+  }
+
+  previewContextLabel(contextMode: string | null | undefined): string {
+    switch (contextMode) {
+      case 'controlled-sample': return 'Muestra controlada sanitizada';
+      case 'real-transaction': return 'Muestra de transacción sanitizada';
+      case 'real-latest': return 'Muestra reciente sanitizada';
+      default: return 'Muestra sanitizada';
+    }
+  }
+
+  previewErrorMessage(): string {
+    const error = this.store.previewError();
+    switch (error?.kind) {
+      case 'forbidden': return 'No tiene permisos para consultar esta vista previa.';
+      case 'network': return 'No fue posible comunicarse con el servicio de vista previa.';
+      case 'http': return 'El servicio no pudo calcular la vista previa. Intente nuevamente.';
+      default: return 'No fue posible obtener la vista previa. Intente nuevamente.';
+    }
+  }
+
+  startEdit(parameter: IntegrationInformationParameterReadModel): void {
+    if (!this.canManage || this.store.workspace()?.mappingSet.status !== 'Draft') {
+      return;
+    }
+    this.store.clearSaveState();
+    this.editingParameterIdSignal.set(parameter.parameterId);
+    this.hydrateParameterForm(parameter);
+  }
+
+  cancelEdit(): void {
+    this.editingParameterIdSignal.set(null);
+    this.store.clearSaveState();
+    this.parameterForm.reset({
+      sourceSearch: '',
+      sourceCatalogFieldId: null,
+      transformationCode: '',
+      formatMask: ''
+    });
+    this.sourceSearchSignal.set('');
+    this.sourceIdSignal.set(null);
+    this.transformationCodeSignal.set('');
+    this.formatMaskSignal.set('');
+  }
+
+  saveParameter(): void {
+    const parameterId = this.editingParameterIdSignal();
+    const sourceCatalogFieldId = this.parameterForm.controls.sourceCatalogFieldId.value;
+    if (parameterId == null || sourceCatalogFieldId == null || !this.canSaveParameter()) {
+      this.parameterForm.markAllAsTouched();
+      return;
     }
 
-    const raw = String(status).trim();
-    if (!raw) return '';
-    const lowered = raw.toLowerCase();
-    if (lowered === 'draft') return 'Draft';
-    if (lowered === 'published') return 'Published';
-    if (lowered === 'archived') return 'Archived';
-    return raw;
+    this.store.saveParameter(parameterId, {
+      sourceCatalogFieldId,
+      transformationCode: this.parameterForm.controls.transformationCode.value || null,
+      formatMask: this.parameterForm.controls.formatMask.value || null
+    }, this.auth.currentUser?.username ?? 'usuario');
+  }
+
+  isEditing(parameterId: number): boolean {
+    return this.editingParameterIdSignal() === parameterId;
+  }
+
+  statusLabel(status: string | null | undefined): string {
+    return presentIntegrationStatus(status).label;
+  }
+
+  statusTone(status: string | null | undefined): string {
+    return presentIntegrationStatus(status).tone;
+  }
+
+  statusCount(status: StatusFilter): number {
+    const coverage = this.store.coverage();
+    if (!coverage) {
+      return 0;
+    }
+
+    switch (status) {
+      case 'Complete': return coverage.complete;
+      case 'Pending': return coverage.pending;
+      case 'Invalid': return coverage.invalid;
+      case 'NotApplicable': return coverage.notApplicable;
+      default: return coverage.total;
+    }
+  }
+
+  trackParameter(_: number, parameter: IntegrationInformationParameterReadModel): number {
+    return parameter.parameterId;
+  }
+
+  trackSourceGroup(_: number, group: IntegrationMappingWorkspaceSourceGroupDto): string {
+    return group.key;
+  }
+
+  trackSource(_: number, source: { id: number }): number {
+    return source.id;
+  }
+
+  trackTreatment(_: number, treatment: IntegrationMappingWorkspaceTransformationOptionDto): string {
+    return treatment.code;
+  }
+
+  private openPublicationDialog(): void {
+    if (!this.canPublish) return;
+    const workspace = this.store.workspace();
+    if (!workspace) {
+      return;
+    }
+
+    const data: MappingPublicationDialogData = {
+      serviceName: this.store.selectedMethod()?.displayName || this.store.selectedMethod()?.functionalNature || 'Servicio CFA',
+      contractVersion: workspace.contract?.versionLabel || 'Sin versión contractual asociada',
+      mappingSetName: workspace.mappingSet.name,
+      revision: workspace.mappingSet.revision,
+      total: workspace.coverage.total,
+      complete: workspace.coverage.complete,
+      pendingRequired: workspace.publication.pendingRequired,
+      newRequiredPending: workspace.publication.newRequiredPending,
+      blockingIssues: workspace.publication.blockingIssues,
+      pendingRequiredNames: this.pendingRequiredParameters().map(parameter => parameter.functionalName),
+      canPublish: workspace.publication.canPublish && workspace.publication.pendingRequired === 0
+    };
+
+    this.dialog.open(MappingPublicationDialogComponent, {
+      data,
+      width: 'min(42rem, calc(100vw - 2rem))',
+      maxWidth: 'calc(100vw - 2rem)',
+      maxHeight: 'calc(100dvh - 2rem)',
+      autoFocus: 'first-heading',
+      restoreFocus: true,
+      disableClose: false,
+      closeOnNavigation: true,
+      role: 'alertdialog',
+      ariaLabel: 'Confirmar publicación de configuración CFA'
+    }).afterClosed()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(confirmed => {
+        if (confirmed !== true) {
+          return;
+        }
+        this.store.publish(this.auth.currentUser?.username ?? 'usuario');
+      });
+  }
+
+  private hydrateParameterForm(parameter: IntegrationInformationParameterReadModel): void {
+    const currentRule = parameter.currentRule;
+    const sourceId = currentRule?.sourceCatalogFieldId ?? null;
+    const treatmentCode = currentRule?.transformationCode ?? '';
+    this.parameterForm.reset({
+      sourceSearch: '',
+      sourceCatalogFieldId: sourceId,
+      transformationCode: treatmentCode,
+      formatMask: currentRule?.formatMask ?? ''
+    }, { emitEvent: false });
+    this.sourceSearchSignal.set('');
+    this.sourceIdSignal.set(sourceId);
+    this.transformationCodeSignal.set(treatmentCode);
+    this.formatMaskSignal.set(currentRule?.formatMask ?? '');
+    this.syncTreatmentForSource();
+    this.syncMaskValidation();
+    this.parameterForm.markAsPristine();
+  }
+
+  private syncTreatmentForSource(): void {
+    const compatibility = this.selectedCompatibility();
+    const treatmentControl = this.parameterForm.controls.transformationCode;
+    const currentCode = treatmentControl.value;
+    const currentAllowed = !currentCode
+      ? compatibility?.allowsNoTransformation === true
+      : compatibility?.transformations.some(item => item.code === currentCode) === true;
+
+    if (!currentAllowed) {
+      treatmentControl.setValue('', { emitEvent: false });
+      this.transformationCodeSignal.set('');
+    }
+
+    treatmentControl.setValidators(compatibility && !compatibility.allowsNoTransformation ? [Validators.required] : []);
+    treatmentControl.updateValueAndValidity({ emitEvent: false });
+    this.syncMaskValidation();
+  }
+
+  private syncMaskValidation(): void {
+    const maskControl = this.parameterForm.controls.formatMask;
+    const treatment = this.selectedTreatment();
+    maskControl.setValidators(treatment?.requiresFormatMask ? [Validators.required] : []);
+    maskControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private functionalNameForIssue(issue: IntegrationMappingValidationIssueDto): string | null {
+    const parameter = this.parameters().find(item =>
+      item.technicalDetails.parameterPath.toLocaleLowerCase('es') === issue.path.toLocaleLowerCase('es'));
+    return parameter?.functionalName ?? null;
+  }
+
+  private normalize(value: string | null | undefined): string {
+    return (value ?? '').trim().toLocaleLowerCase('es');
   }
 }

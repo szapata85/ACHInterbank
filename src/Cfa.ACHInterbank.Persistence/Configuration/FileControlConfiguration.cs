@@ -13,10 +13,10 @@ public class FileControlConfiguration : IEntityTypeConfiguration<FileControl>
         builder.HasKey(x => x.FileControlID);
 
         builder.Property(p => p.TotalDebitAmount)
-            .HasColumnType("money");
+            .HasPrecision(18, 2);
 
         builder.Property(p => p.TotalCreditAmount)
-            .HasColumnType("money");
+            .HasPrecision(18, 2);
 
         builder.Property(x => x.Reserved)
             .HasMaxLength(39);

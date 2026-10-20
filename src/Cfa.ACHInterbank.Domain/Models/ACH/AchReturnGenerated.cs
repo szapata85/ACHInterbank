@@ -17,5 +17,6 @@ public class AchReturnGenerated
     public string OriginatorEntityCode { get; set; } = string.Empty;
 
     public string FileName { get; set; } = string.Empty;
+    public DateOnly SequenceDate { get; set; }
     public DateTime GeneratedAtUtc { get; set; } = DateTime.UtcNow;
 }

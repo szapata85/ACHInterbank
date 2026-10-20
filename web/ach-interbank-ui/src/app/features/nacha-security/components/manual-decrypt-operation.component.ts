@@ -1,20 +1,33 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
 import { finalize } from 'rxjs';
-import { SharedModule } from '../../../shared/shared.module';
-import { NotificationService } from '../../../core/services/notification.service';
-import { NachaSecurityOperationsApiService } from '../services/nacha-security-operations-api.service';
-import { NachaSecurityOperationResponse } from '../models/nacha-security-operation.model';
-import { sanitizeDownloadFileName } from '../utils/download-file-name.util';
 import { AuthService } from '../../../core/services/auth.service';
+import { NotificationService } from '../../../core/services/notification.service';
+import { PageHeaderComponent } from '../../../shared/components/page-header.component';
+import { NachaSecurityOperationResponse } from '../models/nacha-security-operation.model';
 import { NACHA_SECURITY_PERMISSIONS } from '../nacha-security-permissions';
+import { NachaSecurityOperationsApiService } from '../services/nacha-security-operations-api.service';
+import { sanitizeDownloadFileName } from '../utils/download-file-name.util';
+import { NachaOperationSummaryComponent } from './nacha-operation-summary.component';
 
 @Component({
   selector: 'app-manual-decrypt-operation',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatIconModule,
+    PageHeaderComponent,
+    NachaOperationSummaryComponent
+  ],
   templateUrl: './manual-decrypt-operation.component.html',
+  styleUrls: ['./nacha-operation-page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ManualDecryptOperationComponent {
@@ -51,6 +64,7 @@ export class ManualDecryptOperationComponent {
   onFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.form.patchValue({ file: input.files?.[0] ?? null });
+    this.form.controls.file.markAsTouched();
   }
 
   submit(): void {
@@ -61,6 +75,7 @@ export class ManualDecryptOperationComponent {
     }
 
     this.loading = true;
+    this.operation = undefined;
     this.service.manualDecrypt(file)
       .pipe(finalize(() => {
         this.loading = false;
@@ -100,7 +115,7 @@ export class ManualDecryptOperationComponent {
               a.click();
               window.URL.revokeObjectURL(url);
             },
-            error: () => this.notifications.error('La descarga no fue autorizada por backend.')
+            error: () => this.notifications.error('La descarga no fue autorizada por el servidor.')
           });
         },
         error: () => this.notifications.error('No fue posible autorizar la descarga.')

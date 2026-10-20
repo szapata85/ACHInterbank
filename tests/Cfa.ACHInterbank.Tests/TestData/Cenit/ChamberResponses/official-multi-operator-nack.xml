@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FileNack xmlns="urn:xs:FileNack">
+  <GroupHeader>
+    <GroupId>NACK-20260831-2</GroupId>
+    <Status>NACK</Status>
+    <IndvItemsTotalNo>2</IndvItemsTotalNo>
+    <CreationDate>2026-08-31T12:07:00-05:00</CreationDate>
+  </GroupHeader>
+  <AdditionalRefs>
+    <RelatedRef>REF-1</RelatedRef>
+    <OrigSender>0001001</OrigSender>
+  </AdditionalRefs>
+  <FileErrorHandling>
+    <AdditionalDesc>Número de secuencia inválido</AdditionalDesc>
+    <Status>NACK</Status>
+    <BatchNo>1</BatchNo>
+    <TraceNo>000010070007301</TraceNo>
+    <ErrorCode>ERR_TRACE_NO_INV</ErrorCode>
+  </FileErrorHandling>
+  <FileErrorHandling>
+    <AdditionalDesc>Número de secuencia inválido</AdditionalDesc>
+    <Status>NACK</Status>
+    <BatchNo>1</BatchNo>
+    <TraceNo>000010070007302</TraceNo>
+    <ErrorCode>ERR_TRACE_NO_INV</ErrorCode>
+  </FileErrorHandling>
+</FileNack>

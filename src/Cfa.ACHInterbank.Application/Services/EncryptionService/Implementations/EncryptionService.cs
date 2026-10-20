@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Application.Services.EncryptionService.Implementations
 {
@@ -39,17 +40,36 @@ namespace Cfa.ACHInterbank.Application.Services.EncryptionService.Implementation
 
         #endregion Diposable
 
-        private readonly AppSettings _appSettings = AppSettings.Settings;
-        private readonly byte[] _key;
-        public EncryptionService()
+        private readonly Lazy<byte[]> _key;
+        public EncryptionService(IOptions<ApplicationEncryptionOptions> options)
         {
-            _key = Encoding.UTF8.GetBytes(_appSettings.key!);
+            ArgumentNullException.ThrowIfNull(options);
+            var configuredKey = options.Value.Key;
+            _key = new Lazy<byte[]>(
+                () => ResolveKey(configuredKey),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+        }
+
+        private static byte[] ResolveKey(string? configuredKey)
+        {
+            if (string.IsNullOrWhiteSpace(configuredKey))
+            {
+                throw new InvalidOperationException("appSettings:key es obligatorio para el servicio de cifrado.");
+            }
+
+            var key = Encoding.UTF8.GetBytes(configuredKey);
+            if (key.Length is not (16 or 24 or 32))
+            {
+                throw new InvalidOperationException("appSettings:key debe codificar una llave AES de 16, 24 o 32 bytes.");
+            }
+
+            return key;
         }
 
         public string Encrypt(string plaintext)
         {
             using var aes = Aes.Create();
-            aes.Key = _key;
+            aes.Key = _key.Value;
             aes.GenerateIV();
             aes.Mode = CipherMode.CBC;
             aes.Padding = PaddingMode.PKCS7;
@@ -71,7 +91,7 @@ namespace Cfa.ACHInterbank.Application.Services.EncryptionService.Implementation
             var fullCipher = Convert.FromBase64String(ciphertext);
 
             using var aes = Aes.Create();
-            aes.Key = _key;
+            aes.Key = _key.Value;
             aes.IV = new byte[16];
             Array.Copy(fullCipher, 0, aes.IV, 0, aes.IV.Length);
 

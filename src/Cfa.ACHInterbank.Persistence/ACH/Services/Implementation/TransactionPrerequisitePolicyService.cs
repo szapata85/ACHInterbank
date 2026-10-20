@@ -43,7 +43,7 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
 
         return new(
             true,
-            rule.RequiresPrenotification,
+            rule.PrenotificationMode == PrenotificationRequirementMode.Mandatory,
             rule.PrenotificationMode,
             rule.RequiresReceiverIdentificationValidation,
             rule.ReceiverIdentificationValidationMode,
@@ -51,6 +51,61 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
             rule.NormativeReference,
             decision,
             BuildDecisionMessage(rule));
+    }
+
+    public TransactionPrerequisiteValidationResult ValidateForRegistration(TransactionRegistrationPrerequisiteRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.IsPrenotification)
+        {
+            return new(true, "OK", "La transacción es prenotificación y no requiere una validación previa para ser creada.", request.PolicyRule);
+        }
+
+        var rule = request.PolicyRule;
+        if (rule is null)
+        {
+            return new(false, "TRANSACTION_POLICY_NOT_CONFIGURED", "No existe política efectiva para evaluar la elegibilidad transaccional antes de persistir.", null);
+        }
+
+        var eligibility = request.Eligibility;
+        if (eligibility is null)
+        {
+            return rule.PrenotificationMode == PrenotificationRequirementMode.Mandatory
+                ? new(false, "TRANSACTION_ELIGIBILITY_REQUIRED", "La política efectiva exige prenotificación y no existe una cuenta canónica elegible para demostrar el prerequisito.", rule)
+                : new(true, "OK", "La política efectiva permite operar sin prenotificación; la ausencia de identidad canónica suficiente no convierte la prenotificación opcional en obligatoria.", rule);
+        }
+
+        if (eligibility.PolicyRule is null || eligibility.PolicyRule.Id != rule.Id)
+        {
+            return new(false, "TRANSACTION_ELIGIBILITY_POLICY_MISMATCH", "La elegibilidad contextual no fue calculada con la misma versión de política efectiva resuelta para la transacción.", rule);
+        }
+
+        return eligibility.Decision switch
+        {
+            ThirdPartyAccountEligibilityDecision.Allowed
+                => new(true, "OK", "La cuenta canónica es elegible para la transacción en el contexto resuelto.", rule),
+            ThirdPartyAccountEligibilityDecision.AllowedWithoutPrenotification
+                when rule.PrenotificationMode != PrenotificationRequirementMode.Mandatory
+                => new(true, "OK", "La política efectiva permite operar sin prenotificación.", rule),
+            ThirdPartyAccountEligibilityDecision.RequiresPrenotification
+                => new(false, "TRANSACTION_PRENOTIFICATION_REQUIRED", eligibility.Message, rule),
+            ThirdPartyAccountEligibilityDecision.PrenotificationPending
+                => new(false, "TRANSACTION_PRENOTIFICATION_PENDING", eligibility.Message, rule),
+            ThirdPartyAccountEligibilityDecision.ValidationExpired
+                => new(false, "TRANSACTION_VALIDATION_EXPIRED", eligibility.Message, rule),
+            ThirdPartyAccountEligibilityDecision.Rejected
+                => new(false, "TRANSACTION_VALIDATION_REJECTED", eligibility.Message, rule),
+            ThirdPartyAccountEligibilityDecision.RequiresRevalidation
+                => new(false, "TRANSACTION_REVALIDATION_REQUIRED", eligibility.Message, rule),
+            ThirdPartyAccountEligibilityDecision.TechnicalReview
+                => new(false, "TRANSACTION_TECHNICAL_REVIEW_REQUIRED", eligibility.Message, rule),
+            ThirdPartyAccountEligibilityDecision.Blocked
+                => new(false, "TRANSACTION_MASTER_BLOCKED", eligibility.Message, rule),
+            ThirdPartyAccountEligibilityDecision.Unsupported
+                => new(false, "TRANSACTION_ELIGIBILITY_UNSUPPORTED", eligibility.Message, rule),
+            _ => new(false, "TRANSACTION_ELIGIBILITY_FAILED", eligibility.Message, rule)
+        };
     }
 
     public async Task<TransactionPrerequisiteValidationResult> ValidateForNachaExportAsync(AchTransaction transaction, DateTime? prenotificationDate, CancellationToken ct)
@@ -95,20 +150,27 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
             return new(false, "NACHA_EXPORT_RULE_NOT_CONFIGURED", $"No existe regla vigente de exportación NACHA para la transacción {transaction.Id}, cámara {clearingHouseId}, naturaleza {nature.Value}.", null);
         }
 
-        if (rule.PrenotificationMode != PrenotificationRequirementMode.Mandatory || !rule.RequiresPrenotification)
-        {
-            return new(true, "OK", "La regla vigente no bloquea por prenotificación.", rule);
-        }
-
         if (prenotificationDate is null)
         {
-            return new(false, "NACHA_EXPORT_PREREQUISITE_FAILED", $"La transacción {transaction.Id} no tiene prenotificación previa.", rule);
+            return rule.PrenotificationMode == PrenotificationRequirementMode.Mandatory
+                ? new(false, "NACHA_EXPORT_PREREQUISITE_FAILED", $"La transacción {transaction.Id} no tiene prenotificación previa.", rule)
+                : new(true, "OK", "La regla vigente permite operar sin prenotificación.", rule);
         }
 
-        var minDate = AddBusinessDays(prenotificationDate.Value.Date, 3);
-        if (transaction.EffectiveEntryDate.Date < minDate)
+        // Una prenotificación opcional puede imponer un lead normativo cuando efectivamente se utiliza
+        // (ACH Colombia V35 crédito). La opcionalidad define si puede omitirse, no si se ignoran sus plazos.
+        if (rule.PrenotificationLeadBusinessDays.HasValue)
         {
-            return new(false, "NACHA_EXPORT_PREREQUISITE_FAILED", $"La transacción {transaction.Id} no cumple los 3 días hábiles desde la prenotificación.", rule);
+            var leadDays = rule.PrenotificationLeadBusinessDays.Value;
+            var minDate = AddBusinessDays(prenotificationDate.Value.Date, leadDays);
+            if (transaction.EffectiveEntryDate.Date < minDate)
+            {
+                return new(
+                    false,
+                    "NACHA_EXPORT_PREREQUISITE_FAILED",
+                    $"La transacción {transaction.Id} no cumple los {leadDays} días hábiles requeridos desde la prenotificación.",
+                    rule);
+            }
         }
 
         return new(true, "OK", "La transacción cumple prerequisitos de prenotificación.", rule);
@@ -122,7 +184,7 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
         bool appliesToNachaExport,
         CancellationToken ct)
     {
-        return await _context.ClearingHouseTransactionRules
+        var candidates = await _context.ClearingHouseTransactionRules
             .AsNoTracking()
             .Where(x => x.ClearingHouseId == clearingHouseId
                         && x.TransactionNature == nature
@@ -133,7 +195,16 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
                         && x.EffectiveFrom.Date <= effectiveDate.Date
                         && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= effectiveDate.Date))
             .OrderByDescending(x => x.EffectiveFrom)
-            .FirstOrDefaultAsync(ct);
+            .Take(2)
+            .ToListAsync(ct);
+
+        if (candidates.Count > 1)
+        {
+            throw new InvalidOperationException(
+                $"Existe más de una política vigente para la cámara {clearingHouseId}, tipo {type} y fecha {effectiveDate:yyyy-MM-dd}.");
+        }
+
+        return candidates.Count == 0 ? null : candidates[0];
     }
 
     public static TransactionNature? ResolveNature(TransactionTypeEnum type)

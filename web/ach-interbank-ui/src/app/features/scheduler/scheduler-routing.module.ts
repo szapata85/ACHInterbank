@@ -3,12 +3,16 @@ import { RouterModule, Routes } from '@angular/router';
 import { TaskDefinitionsComponent } from './components/task-definitions.component';
 import { permissionGuard } from '../../core/guards/permission.guard';
 
-const routes: Routes = [
+export const SCHEDULER_ROUTES: Routes = [
   {
     path: 'tasks',
     component: TaskDefinitionsComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanManageAch'], breadcrumb: 'Tareas programadas', title: 'TaskDefinitions' }
+    data: {
+      permissions: ['Scheduler.View'],
+      breadcrumb: 'Tareas programadas',
+      title: 'Tareas programadas'
+    }
   },
   {
     path: '',
@@ -18,7 +22,7 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(routes)],
+  imports: [RouterModule.forChild(SCHEDULER_ROUTES)],
   exports: [RouterModule]
 })
 export class SchedulerRoutingModule {}

@@ -1,0 +1,60 @@
+<mat-card class="context-card" data-testid="nacha-config-context-bar">
+  <mat-card-header>
+    <mat-card-title>Contexto de la configuración</mat-card-title>
+    <mat-card-subtitle>Las opciones se leen de los catálogos operativos y del perfil seleccionado.</mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content>
+    <form [formGroup]="form" class="context-form" aria-label="Contexto NACHA-M">
+      <mat-form-field appearance="outline">
+        <mat-label>Cámara</mat-label>
+        <mat-select formControlName="camara">
+          <mat-option *ngFor="let option of camaras" [value]="option.code">{{ option.labelEs }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Operación / flujo</mat-label>
+        <mat-select formControlName="flujo">
+          <mat-option *ngFor="let option of flujos" [value]="option.code">{{ option.labelEs }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Dirección</mat-label>
+        <mat-select formControlName="direccion">
+          <mat-option *ngFor="let option of direcciones" [value]="option.code">{{ option.labelEs }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Servicio</mat-label>
+        <mat-select formControlName="servicio">
+          <mat-option value="">Sin servicio específico</mat-option>
+          <mat-option *ngFor="let option of servicios" [value]="option.code">{{ option.labelEs }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </form>
+
+    <div class="context-summary">
+      <div>
+        <span class="summary-label">Versión</span>
+        <strong>{{ perfil.versionMajor }}.{{ perfil.versionMinor }}</strong>
+      </div>
+      <div>
+        <span class="summary-label">Vigencia</span>
+        <strong>{{ vigencia() }}</strong>
+      </div>
+      <div>
+        <span class="summary-label">Estado</span>
+        <mat-chip-set aria-label="Estado del perfil">
+          <mat-chip>{{ perfil.estadoNombre }}</mat-chip>
+        </mat-chip-set>
+      </div>
+    </div>
+
+    <p *ngIf="catalogosError" class="catalog-warning" role="status">
+      No fue posible actualizar los catálogos de contexto. Se conserva la información entregada por el perfil.
+    </p>
+  </mat-card-content>
+</mat-card>

@@ -1,0 +1,293 @@
+<section class="import-flow" aria-labelledby="import-contract-title">
+  <header class="import-flow__header">
+    <div>
+      <p class="import-flow__eyebrow">Nueva versión contractual</p>
+      <h2 id="import-contract-title">Analizar e importar WSDL/XSD</h2>
+      <p>El archivo se analiza en backend. La importación crea únicamente un <strong>Borrador</strong>; nunca activa ni publica el contrato.</p>
+    </div>
+    <button mat-button type="button" (click)="close()">Cancelar</button>
+  </header>
+
+  <mat-stepper
+    [linear]="true"
+    [selectedIndex]="currentStep()"
+    (selectionChange)="onStepSelection($event.selectedIndex)"
+    aria-label="Flujo para importar contrato como borrador">
+    <mat-step [completed]="store.artifactAnalysisStatus() === 'ready'">
+      <ng-template matStepLabel>Archivo local</ng-template>
+      <section class="step-panel" aria-labelledby="artifact-file-title">
+        <div>
+          <h3 id="artifact-file-title">1. Seleccione el archivo</h3>
+          <p id="artifact-file-help">Seleccione un WSDL o XSD local. Angular solo envía el archivo; no procesa XML ni resuelve imports.</p>
+        </div>
+        <label class="file-picker">
+          <span>Archivo WSDL/XSD</span>
+          <input
+            type="file"
+            accept=".wsdl,.xsd,application/xml,text/xml"
+            aria-describedby="artifact-file-help"
+            (change)="onFileSelected($event)" />
+        </label>
+        @if (store.artifactFile(); as file) {
+          <p class="selected-file" role="status" aria-live="polite">Seleccionado: <strong>{{ file.name }}</strong></p>
+        }
+        @if (store.artifactAnalysisError(); as error) {
+          <p class="message message--error" role="alert">{{ error.message }}</p>
+        }
+        <div class="step-actions">
+          <button
+            mat-flat-button
+            type="button"
+            (click)="analyzeSelectedFile()"
+            [disabled]="!store.permissions().canManage || !store.artifactFile() || store.artifactAnalysisStatus() === 'loading'">
+            Analizar archivo
+          </button>
+          @if (store.artifactAnalysisStatus() === 'loading') {
+            <span class="loading-inline" role="status" aria-live="polite">
+              <mat-progress-spinner mode="indeterminate" diameter="24" /> Analizando…
+            </span>
+          }
+        </div>
+      </section>
+    </mat-step>
+
+    <mat-step [completed]="analysisValid()">
+      <ng-template matStepLabel>Operación</ng-template>
+      <section class="step-panel" aria-labelledby="artifact-operation-title">
+        <div>
+          <h3 id="artifact-operation-title">2. Operación compatible</h3>
+          <p>La operación y su compatibilidad son determinadas por el backend.</p>
+        </div>
+
+        @if (store.artifactAnalysis(); as analysis) {
+          @if (requiresOperationSelection()) {
+            <mat-form-field appearance="outline">
+              <mat-label>Operación a importar</mat-label>
+              <mat-select [formControl]="operationForm.controls.operationName" aria-label="Operación WSDL compatible">
+                @for (operation of operationCandidates(); track operation) {
+                  <mat-option [value]="operation">{{ operation }}</mat-option>
+                }
+              </mat-select>
+              @if (operationForm.controls.operationName.hasError('required')) {
+                <mat-error>Selecciona una operación.</mat-error>
+              }
+            </mat-form-field>
+          } @else if (analysis.artifactKind === 'XmlSchema') {
+            <div class="xsd-metadata" [formGroup]="operationForm">
+              <p>Un XSD standalone no define operación SOAP. Confirme la metadata de la versión base antes de reanalizar.</p>
+              <mat-form-field appearance="outline">
+                <mat-label>Operación SOAP</mat-label>
+                <input matInput formControlName="operationName" autocomplete="off" />
+                @if (operationForm.controls.operationName.hasError('required')) {
+                  <mat-error>La operación es obligatoria.</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>SOAP Action</mat-label>
+                <input matInput formControlName="standaloneXsdSoapAction" autocomplete="off" />
+                @if (operationForm.controls.standaloneXsdSoapAction.hasError('required')) {
+                  <mat-error>Ingresa SOAP Action para el XSD independiente.</mat-error>
+                }
+              </mat-form-field>
+            </div>
+          } @else if (analysis.operationName) {
+            <p class="detected-value"><span>Operación detectada</span><strong>{{ analysis.operationName }}</strong></p>
+          }
+
+          @if (!analysis.importable && analysis.issues.length) {
+            <div class="analysis-issues" role="alert" aria-label="Errores de análisis">
+              <h4>El backend requiere corregir o completar el análisis</h4>
+              <ul>
+                @for (issue of analysis.issues; track issue.code + issue.message) {
+                  <li>{{ issue.message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          <div class="step-actions">
+            <button mat-button type="button" (click)="currentStep.set(0)">Volver</button>
+            @if (isMultipleOperationWsdl() || analysis.artifactKind === 'XmlSchema' || !analysis.importable) {
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="validateOperation()"
+                [disabled]="!store.permissions().canManage || operationForm.controls.operationName.invalid || store.artifactAnalysisStatus() === 'loading'">
+                Validar operación
+              </button>
+            }
+            <button mat-flat-button type="button" (click)="continueToSummary()" [disabled]="!analysisValid()">
+              Continuar
+            </button>
+          </div>
+        } @else {
+          <p class="message message--error" role="alert">Analice primero un archivo local.</p>
+        }
+      </section>
+    </mat-step>
+
+    <mat-step [completed]="store.artifactPreviewStatus() === 'ready' && previewMatchesBase()">
+      <ng-template matStepLabel>Resumen</ng-template>
+      <section class="step-panel" aria-labelledby="contract-summary-title">
+        <div>
+          <h3 id="contract-summary-title">3. Resumen del contrato detectado</h3>
+          <p>Revise la información funcional antes de solicitar el diff.</p>
+        </div>
+        @if (store.artifactAnalysis(); as analysis) {
+          <dl class="summary-grid">
+            <div><dt>Archivo</dt><dd>{{ analysis.fileName }}</dd></div>
+            <div><dt>Tamaño</dt><dd>{{ formatBytes(analysis.sizeBytes) }}</dd></div>
+            <div><dt>Operación</dt><dd>{{ analysis.operationName || 'No informada' }}</dd></div>
+            <div><dt>Datos detectados</dt><dd>{{ analysis.parameters.length }}</dd></div>
+          </dl>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Versión base para comparar</mat-label>
+            <mat-select
+              [value]="selectedBaseContractId()"
+              (selectionChange)="selectBaseVersion($event.value)"
+              aria-label="Versión contractual base">
+              @for (version of baseVersions(); track version.id) {
+                <mat-option [value]="version.id">{{ versionLabel(version) }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          @if (baseVersions().length === 0) {
+            <p class="message message--warning" role="alert">No hay una versión base reportada por backend para calcular el diff.</p>
+          }
+
+          <details class="technical-details">
+            <summary>Detalle técnico para soporte</summary>
+            <dl>
+              <div><dt>Hash SHA-256</dt><dd><code>{{ analysis.sha256 || 'No informado' }}</code></dd></div>
+              <div><dt>Namespace</dt><dd><code>{{ analysis.targetNamespace || 'No informado' }}</code></dd></div>
+              <div><dt>SOAP Action</dt><dd><code>{{ analysis.soapAction || 'No informado' }}</code></dd></div>
+            </dl>
+          </details>
+
+          @if (store.artifactPreviewError(); as error) {
+            <p class="message message--error" role="alert">{{ error.message }}</p>
+          }
+          <div class="step-actions">
+            <button mat-button type="button" (click)="currentStep.set(1)">Volver</button>
+            <button
+              mat-flat-button
+              type="button"
+              (click)="previewDiff()"
+              [disabled]="!store.permissions().canManage || !analysisValid() || !selectedBaseContractId() || store.artifactPreviewStatus() === 'loading'">
+              Comparar con versión base
+            </button>
+            @if (store.artifactPreviewStatus() === 'loading') {
+              <span class="loading-inline" role="status" aria-live="polite">
+                <mat-progress-spinner mode="indeterminate" diameter="24" /> Comparando…
+              </span>
+            }
+          </div>
+        }
+      </section>
+    </mat-step>
+
+    <mat-step [completed]="diffReviewed()">
+      <ng-template matStepLabel>Cambios</ng-template>
+      <section class="step-panel" aria-labelledby="contract-diff-title">
+        <div>
+          <h3 id="contract-diff-title">4. Cambios frente a la versión base</h3>
+          <p>La clasificación de impacto proviene directamente del backend; Angular no la recalcula.</p>
+        </div>
+        @if (store.artifactPreview()?.diff; as diff) {
+          <div class="diff-summary" aria-label="Resumen de cambios" aria-live="polite">
+            <div><strong>{{ diff.summary.added }}</strong><span>Datos nuevos</span></div>
+            <div><strong>{{ diff.summary.removed }}</strong><span>Datos eliminados</span></div>
+            <div><strong>{{ diff.summary.modified }}</strong><span>Cambios</span></div>
+            <div><strong>{{ diff.summary.requiresMapping }}</strong><span>Requiere relacionar</span></div>
+            <div><strong>{{ diff.summary.requiresDevelopment }}</strong><span>Requiere desarrollo</span></div>
+          </div>
+
+          @if (diff.changes.length === 0) {
+            <p class="message" role="status">El backend no reporta cambios frente a la versión base.</p>
+          } @else {
+            <div class="diff-list">
+              @for (change of diff.changes; track change.technicalName + change.changeType) {
+                <article class="diff-card" [attr.data-impact]="change.impact">
+                  <header>
+                    <div>
+                      <p class="diff-card__kind">{{ changeLabel(change.changeType) }}</p>
+                      <h4>{{ change.functionalName || change.technicalName }}</h4>
+                    </div>
+                    <span class="impact-badge" [attr.data-impact]="change.impact">{{ impactLabel(change.impact) }}</span>
+                  </header>
+                  <p>{{ changeDescription(change) }}</p>
+                  <details class="technical-details">
+                    <summary>Detalle técnico</summary>
+                    <dl>
+                      <div><dt>Nombre técnico</dt><dd><code>{{ change.technicalName }}</code></dd></div>
+                      <div><dt>Antes</dt><dd><code>{{ change.leftValue || 'No aplica' }}</code></dd></div>
+                      <div><dt>Después</dt><dd><code>{{ change.rightValue || 'No aplica' }}</code></dd></div>
+                    </dl>
+                  </details>
+                </article>
+              }
+            </div>
+          }
+          <div class="step-actions">
+            <button mat-button type="button" (click)="currentStep.set(2)">Volver</button>
+            <button mat-flat-button type="button" (click)="continueToConfirmation()">Revisado, continuar</button>
+          </div>
+        } @else {
+          <p class="message message--error" role="alert">El backend no entregó un diff válido.</p>
+        }
+      </section>
+    </mat-step>
+
+    <mat-step>
+      <ng-template matStepLabel>Crear borrador</ng-template>
+      <section class="step-panel" aria-labelledby="confirm-import-title">
+        <div>
+          <h3 id="confirm-import-title">5. Confirmar importación</h3>
+          <p class="draft-notice" role="status"><strong>Resultado esperado: Borrador.</strong> Esta acción no activa ni publica el contrato.</p>
+        </div>
+
+        @if (store.artifactImportResult(); as result) {
+          <div class="success-panel" role="status" aria-live="polite">
+            <h4>Borrador creado</h4>
+            <p>Versión {{ result.contract.contract.versionLabel }} · estado {{ result.contract.contract.status }} · revisión {{ result.contract.contract.revision }}.</p>
+            <button mat-flat-button type="button" (click)="close()">Volver a versiones</button>
+          </div>
+        } @else {
+          <form class="confirm-form" [formGroup]="importForm" (ngSubmit)="importDraft()">
+            <mat-form-field appearance="outline">
+              <mat-label>Versión del nuevo borrador</mat-label>
+              <input matInput formControlName="versionLabel" autocomplete="off" />
+              @if (importForm.controls.versionLabel.hasError('required')) {
+                <mat-error>La versión es obligatoria.</mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Notas funcionales</mat-label>
+              <textarea matInput rows="3" formControlName="notes"></textarea>
+            </mat-form-field>
+
+            @if (store.artifactImportError(); as error) {
+              <p class="message message--error" role="alert">{{ error.message }}</p>
+            }
+            <div class="step-actions">
+              <button mat-button type="button" (click)="currentStep.set(3)">Volver</button>
+              <button
+                mat-flat-button
+                type="submit"
+                [disabled]="!store.permissions().canManage || importForm.invalid || !diffReviewed() || !previewMatchesBase() || store.artifactImportStatus() === 'loading'">
+                Crear versión en borrador
+              </button>
+              @if (store.artifactImportStatus() === 'loading') {
+                <span class="loading-inline" role="status" aria-live="polite">
+                  <mat-progress-spinner mode="indeterminate" diameter="24" /> Creando borrador…
+                </span>
+              }
+            </div>
+          </form>
+        }
+      </section>
+    </mat-step>
+  </mat-stepper>
+</section>

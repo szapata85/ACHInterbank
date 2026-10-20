@@ -7,10 +7,13 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Tests.NachaFunctional;
+using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -26,7 +29,7 @@ public class NachaIncomingEndToEndProcessingTests
         var result = await fixture.Sut.ProcessAsync(BuildRequest(
             NachaTestDataPaths.AchColombiaIncoming001,
             "ACH",
-            "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0"));
+            AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode));
 
         result.ValidationPassed.Should().BeTrue(string.Join(" | ", result.Errors));
         result.PersistencePassed.Should().BeTrue();
@@ -35,6 +38,8 @@ public class NachaIncomingEndToEndProcessingTests
         result.AddendaCount.Should().Be(1);
         result.BatchCount.Should().Be(1);
         result.FileControlCount.Should().Be(1);
+        result.ProfileCode.Should().Be(AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode);
+        (await fixture.Context.IncomingNachaFileIngestions.SingleAsync()).ProfileVersion.Should().Be("35.1");
         result.Decisions.Should().ContainSingle(x =>
             x.DecisionType == NachaIncomingDecisionType.ApplyCreditMovement
             && x.SoapOperation == NachaSoapOperationCandidate.ProcTransacciones
@@ -51,17 +56,17 @@ public class NachaIncomingEndToEndProcessingTests
         var result = await fixture.Sut.ProcessAsync(BuildRequest(
             NachaTestDataPaths.CenitIncoming001,
             "CENIT",
-            "OFFICIAL_CENIT_ENTRADA_ORIGINAL_V1_0"));
+            CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode));
 
         result.ValidationPassed.Should().BeTrue(string.Join(" | ", result.Errors));
         result.PersistencePassed.Should().BeTrue();
         result.ClearingHouseCode.Should().Be("CENIT");
-        result.ProfileCode.Should().Be("OFFICIAL_CENIT_ENTRADA_ORIGINAL_V1_0");
+        result.ProfileCode.Should().Be(CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode);
         result.Decisions.Should().ContainSingle(x => x.SoapOperation == NachaSoapOperationCandidate.ProcTransacciones);
     }
 
     [Fact]
-    public async Task ProcessAchColombiaReturnGoldenFile_ShouldParsePersistAndRegisterDifferentialResponse()
+    public async Task ProcessAchColombiaSyntheticReturnFixture_ShouldFailClosedWithoutHomologatedProfile()
     {
         await using var fixture = BuildFixture("ACH", 1, "12345678");
         var result = await fixture.Sut.ProcessAsync(BuildRequest(
@@ -69,18 +74,11 @@ public class NachaIncomingEndToEndProcessingTests
             "ACH",
             "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0"));
 
-        result.ValidationPassed.Should().BeTrue(string.Join(" | ", result.Errors));
-        result.IsReturnFile.Should().BeTrue();
-        result.FlowType.Should().Be(NachaIncomingFlowType.ReturnFile);
-        result.Decisions.Should().ContainSingle(x =>
-            x.DecisionType == NachaIncomingDecisionType.RegisterDifferentialResponse
-            && x.SoapOperation == NachaSoapOperationCandidate.RegistrarRespuestaTransaccion
-            && !x.RequiresMonetaryMovement
-            && x.ReasonCode == "R01");
+        await AssertSyntheticDifferentialFixtureFailsClosedAsync(fixture, result, "ACH");
     }
 
     [Fact]
-    public async Task ProcessCenitReturnGoldenFile_ShouldParsePersistAndRegisterDifferentialResponse()
+    public async Task ProcessCenitSyntheticReturnFixture_ShouldFailClosedWithoutHomologatedProfile()
     {
         await using var fixture = BuildFixture("CENIT", 2, "87654321");
         var result = await fixture.Sut.ProcessAsync(BuildRequest(
@@ -88,12 +86,7 @@ public class NachaIncomingEndToEndProcessingTests
             "CENIT",
             "OFFICIAL_CENIT_ENTRADA_DEVOLUCION_V1_0"));
 
-        result.ValidationPassed.Should().BeTrue(string.Join(" | ", result.Errors));
-        result.IsReturnFile.Should().BeTrue();
-        result.ClearingHouseCode.Should().Be("CENIT");
-        result.Decisions.Should().ContainSingle(x =>
-            x.SoapOperation == NachaSoapOperationCandidate.RegistrarRespuestaTransaccion
-            && !x.RequiresMonetaryMovement);
+        await AssertSyntheticDifferentialFixtureFailsClosedAsync(fixture, result, "CENIT");
     }
 
     [Fact]
@@ -103,7 +96,7 @@ public class NachaIncomingEndToEndProcessingTests
         var request = BuildPathRequest(
             NachaTestDataPaths.AchColombiaIncoming001,
             "ACH",
-            "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0",
+            AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode,
             fileNameOverride: "nombre-invalido.txt",
             isSimulation: false);
 
@@ -111,7 +104,7 @@ public class NachaIncomingEndToEndProcessingTests
 
         result.ValidationPassed.Should().BeFalse();
         result.PersistencePassed.Should().BeFalse();
-        result.Errors.Should().Contain(x => x.Contains("RRRRTTT.ZZZ.N", StringComparison.OrdinalIgnoreCase));
+        result.Errors.Should().Contain(x => x.Contains("RRRRTTT.ZZZ.YYYYMMDD.N", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -156,13 +149,13 @@ public class NachaIncomingEndToEndProcessingTests
     public async Task ProcessIncomingFile_ShouldDetectDuplicateFile()
     {
         await using var fixture = BuildFixture("ACH", 1, "12345678");
-        var request = BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0");
+        var request = BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode);
 
         var first = await fixture.Sut.ProcessAsync(request);
         var second = await fixture.Sut.ProcessAsync(BuildPathRequest(
             NachaTestDataPaths.AchColombiaIncoming001,
             "ACH",
-            "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0",
+            AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode,
             correlationId: "phase-6b4-duplicate"));
 
         first.ValidationPassed.Should().BeTrue();
@@ -172,14 +165,24 @@ public class NachaIncomingEndToEndProcessingTests
     }
 
     [Fact]
-    public async Task DifferentialResponse_ShouldPrepareRegistrarRespuestaTransaccion_AndNotRequireMonetaryMovement()
+    public async Task DifferentialSyntheticFixture_ShouldNotPrepareRegistrarRespuestaTransaccionOrMonetaryMovement()
     {
         await using var fixture = BuildFixture("ACH", 1, "12345678");
         var result = await fixture.Sut.ProcessAsync(BuildRequest(NachaTestDataPaths.AchColombiaReturn001, "ACH", "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0"));
 
-        result.Decisions.Should().OnlyContain(x =>
-            x.SoapOperation == NachaSoapOperationCandidate.RegistrarRespuestaTransaccion
-            && x.RequiresMonetaryMovement == false);
+        result.Errors.Should().Contain(nameof(NachaProfileSelectionStatus.ProfileNotFound));
+        result.Decisions.Should().BeEmpty();
+        fixture.Context.IncomingNachaDispatchQueue.Should().BeEmpty();
+        fixture.Context.IncomingNachaIntegrationExecution.Should().BeEmpty();
+        fixture.StateTransitions.Verify(x => x.TransitionAsync(
+            It.IsAny<int>(),
+            It.IsAny<AchTransferStateEnum>(),
+            It.IsAny<AchStateEventSourceEnum>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<DateTime?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -189,6 +192,7 @@ public class NachaIncomingEndToEndProcessingTests
         var result = await fixture.Sut.ProcessAsync(BuildContentRequest("1234567.001.1.ach", BuildPrenotificationContent(), "ACH"));
 
         result.ValidationPassed.Should().BeTrue(string.Join(" | ", result.Errors));
+        result.ProfileCode.Should().Be(AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode);
         result.FlowType.Should().Be(NachaIncomingFlowType.PrenotificationResponse);
         result.Decisions.Should().ContainSingle(x =>
             x.DecisionType == NachaIncomingDecisionType.ApprovePrenotification
@@ -200,7 +204,7 @@ public class NachaIncomingEndToEndProcessingTests
     public async Task IncomingExternalCredit_ShouldPrepareProcTransacciones()
     {
         await using var fixture = BuildFixture("ACH", 1, "12345678");
-        var result = await fixture.Sut.ProcessAsync(BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0"));
+        var result = await fixture.Sut.ProcessAsync(BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode));
 
         result.Decisions.Should().ContainSingle(x =>
             x.DecisionType == NachaIncomingDecisionType.ApplyCreditMovement
@@ -241,7 +245,7 @@ public class NachaIncomingEndToEndProcessingTests
     public async Task ProcessIncomingFile_ShouldWritePhase6B4Trace()
     {
         await using var fixture = BuildFixture("ACH", 1, "12345678");
-        var result = await fixture.Sut.ProcessAsync(BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0"));
+        var result = await fixture.Sut.ProcessAsync(BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode));
 
         result.Trace["Phase"].Should().Be("6B.4");
         result.Trace["ProductiveExecution"].Should().Be("false");
@@ -251,8 +255,27 @@ public class NachaIncomingEndToEndProcessingTests
 
     private static ProcessorFixture BuildFixture(string clearingHouseCode, int clearingHouseId, string originCode)
     {
-        var context = BuildContext();
+        var databaseName = Guid.NewGuid().ToString();
+        var databaseRoot = new InMemoryDatabaseRoot();
+        var context = BuildContext(databaseName, databaseRoot);
         SeedCatalog(context, clearingHouseCode, clearingHouseId, originCode);
+        new NachaConfigOfficialProfilesSeeder(context).SeedAsync().GetAwaiter().GetResult();
+        var nonOrdinaryProfileIds = context.CfgProfiles
+            .Include(profile => profile.FlowType)
+            .Where(profile => profile.FlowType.Code != "ORIGINAL" && profile.FlowType.Code != "PRENOTIFICACION")
+            .Select(profile => profile.Id)
+            .ToList();
+        // Deliberately corrupt only this disposable fixture outside AchDbContext's write path.
+        using (var fixtureStore = new DbContext(new DbContextOptionsBuilder<DbContext>()
+            .UseInMemoryDatabase(databaseName, databaseRoot)
+            .UseModel(context.Model)
+            .Options))
+        {
+            fixtureStore.Set<CfgProfile>().RemoveRange(fixtureStore.Set<CfgProfile>()
+                .Where(profile => nonOrdinaryProfileIds.Contains(profile.Id)));
+            fixtureStore.SaveChanges();
+        }
+        context.ChangeTracker.Clear();
 
         var resolver = new Mock<IIncomingNachaCycleResolver>();
         resolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaCycleResolutionRequest>(), It.IsAny<CancellationToken>()))
@@ -275,12 +298,12 @@ public class NachaIncomingEndToEndProcessingTests
             .ReturnsAsync(new AchTransaction());
 
         var parser = new NachaParserService(context, Mock.Of<ILogger<NachaParserService>>(), state.Object);
-        var postParse = Mock.Of<IIncomingNachaPostParseProcessor>();
+        var postParse = new Mock<IIncomingNachaPostParseProcessor>();
         var ingestion = new IncomingNachaIngestionAppService(
             context,
             resolver.Object,
             parser,
-            postParse,
+            postParse.Object,
             BuildExternalPolicyMock().Object,
             Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
 
@@ -290,13 +313,63 @@ public class NachaIncomingEndToEndProcessingTests
             context,
             Mock.Of<ILogger<NachaIncomingFileProcessor>>());
 
-        return new ProcessorFixture(context, sut);
+        return new ProcessorFixture(context, sut, state, postParse);
     }
 
-    private static AchDbContext BuildContext()
+    private static async Task AssertSyntheticDifferentialFixtureFailsClosedAsync(
+        ProcessorFixture fixture,
+        NachaIncomingFileProcessingResult result,
+        string expectedClearingHouseCode)
+    {
+        result.IsReturnFile.Should().BeTrue();
+        result.ClearingHouseCode.Should().Be(expectedClearingHouseCode);
+        result.FlowType.Should().Be(NachaIncomingFlowType.ReturnFile);
+        result.ValidationPassed.Should().BeFalse();
+        result.PersistencePassed.Should().BeFalse();
+        result.IngestionId.Should().NotBeNull();
+        result.Errors.Should().Contain(nameof(NachaProfileSelectionStatus.ProfileNotFound));
+        result.Decisions.Should().BeEmpty();
+
+        var ingestion = await fixture.Context.IncomingNachaFileIngestions.SingleAsync();
+        ingestion.IngestionStatus.Should().Be(IncomingNachaIngestionStatus.Bloqueado);
+        ingestion.ParsingStatus.Should().Be(IncomingNachaParsingStatus.NoEjecutado);
+        ingestion.ResolvedClearingHouseId.Should().NotBeNull();
+        ingestion.Notes.Should().Contain(nameof(NachaProfileSelectionStatus.ProfileNotFound));
+
+        var profileEvent = await fixture.Context.IncomingNachaProcessingEvents.SingleAsync(
+            x => x.EventType == "NachaProfileSelection");
+        profileEvent.EventStatus.Should().Be(nameof(NachaProfileSelectionStatus.ProfileNotFound));
+        profileEvent.Message.Should().Contain("bloqueado antes del parser");
+
+        var processingResult = await fixture.Context.IncomingNachaFileProcessingResults.SingleAsync();
+        processingResult.FailureStage.Should().Be("SeleccionPerfilNacha");
+        processingResult.OutcomeStatus.Should().Be(IncomingNachaProcessingOutcomeStatus.Fallido);
+
+        fixture.Context.NachaHeaders.Should().BeEmpty();
+        fixture.Context.EntryDetails.Should().BeEmpty();
+        fixture.Context.IncomingNachaTransactionLinks.Should().BeEmpty();
+        fixture.Context.IncomingNachaEntryClassifications.Should().BeEmpty();
+        fixture.Context.IncomingNachaDispatchQueue.Should().BeEmpty();
+        fixture.Context.IncomingNachaIntegrationExecution.Should().BeEmpty();
+
+        fixture.PostParse.Verify(
+            x => x.ProcessAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        fixture.StateTransitions.Verify(x => x.TransitionAsync(
+            It.IsAny<int>(),
+            It.IsAny<AchTransferStateEnum>(),
+            It.IsAny<AchStateEventSourceEnum>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<DateTime?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static AchDbContext BuildContext(string databaseName, InMemoryDatabaseRoot databaseRoot)
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName, databaseRoot)
             .Options;
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
@@ -418,7 +491,9 @@ public class NachaIncomingEndToEndProcessingTests
             FileName = fileName,
             Content = content,
             ClearingHouseCode = clearingHouseCode,
-            ExpectedProfileCode = clearingHouseCode == "CENIT" ? "OFFICIAL_CENIT_ENTRADA_ORIGINAL_V1_0" : "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0",
+            ExpectedProfileCode = clearingHouseCode == "CENIT"
+                ? CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode
+                : ResolveExpectedAchProfileCode(content),
             ReceivedAt = new DateTime(2026, 5, 24, 12, 0, 0),
             Source = "GoldenMutation",
             CorrelationId = $"phase-6b4-{Guid.NewGuid():N}",
@@ -453,6 +528,18 @@ public class NachaIncomingEndToEndProcessingTests
         return string.Concat(records);
     }
 
+    private static string ResolveExpectedAchProfileCode(string content)
+    {
+        string[] prenotificationCodes = ["23", "28", "33", "38", "53", "57"];
+        var transactionCodes = Split(content)
+            .Where(record => record[0] == '6')
+            .Select(record => record.Substring(1, 2))
+            .ToArray();
+        return transactionCodes.Length > 0 && transactionCodes.All(prenotificationCodes.Contains)
+            ? AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode
+            : AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode;
+    }
+
     private static List<string> Split(string content)
         => Enumerable.Range(0, content.Length / 106)
             .Select(i => content.Substring(i * 106, 106))
@@ -465,7 +552,11 @@ public class NachaIncomingEndToEndProcessingTests
         return string.Concat(content.AsSpan(0, absoluteStart), fixedReplacement.AsSpan(0, length), content.AsSpan(absoluteStart + length));
     }
 
-    private sealed record ProcessorFixture(AchDbContext Context, INachaIncomingFileProcessor Sut) : IAsyncDisposable
+    private sealed record ProcessorFixture(
+        AchDbContext Context,
+        INachaIncomingFileProcessor Sut,
+        Mock<IAchStateTransitionService> StateTransitions,
+        Mock<IIncomingNachaPostParseProcessor> PostParse) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync() => await Context.DisposeAsync();
     }

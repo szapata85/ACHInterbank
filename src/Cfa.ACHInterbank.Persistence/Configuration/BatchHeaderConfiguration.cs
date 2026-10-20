@@ -16,6 +16,18 @@ public class BatchHeaderConfiguration : IEntityTypeConfiguration<BatchHeader>
         builder.Property(x => x.CompanyId).HasMaxLength(10);
         builder.Property(x => x.StandardEntryClassCode).HasMaxLength(3);
 
+        builder.HasIndex(x => new { x.NachaID, x.BatchNumber }).IsUnique();
+
+        builder.HasMany(x => x.EntryDetails)
+            .WithOne(x => x.BatchHeader)
+            .HasForeignKey(x => x.BatchHeaderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.BatchControl)
+            .WithOne(x => x.BatchHeader)
+            .HasForeignKey<BatchControl>(x => x.BatchHeaderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         //builder.HasOne(x => x.NachaHeader)
         //       .WithMany(x => x.Batches)
         //       .HasForeignKey(x => x.NachaHeaderId);

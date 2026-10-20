@@ -21,8 +21,8 @@ public class IncomingNachaProcessingEventConfiguration : IEntityTypeConfiguratio
         builder.HasIndex(x => x.EventType);
 
         builder.HasOne(x => x.Ingestion)
-            .WithMany()
+            .WithMany(x => x.ProcessingEvents)
             .HasForeignKey(x => x.IncomingNachaFileIngestionId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

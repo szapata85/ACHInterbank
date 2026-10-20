@@ -12,6 +12,7 @@ import { Component, Input, TemplateRef } from '@angular/core';
         <p *ngIf="subtitulo">{{ subtitulo }}</p>
       </header>
       <ng-container *ngIf="contenido" [ngTemplateOutlet]="contenido"></ng-container>
+      <ng-content></ng-content>
     </section>
   `,
   styles: [`.tarjeta{background:#fff;border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:1rem}.tarjeta__header{margin-bottom:.75rem}h3{margin:0}p{margin:.25rem 0 0;color:var(--color-text-soft)}`]

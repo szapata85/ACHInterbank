@@ -37,7 +37,7 @@ input {
 
 button.primary {
   background: var(--button-color, var(--color-primary));
-  color: white;
+  color: var(--color-on-primary);
   border: none;
   padding: 0.5rem 1rem;
   border-radius: var(--radius-md);

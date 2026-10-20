@@ -1,0 +1,282 @@
+<app-page-header
+  [title]="thirdParty?.displayName || 'Detalle del tercero'"
+  subtitle="Tercero canónico · cuentas bancarias y validaciones contextuales"
+  [actionsTemplate]="headerActions"
+></app-page-header>
+
+<ng-template #headerActions>
+  <div class="header-actions">
+    <a class="btn btn-outline" [routerLink]="['/customers', customerId, 'third-parties']">Volver a terceros</a>
+    <button *ngIf="canManage && thirdParty" type="button" class="btn btn-outline" (click)="toggleThirdPartyEdit()" data-testid="edit-third-party">
+      Editar datos administrativos
+    </button>
+    <button *ngIf="canManage && thirdParty" type="button" class="btn btn-primary" [disabled]="saving" (click)="requestThirdPartyStatusChange()" data-testid="third-party-status-action">
+      {{ thirdParty.status === ThirdPartyAdministrativeStatus.Active ? 'Desactivar' : 'Activar' }} tercero
+    </button>
+  </div>
+</ng-template>
+
+<ui-estado-carga *ngIf="loading" mensaje="Cargando tercero y cuentas…"></ui-estado-carga>
+<ui-estado-error *ngIf="!loading && loadError" titulo="No fue posible cargar el tercero" [mensaje]="loadError" (reintentar)="loadAll()"></ui-estado-error>
+
+<ng-container *ngIf="!loading && !loadError && thirdParty as party">
+  <section class="card master-summary" data-testid="third-party-master-summary">
+    <div>
+      <span class="eyebrow">Identidad canónica</span>
+      <strong>{{ party.documentType }} {{ party.documentNumberMasked }}</strong>
+      <small>{{ party.personType }}</small>
+    </div>
+    <div>
+      <span class="eyebrow">Estado</span>
+      <ui-etiqueta-estado [estado]="administrativeStatusTone(party.status)" [texto]="administrativeStatusLabel(party.status)"></ui-etiqueta-estado>
+      <small>El estado administrativo no determina elegibilidad interbancaria.</small>
+    </div>
+    <div>
+      <span class="eyebrow">Cuentas</span>
+      <strong>{{ totalAccounts }}</strong>
+      <small>cuentas canónicas registradas</small>
+    </div>
+  </section>
+
+  <section *ngIf="thirdPartyEditOpen" class="card" data-testid="third-party-edit-panel">
+    <h2>Editar datos administrativos</h2>
+    <p class="muted">La identidad documental no se modifica desde esta pantalla.</p>
+    <form class="inline-form" [formGroup]="thirdPartyEditForm" (ngSubmit)="saveThirdParty()">
+      <label>
+        Nombre administrativo
+        <input type="text" formControlName="displayName" autocomplete="off" />
+      </label>
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" (click)="toggleThirdPartyEdit()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving">{{ saving ? 'Guardando…' : 'Guardar' }}</button>
+      </div>
+    </form>
+  </section>
+
+  <ui-estado-error
+    *ngIf="commandError"
+    titulo="No fue posible completar la operación"
+    [mensaje]="commandError"
+    [mostrarReintentar]="false"
+    data-testid="third-party-detail-command-error"
+  ></ui-estado-error>
+
+  <section class="section-heading">
+    <div>
+      <h2>Cuentas bancarias</h2>
+      <p>La entidad, tipo y número conforman la identidad bancaria. Para corregirla, registra una nueva cuenta y desactiva la anterior.</p>
+    </div>
+    <button *ngIf="canManage" type="button" class="btn btn-primary" (click)="toggleAccountCreate()" data-testid="new-third-party-account">
+      {{ accountCreateOpen ? 'Cerrar registro' : 'Registrar cuenta' }}
+    </button>
+  </section>
+
+  <section *ngIf="accountCreateOpen" class="card" data-testid="account-create-panel">
+    <h3>Registrar cuenta</h3>
+    <p class="muted">No se solicita cámara ni naturaleza al crear el maestro.</p>
+    <form class="form-grid" [formGroup]="accountCreateForm" (ngSubmit)="createAccount()">
+      <label>
+        Institución financiera
+        <select formControlName="financialInstitutionId" data-testid="account-financial-institution">
+          <option [ngValue]="null">Selecciona</option>
+          <option *ngFor="let institution of institutions" [ngValue]="institution.id">{{ institution.name }}</option>
+        </select>
+      </label>
+      <label>
+        Tipo de cuenta
+        <select formControlName="accountType" data-testid="account-type">
+          <option [ngValue]="null">Selecciona</option>
+          <option [ngValue]="ThirdPartyAccountType.Checking">Corriente</option>
+          <option [ngValue]="ThirdPartyAccountType.Savings">Ahorros</option>
+          <option [ngValue]="ThirdPartyAccountType.ElectronicDeposits">Depósito electrónico</option>
+        </select>
+      </label>
+      <label>
+        Número de cuenta
+        <input type="text" inputmode="numeric" formControlName="accountNumber" autocomplete="off" data-testid="account-number" />
+      </label>
+      <div class="form-actions full-width">
+        <button type="button" class="btn btn-outline" (click)="toggleAccountCreate()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving">{{ saving ? 'Guardando…' : 'Guardar cuenta' }}</button>
+      </div>
+    </form>
+  </section>
+
+  <ui-estado-carga *ngIf="accountsLoading" mensaje="Cargando cuentas…"></ui-estado-carga>
+  <section *ngIf="!accountsLoading" class="card" data-testid="account-list">
+    <ui-estado-vacio
+      *ngIf="accounts.length === 0"
+      titulo="Sin cuentas registradas"
+      mensaje="El tercero todavía no tiene cuentas bancarias registradas."
+      sugerencia="El registro de una cuenta no solicita cámara."
+    ></ui-estado-vacio>
+
+    <div *ngIf="accounts.length > 0" class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Institución</th><th>Cuenta</th><th>Tipo</th><th>Estado</th><th>Validaciones</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let account of accounts" [class.selected]="selectedAccount?.thirdPartyAccountId === account.thirdPartyAccountId">
+            <td>{{ account.financialInstitutionName }}</td>
+            <td>{{ account.accountNumberMasked }}</td>
+            <td>{{ accountTypeLabel(account.accountType) }}</td>
+            <td>
+              <ui-etiqueta-estado [estado]="administrativeStatusTone(account.accountStatus)" [texto]="administrativeStatusLabel(account.accountStatus)"></ui-etiqueta-estado>
+            </td>
+            <td>{{ account.validations?.length || 0 }}</td>
+            <td class="row-actions">
+              <button type="button" class="btn btn-outline btn-sm" (click)="selectAccount(account)" data-testid="account-history-action">Historial</button>
+              <button *ngIf="canManage" type="button" class="btn btn-outline btn-sm" [disabled]="saving" (click)="requestAccountStatusChange(account)" data-testid="account-status-action">
+                {{ account.accountStatus === ThirdPartyAdministrativeStatus.Active ? 'Desactivar' : 'Activar' }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="totalAccountPages > 1" class="pager">
+      <button type="button" class="btn btn-outline btn-sm" [disabled]="accountPage <= 1" (click)="previousAccountPage()">Anterior</button>
+      <span>Página {{ accountPage }} de {{ totalAccountPages }}</span>
+      <button type="button" class="btn btn-outline btn-sm" [disabled]="accountPage >= totalAccountPages" (click)="nextAccountPage()">Siguiente</button>
+    </div>
+  </section>
+
+  <section *ngIf="selectedAccount as account" class="detail-grid" data-testid="account-detail">
+    <article class="card account-summary">
+      <div class="section-heading compact">
+        <div>
+          <span class="eyebrow">Cuenta seleccionada</span>
+          <h2>{{ account.financialInstitutionName }} · {{ account.accountNumberMasked }}</h2>
+        </div>
+        <button *ngIf="canManage" type="button" class="btn btn-outline btn-sm" (click)="toggleAccountEdit()" data-testid="edit-account-admin">Editar estado administrativo</button>
+      </div>
+      <dl>
+        <div><dt>Tipo</dt><dd>{{ accountTypeLabel(account.accountType) }}</dd></div>
+        <div><dt>Estado administrativo</dt><dd>{{ administrativeStatusLabel(account.accountStatus) }}</dd></div>
+        <div><dt>Tercero</dt><dd>{{ account.thirdPartyDisplayName }}</dd></div>
+        <div><dt>Documento</dt><dd>{{ account.documentType }} {{ account.documentNumberMasked }}</dd></div>
+      </dl>
+      <p class="notice-inline">“Activo administrativo” no significa “cuenta habilitada para transferir”.</p>
+
+      <form *ngIf="accountEditOpen" class="inline-form account-editor" [formGroup]="accountEditForm" (ngSubmit)="saveAccountAdministrativeData()">
+        <label>
+          Estado administrativo
+          <select formControlName="status">
+            <option [ngValue]="ThirdPartyAdministrativeStatus.Active">Activo administrativo</option>
+            <option [ngValue]="ThirdPartyAdministrativeStatus.Inactive">Inactivo administrativo</option>
+            <option [ngValue]="ThirdPartyAdministrativeStatus.Draft">Borrador</option>
+          </select>
+        </label>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" (click)="toggleAccountEdit()">Cancelar</button>
+          <button type="submit" class="btn btn-primary" [disabled]="saving">Guardar</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="card validation-card">
+      <div class="section-heading compact">
+        <div>
+          <span class="eyebrow">Validaciones operativas</span>
+          <h2>Historial de prenotificaciones</h2>
+        </div>
+        <button
+          *ngIf="canManage"
+          type="button"
+          class="btn btn-primary btn-sm"
+          (click)="toggleRevalidation()"
+          data-testid="request-revalidation"
+        >
+          {{ revalidationOpen ? 'Cerrar solicitud' : 'Solicitar revalidación' }}
+        </button>
+      </div>
+
+      <p class="muted">Los resultados provienen del backend y del procesamiento interbancario. Esta pantalla no permite decidirlos manualmente.</p>
+
+      <form *ngIf="revalidationOpen" class="revalidation-form" [formGroup]="revalidationForm" (ngSubmit)="requestRevalidation()" data-testid="revalidation-form">
+        <label>
+          Cámara
+          <select formControlName="clearingHouseId" data-testid="revalidation-clearing-house">
+            <option [ngValue]="null">Selecciona</option>
+            <option *ngFor="let chamber of clearingHouses" [ngValue]="chamber.id">{{ chamber.name }}</option>
+          </select>
+        </label>
+        <label>
+          Naturaleza
+          <select formControlName="transactionNature" data-testid="revalidation-nature">
+            <option [ngValue]="null">Selecciona</option>
+            <option [ngValue]="ThirdPartyTransactionNature.Credit">Crédito</option>
+            <option [ngValue]="ThirdPartyTransactionNature.Debit">Débito</option>
+          </select>
+        </label>
+        <label>
+          Fecha efectiva
+          <input type="date" formControlName="effectiveDate" data-testid="revalidation-effective-date" />
+        </label>
+        <label>
+          Servicio / descripción de entrada
+          <select formControlName="companyEntryDescriptionId" data-testid="revalidation-service">
+            <option [ngValue]="null">Selecciona</option>
+            <option *ngFor="let description of companyDescriptions" [ngValue]="description.id">
+              {{ description.standardEntryClassCode }} · {{ description.term }}
+            </option>
+          </select>
+        </label>
+        <label>
+          Cuenta origen del cliente
+          <select formControlName="sourceAccountIndex" data-testid="revalidation-source-account">
+            <option [ngValue]="null">Selecciona</option>
+            <option *ngFor="let sourceAccount of customerSourceAccounts; let i = index" [ngValue]="i">{{ maskForDisplay(sourceAccount) }}</option>
+          </select>
+        </label>
+        <div class="revalidation-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="revalidating || revalidationForm.invalid" data-testid="submit-revalidation">
+            {{ revalidating ? 'Solicitando…' : 'Solicitar nueva prenotificación' }}
+          </button>
+        </div>
+        <p class="form-note full-width">La cámara y naturaleza se usan únicamente para esta validación. El backend resuelve política, ruta y resultado.</p>
+      </form>
+
+      <ui-estado-carga *ngIf="historyLoading" mensaje="Cargando historial de validaciones…"></ui-estado-carga>
+      <ui-estado-error *ngIf="!historyLoading && historyError" titulo="No fue posible cargar el historial" [mensaje]="historyError" (reintentar)="loadHistory()"></ui-estado-error>
+      <ui-estado-vacio
+        *ngIf="!historyLoading && !historyError && validationHistory.length === 0"
+        titulo="Sin validaciones registradas"
+        mensaje="No hay intentos de prenotificación asociados a esta cuenta."
+        sugerencia="Si corresponde, un usuario con permisos puede solicitar una revalidación contextual."
+        data-testid="validation-history-empty"
+      ></ui-estado-vacio>
+
+      <div *ngIf="!historyLoading && !historyError && validationHistory.length > 0" class="validation-history" data-testid="validation-history">
+        <article *ngFor="let validation of validationHistory" class="validation-item">
+          <header>
+            <div>
+              <strong>{{ validation.clearingHouseName }}</strong>
+              <span>{{ transactionNatureLabel(validation.transactionNature) }} · {{ validation.serviceType }}</span>
+            </div>
+            <ui-etiqueta-estado [estado]="validationStatusTone(validation.status)" [texto]="validationStatusLabel(validation.status)"></ui-etiqueta-estado>
+          </header>
+          <dl class="validation-meta">
+            <div><dt>Fecha efectiva</dt><dd>{{ validation.effectiveDate | date:'yyyy-MM-dd' }}</dd></div>
+            <div><dt>Regla aplicada</dt><dd>{{ validation.policyRuleId || '—' }}</dd></div>
+            <div><dt>Expira</dt><dd>{{ validation.expiresAtUtc ? (validation.expiresAtUtc | date:'yyyy-MM-dd HH:mm') : '—' }}</dd></div>
+          </dl>
+
+          <div class="attempts" *ngIf="validation.attempts.length > 0">
+            <h4>Intentos</h4>
+            <div *ngFor="let attempt of validation.attempts" class="attempt">
+              <span>#{{ attempt.attemptNumber }} · {{ attemptStatusLabel(attempt.status) }}</span>
+              <span>Enviado: {{ attempt.sentAtUtc | date:'yyyy-MM-dd HH:mm' }}</span>
+              <span>Respuesta: {{ attempt.resolvedAtUtc ? (attempt.resolvedAtUtc | date:'yyyy-MM-dd HH:mm') : 'Pendiente' }}</span>
+              <span>Causal/resultado: {{ attempt.returnCode || 'Sin causal reportada' }}</span>
+              <span>Ciclo: {{ attempt.sourceCycleId || '—' }}</span>
+              <span>Trazabilidad: TX {{ attempt.achTransactionId || '—' }} · intento {{ attempt.attemptId }}</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </article>
+  </section>
+</ng-container>

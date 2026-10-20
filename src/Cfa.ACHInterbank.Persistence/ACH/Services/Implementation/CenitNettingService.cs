@@ -38,6 +38,7 @@ public class CenitNettingService : ICenitNettingService
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .Include(x => x.ClearingHouse)
+                .ThenInclude(x => x!.ClearingHouseConfig)
             .FirstAsync(x => x.Id == execution.AchCycleId, ct);
         var sourceFileReference = await _context.AchFileExports
             .AsNoTracking()
@@ -117,11 +118,12 @@ public class CenitNettingService : ICenitNettingService
                 cycle.ClearingHouseId,
                 cycle.ClearingHouse?.Code,
                 execution.AchCycleId,
-                cycle.ProcessingDate.Date);
+                cycle.ProcessingDate.Date,
+                cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode);
             var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(
                 cycle.ClearingHouseId,
                 cycle.ClearingHouse?.Code,
-                execution.AchCycleId));
+                cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode));
             const string legacyDecisionCode = "CENIT_NETTING_CALCULATED";
             var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
                 context.OperationalContext,

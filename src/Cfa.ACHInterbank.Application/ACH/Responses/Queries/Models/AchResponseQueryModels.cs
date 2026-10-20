@@ -1,3 +1,5 @@
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
+
 namespace Cfa.ACHInterbank.Application.ACH.Responses.Queries.Models;
 
 public sealed record AchResponseSearchQuery(
@@ -13,6 +15,22 @@ public sealed record AchResponseSearchQuery(
     string? CorrelationId,
     int PageNumber,
     int PageSize);
+
+public sealed record AchResponseDashboardQuery(
+    DateTime? FechaDesde,
+    DateTime? FechaHasta,
+    TipoRespuestaAch? TipoRespuesta);
+
+public sealed record AchResponseDashboardModel(
+    int TotalRespuestas,
+    int Recibidas,
+    int Homologadas,
+    int Notificadas,
+    int NoHomologadas,
+    int RevisionManual,
+    int PendientesReintento,
+    int ErroresFuncionales,
+    int Duplicadas);
 
 public sealed record AchResponseListItemModel(
     Guid Id,
@@ -72,7 +90,11 @@ public sealed record AchResponseDetailModel(
     DateTime FechaRecepcion,
     DateTime FechaCreacion,
     DateTime? FechaActualizacion,
-    IReadOnlyList<AchResponseNotificationAttemptModel> NotificationAttempts);
+    IReadOnlyList<AchResponseNotificationAttemptModel> NotificationAttempts,
+    int ClearingHouseId = 0,
+    int? AppliedMappingId = null,
+    int DuplicateReceiptCount = 0,
+    Guid Version = default);
 
 public sealed record AchResponseStatusMappingListItemModel(
     int Id,
@@ -89,7 +111,10 @@ public sealed record AchResponseStatusMappingListItemModel(
     bool PermiteNotificacion,
     bool Activo,
     DateTime FechaInicioVigencia,
-    DateTime? FechaFinVigencia);
+    DateTime? FechaFinVigencia,
+    int ClearingHouseId = 0,
+    int Priority = 0,
+    Guid Version = default);
 
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int PageNumber, int PageSize, int TotalCount)
 {

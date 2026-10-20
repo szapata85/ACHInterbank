@@ -27,7 +27,9 @@ public class P1ConfigClearingHouseCycleConfigsPolicyMigrationTests
             var attrs = method.GetCustomAttributes<AuthorizeAttribute>(true).ToList();
             Assert.DoesNotContain(attrs, a => a.Policy is "CanReadAch" or "CanManageAch");
 
-            var expected = hasWrite ? P1Policies.ConfigManage : P1Policies.ConfigRead;
+            var expected = hasWrite
+                ? FineGrainedPermissions.ClearingHouses.ManageCycles
+                : FineGrainedPermissions.ClearingHouses.View;
             Assert.Contains(attrs, a => a.Policy == expected);
         }
 

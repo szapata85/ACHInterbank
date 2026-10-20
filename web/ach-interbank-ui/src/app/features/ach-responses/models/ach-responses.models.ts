@@ -8,7 +8,17 @@ export type AchResponseProcessingStatus =
   | 'PendienteReintento'
   | 'RequiereRevisionManual'
   | 'NoHomologada'
-  | 'Duplicada';
+  | 'Duplicada'
+  | 'PendienteCorrelacion'
+  | 'Huerfana'
+  | 'EnRevision'
+  | 'Resuelta'
+  | 'Rechazada'
+  | 'ErrorTecnico'
+  | 'PendienteReproceso'
+  | 'Reprocesando'
+  | 'Reprocesada'
+  | 'Cerrada';
 
 export type AchResponseNotificationStatus =
   | 'Pendiente'
@@ -80,6 +90,24 @@ export interface AchResponseSearchRequest {
   pageSize?: number;
 }
 
+export interface AchResponseDashboardRequest {
+  fechaDesde?: string | null;
+  fechaHasta?: string | null;
+  tipoRespuesta?: TipoRespuestaAch | null;
+}
+
+export interface AchResponseDashboardResponse {
+  totalRespuestas: number;
+  recibidas: number;
+  homologadas: number;
+  notificadas: number;
+  noHomologadas: number;
+  revisionManual: number;
+  pendientesReintento: number;
+  erroresFuncionales: number;
+  duplicadas: number;
+}
+
 export interface PagedResponse<T> {
   items: T[];
   pageNumber: number;
@@ -129,6 +157,10 @@ export interface AchResponseDetailResponse {
   fechaCreacion: string;
   fechaActualizacion?: string | null;
   notificationAttempts: AchResponseNotificationAttemptResponse[];
+  clearingHouseId: number;
+  appliedMappingId?: number | null;
+  duplicateReceiptCount: number;
+  version: string;
 }
 
 export interface AchResponseNotificationAttemptResponse {
@@ -184,10 +216,104 @@ export interface AchResponseStatusMappingResponse {
   activo: boolean;
   fechaInicioVigencia: string;
   fechaFinVigencia?: string | null;
+  clearingHouseId: number;
+  priority: number;
+  version: string;
 }
 
 export interface AchResponseStatusMappingsFilter {
   codigoCamaraCompensacion?: string | null;
   tipoRespuesta?: TipoRespuestaAch | null;
   activo?: boolean | null;
+}
+
+export interface AchResponseMappingWriteRequest {
+  clearingHouseId: number;
+  responseType: TipoRespuestaAch;
+  externalCode: string;
+  externalCause?: string | null;
+  internalStatusId: number;
+  externalServiceStatusId: number;
+  internalStatusName: string;
+  normalizedCause?: string | null;
+  normalizedDescription?: string | null;
+  requiresCause: boolean;
+  allowsNotification: boolean;
+  priority: number;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isActive: boolean;
+  expectedVersion?: string | null;
+  reason: string;
+}
+
+export interface AchResponseMappingModel {
+  id: number;
+  clearingHouseId: number;
+  clearingHouseCode: string;
+  responseType: TipoRespuestaAch | string;
+  externalCode: string;
+  externalCause?: string | null;
+  internalStatusId: number;
+  externalServiceStatusId: number;
+  internalStatusName: string;
+  normalizedCause?: string | null;
+  normalizedDescription?: string | null;
+  requiresCause: boolean;
+  allowsNotification: boolean;
+  priority: number;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isActive: boolean;
+  version: string;
+}
+
+export interface AchResponseAuditModel {
+  id: number;
+  entityType: string;
+  entityId: string;
+  action: string;
+  previousState?: string | null;
+  newState?: string | null;
+  actor: string;
+  reason: string;
+  correlationId: string;
+  occurredAtUtc: string;
+  sanitizedMetadata?: string | null;
+}
+
+export interface AchResponseOrphanModel {
+  id: string;
+  achResponseId: string;
+  clearingHouseId: number;
+  responseType: string;
+  externalIdentifiers: string;
+  externalCode: string;
+  receivedAtUtc: string;
+  operationalDate: string;
+  correlationId: string;
+  orphanReason: string;
+  candidateReferences?: string | null;
+  resolutionStatus: string;
+  resolvedReference?: string | null;
+  resolvedAtUtc?: string | null;
+  version: string;
+}
+
+export interface AchResponseReprocessModel {
+  id: number;
+  achResponseId: string;
+  attemptNumber: number;
+  status: string;
+  requestedBy: string;
+  reason: string;
+  correlationId: string;
+  requestedAtUtc: string;
+  completedAtUtc?: string | null;
+  result?: string | null;
+  commandId: string;
+  claimedBy?: string | null;
+  startedAtUtc?: string | null;
+  resultCode?: string | null;
+  errorDetailSanitized?: string | null;
 }

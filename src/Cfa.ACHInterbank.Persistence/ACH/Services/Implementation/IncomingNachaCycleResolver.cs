@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -18,7 +17,6 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 {
-    private static readonly Regex OfficialCycleNameRegex = new(@"^(?<origin>\d{7})\.(?<sequence>\d{3})\.(?<cycle>[1-9]\d*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly AchDbContext _context;
     private readonly IPaymentRailContextService? _paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
@@ -51,9 +49,15 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 
         var immediateOrigin = header.Substring(13, 10).Trim();
         var headerDateRaw = header.Substring(23, 8).Trim();
-        var fileCycleNumber = ExtractCycleNumberFromFileName(request.FileName);
+        var headerTimeRaw = header.Substring(31, 4).Trim();
+        var fileCycleNumber = CenitOfficialFileNameParser.ExtractCycleNumberFromFileName(request.FileName);
+        var fileNameParsed = CenitOfficialFileNameParser.TryParseCenitFileName(request.FileName, out var parsedFileName)
+            ? parsedFileName
+            : null;
 
-        var clearingHouse = await _context.ClearingHouses.AsNoTracking().FirstOrDefaultAsync(x => x.OriginCode == immediateOrigin, ct);
+        var clearingHouse = await _context.ClearingHouses.AsNoTracking()
+            .Include(x => x.ClearingHouseConfig)
+            .FirstOrDefaultAsync(x => x.OriginCode == immediateOrigin, ct);
         if (clearingHouse is null)
         {
             var inferred = await InferClearingHouseFromFileNameAsync(request.FileName, ct);
@@ -65,9 +69,28 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         }
 
         var operationalDate = ParseDate(headerDateRaw);
+        var fileCreationTime = ParseTime(headerTimeRaw);
         if (!operationalDate.HasValue)
         {
             errors.Add($"Fecha operativa inválida en header: '{headerDateRaw}'.");
+        }
+
+        if (clearingHouse is not null
+            && string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
+            && fileNameParsed is not null
+            && operationalDate.HasValue
+            && fileNameParsed.FileDate != DateOnly.FromDateTime(operationalDate.Value))
+        {
+            errors.Add("CENIT_FILENAME_HEADER_DATE_MISMATCH");
+            return Build(false, false, clearingHouse.Id, operationalDate, null, 0.15m, IncomingNachaCycleResolutionStatus.NoResuelto, "FechaNombreNoCoincide", warnings, errors, new
+            {
+                request.FileName,
+                immediateOrigin,
+                headerDateRaw,
+                fileCycleNumber,
+                parsedFileDate = fileNameParsed.FileDate,
+                parsedSuffix = fileNameParsed.Suffix
+            });
         }
 
         if (clearingHouse is null || !operationalDate.HasValue)
@@ -75,6 +98,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             var shadowResult = CompareCycleShadow(
                 clearingHouseId: clearingHouse?.Id,
                 clearingHouseCode: clearingHouse?.Code,
+                paymentRailCode: clearingHouse?.ClearingHouseConfig?.PaymentRailCode,
                 operationalDate: operationalDate,
                 legacyDecisionCode: "LEGACY_CYCLE_UNRESOLVED",
                 legacyResolved: false);
@@ -84,6 +108,8 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 immediateOrigin,
                 headerDateRaw,
                 fileCycleNumber,
+                parsedFileDate = fileNameParsed?.FileDate,
+                parsedSuffix = fileNameParsed?.Suffix,
                 shadowCompare = shadowResult
             });
         }
@@ -96,6 +122,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             .ToListAsync(ct);
 
         IReadOnlyList<AchCycle> effectiveCandidates = candidates;
+        var resolvedByHeaderTime = false;
         if (fileCycleNumber.HasValue)
         {
             effectiveCandidates = candidates
@@ -108,6 +135,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 var shadowResult = CompareCycleShadow(
                     clearingHouse.Id,
                     clearingHouse.Code,
+                    clearingHouse.ClearingHouseConfig?.PaymentRailCode,
                     operationalDate,
                     "LEGACY_CYCLE_NO_MATCH_BY_NAME",
                     legacyResolved: false);
@@ -117,11 +145,51 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                     immediateOrigin,
                     headerDateRaw,
                     fileCycleNumber,
+                    parsedFileDate = fileNameParsed?.FileDate,
+                    parsedSuffix = fileNameParsed?.Suffix,
                     candidateIds = candidates.Select(x => x.Id).ToList(),
                     shadowCompare = shadowResult
                 });
             }
         }
+        else if (string.Equals(clearingHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase)
+                 && candidates.Count > 1)
+        {
+            // ACH Colombia's file consecutive is not a cycle identifier. Resolve the
+            // persisted cycle from the type-1 creation time and configured windows.
+            if (!fileCreationTime.HasValue)
+            {
+                errors.Add("ACHCOL_HEADER_FILE_CREATION_TIME_INVALID");
+                return Build(false, false, clearingHouse.Id, operationalDate, null, 0.25m, IncomingNachaCycleResolutionStatus.NoResuelto, "HoraHeaderInvalida", warnings, errors, new
+                {
+                    request.FileName,
+                    immediateOrigin,
+                    headerDateRaw,
+                    headerTimeRaw,
+                    candidateIds = candidates.Select(x => x.Id).ToList()
+                });
+            }
+
+            var windowCandidates = candidates
+                .Where(x => IsWithinCycleTime(fileCreationTime.Value, x.StartTime, x.EndTime))
+                .ToList();
+            if (windowCandidates.Count == 0)
+            {
+                errors.Add("ACHCOL_HEADER_TIME_WITHOUT_CYCLE_WINDOW");
+                return Build(false, false, clearingHouse.Id, operationalDate, null, 0.25m, IncomingNachaCycleResolutionStatus.NoResuelto, "HoraSinVentana", warnings, errors, new
+                {
+                    request.FileName,
+                    immediateOrigin,
+                    headerDateRaw,
+                    headerTimeRaw,
+                    candidateIds = candidates.Select(x => x.Id).ToList()
+                });
+            }
+
+            effectiveCandidates = windowCandidates;
+            resolvedByHeaderTime = windowCandidates.Count == 1;
+        }
+
         var inferredStatus = string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
             ? IncomingNachaCycleResolutionStatus.ResueltoConfirmado
             : IncomingNachaCycleResolutionStatus.ResueltoInferido;
@@ -137,16 +205,26 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             var shadowResult = CompareCycleShadow(
                 clearingHouse.Id,
                 clearingHouse.Code,
+                clearingHouse.ClearingHouseConfig?.PaymentRailCode,
                 operationalDate,
                 cycle.Id,
                 legacyResolved: true);
 
-            return Build(true, false, clearingHouse.Id, operationalDate, cycle.Id, 0.95m, inferredStatus, fileCycleNumber.HasValue ? "Header+Nombre" : "Header", warnings, errors, new
+            var resolutionMode = fileCycleNumber.HasValue
+                ? "Header+Nombre"
+                : resolvedByHeaderTime
+                    ? "Header+Ventana"
+                    : "Header";
+            return Build(true, false, clearingHouse.Id, operationalDate, cycle.Id, 0.95m, inferredStatus, resolutionMode, warnings, errors, new
             {
                 request.FileName,
                 immediateOrigin,
                 headerDateRaw,
+                headerTimeRaw,
                 fileCycleNumber,
+                resolvedByHeaderTime,
+                parsedFileDate = fileNameParsed?.FileDate,
+                parsedSuffix = fileNameParsed?.Suffix,
                 candidateCount = candidates.Count,
                 selectedCycleId = cycle.Id,
                 shadowCompare = shadowResult
@@ -159,6 +237,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             var shadowResult = CompareCycleShadow(
                 clearingHouse.Id,
                 clearingHouse.Code,
+                clearingHouse.ClearingHouseConfig?.PaymentRailCode,
                 operationalDate,
                 "LEGACY_CYCLE_AMBIGUOUS",
                 legacyResolved: false);
@@ -167,7 +246,10 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 request.FileName,
                 immediateOrigin,
                 headerDateRaw,
+                headerTimeRaw,
                 fileCycleNumber,
+                parsedFileDate = fileNameParsed?.FileDate,
+                parsedSuffix = fileNameParsed?.Suffix,
                 candidateIds = effectiveCandidates.Select(x => x.Id).ToList(),
                 shadowCompare = shadowResult
             });
@@ -177,6 +259,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         var unresolvedShadow = CompareCycleShadow(
             clearingHouse.Id,
             clearingHouse.Code,
+            clearingHouse.ClearingHouseConfig?.PaymentRailCode,
             operationalDate,
             "LEGACY_CYCLE_NO_CANDIDATE",
             legacyResolved: false);
@@ -185,7 +268,10 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             request.FileName,
             immediateOrigin,
             headerDateRaw,
+            headerTimeRaw,
             fileCycleNumber,
+            parsedFileDate = fileNameParsed?.FileDate,
+            parsedSuffix = fileNameParsed?.Suffix,
             shadowCompare = unresolvedShadow
         });
     }
@@ -193,6 +279,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
     private PaymentRailShadowCompareResult? CompareCycleShadow(
         int? clearingHouseId,
         string? clearingHouseCode,
+        string? paymentRailCode,
         DateTime? operationalDate,
         string legacyDecisionCode,
         bool legacyResolved)
@@ -206,8 +293,9 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             clearingHouseId,
             clearingHouseCode,
             achCycleId: legacyResolved ? legacyDecisionCode : null,
-            operationalDate: operationalDate);
-        var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, null));
+            operationalDate: operationalDate,
+            requestedRailCode: paymentRailCode);
+        var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, paymentRailCode));
         var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
             context.OperationalContext,
             PaymentRailCapabilityKind.Cycle,
@@ -276,27 +364,20 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         return null;
     }
 
-    private static int? ExtractCycleNumberFromFileName(string fileName)
-    {
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            return null;
-        }
+    private static TimeSpan? ParseTime(string? value)
+        => TimeOnly.TryParseExact(
+            value,
+            "HHmm",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var parsed)
+            ? parsed.ToTimeSpan()
+            : null;
 
-        var name = Path.GetFileName(fileName.Trim());
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return null;
-        }
-
-        var match = OfficialCycleNameRegex.Match(name);
-        if (match.Success && int.TryParse(match.Groups["cycle"].Value, out var officialCycleNumber))
-        {
-            return officialCycleNumber;
-        }
-
-        return null;
-    }
+    private static bool IsWithinCycleTime(TimeSpan value, TimeSpan start, TimeSpan end)
+        => start <= end
+            ? value >= start && value <= end
+            : value >= start || value <= end;
 
     private async Task<ClearingHouse?> InferClearingHouseFromFileNameAsync(string fileName, CancellationToken ct)
     {
@@ -306,7 +387,9 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         }
 
         var name = fileName.ToLowerInvariant();
-        var clearingHouses = await _context.ClearingHouses.AsNoTracking().ToListAsync(ct);
+        var clearingHouses = await _context.ClearingHouses.AsNoTracking()
+            .Include(x => x.ClearingHouseConfig)
+            .ToListAsync(ct);
 
         var cenitByCatalog = clearingHouses.FirstOrDefault(ch =>
             (ch.Code ?? string.Empty).Contains("cenit", StringComparison.OrdinalIgnoreCase)

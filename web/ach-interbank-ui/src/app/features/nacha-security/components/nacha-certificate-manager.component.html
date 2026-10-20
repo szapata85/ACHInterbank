@@ -1,84 +1,275 @@
-<div class="page-header">
-  <h1>Seguridad de archivos NACHA-M</h1>
-  <p class="subtitle">Administra los certificados usados para Sobre Digital.</p>
-</div>
+<app-page-header
+  title="Certificados digitales"
+  subtitle="Administra el certificado utilizado por CFA para firmar y descifrar información, así como los certificados utilizados para validar la información recibida de las cámaras compensadoras."
+  [actionsTemplate]="headerActions">
+</app-page-header>
 
-<div class="alerts" *ngIf="error">
-  <app-alert type="error">{{ error }}</app-alert>
-</div>
+<ng-template #headerActions>
+  <button
+    mat-stroked-button
+    type="button"
+    (click)="load()"
+    [disabled]="loading"
+    aria-label="Actualizar certificados">
+    <mat-icon>refresh</mat-icon>
+    Actualizar
+  </button>
+</ng-template>
 
-<section class="cards" *ngIf="!loading; else loadingTpl">
-  <div class="card" *ngFor="let slot of slots">
-    <div class="card__header">
-      <div>
-        <h2>{{ slot.title }}</h2>
-        <p>{{ slot.description }}</p>
-      </div>
-      <span class="chip">{{ slot.type === 'EncryptionPublic' ? 'Llave pública' : 'Firma' }}</span>
+<section class="operational-summary" aria-label="Resumen operativo de certificados">
+  <article [class.summary-alert]="!operationalCfaCertificate">
+    <mat-icon>{{ operationalCfaCertificate ? 'verified_user' : 'gpp_bad' }}</mat-icon>
+    <div>
+      <span>Certificado operativo de CFA</span>
+      <strong>{{ operationalCfaCertificate ? 'Disponible' : 'No disponible' }}</strong>
     </div>
-
-    <div class="card__body" *ngIf="slot.certificate; else empty">
-      <dl class="meta">
-        <div>
-          <dt>Archivo</dt>
-          <dd>{{ slot.certificate?.fileName }}</dd>
-        </div>
-        <div>
-          <dt>Asunto</dt>
-          <dd>{{ slot.certificate?.subject }}</dd>
-        </div>
-        <div>
-          <dt>Emisor</dt>
-          <dd>{{ slot.certificate?.issuer }}</dd>
-        </div>
-        <div>
-          <dt>Vigencia</dt>
-          <dd>
-            {{ slot.certificate?.notBefore | date: 'shortDate' }}
-            -
-            {{ slot.certificate?.notAfter | date: 'shortDate' }}
-          </dd>
-        </div>
-        <div>
-          <dt>Huella</dt>
-          <dd>{{ slot.certificate?.thumbprint }}</dd>
-        </div>
-      </dl>
-
-      <div class="actions">
-        <button appButton color="warn" variant="ghost" (click)="deleteCertificate(slot.certificate!)">
-          Eliminar certificado
-        </button>
-      </div>
+  </article>
+  <article>
+    <mat-icon>account_balance</mat-icon>
+    <div>
+      <span>Cámaras con certificado operativo</span>
+      <strong>{{ operationalClearingHouseCount }} de {{ clearingHouseTotalCount }}</strong>
     </div>
-
-    <ng-template #empty>
-      <p class="empty">Aún no has cargado un certificado para esta función.</p>
-    </ng-template>
-
-    <form class="upload" [formGroup]="forms[slot.type]" (ngSubmit)="upload(slot.type)">
-      <label class="file-input">
-        <input type="file" (change)="onFileSelected(slot.type, $event)" />
-        <span>Seleccionar archivo</span>
-      </label>
-
-      <ng-container *ngIf="slot.requiresPassword">
-        <label class="field">
-          <span>Contraseña (opcional)</span>
-          <input type="password" formControlName="password" placeholder="Contraseña del .pfx" />
-        </label>
-      </ng-container>
-
-      <button appButton type="submit" [disabled]="uploadingType === slot.type">
-        {{ uploadingType === slot.type ? 'Cargando...' : 'Cargar certificado' }}
-      </button>
-    </form>
-  </div>
+  </article>
+  <article [class.summary-warning]="expiringCount > 0">
+    <mat-icon>event_upcoming</mat-icon>
+    <div>
+      <span>Próximos a vencer</span>
+      <strong>{{ expiringCount }}</strong>
+    </div>
+  </article>
+  <article [class.summary-alert]="unavailableCount > 0">
+    <mat-icon>report</mat-icon>
+    <div>
+      <span>Vencidos o revocados</span>
+      <strong>{{ unavailableCount }}</strong>
+    </div>
+  </article>
 </section>
 
-<ng-template #loadingTpl>
-  <div class="loading">
-    <app-spinner></app-spinner>
-    <p>Cargando certificados...</p>
+@if (!operationalCfaCertificate && !loading) {
+  <div class="operational-message operational-message--alert" role="status">
+    <mat-icon>warning</mat-icon>
+    <span>CFA no tiene un certificado vigente disponible para firmar o descifrar información.</span>
   </div>
+}
+
+@for (house of clearingHouses; track house.id) {
+  @if (!hasOperationalCertificateForHouse(house.id)) {
+    <div class="operational-message" role="status">
+      <mat-icon>info</mat-icon>
+      <span>No se ha configurado un certificado para validar la información recibida de {{ house.name }}.</span>
+    </div>
+  }
+}
+
+@if (errorMessage) {
+  <div class="page-error" role="alert">
+    <mat-icon>error</mat-icon>
+    <span>{{ errorMessage }}</span>
+  </div>
+}
+
+@if (loading) {
+  <div class="loading-state" role="status">
+    <mat-spinner diameter="44"></mat-spinner>
+    <span>Consultando certificados de seguridad…</span>
+  </div>
+} @else {
+  <mat-tab-group class="certificate-tabs" animationDuration="180ms">
+    <mat-tab label="Certificado de CFA">
+      <section class="tab-section" data-testid="cfa-certificate-section">
+        <header class="section-header">
+          <div>
+            <span class="section-eyebrow">Identidad de la entidad</span>
+            <h2>Certificado de CFA</h2>
+            <p>Este certificado identifica a CFA y permite firmar de manera segura la información enviada y descifrar los archivos dirigidos a la entidad.</p>
+          </div>
+          @if (canUploadCertificates) {
+            <button
+              mat-flat-button
+              type="button"
+              (click)="openUpload('CfaSigningAndDecryption')">
+              <mat-icon>upload_file</mat-icon>
+              Cargar certificado de firma y descifrado
+            </button>
+          }
+        </header>
+
+        @if (cfaCertificates.length === 0) {
+          <div class="empty-state">
+            <mat-icon>verified_user</mat-icon>
+            <h3>No hay un certificado de CFA registrado</h3>
+            <p>Carga un archivo PFX o P12 que contenga la llave privada de la entidad.</p>
+          </div>
+        } @else {
+          <div class="certificate-list">
+            @for (certificate of cfaCertificates; track trackCertificate($index, certificate)) {
+              <ng-container
+                *ngTemplateOutlet="certificateCard; context: { $implicit: certificate, isCfa: true }">
+              </ng-container>
+            }
+          </div>
+        }
+      </section>
+    </mat-tab>
+
+    <mat-tab label="Certificados de cámaras compensadoras">
+      <section class="tab-section" data-testid="clearing-house-certificate-section">
+        <header class="section-header">
+          <div>
+            <span class="section-eyebrow">Validación de información recibida</span>
+            <h2>Certificados de cámaras compensadoras</h2>
+            <p>Estos certificados permiten comprobar que la información recibida fue emitida por la cámara compensadora seleccionada.</p>
+          </div>
+          @if (canUploadCertificates) {
+            <button
+              mat-flat-button
+              type="button"
+              (click)="openUpload('ClearingHouseValidation')">
+              <mat-icon>add</mat-icon>
+              Agregar certificado de cámara
+            </button>
+          }
+        </header>
+
+        @if (clearingHouseCertificates.length === 0) {
+          <div class="empty-state">
+            <mat-icon>account_balance</mat-icon>
+            <h3>No hay certificados de cámaras registrados</h3>
+            <p>Agrega el certificado público de cada cámara compensadora configurada.</p>
+          </div>
+        } @else {
+          <div class="certificate-list">
+            @for (certificate of clearingHouseCertificates; track trackCertificate($index, certificate)) {
+              <ng-container
+                *ngTemplateOutlet="certificateCard; context: { $implicit: certificate, isCfa: false }">
+              </ng-container>
+            }
+          </div>
+        }
+      </section>
+    </mat-tab>
+  </mat-tab-group>
+}
+
+<ng-template #certificateCard let-certificate let-isCfa="isCfa">
+  <mat-card
+    class="certificate-card"
+    [class.certificate-card--unavailable]="['Expired', 'Revoked', 'Replaced', 4, 5, 6].includes(certificate.functionalStatus)"
+    [attr.data-certificate-id]="certificate.id">
+    <mat-card-content>
+      <div class="certificate-heading">
+        <div class="certificate-identity">
+          <div class="certificate-icon">
+            <mat-icon>{{ isCfa ? 'verified_user' : 'account_balance' }}</mat-icon>
+          </div>
+          <div>
+            <span>{{ isCfa ? 'Entidad propietaria' : 'Cámara compensadora' }}</span>
+            <h3>{{ ownerName(certificate) }}</h3>
+            <p>{{ certificate.fileName }}</p>
+          </div>
+        </div>
+        <div class="certificate-actions">
+          <mat-chip
+            [class]="statusClass(certificate)"
+            [matTooltip]="statusDescription(certificate)">
+            <mat-icon>{{ ['Valid', 'ExpiringSoon', 2, 3].includes(certificate.functionalStatus) ? 'check_circle' : 'error' }}</mat-icon>
+            {{ statusLabel(certificate) }}
+          </mat-chip>
+          @if (actionCertificateId === certificate.id) {
+            <mat-spinner diameter="28"></mat-spinner>
+          } @else {
+            <button
+              mat-icon-button
+              type="button"
+              [matMenuTriggerFor]="certificateMenu"
+              [attr.aria-label]="'Acciones del certificado de ' + ownerName(certificate)"
+              matTooltip="Ver acciones del certificado">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #certificateMenu="matMenu">
+              <button mat-menu-item type="button" (click)="openDetails(certificate)">
+                <mat-icon>visibility</mat-icon>
+                <span>Ver detalles</span>
+              </button>
+              @if (canUploadCertificates) {
+                <button
+                  mat-menu-item
+                  type="button"
+                  (click)="openUpload(isCfa ? 'CfaSigningAndDecryption' : 'ClearingHouseValidation', certificate.clearingHouseId)">
+                  <mat-icon>published_with_changes</mat-icon>
+                  <span>{{ actionLabel(certificate) }}</span>
+                </button>
+              }
+              @if (canRevokeCertificates && canRevoke(certificate)) {
+                <button mat-menu-item type="button" (click)="requestRevoke(certificate)">
+                  <mat-icon>block</mat-icon>
+                  <span>Revocar</span>
+                </button>
+              }
+              @if (canRevokeCertificates && certificate.canDelete) {
+                <button mat-menu-item type="button" class="danger-action" (click)="requestDelete(certificate)">
+                  <mat-icon>delete</mat-icon>
+                  <span>Eliminar certificado</span>
+                </button>
+              }
+            </mat-menu>
+          }
+        </div>
+      </div>
+
+      <dl class="functional-details">
+        <div>
+          <dt>Uso</dt>
+          <dd>{{ useLabel(certificate) }}</dd>
+        </div>
+        <div>
+          <dt>Válido desde</dt>
+          <dd>{{ certificate.notBefore | date:'dd/MM/yyyy':'UTC' }}</dd>
+        </div>
+        <div>
+          <dt>Válido hasta</dt>
+          <dd>{{ certificate.notAfter | date:'dd/MM/yyyy':'UTC' }}</dd>
+        </div>
+        <div>
+          <dt>Tiempo restante para vencer</dt>
+          <dd>{{ timeRemaining(certificate) }}</dd>
+        </div>
+        <div>
+          <dt>Fecha de carga</dt>
+          <dd>{{ certificate.uploadedAtUtc | date:'dd/MM/yyyy, HH:mm':'UTC' }}</dd>
+        </div>
+        @if (certificate.revokedAtUtc) {
+          <div>
+            <dt>Fecha de revocación</dt>
+            <dd>{{ certificate.revokedAtUtc | date:'dd/MM/yyyy, HH:mm':'UTC' }}</dd>
+          </div>
+        }
+      </dl>
+
+      <p class="status-description">{{ statusDescription(certificate) }}</p>
+
+      <mat-expansion-panel
+        class="technical-panel"
+        [attr.aria-label]="technicalPanelLabel(certificate)">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            <mat-icon>settings</mat-icon>
+            Información técnica
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <dl class="technical-details">
+          <div><dt>Titular del certificado</dt><dd>{{ certificate.subject }}</dd></div>
+          <div><dt>Emitido por</dt><dd>{{ certificate.issuer }}</dd></div>
+          <div><dt>Identificador digital (Thumbprint)</dt><dd>{{ certificate.thumbprint }}</dd></div>
+          <div><dt>Número de identificación</dt><dd>{{ certificate.serialNumber }}</dd></div>
+          <div><dt>Algoritmo</dt><dd>{{ certificate.keyAlgorithm }}</dd></div>
+          <div><dt>Tamaño de llave</dt><dd>{{ certificate.keySize }} bits</dd></div>
+          <div><dt>Tiene llave privada</dt><dd>{{ certificate.hasPrivateKey ? 'Sí, protegida' : 'No' }}</dd></div>
+          <div><dt>Identificador interno</dt><dd>{{ certificate.id }}</dd></div>
+        </dl>
+      </mat-expansion-panel>
+    </mat-card-content>
+  </mat-card>
 </ng-template>

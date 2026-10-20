@@ -1,5 +1,6 @@
 import { expect, Page, test, TestInfo } from '@playwright/test';
-import { Pool } from 'pg';
+import { G36Postgres } from './support/g36-postgres';
+import { G36SqlServer, sqlString } from './support/g36-sqlserver';
 
 type LoginResponse = {
   data?: {
@@ -41,6 +42,8 @@ type ObservedResponse = {
   isHtml: boolean;
 };
 
+type RuntimeProvider = 'SqlServer' | 'Postgres';
+
 const e2eBaseUrl = (process.env['E2E_BASE_URL'] ?? process.env['ACH_UI_URL'] ?? 'http://localhost:743').replace(/\/+$/, '');
 const spaBaseUrl = e2eBaseUrl;
 const username = process.env['E2E_ADMIN_USER'] ?? process.env['ACH_USER'] ?? 'admin';
@@ -49,7 +52,7 @@ const effectiveAt = new Date().toISOString().slice(0, 10);
 
 test.describe.configure({ mode: 'serial' });
 
-test.describe('Cycle configs SPA + PostgreSQL', () => {
+test.describe('Cycle configs SPA + runtime database', () => {
   test('Network diagnostics should proxy JSON and attach Bearer', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     const db = createDb();
@@ -67,7 +70,7 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
       const housesResponse = await housesResponsePromise;
       const housesBody = await housesResponse.text();
       const houses = await db.findClearingHouses(['ACH Colombia', 'CENIT']);
-      expect(houses.length, 'PostgreSQL debe contener ACH Colombia y CENIT.').toBeGreaterThanOrEqual(2);
+      expect(houses.length, 'La base runtime debe contener ACH Colombia y CENIT.').toBeGreaterThanOrEqual(2);
 
       const filterPanel = page.locator('section.panel').first();
       await expect(filterPanel.getByRole('button', { name: /ACH Colombia/i })).toBeVisible();
@@ -86,6 +89,7 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
       const cycleConfigBody = await cycleConfigResponse.text();
 
       const requestEvidence = {
+        provider: db.providerName,
         clearingHouses: {
           url: housesResponse.url(),
           method: housesResponse.request().method(),
@@ -124,7 +128,7 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
     }
   });
 
-  test('Reading should match PostgreSQL for ACH Colombia and CENIT', async ({ page }, testInfo) => {
+  test('Reading should match runtime database for ACH Colombia and CENIT', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     const db = createDb();
     try {
@@ -132,7 +136,7 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
       await seedSession(page, authToken);
 
       const expectedHouses = await db.findClearingHouses(['ACH Colombia', 'CENIT']);
-      expect(expectedHouses.length, 'Deben existir ACH Colombia y CENIT en PostgreSQL.').toBeGreaterThanOrEqual(2);
+      expect(expectedHouses.length, 'Deben existir ACH Colombia y CENIT en la base runtime.').toBeGreaterThanOrEqual(2);
 
       await page.goto(`${spaBaseUrl}/transactions/cycle-configs`);
       const filterPanel = page.locator('section.panel').first();
@@ -144,7 +148,7 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
       const resultEvidence: Array<Record<string, unknown>> = [];
       for (const houseName of ['ACH Colombia', 'CENIT']) {
         const house = expectedHouses.find((item) => item.name === houseName);
-        expect(house, `La cámara ${houseName} debe existir en PostgreSQL.`).toBeTruthy();
+        expect(house, `La cámara ${houseName} debe existir en la base runtime.`).toBeTruthy();
 
         const responsePromise = page.waitForResponse((response) =>
           new URL(response.url()).pathname === '/clearing-house-cycle-configs'
@@ -172,13 +176,14 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
         expect(response.status(), `${houseName} no debe responder 401/403/500.`).not.toBeGreaterThanOrEqual(500);
         expect(response.headers()['content-type'] ?? '').toContain('application/json');
         expect(body).not.toMatch(/<html|<!doctype html/i);
-        expect(apiRows.length, `${houseName} debe devolver la misma cantidad de filas que PostgreSQL.`).toBe(dbRows.length);
+        expect(apiRows.length, `${houseName} debe devolver la misma cantidad de filas que la base runtime.`).toBe(dbRows.length);
         expect(uiRows.length, `${houseName} debe mostrar la misma cantidad de filas que la API/DB.`).toBe(dbRows.length);
         for (const row of dbRows) {
           expect(uiRows.join('\n')).toContain(row.cycleName);
         }
 
         resultEvidence.push({
+          provider: db.providerName,
           houseName,
           clearingHouseId: house!.id,
           requestUrl: request.url(),
@@ -194,6 +199,7 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
 
       await testInfo.attach('cycle-configs-read-evidence.json', {
         body: JSON.stringify({
+          provider: db.providerName,
           effectiveAt,
           houses: resultEvidence
         }, null, 2),
@@ -212,7 +218,7 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
       await seedSession(page, authToken);
 
       const houses = await db.findClearingHouses(['ACH Colombia']);
-      expect(houses.length, 'Debe existir ACH Colombia en PostgreSQL.').toBeGreaterThanOrEqual(1);
+      expect(houses.length, 'Debe existir ACH Colombia en la base runtime.').toBeGreaterThanOrEqual(1);
 
       await page.goto(`${spaBaseUrl}/transactions/cycle-configs`);
       const filterPanel = page.locator('section.panel').first();
@@ -236,59 +242,95 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
 });
 
 class CycleConfigsDb {
-  private readonly pool: Pool;
+  private readonly provider: RuntimeProvider;
+  private readonly postgres: G36Postgres | null;
+  private readonly sqlServer: G36SqlServer | null;
 
   constructor() {
-    this.pool = new Pool({
-      host: process.env['E2E_DB_HOST'] ?? process.env['POSTGRES_HOST'] ?? '127.0.0.1',
-      port: Number(process.env['E2E_DB_PORT'] ?? process.env['POSTGRES_PORT'] ?? 5432),
-      database: process.env['E2E_DB_NAME'] ?? process.env['POSTGRES_DB'] ?? 'ACHInterbank',
-      user: process.env['E2E_DB_USER'] ?? process.env['POSTGRES_USER'] ?? 'example_user',
-      password: process.env['E2E_DB_PASSWORD'] ?? process.env['POSTGRES_PASSWORD'] ?? 'example_password_change_me',
-      max: 2,
-      connectionTimeoutMillis: 10_000,
-      idleTimeoutMillis: 10_000
-    });
+    this.provider = readProvider();
+    this.postgres = this.provider === 'Postgres'
+      ? new G36Postgres({ requireExplicitConfig: true })
+      : null;
+    this.sqlServer = this.provider === 'SqlServer'
+      ? new G36SqlServer()
+      : null;
+  }
+
+  get providerName(): RuntimeProvider {
+    return this.provider;
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    await this.postgres?.close();
+    this.sqlServer?.close();
   }
 
   async findClearingHouses(names: readonly string[]): Promise<ClearingHouseRow[]> {
-    const result = await this.pool.query<ClearingHouseRow>(
-      `SELECT "Id" AS id,
-              "Name" AS name
-       FROM "ClearingHouses"
-       WHERE "Name" = ANY($1::text[])
-       ORDER BY "Id"`,
-      [names]
+    if (this.postgres) {
+      return this.postgres.query<ClearingHouseRow>(
+        `SELECT "Id" AS id,
+                "Name" AS name
+         FROM "ClearingHouses"
+         WHERE "Name" = ANY($1::text[])
+         ORDER BY "Id"`,
+        [names]
+      );
+    }
+
+    return this.sqlServer!.query<ClearingHouseRow>(
+      `SELECT [Id] AS [id],
+              [Name] AS [name]
+       FROM [ClearingHouses]
+       WHERE [Name] IN (${names.map(sqlString).join(', ')})
+       ORDER BY [Id]`
     );
-    return result.rows;
   }
 
   async listCycleConfigs(clearingHouseId: number, effectiveAt: string): Promise<CycleConfigRow[]> {
-    const result = await this.pool.query<CycleConfigRow>(
-      `SELECT cfg."Id" AS id,
-              cfg."ClearingHouseId" AS "clearingHouseId",
-              ch."Name" AS "clearingHouseName",
-              cfg."CycleName" AS "cycleName",
-              cfg."StartTime"::text AS "startTime",
-              cfg."EndTime"::text AS "endTime",
-              cfg."CutoffTime"::text AS "cutoffTime",
-              cfg."IsActive" AS "isActive",
-              cfg."EffectiveFrom"::date::text AS "effectiveFrom",
-              cfg."EffectiveTo"::date::text AS "effectiveTo",
-              (cfg."EffectiveFrom"::date <= $2::date AND (cfg."EffectiveTo" IS NULL OR cfg."EffectiveTo"::date >= $2::date)) AS "isCurrent"
-       FROM "ClearingHouseCycleConfigs" cfg
-       INNER JOIN "ClearingHouses" ch ON ch."Id" = cfg."ClearingHouseId"
-       WHERE cfg."ClearingHouseId" = $1
-         AND cfg."EffectiveFrom"::date <= $2::date
-         AND (cfg."EffectiveTo" IS NULL OR cfg."EffectiveTo"::date >= $2::date)
-       ORDER BY cfg."CycleName", cfg."EffectiveFrom" DESC, cfg."Id"`,
-      [clearingHouseId, effectiveAt]
+    if (this.postgres) {
+      return this.postgres.query<CycleConfigRow>(
+        `SELECT cfg."Id" AS id,
+                cfg."ClearingHouseId" AS "clearingHouseId",
+                ch."Name" AS "clearingHouseName",
+                cfg."CycleName" AS "cycleName",
+                cfg."StartTime"::text AS "startTime",
+                cfg."EndTime"::text AS "endTime",
+                cfg."CutoffTime"::text AS "cutoffTime",
+                cfg."IsActive" AS "isActive",
+                cfg."EffectiveFrom"::date::text AS "effectiveFrom",
+                cfg."EffectiveTo"::date::text AS "effectiveTo",
+                (cfg."EffectiveFrom"::date <= $2::date AND (cfg."EffectiveTo" IS NULL OR cfg."EffectiveTo"::date >= $2::date)) AS "isCurrent"
+         FROM "ClearingHouseCycleConfigs" cfg
+         INNER JOIN "ClearingHouses" ch ON ch."Id" = cfg."ClearingHouseId"
+         WHERE cfg."ClearingHouseId" = $1
+           AND cfg."EffectiveFrom"::date <= $2::date
+           AND (cfg."EffectiveTo" IS NULL OR cfg."EffectiveTo"::date >= $2::date)
+         ORDER BY cfg."CycleName", cfg."EffectiveFrom" DESC, cfg."Id"`,
+        [clearingHouseId, effectiveAt]
+      );
+    }
+
+    return this.sqlServer!.query<CycleConfigRow>(
+      `SELECT cfg.[Id] AS [id],
+              cfg.[ClearingHouseId] AS [clearingHouseId],
+              ch.[Name] AS [clearingHouseName],
+              cfg.[CycleName] AS [cycleName],
+              CONVERT(varchar(16), cfg.[StartTime], 114) AS [startTime],
+              CONVERT(varchar(16), cfg.[EndTime], 114) AS [endTime],
+              CONVERT(varchar(16), cfg.[CutoffTime], 114) AS [cutoffTime],
+              cfg.[IsActive] AS [isActive],
+              CONVERT(varchar(10), cfg.[EffectiveFrom], 23) AS [effectiveFrom],
+              CONVERT(varchar(10), cfg.[EffectiveTo], 23) AS [effectiveTo],
+              CONVERT(bit, CASE WHEN cfg.[EffectiveFrom] <= CONVERT(date, ${sqlString(effectiveAt)}, 23)
+                                AND (cfg.[EffectiveTo] IS NULL OR cfg.[EffectiveTo] >= CONVERT(date, ${sqlString(effectiveAt)}, 23))
+                                THEN 1 ELSE 0 END) AS [isCurrent]
+       FROM [ClearingHouseCycleConfigs] cfg
+       INNER JOIN [ClearingHouses] ch ON ch.[Id] = cfg.[ClearingHouseId]
+       WHERE cfg.[ClearingHouseId] = ${clearingHouseId}
+         AND cfg.[EffectiveFrom] <= CONVERT(date, ${sqlString(effectiveAt)}, 23)
+         AND (cfg.[EffectiveTo] IS NULL OR cfg.[EffectiveTo] >= CONVERT(date, ${sqlString(effectiveAt)}, 23))
+       ORDER BY cfg.[CycleName], cfg.[EffectiveFrom] DESC, cfg.[Id]`
     );
-    return result.rows;
   }
 }
 
@@ -349,4 +391,56 @@ function bodySnippet(body: string): string {
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function readProvider(): RuntimeProvider {
+  const explicit = process.env['ACH_E2E_DB_PROVIDER'] ?? process.env['Database__Provider'];
+  if (explicit) {
+    return normalizeProvider(explicit);
+  }
+
+  if (hasSqlServerConfig()) {
+    return 'SqlServer';
+  }
+
+  if (hasPostgresConfig()) {
+    return 'Postgres';
+  }
+
+  return 'Postgres';
+}
+
+function normalizeProvider(provider: string): RuntimeProvider {
+  const normalized = provider.trim().toLowerCase();
+  if (normalized === 'sqlserver' || normalized === 'mssql') {
+    return 'SqlServer';
+  }
+
+  if (normalized === 'postgres' || normalized === 'postgresql') {
+    return 'Postgres';
+  }
+
+  throw new Error(`ACH_E2E_DB_PROVIDER invalido: ${provider}. Use SqlServer o Postgres.`);
+}
+
+function hasSqlServerConfig(): boolean {
+  return Boolean(
+    process.env['ACH_E2E_SQLSERVER_CONNECTION_STRING']
+    || process.env['ACH_E2E_SQLSERVER_HOST']
+    || process.env['ACH_E2E_SQLSERVER_PORT']
+    || process.env['ACH_E2E_SQLSERVER_DATABASE']
+    || process.env['ACH_E2E_SQLSERVER_USER']
+    || process.env['ACH_E2E_SQLSERVER_PASSWORD']
+  );
+}
+
+function hasPostgresConfig(): boolean {
+  return Boolean(
+    process.env['ACH_E2E_POSTGRES_CONNECTION_STRING']
+    || process.env['ACH_E2E_POSTGRES_HOST']
+    || process.env['POSTGRES_HOST']
+    || process.env['POSTGRES_DB']
+    || process.env['POSTGRES_USER']
+    || process.env['POSTGRES_PASSWORD']
+  );
 }

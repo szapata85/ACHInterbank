@@ -1,5 +1,11 @@
 namespace Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 
+public enum NachaSimulationMode
+{
+    IncomingTransactions = 1,
+    DifferentialResponses = 2
+}
+
 public enum NachaInboundSimulationType
 {
     IncomingCredit = 1,

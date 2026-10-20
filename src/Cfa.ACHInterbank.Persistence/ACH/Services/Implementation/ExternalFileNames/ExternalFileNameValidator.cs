@@ -34,8 +34,8 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                 issues.Add(Hard(
                     "RETURN_NAME_PATTERN",
                     "RETURN_PATTERN_INVALID",
-                    "Regla HARD BLOCK RET: patron requerido RRRRTTT.ZZZ.RET.",
-                    "ACH V32 6.1.10.1 / RET"));
+                    "Regla HARD BLOCK RET: patrón requerido RRRRTTT.ZZZ.1.",
+                    "ACH V35 6.6 / RET"));
             }
             else
             {
@@ -45,7 +45,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                         "RETURN_DAILY_LIMIT",
                         "RETURN_SEQUENCE_RANGE",
                         "Regla HARD BLOCK RET: secuencia ZZZ debe estar entre 001 y 036.",
-                        "ACH V32 6.1.10.1 / RET"));
+                        "ACH V35 6.6 / RET"));
                 }
                 else
                 {
@@ -57,7 +57,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                             "RETURN_ZZZ_R1",
                             "RETURN_IDENTIFIER_MISMATCH",
                             "Regla HARD BLOCK RET: ZZZ no corresponde al campo 7 del Registro 1.",
-                            "ACH V32 6.1.10.1 / RET"));
+                            "ACH V35 6.6 / RET"));
                     }
                 }
             }
@@ -71,7 +71,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                         "RETURN_DUPLICATE_NAME",
                         "RETURN_DUPLICATE",
                         "Regla HARD BLOCK RET: archivo duplicado.",
-                        "ACH V32 6.1.10.1 / RET"));
+                        "ACH V35 6.6 / RET"));
                 }
             }
         }
@@ -96,26 +96,65 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                 }
             }
         }
+        else if (ExternalFileNameSupport.IsCenitNachaOut(context))
+        {
+            var parsed = ExternalFileNameSupport.Parse(context, components.FullName);
+            if (!parsed.ExternalSequence.HasValue)
+            {
+                issues.Add(Hard(
+                    "CENIT_NAME_PATTERN",
+                    "CENIT_PATTERN_INVALID",
+                    "Regla HARD BLOCK CENIT: patrón requerido RRRRTTT.ZZZ.1 sin extensión.",
+                    "Manual NACHA-M CENIT 2026, 6.1 / 6.2"));
+            }
+            else
+            {
+                var expectedOrigin = components.Prefix ?? context.ClearingHouseOriginCode;
+                if (!string.IsNullOrWhiteSpace(expectedOrigin)
+                    && !string.Equals(expectedOrigin[^Math.Min(7, expectedOrigin.Length)..], parsed.Prefix, StringComparison.Ordinal))
+                {
+                    issues.Add(Hard("CENIT_ORIGIN_MISMATCH", "CENIT_ORIGIN_MISMATCH", "El código de origen del nombre CENIT no coincide con la entidad configurada.", "Manual NACHA-M CENIT 2026, 6.1"));
+                }
+                else
+                {
+                    var expectedIdentifier = ExternalFileNameSupport.ResolveCenitFileIdentifier(
+                        parsed.ExternalSequence.Value,
+                        "Alphanumeric36",
+                        1,
+                        999);
+                    var headerIdentifier = ExternalFileNameSupport.TryExtractRecord1FileIdModifier(context.NachaContent);
+                    if ((components.FileIdModifier.HasValue && components.FileIdModifier.Value != expectedIdentifier)
+                        || (headerIdentifier.HasValue && headerIdentifier.Value != expectedIdentifier))
+                    {
+                        issues.Add(Hard(
+                            "CENIT_ZZZ_R1",
+                            "CENIT_IDENTIFIER_MISMATCH",
+                            "Regla HARD BLOCK CENIT: ZZZ y el Identificador de Archivo del Registro 1 no son coherentes.",
+                            "Manual NACHA-M CENIT 2026, 6.1"));
+                    }
+                }
+            }
+        }
         else if (ExternalFileNameSupport.IsAch(context))
         {
             var parsed = ExternalFileNameSupport.Parse(context, components.FullName);
             if (!parsed.ExternalSequence.HasValue)
             {
-                issues.Add(Hard("ACH_NAME_PATTERN", "ACH_PATTERN_INVALID", "Regla HARD BLOCK ACH: patron requerido RRRRTTT.ZZZ.N.", "ACH V32 6.1.10.1"));
+                issues.Add(Hard("ACH_NAME_PATTERN", "ACH_PATTERN_INVALID", "Regla HARD BLOCK ACH: patron requerido RRRRTTT.ZZZ.N.", "ACH V35 6.1.10.1"));
             }
             else
             {
                 if (parsed.ExternalSequence.Value is < 1 or > 36)
                 {
-                    issues.Add(Hard("ACH_DAILY_LIMIT", "ACH_SEQUENCE_RANGE", "Regla HARD BLOCK ACH: secuencia ZZZ debe estar entre 001 y 036.", "ACH V32 6.1.10.1 / 6.1.10.3"));
+                    issues.Add(Hard("ACH_DAILY_LIMIT", "ACH_SEQUENCE_RANGE", "Regla HARD BLOCK ACH: secuencia ZZZ debe estar entre 001 y 036.", "ACH V35 6.1.10.1 / 6.1.10.3"));
                 }
                 else if (!parsed.CycleNumber.HasValue || parsed.CycleNumber.Value < 1)
                 {
-                    issues.Add(Hard("ACH_CYCLE_PATTERN", "ACH_CYCLE_INVALID", "Regla HARD BLOCK ACH: el ciclo N debe ser un entero positivo.", "ACH V32 6.1.10.1"));
+                    issues.Add(Hard("ACH_CYCLE_PATTERN", "ACH_CYCLE_INVALID", "Regla HARD BLOCK ACH: el ciclo N debe ser un entero positivo.", "ACH V35 6.1.10.1"));
                 }
                 else if (context.CycleNumber is > 0 && context.CycleNumber.Value != parsed.CycleNumber.Value)
                 {
-                    issues.Add(Hard("ACH_CYCLE_MISMATCH", "ACH_CYCLE_MISMATCH", "Regla HARD BLOCK ACH: el ciclo del nombre no coincide con el ciclo operativo resuelto.", "ACH V32 6.1.10.1"));
+                    issues.Add(Hard("ACH_CYCLE_MISMATCH", "ACH_CYCLE_MISMATCH", "Regla HARD BLOCK ACH: el ciclo del nombre no coincide con el ciclo operativo resuelto.", "ACH V35 6.1.10.1"));
                 }
                 else
                 {
@@ -123,7 +162,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                     var correlation = await _correlationService.CorrelateAsync(context, parsed, ct);
                     if (correlation.HeaderFileIdModifier.HasValue && correlation.HeaderFileIdModifier.Value != expected)
                     {
-                        issues.Add(Hard("ACH_ZZZ_R1", "ACH_IDENTIFIER_MISMATCH", "Regla HARD BLOCK ACH: ZZZ no corresponde al campo 7 del Registro 1.", "ACH V32 6.1.10.1 / causal 14"));
+                        issues.Add(Hard("ACH_ZZZ_R1", "ACH_IDENTIFIER_MISMATCH", "Regla HARD BLOCK ACH: ZZZ no corresponde al campo 7 del Registro 1.", "ACH V35 6.1.10.1 / causal 14"));
                     }
                 }
             }

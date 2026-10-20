@@ -1,5 +1,8 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, signal } from '@angular/core';
 import { RouterModule } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { ColDef } from 'ag-grid-community';
 import { take } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -17,7 +20,7 @@ import { BulkIngestionApiService } from '../../services/bulk-ingestion-api.servi
 @Component({
   selector: 'app-transaction-bulk-create',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [SharedModule, RouterModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   templateUrl: './transaction-bulk-create.component.html',
   styleUrls: ['./transaction-bulk-create.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -37,11 +40,11 @@ export class TransactionBulkCreateComponent {
   readonly parseWarnings = signal<string[]>([]);
   readonly resultColumnDefs: ColDef<any>[] = [
     { headerName: '#', valueGetter: (params) => (params.data?.index ?? 0) + 1, width: 90 },
-    { field: 'transactionExternalId', headerName: 'ID operación', valueGetter: (params) => params.data?.transactionExternalId || '-', minWidth: 150 },
-    { field: 'reference', headerName: 'Referencia legado', valueGetter: (params) => params.data?.reference || '-', minWidth: 170 },
+    { field: 'transactionExternalId', headerName: 'ID de operación', valueGetter: (params) => params.data?.transactionExternalId || '-', minWidth: 150 },
+    { field: 'reference', headerName: 'Referencia heredada', valueGetter: (params) => params.data?.reference || '-', minWidth: 170 },
     { field: 'statusLabel', headerName: 'Estado', minWidth: 120 },
-    { field: 'transactionId', headerName: 'ID transacción', valueGetter: (params) => params.data?.transactionId ?? '-', minWidth: 150 },
-    { field: 'errorCode', headerName: 'Código error', valueGetter: (params) => params.data?.errorCode ?? '-', minWidth: 130 },
+    { field: 'transactionId', headerName: 'ID de transacción', valueGetter: (params) => params.data?.transactionId ?? '-', minWidth: 150 },
+    { field: 'errorCode', headerName: 'Código de error', valueGetter: (params) => params.data?.errorCode ?? '-', minWidth: 130 },
     { headerName: 'Detalle', valueGetter: (params) => this.formatError(params.data), minWidth: 260 }
   ];
 

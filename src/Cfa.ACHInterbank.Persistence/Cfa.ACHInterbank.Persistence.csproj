@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Cfa.ACHInterbank.Application\Cfa.ACHInterbank.Application.csproj" />
     <ProjectReference Include="..\Cfa.ACHInterbank.Domain\Cfa.ACHInterbank.Domain.csproj" />
   </ItemGroup>
@@ -28,16 +32,19 @@
   <ItemGroup>
     <PackageReference Include="AdoNetCore.AseClient" Version="0.19.2" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
-    <PackageReference Include="QuestPDF" Version="2026.2.4" />
-    <PackageReference Include="Quartz" Version="3.18.0" />
-    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.18.0" />
-    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.18.0" />
-    <PackageReference Include="Quartz.Serialization.Json" Version="3.18.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
+    <!-- Security pin: Microsoft.Data.SqlClient 6.1.7 can resolve PKCS 9.0.11 on net10 via its net9 dependency group; pin patched .NET 10 servicing version. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.13" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="QuestPDF" Version="2026.9.1" />
+    <PackageReference Include="Quartz" Version="3.21.0" />
+    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.21.0" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.21.0" />
+    <PackageReference Include="Quartz.Serialization.Json" Version="3.21.0" />
   </ItemGroup>
 
 </Project>

@@ -18,9 +18,26 @@ public class AchCycle : AuditableEntity
     // Ventana operativa del ciclo
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
+    public TimeSpan OutputReleaseTime { get; set; }
+    public TimeSpan? CompensationStatementStartTime { get; set; }
+    public TimeSpan? CompensationStatementEndTime { get; set; }
+    public TimeSpan? CompensationPaymentStartTime { get; set; }
+    public TimeSpan? CompensationPaymentEndTime { get; set; }
+    public TimeSpan? OutputReleaseStartTime { get; set; }
+    public TimeSpan? OutputReleaseEndTime { get; set; }
+
+    // La admisión entrante usa este estado persistido; no deduce que un ciclo
+    // está cerrado comparando únicamente su número con el ciclo más reciente.
+    public AchCycleOperationalStatus OperationalStatus { get; set; } = AchCycleOperationalStatus.Open;
+    public int ReceptionToleranceMinutes { get; set; }
+    public bool AllowsExplicitReprocessing { get; set; }
 
     // Indica si debe correrse al siguiente día hábil si cae en festivo
     public bool RescheduleOnHoliday { get; set; }
+    public DateTime? OriginalProcessingDate { get; set; }
+    public DateTimeOffset? CalendarDeferredAtUtc { get; set; }
+    public string? CalendarDeferralReason { get; set; }
+    public int CalendarDeferralCount { get; set; }
 
     // Relación con la cámara de compensación
     public int ClearingHouseId { get; set; }
@@ -39,4 +56,12 @@ public class AchCycle : AuditableEntity
     // Transacciones que entraron en este ciclo
     public ICollection<AchTransaction> Transactions { get; set; } = new List<AchTransaction>();
 
+}
+
+public enum AchCycleOperationalStatus
+{
+    Scheduled = 1,
+    Open = 2,
+    Closed = 3,
+    Cancelled = 4
 }

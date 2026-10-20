@@ -44,6 +44,8 @@ public sealed class ExternalFileNameContext
     public string? CycleName { get; init; }
     public int? CycleNumber { get; init; }
     public DateTime ProcessingDate { get; init; }
+    public OperationalTimeSnapshot? OperationalTimeSnapshot { get; init; }
+    public string? IdempotencyKey { get; init; }
     public ExternalFileType ExternalFileType { get; init; }
     public ExternalFileFlow Flow { get; init; }
     public ExternalFileDirection Direction { get; init; }
@@ -66,7 +68,24 @@ public sealed class ExternalFileNameComponents
     public int? CycleNumber { get; init; }
     public int? DeclaredDetailCount { get; init; }
     public char? FileIdModifier { get; init; }
+    public long? ReservationId { get; init; }
+    public bool ReusedReservation { get; init; }
 }
+
+public sealed record OperationalTimeSnapshot(
+    DateTime CapturedAtUtc,
+    DateTime BogotaTimestamp,
+    DateOnly OperationalDate,
+    string TimeZoneId);
+
+public sealed record ExternalFileNameReservationResult(
+    long ReservationId,
+    int Sequence,
+    bool WasReused,
+    string IdempotencyKeyHash,
+    string RequestFingerprintHash,
+    string? ExternalFileName,
+    char? FileIdModifier);
 
 public sealed class ExternalFileNameValidationIssue
 {

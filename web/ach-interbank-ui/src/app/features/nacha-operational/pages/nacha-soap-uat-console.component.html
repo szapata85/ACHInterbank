@@ -1,18 +1,18 @@
 <section class="nacha-operational-page">
   <ui-migas-pan [items]="[
     { etiqueta: 'Inicio', ruta: '/dashboard' },
-    { etiqueta: 'ACH' },
-    { etiqueta: 'Consola SOAP/UAT' }
+    { etiqueta: 'Herramientas de prueba' },
+    { etiqueta: 'Pruebas de servicios' }
   ]"></ui-migas-pan>
 
   <ui-encabezado-pagina
-    titulo="Consola SOAP/UAT solo lectura"
+    titulo="Pruebas de servicios"
     descripcion="Auditoría operacional de candidatos SOAP, preparación UAT, bloqueos, simulación, resiliencia e idempotencia."
   ></ui-encabezado-pagina>
 
-  <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="La consola no ejecuta SOAP, no reintenta, no invoca core y no mueve dinero."></ui-alerta>
-  <ui-alerta tipo="advertencia" titulo="SOAP real deshabilitado" mensaje="Ejecución productiva=false e Invocaría SOAP real=false en toda la vista."></ui-alerta>
-  <ui-alerta tipo="info" titulo="Solo lectura sanitizada" mensaje="No se exponen endpoints reales, certificados, secretos, payloads SOAP completos, cuentas ni documentos completos."></ui-alerta>
+  <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="La consola no ejecuta SOAP, no reintenta, no invoca procesamiento transaccional y no mueve dinero."></ui-alerta>
+  <ui-alerta tipo="advertencia" titulo="SOAP real deshabilitado" mensaje="La ejecución productiva y la invocación de SOAP real permanecen deshabilitadas en toda la vista."></ui-alerta>
+  <ui-alerta tipo="info" titulo="Solo lectura sanitizada" mensaje="No se exponen direcciones reales, certificados, secretos, mensajes SOAP completos, cuentas ni documentos completos."></ui-alerta>
 
   <ui-alerta *ngIf="error" tipo="error" titulo="Error" [mensaje]="error"></ui-alerta>
   <ui-estado-carga *ngIf="cargando" mensaje="Cargando consola SOAP/UAT..."></ui-estado-carga>

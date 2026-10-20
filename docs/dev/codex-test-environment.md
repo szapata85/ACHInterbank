@@ -653,6 +653,8 @@ Tests fallando en filtro amplio (9):
 
 ## 17) Cierre bloque addendas/devoluciones/returns (2026-04-20 UTC)
 
+> **Contexto histórico:** esta sección conserva evidencia de abril de 2026. Las referencias de ese momento a DEV14 como Return/Addenda de cinco caracteres fueron posteriormente **retiradas**. El contrato vigente define DEV14 exclusivamente como Reclamación ACH Colombia; no es causal Return ni se serializa en Addenda 99.
+
 ### 17.1 Ejecución inicial (5 tests objetivo)
 Comando:
 ```bash

@@ -8,7 +8,7 @@ export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
 export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
 
 echo "[UAT] Setup .NET/Node"
-REQUIRED_SDK="10.0.203"
+REQUIRED_SDK="10.0.402"
 
 if [[ -x "$DOTNET_ROOT/dotnet" ]]; then
   export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"

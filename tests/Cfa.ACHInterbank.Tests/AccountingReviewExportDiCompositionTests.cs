@@ -51,11 +51,11 @@ public class AccountingReviewExportDiCompositionTests
     }
 
     [Fact]
-    public async Task ReportsController_ShouldBeConstructable_WithAccountingReviewExportDependency()
+    public async Task AccountingReviewReportsController_ShouldBeConstructable_WithAccountingReviewExportDependency()
     {
         using var provider = BuildControllerProvider();
 
-        var controller = ActivatorUtilities.CreateInstance<ReportsController>(provider);
+        var controller = ActivatorUtilities.CreateInstance<AccountingReviewReportsController>(provider);
         var action = await controller.ExportAccountingReview(new AccountingReviewExportApiRequest { Format = "csv", RequestedBy = "qa" }, CancellationToken.None);
 
         controller.Should().NotBeNull();

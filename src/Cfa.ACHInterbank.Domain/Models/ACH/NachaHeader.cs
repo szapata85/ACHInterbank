@@ -1,9 +1,11 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
-public class NachaHeader
+public class NachaHeader : AuditableEntity
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.None)]

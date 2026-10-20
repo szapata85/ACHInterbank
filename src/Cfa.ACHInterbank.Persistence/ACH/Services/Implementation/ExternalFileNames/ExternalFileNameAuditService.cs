@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 
@@ -19,6 +20,15 @@ public class ExternalFileNameAuditService : IExternalFileNameAuditService
 
     public async Task RegisterAsync(ExternalFileNameContext context, ExternalFileNamePolicyResult result, CancellationToken ct = default)
     {
+        if (result.Components.ReservationId.HasValue
+            && await _context.ExternalFileNameRegistry.AsNoTracking().AnyAsync(
+                x => x.GenerationReservationId == result.Components.ReservationId.Value,
+                ct))
+        {
+            return;
+        }
+
+        var auditTimestamp = context.OperationalTimeSnapshot?.CapturedAtUtc ?? DateTime.UtcNow;
         var registry = new ExternalFileNameRegistry
         {
             ClearingHouseId = context.ClearingHouseId,
@@ -39,13 +49,29 @@ public class ExternalFileNameAuditService : IExternalFileNameAuditService
             ValidationResult = result.Validation.IsHardBlocked ? "Rejected" : "Accepted",
             ValidationIssuesJson = JsonSerializer.Serialize(result.Validation.Issues),
             CorrelationEvidenceJson = JsonSerializer.Serialize(result.CorrelationEvidence),
-            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = auditTimestamp,
             CreatedBy = context.RequestedBy,
-            RowVersion = [1]
+            RowVersion = [1],
+            GenerationReservationId = result.Components.ReservationId
         };
 
         _context.ExternalFileNameRegistry.Add(registry);
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException) when (result.Components.ReservationId.HasValue)
+        {
+            _context.Entry(registry).State = EntityState.Detached;
+            if (await _context.ExternalFileNameRegistry.AsNoTracking().AnyAsync(
+                    x => x.GenerationReservationId == result.Components.ReservationId.Value,
+                    ct))
+            {
+                return;
+            }
+
+            throw;
+        }
 
         foreach (var issue in result.Validation.Issues)
         {
@@ -58,7 +84,7 @@ public class ExternalFileNameAuditService : IExternalFileNameAuditService
                 IssueCode = issue.IssueCode,
                 IssueMessage = issue.Message,
                 IssuePayloadJson = JsonSerializer.Serialize(new { issue.SourceReference, issue.Evidence }),
-                CreatedAtUtc = DateTime.UtcNow
+                CreatedAtUtc = auditTimestamp
             });
         }
 

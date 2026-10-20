@@ -1,24 +1,23 @@
 <section class="nacha-operational-page">
   <ui-migas-pan [items]="[
     { etiqueta: 'Inicio', ruta: '/dashboard' },
-    { etiqueta: 'ACH' },
+    { etiqueta: 'Seguimiento y control' },
     { etiqueta: 'Conciliación' }
   ]"></ui-migas-pan>
 
   <ui-encabezado-pagina
-    titulo="Consola de conciliación ACH solo lectura"
+    titulo="Conciliación"
     descripcion="Cruce operativo de respuestas, diferenciales, devoluciones, ROR, prenotificaciones y estados internos contra NACHA-M desagregado."
   ></ui-encabezado-pagina>
 
-  <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="Consulta solo lectura; no habilita salida productiva."></ui-alerta>
-  <ui-alerta tipo="info" titulo="Solo lectura sanitizada" mensaje="Sin aprobaciones, rechazos manuales, reprocesos, generación de archivos ni edición de estados."></ui-alerta>
+  <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="La resolución es operativa y no habilita salida productiva."></ui-alerta>
   <ui-alerta tipo="advertencia" titulo="Sin movimientos monetarios" mensaje="No ejecuta SOAP, no mueve dinero y solo marca candidatos monetarios controlados."></ui-alerta>
 
   <ui-alerta *ngIf="error" tipo="error" titulo="Error" [mensaje]="error"></ui-alerta>
   <ui-estado-carga *ngIf="cargando" mensaje="Cargando conciliación ACH..."></ui-estado-carga>
 
   <ng-container *ngIf="data as vm">
-    <section class="data-source-strip" aria-label="Fuente conciliación">
+    <section class="data-source-strip" aria-label="Fuente de conciliación">
       <span class="badge" [ngClass]="vm.dashboard.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ dataSourceLabel(vm.dashboard.dataSource) }}</span>
       <span class="badge badge-danger">NO-GO</span>
       <span class="badge badge-success">SOLO LECTURA</span>
@@ -27,7 +26,7 @@
 
     <ui-alerta *ngIf="vm.dashboard.warnings.length" tipo="info" titulo="Advertencias parciales" [mensaje]="vm.dashboard.warnings.join(' ')"></ui-alerta>
 
-    <section class="summary-strip" aria-label="Resumen conciliación ACH">
+    <section class="summary-strip" aria-label="Resumen de conciliación ACH">
       <article><small>Productivo</small><strong class="badge badge-danger">{{ vm.dashboard.productiveStatus }}</strong></article>
       <article><small>Respuestas</small><strong>{{ vm.dashboard.totalResponses }}</strong></article>
       <article><small>Diferenciales</small><strong>{{ vm.dashboard.totalDifferentialResponses }}</strong></article>
@@ -42,7 +41,7 @@
       <article><small>Candidatos monetarios</small><strong class="badge badge-warning">{{ vm.dashboard.totalMonetaryCandidates }}</strong></article>
     </section>
 
-    <div class="badge-row" aria-label="Badges conciliación">
+    <div class="badge-row" aria-label="Estados de conciliación">
       <span class="badge badge-success">CONCILIADO</span>
       <span class="badge badge-warning">PENDIENTE</span>
       <span class="badge badge-danger">INCONSISTENTE</span>
@@ -57,7 +56,7 @@
     <ui-tarjeta titulo="Filtros" subtitulo="Filtros locales solo lectura">
       <section class="badge-row">
         <label>Estado <select [(ngModel)]="estado"><option value="">Todos</option><option>Conciliado</option><option>Pendiente</option><option>Inconsistente</option><option>RequiereRevisionManual</option></select></label>
-        <label>Cámara <select [(ngModel)]="camara"><option value="">Todas</option><option>ACH</option><option>CENIT</option><option>N/A</option></select></label>
+        <label>Cámara <select [(ngModel)]="camara"><option value="">Todas</option><option *ngFor="let option of clearingHouseOptions" [value]="option">{{ option }}</option></select></label>
         <label>Tipo <select [(ngModel)]="tipo"><option value="">Todos</option><option>Respuesta diferencial</option><option>Devolución .RET</option><option>ROR / Return of Return</option><option>Prenotificación</option></select></label>
         <label><input type="checkbox" [(ngModel)]="soloRevision"> Requiere revisión</label>
       </section>
@@ -89,6 +88,18 @@
         <span class="badge badge-neutral" *ngIf="detailVm.controlSummary">CONTROLES</span>
         <span class="badge badge-neutral" *ngIf="detailVm.internalTransactionSummary">TRANSACCION INTERNA</span>
       </div>
+    </ui-tarjeta>
+    <ui-tarjeta titulo="Excepciones operacionales" subtitulo="Resolución persistida, no contable y auditada.">
+      <p *ngIf="vm.exceptions.length === 0">No hay excepciones operacionales.</p>
+      <div class="badge-row" *ngFor="let item of vm.exceptions">
+        <span>{{ item.exceptionType }} · {{ item.reference }} · {{ item.status }}</span>
+        <button type="button" class="btn-link" (click)="selectException(item)">Seleccionar excepción</button>
+      </div>
+      <section *ngIf="selectedException as selected" class="badge-row">
+        <label>Resultado de resolución <input type="text" [(ngModel)]="resolution" [disabled]="selected.status === 'Resolved'"></label>
+        <label>Justificación obligatoria <textarea [(ngModel)]="resolutionReason" [disabled]="selected.status === 'Resolved'"></textarea></label>
+        <button type="button" (click)="resolveSelectedException()" [disabled]="resolving || selected.status === 'Resolved'">Resolver excepción</button>
+      </section>
     </ui-tarjeta>
   </ng-container>
 </section>

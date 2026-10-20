@@ -13,4 +13,7 @@ public sealed record RegistrarRespuestaAchCommand(
     string? CodigoCamaraCompensacion,
     string? CodigoEntidadOrigen,
     string? CodigoEntidadDestino,
-    string? CorrelationId);
+    string? CorrelationId)
+{
+    public Guid? DifferentialResponseId { get; init; }
+}

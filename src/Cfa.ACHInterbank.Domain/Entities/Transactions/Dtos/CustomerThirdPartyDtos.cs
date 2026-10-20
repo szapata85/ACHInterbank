@@ -16,7 +16,7 @@ public record CustomerThirdPartyQuery
 
 public record CustomerThirdPartyListDto
 {
-    public int Id { get; init; }
+    public long Id { get; init; }
     public int CustomerId { get; init; }
     public string CustomerName { get; init; } = string.Empty;
     public int DestinationInstitutionId { get; init; }
@@ -28,10 +28,10 @@ public record CustomerThirdPartyListDto
     public string? ValidationCycleId { get; init; }
     public DateTime? ValidationReceivedAt { get; init; }
     public string? ValidationMessage { get; init; }
-}
-
-public record UpdateCustomerThirdPartyStatusRequest
-{
-    public CustomerThirdPartyStatusEnum Status { get; init; }
-    public string? ValidationMessage { get; init; }
+    public string? ClearingHouseName { get; init; }
+    public string? ClearingHouseCode { get; init; }
+    public string? SendingCycleId { get; init; }
+    public string? ResponseFileName { get; init; }
+    public string? ResponseCorrelationId { get; init; }
+    public string? StatusSource { get; init; }
 }

@@ -60,8 +60,9 @@ public sealed class IntegrationMappingTraceWriterTests
         Assert.Equal(IntegrationGuaranteeConstants.DifferentialResponseNotification, trace.MappingPurpose);
         Assert.False(trace.MonetaryMovementCreated);
         Assert.False(trace.ExternalTransmission);
-        Assert.Contains(trace.Entries, x => x.TargetField == "ANSIDTX" && x.MappedValueSanitized == "TX-TRACE-001");
-        Assert.Contains(trace.Entries, x => x.TargetField == "ANCLC" && x.MappedValueSanitized == "00");
+        Assert.Contains(trace.Entries, x => x.TargetField == "idTransaccion" && x.MappedValueSanitized == "TX-TRACE-001");
+        Assert.Contains(trace.Entries, x => x.TargetField == "causal" && x.MappedValueSanitized == "00");
+        Assert.DoesNotContain(trace.Entries, x => x.TargetField.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task<AchDbContext> BuildContextAsync()
@@ -106,11 +107,13 @@ public sealed class IntegrationMappingTraceWriterTests
                 SourceKind = IntegrationSourceKindEnum.Transaction,
                 SourceFieldPath = parameter.ParameterPath switch
                 {
-                    "ANSIDLOTE" => nameof(RegistrarRespuestaAchCommand.IdTransaccionServicioExterno),
-                    "ANSST" => nameof(RegistrarRespuestaAchCommand.IdEstado),
-                    "ANCLC" => nameof(RegistrarRespuestaAchCommand.Causal),
-                    "ANSIDTX" => nameof(RegistrarRespuestaAchCommand.IdTransaccion),
-                    "ANSIDREVER" => nameof(RegistrarRespuestaAchCommand.IdTransaccionServicioExterno),
+                    "idCanal" => nameof(RegistrarRespuestaAchCommand.IdCanal),
+                    "nombreCanal" => nameof(RegistrarRespuestaAchCommand.NombreCanal),
+                    "idTransaccion" => nameof(RegistrarRespuestaAchCommand.IdTransaccion),
+                    "idEstado" => nameof(RegistrarRespuestaAchCommand.IdEstado),
+                    "causal" => nameof(RegistrarRespuestaAchCommand.Causal),
+                    "idTransaccionAxon" => nameof(RegistrarRespuestaAchCommand.IdTransaccionServicioExterno),
+                    "descripcionCausal" => nameof(RegistrarRespuestaAchCommand.DescripcionCausal),
                     _ => nameof(RegistrarRespuestaAchCommand.IdTransaccion)
                 },
                 Priority = 1,
