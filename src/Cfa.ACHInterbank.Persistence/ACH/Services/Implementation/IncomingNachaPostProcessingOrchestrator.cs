@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -37,7 +38,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         IIncomingNachaAchResultResolver? achResultResolver = null,
         ICycleCalendarGuard? calendarGuard = null,
         IOperationalCycleWindowResolver? windowResolver = null,
-        ICycleTransactionPolicy? cycleTransactionPolicy = null)
+        ICycleTransactionPolicy? cycleTransactionPolicy = null,
+        IConfiguration? configuration = null)
     {
         var effectiveTimeProvider = timeProvider ?? OperationalTimeProvider.SystemBogota;
         _pipeline = new IncomingNachaPostProcessingPipeline(
@@ -58,7 +60,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             achResultResolver,
             calendarGuard ?? new CycleCalendarGuard(context, timeProvider: effectiveTimeProvider),
             windowResolver ?? new OperationalCycleWindowResolver(),
-            cycleTransactionPolicy);
+            cycleTransactionPolicy,
+            allowFileBasedPreparation: configuration?.GetValue<bool>("AchCol:AllowCycleIndependentInboundDispatch") == true);
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(

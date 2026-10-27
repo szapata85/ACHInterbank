@@ -178,22 +178,42 @@ public sealed class AchColombiaSftpMftAdapterTests
     }
 
     [Fact]
-    public async Task Inbound_ShouldAcceptOutAndRetEnvelopes_AndIgnoreUnknownFinalNames()
+    public async Task Inbound_ShouldAcceptPlainOutAndEnvelopes_AndIgnoreUnknownFinalNames()
     {
         var factory = new FakeSessionFactory();
         factory.Store["/in/a.OUT.env"] = new byte[] { 1 };
         factory.Store["/in/b.RET.env"] = new byte[] { 2 };
+        factory.Store["/in/c.OUT"] = new byte[] { 7 };
+        factory.Store["/in/case.out"] = new byte[] { 8 };
+        factory.Store["/in/unsupported.RET"] = new byte[] { 9 };
         factory.Store["/in/c.env"] = new byte[] { 3 };
         factory.Store["/in/d.txt"] = new byte[] { 4 };
         var adapter = Create(new MutableProvider(SftpConfiguration()), factory);
 
         var artifacts = await adapter.PickupInboundAsync();
 
-        Assert.Equal(2, artifacts.Count);
+        Assert.Equal(4, artifacts.Count);
         Assert.Contains(artifacts, x => x.FileName == "a.OUT.env");
         Assert.Contains(artifacts, x => x.FileName == "b.RET.env");
+        Assert.Contains(artifacts, x => x.FileName == "c.OUT");
+        Assert.Contains(artifacts, x => x.FileName == "case.out");
+        Assert.True(factory.Store.ContainsKey("/in/unsupported.RET"));
         Assert.True(factory.Store.ContainsKey("/in/c.env"));
         Assert.True(factory.Store.ContainsKey("/in/d.txt"));
+    }
+
+    [Fact]
+    public async Task Inbound_ShouldRecoverOrphanedPlainOutClaim()
+    {
+        var factory = new FakeSessionFactory();
+        factory.Store["/in/.0001283.008.20260731.8.OUT.0123456789abcdef0123456789abcdef.claim"] = new byte[] { 1, 6 };
+        var adapter = Create(new MutableProvider(SftpConfiguration()), factory);
+
+        var artifact = Assert.Single(await adapter.PickupInboundAsync());
+
+        Assert.Equal("0001283.008.20260731.8.OUT", artifact.FileName);
+        Assert.EndsWith(".claim", artifact.ClaimReference, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("sftp-archive:0001283.008.20260731.8.OUT", await adapter.ArchiveInboundAsync(artifact));
     }
 
     [Fact]

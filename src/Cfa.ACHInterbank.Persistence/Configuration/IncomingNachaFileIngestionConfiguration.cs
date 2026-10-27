@@ -13,6 +13,9 @@ public class IncomingNachaFileIngestionConfiguration : IEntityTypeConfiguration<
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.FileName).HasMaxLength(260).IsRequired();
+        builder.Property(x => x.CanonicalPlainFileName).HasMaxLength(260);
+        builder.Property(x => x.FileIdModifier).HasMaxLength(1);
+        builder.Property(x => x.FileProtectionKind).HasMaxLength(30);
         builder.Property(x => x.FileHashSha256).HasMaxLength(64).IsRequired();
         builder.Property(x => x.ContentType).HasMaxLength(120).IsRequired();
         builder.Property(x => x.FileExtension).HasMaxLength(20).IsRequired();

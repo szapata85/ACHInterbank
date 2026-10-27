@@ -41,9 +41,9 @@ public sealed class AchColombiaManagedMftInboundWorkflow(
         {
             ct.ThrowIfCancellationRequested();
 
-            // Los adapters productivos sólo reclaman sobres finales OUT/RET.
-            // Esta defensa conserva el contrato si una implementación futura lo viola.
-            if (!AchColombiaManagedMftImplementationSupport.IsAuthorizedInboundEnvelopeName(artifact.FileName))
+            // Los adaptadores sólo reclaman archivos finales OUT, OUT.env o RET.env.
+            // Mantener esta defensa también frente a transportes futuros.
+            if (!AchColombiaManagedMftImplementationSupport.IsAuthorizedInboundFileName(artifact.FileName))
                 continue;
 
             considered++;

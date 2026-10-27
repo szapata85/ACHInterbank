@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Data;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
@@ -66,6 +67,66 @@ public class AchFileExportAuditService(AchDbContext context) : IAchFileExportAud
         await exportLock.WaitAsync(ct);
         try
         {
+            if (string.Equals(exportKind, "NACHA", StringComparison.OrdinalIgnoreCase)
+                && context.Database.IsRelational())
+            {
+                // La misma transacción relacional protege la validación de membresía
+                // y su registro. I02 usa SERIALIZABLE para la reasignación.
+                // No anidar en una transacción ajena de aislamiento desconocido.
+                if (context.Database.CurrentTransaction is not null)
+                    throw new InvalidOperationException("NACHA_EXPORT_AMBIENT_TRANSACTION_UNSUPPORTED");
+
+                var strategy = context.Database.CreateExecutionStrategy();
+                await strategy.ExecuteAsync(async () =>
+                {
+                    await using var admission = await context.Database.BeginTransactionAsync(
+                        IsolationLevel.Serializable, ct);
+                    try
+                    {
+                        await RecordVerifiedFileAsync(cycleId, clearingHouseId, exportKind, fileName,
+                            totalRecords, totalTransactions, isEncrypted, requestedIds, contentSha256, ct);
+                        await admission.CommitAsync(ct);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // Precondiciones de membresía: no limpiar operaciones de
+                        // seguridad ajenas que necesitan registrar estado fallido.
+                        throw;
+                    }
+                    catch
+                    {
+                        // Reintento de EF después de un error de BD: no conservar
+                        // entidades agregadas en un intento que terminó en rollback.
+                        context.ChangeTracker.Clear();
+                        throw;
+                    }
+                });
+            }
+            else
+            {
+                // Mantener el comportamiento previo para RETURN y tests InMemory.
+                await RecordVerifiedFileAsync(cycleId, clearingHouseId, exportKind, fileName,
+                    totalRecords, totalTransactions, isEncrypted, requestedIds, contentSha256, ct);
+            }
+        }
+        finally
+        {
+            exportLock.Release();
+        }
+    }
+
+    private async Task RecordVerifiedFileAsync(
+        string cycleId,
+        int clearingHouseId,
+        string exportKind,
+        string fileName,
+        int totalRecords,
+        int totalTransactions,
+        bool isEncrypted,
+        int[] requestedIds,
+        string? contentSha256,
+        CancellationToken ct)
+    {
             var existingExport = await context.Set<AchFileExport>()
                 .AsNoTracking()
                 .Include(x => x.Transactions)
@@ -87,7 +148,8 @@ public class AchFileExportAuditService(AchDbContext context) : IAchFileExportAud
 
             var snapshots = await context.AchTransactions
                 .AsNoTracking()
-                .Where(x => requestedIds.Contains(x.Id) && x.AchCycleId == cycleId)
+                .Where(x => requestedIds.Contains(x.Id) && x.AchCycleId == cycleId
+                && (exportKind != "NACHA" || NachaExportEligibility.ExportableStates.Contains(x.State)))
                 .OrderBy(x => x.AchBatchId)
                 .ThenBy(x => x.Id)
                 .Select(x => new
@@ -142,10 +204,5 @@ public class AchFileExportAuditService(AchDbContext context) : IAchFileExportAud
             context.Set<AchFileExport>().Add(export);
 
             await context.SaveChangesAsync(ct);
-        }
-        finally
-        {
-            exportLock.Release();
-        }
     }
 }

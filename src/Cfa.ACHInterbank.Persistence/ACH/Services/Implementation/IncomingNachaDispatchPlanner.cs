@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Configuration;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -22,6 +23,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
     private readonly IPaymentRailShadowCompareService? _shadowCompareService;
     private readonly ILogger<IncomingNachaDispatchPlanner> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IConfiguration? _configuration;
 
     public IncomingNachaDispatchPlanner(
         AchDbContext context,
@@ -30,7 +32,8 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
         IPaymentRailOperationalStrategyResolver? strategyResolver = null,
         IPaymentRailShadowCompareService? shadowCompareService = null,
         ILogger<IncomingNachaDispatchPlanner>? logger = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IConfiguration? configuration = null)
     {
         _context = context;
         _eligibility = eligibility;
@@ -39,6 +42,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
         _shadowCompareService = shadowCompareService;
         _logger = logger ?? NullLogger<IncomingNachaDispatchPlanner>.Instance;
         _timeProvider = timeProvider ?? OperationalTimeProvider.SystemBogota;
+        _configuration = configuration;
     }
 
     public async Task<int> PlanForIngestionAsync(Guid ingestionId, string plannedBy, CancellationToken ct = default)
@@ -47,6 +51,17 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == ingestionId, ct)
             ?? throw new InvalidOperationException($"No existe ingesta {ingestionId}.");
+
+        // F3.3: ACHCOL file-based work is planned from the parsed entry itself.
+        // No internal cycle or artificial AchTransaction / TransactionLink is required.
+        // Its rows stay Blocked until the dedicated eligibility/dispatch stages (F4/F5).
+        if (string.Equals(ingestion.ResolutionMode, "AchColFileBased", StringComparison.Ordinal))
+        {
+            return IsFileBasedIngestion(ingestion)
+                && _configuration?.GetValue<bool>("AchCol:AllowCycleIndependentInboundDispatch") == true
+                ? await PlanFileBasedAsync(ingestion, ct)
+                : 0;
+        }
 
         var candidates = await (
             from c in _context.IncomingNachaEntryClassifications
@@ -157,6 +172,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
 
             _context.IncomingNachaDispatchQueue.Add(new IncomingNachaDispatchQueue
             {
+                SourceKind = IncomingNachaDispatchSourceKinds.CycleBound,
                 IncomingNachaFileIngestionId = ingestion.Id,
                 IncomingNachaEntryClassificationId = candidate.Classification.Id,
                 IncomingNachaTransactionLinkId = candidate.Link.Id,
@@ -176,6 +192,118 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
 
         if (created > 0)
         {
+            await _context.SaveChangesAsync(ct);
+        }
+
+        return created;
+    }
+
+    private static bool IsFileBasedIngestion(IncomingNachaFileIngestion ingestion) =>
+        string.Equals(ingestion.ResolutionMode, "AchColFileBased", StringComparison.Ordinal)
+        && ingestion.CycleResolutionStatus == IncomingNachaCycleResolutionStatus.ResueltoSinCiclo
+        && ingestion.ResolvedAchCycleId is null;
+
+    private async Task<int> PlanFileBasedAsync(IncomingNachaFileIngestion ingestion, CancellationToken ct)
+    {
+        // Defense in depth: the entry context must be resolved and admitted. A legacy
+        // path must never create file-based work, even when the flag is enabled.
+        if (ingestion.IngestionStatus != IncomingNachaIngestionStatus.Completado
+            || ingestion.ResolvedClearingHouseId is null
+            || ingestion.OperationalDate is null
+            || ingestion.FileSequence is null
+            || ingestion.ExternalCycleNumber is null
+            || string.IsNullOrWhiteSpace(ingestion.CanonicalPlainFileName)
+            || string.IsNullOrWhiteSpace(ingestion.FileIdModifier))
+        {
+            return 0;
+        }
+
+        var clearingHouse = await _context.ClearingHouses.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.ClearingHouseId == ingestion.ResolvedClearingHouseId.Value, ct);
+        if (clearingHouse?.IsActive != true
+            || !string.Equals(clearingHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        // Classifications and entries must belong to the *same* ingested NACHA
+        // header. No matching on trace across unrelated files or other chambers.
+        var candidates = await (
+            from c in _context.IncomingNachaEntryClassifications.AsNoTracking()
+            join e in _context.EntryDetails.AsNoTracking() on c.EntryDetailId equals e.EntryDetailID
+            join h in _context.NachaHeaders.AsNoTracking() on e.NachaID equals h.NachaID
+            where c.IncomingNachaFileIngestionId == ingestion.Id
+                && h.IncomingNachaFileIngestionId == ingestion.Id
+                && (c.FunctionalClass == IncomingNachaFunctionalClass.CreditoEntrante
+                    || c.FunctionalClass == IncomingNachaFunctionalClass.DebitoEntrante)
+            orderby e.EntryDetailID
+            select new { Classification = c, Entry = e, Header = h }
+        ).ToListAsync(ct);
+
+        // A stable, domain-separated fingerprint is independent of ingestion GUID,
+        // external cycle, internal cycle and envelope encryption randomness.
+        var localKeys = new HashSet<string>(StringComparer.Ordinal);
+        var created = 0;
+        foreach (var candidate in candidates)
+        {
+            // Explicit F4.1 policy is evaluated even if the F3.3 query prefilters
+            // functional class. A positive decision never queues or sends a payment.
+            var eligibility = await _eligibility.EvaluateFileBasedAsync(
+                ingestion, candidate.Classification, candidate.Header, candidate.Entry,
+                clearingHouse, featureEnabled: true, ct: ct);
+            if (!eligibility.IsEligible || eligibility.IsBlocked || eligibility.IsWaitingWindow
+                || !IncomingNachaFileBasedDispatchIdentity.TryBuild(
+                    ingestion.ResolvedClearingHouseId.Value,
+                    ingestion.OperationalDate.Value,
+                    candidate.Header,
+                    candidate.Entry,
+                    out var dispatchKey))
+            {
+                // Invalid, return/prenote, ambiguous or incomplete entries remain
+                // outside automatic monetary dispatch. Never manufacture a key.
+                _logger.LogWarning(
+                    "ACHCOL_F41_INELIGIBLE_ENTRY_NOT_PLANNED|IngestionId={IngestionId}|EntryDetailId={EntryDetailId}|Reason={Reason}",
+                    ingestion.Id, candidate.Entry.EntryDetailID, eligibility.Reason);
+                continue;
+            }
+
+            if (!localKeys.Add(dispatchKey)
+                || await _context.IncomingNachaDispatchQueue.AsNoTracking()
+                    .AnyAsync(x => x.IdempotencyDispatchKey == dispatchKey, ct))
+            {
+                _logger.LogInformation(
+                    "ACHCOL_F33_DUPLICATE_DISPATCH_SUPPRESSED|IngestionId={IngestionId}|EntryDetailId={EntryDetailId}",
+                    ingestion.Id, candidate.Entry.EntryDetailID);
+                continue;
+            }
+
+            _context.IncomingNachaDispatchQueue.Add(new IncomingNachaDispatchQueue
+            {
+                SourceKind = IncomingNachaDispatchSourceKinds.AchColFileBased,
+                IncomingNachaFileIngestionId = ingestion.Id,
+                IncomingNachaEntryClassificationId = candidate.Classification.Id,
+                IncomingNachaTransactionLinkId = null,
+                EntryDetailId = candidate.Entry.EntryDetailID,
+                AchTransactionId = null,
+                AchCycleId = null,
+                ClearingHouseId = ingestion.ResolvedClearingHouseId.Value,
+                OperationalDate = ingestion.OperationalDate.Value.Date,
+                IdempotencyDispatchKey = dispatchKey,
+                Priority = eligibility.Priority,
+                // No Queued/RetryPending entries yet: existing work handlers are
+                // cycle-bound. F4 must explicitly opt in after eligibility checks.
+                QueueStatus = IncomingNachaDispatchQueueStatus.Blocked,
+                LastErrorCode = "ACHCOL_DISPATCH_NOT_ENABLED_F33",
+                LastErrorMessage = "F4.1 elegible; pendiente de F4.2/F5 y autorización de transporte CFA."
+            });
+            created++;
+        }
+
+        if (created > 0)
+        {
+            // The unique DB index is the last line of protection under concurrency.
+            // A genuine unique-key conflict fails this unit of work rather than
+            // silently retrying a potentially monetary transaction.
             await _context.SaveChangesAsync(ct);
         }
 

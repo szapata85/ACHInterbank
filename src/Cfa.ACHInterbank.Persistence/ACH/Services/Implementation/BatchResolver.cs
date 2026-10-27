@@ -20,6 +20,7 @@ public class BatchResolver : IBatchResolver
     private readonly IRoutingStrategyService _routing;
     private readonly TimeProvider _timeProvider;
     private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly IOperationalCalendarService _calendar;
     private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
     private readonly IOrdinaryTransactionCodeAuthority _transactionCodeAuthority;
 
@@ -30,13 +31,15 @@ public class BatchResolver : IBatchResolver
         TimeProvider? timeProvider = null,
         IOperationalCycleWindowResolver? windowResolver = null,
         ICycleTransactionPolicy? cycleTransactionPolicy = null,
-        IOrdinaryTransactionCodeAuthority? transactionCodeAuthority = null)
+        IOrdinaryTransactionCodeAuthority? transactionCodeAuthority = null,
+        IOperationalCalendarService? calendar = null)
     {
         _context = context;
         _batchRepository = batchRepository;
         _routing = routing;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _calendar = calendar ?? new OperationalCalendarService(context);
         _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
             new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
             new ClearingHouseToPaymentRailMapper(),
@@ -134,9 +137,27 @@ public class BatchResolver : IBatchResolver
         bool isOutsideWindow = !window.IsInside;
         var isCenit = string.Equals(cycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase);
 
-        if (isOutsideWindow && !isCenit)
+        // I04: preservar la política de cola CENIT, endurecer solo la proyección
+        // de originación ACH Colombia (o cámaras con validación de ventana propia).
+        if (!isCenit && (cycle.OperationalStatus is AchCycleOperationalStatus.Closed or AchCycleOperationalStatus.Cancelled))
         {
-            EnsureCycleIsOpenForTransactions(cycle, window);
+            throw new InvalidOperationException($"El ciclo {cycle.CycleName} no está disponible para originación (estado {cycle.OperationalStatus}).");
+        }
+
+        if (!isCenit)
+        {
+            // Validación de defensa: el enrutador ya selecciona día hábil mediante
+            // IOperationalCalendarService. Nunca convertir el sábado/feriado en fecha valor.
+            if (!await _calendar.IsBusinessDayAsync(
+                    DateOnly.FromDateTime(cycle.ProcessingDate), cycle.ClearingHouseId, ct))
+            {
+                throw new InvalidOperationException($"El ciclo {cycle.CycleName} está configurado en día no hábil.");
+            }
+
+            if (isOutsideWindow)
+            {
+                EnsureCycleIsOpenForTransactions(cycle, window);
+            }
         }
 
         var regulatoryDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
@@ -234,6 +255,15 @@ public class BatchResolver : IBatchResolver
 
     private static void EnsureCycleIsOpenForTransactions(AchCycle cycle, OperationalCycleWindow window)
     {
+        // I04: originación en sábado/feriado puede proyectar un ciclo del siguiente
+        // día hábil (routing + calendario). No se está enviando antes de apertura.
+        // Un ciclo futuro del MISMO día continúa cerrado antes de su hora inicial.
+        if (window.Status == OperationalCycleWindowStatus.Before
+            && window.LocalNow.Date < cycle.ProcessingDate.Date)
+        {
+            return;
+        }
+
         if (window.Status == OperationalCycleWindowStatus.Before)
         {
             throw new InvalidOperationException($"El ciclo {cycle.CycleName} aún no está abierto para recepción. Ventana de entrada: {window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}.");

@@ -139,6 +139,27 @@ public class TaskDefinitionSeeder : IDbSeeder
                 StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
             });
         }
+        // I03: tarea disponible para operación futura, jamás habilitada automáticamente.
+        // La ejecución requiere además AchCycleReassignment:EnableExecution=true.
+        if (!_context.TaskDefinitions.Any(t => t.Code == "AchPendingCycleReassignment"))
+        {
+            _context.TaskDefinitions.Add(new TaskDefinition
+            {
+                Code = "AchPendingCycleReassignment",
+                Name = "Reasignar transacciones ACH pendientes",
+                Description = "Revalida transacciones no presentadas y las reasigna al siguiente ciclo elegible; activación sujeta a homologación.",
+                Status = TaskStatusEnum.Disabled,
+                ManualExecutionEnabled = false,
+                RetryOnFailure = false,
+                RequestsRecovery = false,
+                ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+                MisfirePolicy = SchedulerMisfirePolicy.DoNothing,
+                PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+                N = 5,
+                TimeZoneId = "America/Bogota",
+                StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        }
         if (!_context.TaskDefinitions.Any(t => t.Code == "AchColombiaManagedMftOutbound"))
         {
             _context.TaskDefinitions.Add(new TaskDefinition
@@ -186,6 +207,7 @@ public class TaskDefinitionSeeder : IDbSeeder
             ["AchContrapartidasByCycle"] = ("Despachar débitos originados por CFA", "Evalúa y envía los movimientos débito elegibles del ciclo vigente.", true, true),
             ["IncomingNachaPostProcessing"] = ("Procesar créditos recibidos", "Evalúa entradas NACHA-M y envía únicamente los movimientos crédito elegibles.", true, true),
             ["ach-response-reprocess-dispatcher"] = ("Procesar respuestas diferenciales", "Procesa de forma idempotente solicitudes autorizadas de reproceso de respuestas ACH, sin movimientos monetarios.", true, false),
+            ["AchPendingCycleReassignment"] = ("Reasignar transacciones ACH pendientes", "Revalida transacciones no presentadas y las reasigna al siguiente ciclo elegible; activación sujeta a homologación.", false, false),
             ["AchColombiaManagedMftOutbound"] = ("Enviar archivos a ACH Colombia", "Entrega automáticamente archivos oficiales mediante la frontera administrada.", false, false),
             ["AchColombiaManagedMftInbound"] = ("Recibir archivos de ACH Colombia", "Consulta y procesa automáticamente archivos disponibles en la frontera administrada.", false, false)
         };

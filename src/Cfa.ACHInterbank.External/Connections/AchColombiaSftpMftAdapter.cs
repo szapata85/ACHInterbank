@@ -275,7 +275,8 @@ public sealed class AchColombiaSftpMftAdapter : IAchColombiaManagedMftAdapter
     private static bool IsEligibleFinalName(string name)
         => !string.IsNullOrWhiteSpace(name)
             && !name.StartsWith('.')
-            && (name.EndsWith(".OUT.env", StringComparison.OrdinalIgnoreCase)
+            && (name.EndsWith(".OUT", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".OUT.env", StringComparison.OrdinalIgnoreCase)
                 || name.EndsWith(".RET.env", StringComparison.OrdinalIgnoreCase));
 
     private static bool TryResolveClaimedOriginalName(string name, out string originalName)

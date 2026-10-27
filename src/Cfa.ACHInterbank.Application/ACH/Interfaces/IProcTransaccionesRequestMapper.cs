@@ -14,5 +14,15 @@ public interface IProcTransaccionesRequestMapper
         DateTime executionDateTime,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Build an ACHCOL NACHA entry-scoped, non-transmittable DryRun preview.
+    /// Does not invoke SOAP, mutate queue state, or fabricate an AchCycle.
+    /// </summary>
+    Task<AchColProcTransaccionesDryRunPreview> PreviewAchColFileBasedAsync(
+        IncomingNachaDispatchQueue queueItem,
+        IncomingNachaFileIngestion ingestion,
+        IncomingNachaEntryClassification classification,
+        CancellationToken ct = default);
+
     string BuildSoapBody(ProcTransaccionesRequestContract request);
 }

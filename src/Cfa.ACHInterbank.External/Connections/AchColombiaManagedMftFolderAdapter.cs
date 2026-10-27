@@ -127,7 +127,8 @@ public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManag
     {
         var name = Path.GetFileName(path);
         return !name.StartsWith('.')
-            && (name.EndsWith(".OUT.env", StringComparison.OrdinalIgnoreCase)
+            && (name.EndsWith(".OUT", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".OUT.env", StringComparison.OrdinalIgnoreCase)
                 || name.EndsWith(".RET.env", StringComparison.OrdinalIgnoreCase));
     }
     private static string ResolveRoot(string configured)

@@ -4,6 +4,8 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using System.Text.Json;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -282,6 +284,142 @@ public class IncomingNachaCycleResolverTests
         Assert.Equal("CENIT-20260417-01", result.AchCycleId);
     }
 
+    // F2.1 intentionally tests resolution only. The F2.2 admission validator
+    // currently blocks null AchCycleId and is adjusted in the next increment.
+    [Theory]
+    [InlineData("0001283.008.20260731.8.OUT", "H", 8, 8)]
+    [InlineData("0001283.009.20260731.9.OUT", "I", 9, 9)]
+    [InlineData("0001283.008.20260731.10.OUT", "H", 8, 10)]
+    public async Task ResolveAsync_AchColFileBased_ResolvesWithoutAnyConfiguredCycle(
+        string filename, string modifier, int expectedSequence, int expectedExternalCycle)
+    {
+        using var context = BuildContext();
+        SeedAchColombiaWithoutCycles(context);
+        var sut = BuildFileBasedResolver(context);
+
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = filename,
+            Records = [BuildHeader("1111111111", "20260731", "0840", modifier)]
+        });
+
+        Assert.True(result.IsResolved);
+        Assert.False(result.IsAmbiguous);
+        Assert.Equal(7, result.ClearingHouseId);
+        Assert.Equal(new DateTime(2026, 7, 31), result.OperationalDate);
+        Assert.Null(result.AchCycleId);
+        Assert.Equal(IncomingNachaCycleResolutionStatus.ResueltoSinCiclo, result.Status);
+        Assert.Equal("AchColFileBased", result.ResolutionMode);
+        Assert.Empty(result.Errors);
+        using var evidence = JsonDocument.Parse(result.EvidenceJson);
+        Assert.Equal(expectedSequence, evidence.RootElement.GetProperty("fileSequence").GetInt32());
+        Assert.Equal(expectedExternalCycle, evidence.RootElement.GetProperty("externalCycleNumber").GetInt32());
+        Assert.Equal(JsonValueKind.Null, evidence.RootElement.GetProperty("internalCycleId").ValueKind);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_AchColFileBased_DoesNotUseAvailableInternalCycles()
+    {
+        using var context = BuildContext();
+        SeedAchColombiaWithoutCycles(context);
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "ACHCOL-20260731-01", CycleName = "Ciclo 1", ClearingHouseId = 7,
+            ProcessingDate = new DateTime(2026, 7, 31),
+            StartTime = new TimeSpan(7, 0, 0), EndTime = new TimeSpan(9, 0, 0),
+            CutoffTime = new TimeSpan(9, 0, 0)
+        });
+        await context.SaveChangesAsync();
+        var sut = BuildFileBasedResolver(context);
+
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = "0001283.008.20260731.8.OUT",
+            Records = [BuildHeader("1111111111", "20260731", "0840", "H")]
+        });
+
+        Assert.True(result.IsResolved);
+        Assert.Null(result.AchCycleId);
+        Assert.Equal(IncomingNachaCycleResolutionStatus.ResueltoSinCiclo, result.Status);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_AchColFileBased_IsDisabledByDefault()
+    {
+        using var context = BuildContext();
+        SeedAchColombiaWithoutCycles(context);
+        var sut = new IncomingNachaCycleResolver(context);
+
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = "0001283.008.20260731.8.OUT",
+            Records = [BuildHeader("1111111111", "20260731", "0840", "H")]
+        });
+
+        Assert.False(result.IsResolved);
+        Assert.Equal(IncomingNachaCycleResolutionStatus.NoResuelto, result.Status);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_AchColFileBased_DoesNotChangeRetFileResolution()
+    {
+        using var context = BuildContext();
+        SeedAchColombiaWithoutCycles(context);
+        var sut = BuildFileBasedResolver(context);
+
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = "0001283.008.20260731.8.RET",
+            Records = [BuildHeader("1111111111", "20260731", "0840", "H")]
+        });
+
+        Assert.False(result.IsResolved);
+        Assert.Equal(IncomingNachaCycleResolutionStatus.NoResuelto, result.Status);
+    }
+
+    [Theory]
+    [InlineData("20261331", "0840", "Fecha")]
+    [InlineData("20260731", "9999", "Hora")]
+    public async Task ResolveAsync_AchColFileBased_RejectsInvalidHeaderDateOrTime(
+        string date, string time, string type)
+    {
+        using var context = BuildContext();
+        SeedAchColombiaWithoutCycles(context);
+        var sut = BuildFileBasedResolver(context);
+
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = "0001283.008.20260731.8.OUT",
+            Records = [BuildHeader("1111111111", date, time, "H")]
+        });
+
+        Assert.False(result.IsResolved);
+        Assert.Equal(IncomingNachaCycleResolutionStatus.NoResuelto, result.Status);
+        if (type == "Hora")
+            Assert.Contains("ACHCOL_HEADER_FILE_CREATION_TIME_INVALID", result.Errors);
+        else
+            Assert.Contains(result.Errors, e => e.Contains("Fecha operativa inválida", StringComparison.Ordinal));
+    }
+
+    private static IncomingNachaCycleResolver BuildFileBasedResolver(AchDbContext context)
+        => new(context, configuration: new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AchCol:AllowCycleIndependentInboundDispatch"] = "true"
+            })
+            .Build());
+
+    private static void SeedAchColombiaWithoutCycles(AchDbContext context)
+    {
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 7, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "1111111111",
+            ClearingHouseId = 7,
+            ClearingHouseConfig = new ClearingHouseConfig { Id = 7, HolidayStrategy = "Colombian" }
+        });
+        context.SaveChanges();
+    }
+
     private static AchDbContext BuildContext()
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()
@@ -303,8 +441,8 @@ public class IncomingNachaCycleResolverTests
         context.SaveChanges();
     }
 
-    private static string BuildHeader(string immediateOrigin, string processingDate, string creationTime = "1200")
+    private static string BuildHeader(string immediateOrigin, string processingDate, string creationTime = "1200", string fileModifier = "A")
     {
-        return "1" + "01" + "0000000001" + immediateOrigin.PadLeft(10, '0') + processingDate + creationTime + "A" + "10610" + "1" + "DESTINO".PadRight(23) + "ORIGEN".PadRight(23) + "REF00001".PadRight(8) + new string(' ', 10);
+        return "1" + "01" + "0000000001" + immediateOrigin.PadLeft(10, '0') + processingDate + creationTime + fileModifier + "10610" + "1" + "DESTINO".PadRight(23) + "ORIGEN".PadRight(23) + "REF00001".PadRight(8) + new string(' ', 10);
     }
 }

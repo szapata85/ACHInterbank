@@ -33,6 +33,8 @@ internal sealed class IncomingNachaPostProcessingPipeline
     private readonly IncomingNachaDispatchPlanningStage _dispatchPlanning;
     private readonly IncomingNachaExternalDispatchStage _externalDispatch;
     private readonly IncomingNachaAuditEventsStage _auditEvents;
+    private readonly IncomingNachaFileBasedPreparationStage _fileBasedPreparation;
+    private readonly bool _allowFileBasedPreparation;
 
     public IncomingNachaPostProcessingPipeline(
         AchDbContext context,
@@ -52,7 +54,8 @@ internal sealed class IncomingNachaPostProcessingPipeline
         IIncomingNachaAchResultResolver? achResultResolver,
         ICycleCalendarGuard calendarGuard,
         IOperationalCycleWindowResolver windowResolver,
-        ICycleTransactionPolicy? cycleTransactionPolicy)
+        ICycleTransactionPolicy? cycleTransactionPolicy,
+        bool allowFileBasedPreparation = false)
     {
         _context = context;
         _timeProvider = timeProvider;
@@ -73,6 +76,9 @@ internal sealed class IncomingNachaPostProcessingPipeline
             responseCatalogResolver,
             timeProvider);
         _auditEvents = new IncomingNachaAuditEventsStage(context, mappingTraceWriter, achResultResolver, timeProvider);
+        _fileBasedPreparation = new IncomingNachaFileBasedPreparationStage(
+            context, new IncomingNachaDispatchEligibilityPolicy(), _auditEvents);
+        _allowFileBasedPreparation = allowFileBasedPreparation;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -84,6 +90,11 @@ internal sealed class IncomingNachaPostProcessingPipeline
         var nowUtcOffset = _timeProvider.GetUtcNow();
         var nowUtc = nowUtcOffset.UtcDateTime;
         var nowLocal = TimeZoneInfo.ConvertTime(nowUtcOffset, _timeProvider.LocalTimeZone).DateTime;
+
+        // F4.2: process the bounded NACHA file-based preflight independently of
+        // the cycle-bound dispatch selector. This NEVER calls the SOAP client.
+        var fileBasedPreflight = await _fileBasedPreparation.PrepareAsync(
+            safeChunk, _allowFileBasedPreparation, ct);
 
         var integrationCodePolicies = await _resolveContext.LoadIntegrationCodePoliciesAsync(ct);
 
@@ -131,9 +142,11 @@ internal sealed class IncomingNachaPostProcessingPipeline
                 0,
                 0,
                 0,
-                waitingBlocked,
+                waitingBlocked + fileBasedPreflight.Processed,
                 waitingReleased,
-                waitingForWindow > 0
+                fileBasedPreflight.Processed > 0
+                    ? $"Prevalidacion ACHCOL F4.2: {fileBasedPreflight.ReadyForMapping} a la espera de homologacion, {fileBasedPreflight.Rejected} rechazadas; 0 envios CFA."
+                    : waitingForWindow > 0
                     ? "La tarea fue evaluada, pero no puede realizar despachos en este momento porque el ciclo no se encuentra dentro de su ventana operativa."
                     : "La tarea fue evaluada y no encontró registros elegibles.");
         }
@@ -141,7 +154,7 @@ internal sealed class IncomingNachaPostProcessingPipeline
         var confirmed = 0;
         var retryPending = 0;
         var failedFinal = 0;
-        var blocked = waitingBlocked;
+        var blocked = waitingBlocked + fileBasedPreflight.Processed;
         var waitingWindow = waitingReleased;
         var contrapartidaDispatchTargets = new HashSet<(string CycleId, int ClearingHouseId)>();
         var calendarDecisions = new Dictionary<string, CycleCalendarGuardResult>(StringComparer.Ordinal);
@@ -342,7 +355,7 @@ internal sealed class IncomingNachaPostProcessingPipeline
         // Preserve the existing post-processing persistence boundary. This SaveChanges
         // writes queue/state/audit results only; the parsed NACHA graph remains owned by R5C.
         await _context.SaveChangesAsync(ct);
-        var summary = $"Procesadas={resolved.Queues.Count}, Confirmadas={confirmed}, Retry={retryPending}, FailedFinal={failedFinal}, Blocked={blocked}, WaitingWindow={waitingWindow}.";
+        var summary = $"Procesadas={resolved.Queues.Count}, Confirmadas={confirmed}, Retry={retryPending}, FailedFinal={failedFinal}, Blocked={blocked}, WaitingWindow={waitingWindow}, AchColPrevalidacion={fileBasedPreflight.ReadyForMapping}, AchColRechazadas={fileBasedPreflight.Rejected}, AchColEnvios=0.";
         return new IncomingNachaPostProcessingRunResult(
             Planned: resolved.Ids.Count,
             Picked: resolved.Queues.Count,
@@ -394,6 +407,7 @@ internal sealed class IncomingNachaResolveContextStage
     {
         var ids = await _context.IncomingNachaDispatchQueue
             .AsNoTracking()
+            .Where(x => x.SourceKind == IncomingNachaDispatchSourceKinds.CycleBound)
             .Where(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Queued || x.QueueStatus == IncomingNachaDispatchQueueStatus.RetryPending)
             .Where(x => !x.NextAttemptAtUtc.HasValue || x.NextAttemptAtUtc <= nowUtc)
             .OrderBy(x => x.Priority)
@@ -431,7 +445,8 @@ internal sealed class IncomingNachaResolveContextStage
 
     public Task<int> CountWaitingWindowAsync(CancellationToken ct)
         => _context.IncomingNachaDispatchQueue.AsNoTracking()
-            .CountAsync(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow, ct);
+            .CountAsync(x => x.SourceKind == IncomingNachaDispatchSourceKinds.CycleBound
+                && x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow, ct);
 
     public async Task<IncomingNachaProcTransaccionesRuntime> ResolveProcTransaccionesRuntimeAsync(CancellationToken ct)
     {
@@ -497,7 +512,8 @@ internal sealed class IncomingNachaEligibilityStage
         var waitingQueues = await _context.IncomingNachaDispatchQueue
             .Include(x => x.AchTransaction)
             .ThenInclude(x => x.AchCycle)
-            .Where(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow)
+            .Where(x => x.SourceKind == IncomingNachaDispatchSourceKinds.CycleBound
+                && x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow)
             .ToListAsync(ct);
 
         var evaluations = new List<IncomingNachaWaitingWindowEvaluation>(waitingQueues.Count);
@@ -1411,8 +1427,8 @@ internal sealed class IncomingNachaAuditEventsStage
         await _mappingTraceWriter.WriteAsync(
             preparation.Operation,
             preparation.Resolution.Contract,
-            queue.AchTransactionId,
-            queue.AchTransaction.Reference,
+            queue.AchTransactionId ?? throw new InvalidOperationException("CycleBound requiere AchTransactionId."),
+            queue.AchTransaction?.Reference ?? throw new InvalidOperationException("CycleBound requiere AchTransaction."),
             correlationId,
             dryRun: !IncomingNachaPostProcessingMode.IsLive(operatingMode),
             externalTransmission: IncomingNachaPostProcessingMode.IsLive(operatingMode),

@@ -121,10 +121,11 @@ internal static class AchColombiaManagedMftImplementationSupport
             or AchManagedFileTransferStatus.RetryPending
             or AchManagedFileTransferStatus.Failed;
 
-    internal static bool IsAuthorizedInboundEnvelopeName(string fileName)
+    internal static bool IsAuthorizedInboundFileName(string fileName)
     {
         var name = Path.GetFileName(fileName);
-        return name.EndsWith(".OUT.env", StringComparison.OrdinalIgnoreCase)
+        return name.EndsWith(".OUT", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith(".OUT.env", StringComparison.OrdinalIgnoreCase)
             || name.EndsWith(".RET.env", StringComparison.OrdinalIgnoreCase);
     }
 

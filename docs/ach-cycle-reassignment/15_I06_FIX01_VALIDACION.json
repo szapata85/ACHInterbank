@@ -1,0 +1,70 @@
+{
+  "initiative": "ACH-CR-001",
+  "patch": "I06-FIX01",
+  "source_zip": "ACHInterbank_ACH_CR_I06_COMPLETO.zip",
+  "target_zip": "ACHInterbank_ACH_CR_I06_FIX01_COMPLETO.zip",
+  "report_date": "2026-10-26",
+  "compile_errors_addressed": [
+    "CS1929",
+    "CS0103",
+    "CS0165"
+  ],
+  "static_validations": {
+    "solution_graph": {
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "  project references: all targets exist and are loaded by the solution"
+    },
+    "I00": {
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "PASS ACH-CR-001: estructura, documentación, memoria y ZIP (si aplica) verificadas; sin ejecución .NET/runtime."
+    },
+    "I01": {
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "PASS I01 ESTATICO: 19 controles; compilación, tests .NET y carreras runtime NO EJECUTADOS"
+    },
+    "I02": {
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "I02 ESTATICO 25/25"
+    },
+    "I03": {
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "I03 ESTATICO 25/25"
+    },
+    "I04": {
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "I04 ESTATICO 36/36"
+    },
+    "I05": {
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "I05 controles: 38 / 38"
+    },
+    "I06": {
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "I06 ESTATICO: 55/55 controles. NO se ejecutaron .NET/EF/Quartz/MFT/UAT."
+    },
+    "I06_FIX01": {
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "I06-FIX01 ESTATICO: 14/14. Build y tests .NET NO EJECUTADOS."
+    }
+  },
+  "dotnet_sdk_available": false,
+  "dotnet_build": "NOT_RUN_ENVIRONMENT",
+  "dotnet_tests": "NOT_RUN_ENVIRONMENT",
+  "database_concurrency_tests": "NOT_RUN_ENVIRONMENT",
+  "quartz": "DISABLED",
+  "production": "NO_GO",
+  "remaining_planned_increments": 0,
+  "limitations": [
+    "Static checks are not a C# compiler. Build and tests must be rerun on a .NET-capable workstation.",
+    "Packaging integrity and SHA-256 will be recorded in the external delivery report."
+  ]
+}

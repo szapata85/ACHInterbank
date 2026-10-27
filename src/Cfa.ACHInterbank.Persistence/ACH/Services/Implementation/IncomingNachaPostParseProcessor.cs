@@ -122,6 +122,20 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 .AsNoTracking()
                 .FirstAsync(x => x.Id == ingestionId, ct);
 
+            // F3.3: a monetary ACHCOL entry is sourced directly from NACHA-M.
+            // The absence of an AchTransaction/legacy cycle is not an ambiguous
+            // match. Returns, prenotes and any manual cases retain legacy linking.
+            if (string.Equals(ingestion.ResolutionMode, "AchColFileBased", StringComparison.Ordinal)
+                && ingestion.CycleResolutionStatus == IncomingNachaCycleResolutionStatus.ResueltoSinCiclo
+                && ingestion.ResolvedAchCycleId is null
+                && classification.EligibilityStatus == IncomingNachaEligibilityStatus.Elegible
+                && !classification.RequiresManualResolution
+                && (classification.FunctionalClass is IncomingNachaFunctionalClass.CreditoEntrante
+                    or IncomingNachaFunctionalClass.DebitoEntrante))
+            {
+                continue;
+            }
+
             if (_localLivePreparationService is not null)
             {
                 await _localLivePreparationService.EnsureAsync(ingestion, entry, classification.FunctionalClass, ct);

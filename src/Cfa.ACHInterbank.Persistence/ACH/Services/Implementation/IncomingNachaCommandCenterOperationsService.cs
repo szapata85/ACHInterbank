@@ -96,6 +96,30 @@ public class IncomingNachaCommandCenterOperationsService : IIncomingNachaCommand
         var queue = await _context.IncomingNachaDispatchQueue.FirstOrDefaultAsync(x => x.Id == queueId, ct)
                     ?? throw new InvalidOperationException("No existe item de cola indicado.");
 
+        // F4.3: ACK/timeout CFA and replays must never be resolved by a blind
+        // Command Center retry/unblock. The F5 release contract is not implemented.
+        // Audit the rejected attempt using the existing transition event model.
+        if (queue.SourceKind == IncomingNachaDispatchSourceKinds.AchColFileBased)
+        {
+            var canCloseWithoutSending = transitionEvent == IncomingNachaDispatchEvent.ManualMarkFailedFinal
+                && queue.AttemptCount == 0
+                && !await _context.IncomingNachaIntegrationExecution.AsNoTracking()
+                    .AnyAsync(x => x.DispatchQueueId == queue.Id, ct);
+            if (!canCloseWithoutSending)
+            {
+                const string code = "ACHCOL_FILEBASED_MANUAL_RELEASE_FORBIDDEN_F43";
+                var reason = "Entrada ACHCOL retenida: no reintentar, desbloquear ni reencolar antes de F5; "
+                    + "si existe un intento CFA, primero conciliar su resultado.";
+                var rejected = new IncomingNachaDispatchTransitionDecision(
+                    queue.QueueStatus, transitionEvent, false, null, code, reason);
+                await RegisterTransitionEventAsync(
+                    queue, normalizedBy, transitionEvent, "DispatchTransition",
+                    $"Event:{transitionEvent};IdempotencyKey:{normalizedKey}",
+                    "Rejected", queue.QueueStatus, queue.QueueStatus, request, rejected, ct);
+                throw new InvalidOperationException($"[{code}] {reason}");
+            }
+        }
+
         var idempotentEventType = "DispatchTransition";
         var idempotentMessage = $"Event:{transitionEvent};IdempotencyKey:{normalizedKey}";
         var replayed = await _context.IncomingNachaProcessingEvents.AsNoTracking().AnyAsync(x =>

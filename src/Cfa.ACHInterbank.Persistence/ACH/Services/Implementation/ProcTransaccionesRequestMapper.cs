@@ -53,9 +53,173 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         AchCycle cycle,
         DateTime executionDateTime,
         CancellationToken ct = default)
-        => _options.UseContractDrivenRequest
+    {
+        ArgumentNullException.ThrowIfNull(queueItem);
+        // The legacy contract requires real AchTransaction/AchCycle entities. Never use
+        // fabricated ones to process a file-based ACH Colombia entry. F5.2 will
+        // introduce the entry-scoped mapping only after the field sources are resolved.
+        if (string.Equals(queueItem.SourceKind, IncomingNachaDispatchSourceKinds.AchColFileBased, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "PROC_TRANSACCIONES_ACHCOL_MAPPING_NOT_HOMOLOGATED_F51: la fuente NACHA debe mapearse sin AchTransaction/AchCycle ficticios.");
+        }
+
+        return _options.UseContractDrivenRequest
             ? ResolveContractDrivenAsync(queueItem, ingestion, classification, transaction, cycle, executionDateTime, ct)
             : ResolveLegacyAsync(queueItem, ingestion, classification, transaction, cycle, executionDateTime, ct);
+    }
+
+    /// <summary>
+    /// F5.2: entry-scoped diagnostic projection. It deliberately returns a different
+    /// type than ResolveAsync to prevent a partial/unhomologated contract from entering
+    /// the SOAP transport. Only a persisted F4.2-approved, still-blocked row qualifies.
+    /// This method is read-only and performs NO client/queue writes, even in Live mode.
+    /// </summary>
+    public async Task<AchColProcTransaccionesDryRunPreview> PreviewAchColFileBasedAsync(
+        IncomingNachaDispatchQueue queueItem,
+        IncomingNachaFileIngestion ingestion,
+        IncomingNachaEntryClassification classification,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(queueItem);
+        ArgumentNullException.ThrowIfNull(ingestion);
+        ArgumentNullException.ThrowIfNull(classification);
+        ct.ThrowIfCancellationRequested();
+
+        const string blocked = "ACHCOL_SOAP_CONTRACT_NOT_HOMOLOGATED_F52";
+        if (queueItem.SourceKind != IncomingNachaDispatchSourceKinds.AchColFileBased
+            || queueItem.AchCycleId is not null
+            || queueItem.AchTransactionId is not null
+            || queueItem.EntryDetailId is not int entryId
+            || queueItem.QueueStatus != IncomingNachaDispatchQueueStatus.Blocked
+            || queueItem.LastErrorCode != IncomingNachaFileBasedPreparationStage.MappingPendingCode
+            || queueItem.AttemptCount != 0 || queueItem.NextAttemptAtUtc is not null
+            || queueItem.IncomingNachaFileIngestionId != ingestion.Id
+            || queueItem.IncomingNachaEntryClassificationId != classification.Id
+            || classification.IncomingNachaFileIngestionId != ingestion.Id
+            || classification.EntryDetailId != entryId
+            || classification.EligibilityStatus != IncomingNachaEligibilityStatus.Elegible
+            || classification.RequiresManualResolution
+            || classification.FunctionalClass is not (IncomingNachaFunctionalClass.CreditoEntrante or IncomingNachaFunctionalClass.DebitoEntrante)
+            || ingestion.IngestionStatus != IncomingNachaIngestionStatus.Completado
+            || ingestion.ResolutionMode != IncomingNachaDispatchSourceKinds.AchColFileBased
+            || ingestion.ResolvedAchCycleId is not null
+            || ingestion.ResolvedClearingHouseId != queueItem.ClearingHouseId
+            || ingestion.OperationalDate?.Date != queueItem.OperationalDate.Date)
+        {
+            throw new InvalidOperationException("ACHCOL_F52_DRYRUN_CONTEXT_INVALID: cola, ingestion o clasificacion no corresponden.");
+        }
+
+        if (!ExternalFileNames.AchColInboundFileNameParser.TryParse(ingestion.FileName, out var file, out _)
+            || file is null
+            || !string.Equals(ingestion.CanonicalPlainFileName, file.CanonicalPlainFileName, StringComparison.OrdinalIgnoreCase)
+            || ingestion.FileSequence != file.FileSequence
+            || ingestion.ExternalCycleNumber != file.ExternalCycleNumber
+            || ingestion.FileIdModifier != file.FileIdModifier.ToString()
+            || ingestion.FileProtectionKind != file.ProtectionKind.ToString()
+            || ingestion.FileNameDate?.Date != queueItem.OperationalDate.Date
+            || file.FileDate != DateOnly.FromDateTime(queueItem.OperationalDate))
+        {
+            throw new InvalidOperationException("ACHCOL_F52_DRYRUN_FILE_INVALID: contexto fisico NACHA no consistente.");
+        }
+
+        var chamber = await _context.ClearingHouses.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.ClearingHouseId == queueItem.ClearingHouseId, ct);
+        if (chamber is null || !chamber.IsActive
+            || !string.Equals(chamber.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("ACHCOL_F52_DRYRUN_CHAMBER_INVALID: origen distinto de ACH Colombia.");
+
+        var entry = await _context.EntryDetails.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.EntryDetailID == entryId, ct)
+            ?? throw new InvalidOperationException("ACHCOL_F52_DRYRUN_ENTRY_MISSING: entrada no persistida.");
+        var header = await _context.NachaHeaders.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.NachaID == entry.NachaID && x.IncomingNachaFileIngestionId == ingestion.Id, ct)
+            ?? throw new InvalidOperationException("ACHCOL_F52_DRYRUN_HEADER_MISSING: encabezado no vinculado a la ingestion.");
+        if (header.FileIdModifier != ingestion.FileIdModifier
+            || !IncomingNachaFileBasedDispatchIdentity.TryBuild(
+                queueItem.ClearingHouseId, queueItem.OperationalDate, header, entry, out var identity)
+            || !string.Equals(identity, queueItem.IdempotencyDispatchKey, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("ACHCOL_F52_DRYRUN_IDENTITY_MISMATCH: identidad de negocio no coincide.");
+        }
+
+        var code = entry.TransactionCode?.Trim();
+        var monetary = classification.FunctionalClass switch
+        {
+            IncomingNachaFunctionalClass.CreditoEntrante => code is "22" or "32" or "52",
+            IncomingNachaFunctionalClass.DebitoEntrante => code is "27" or "37" or "55",
+            _ => false
+        };
+        if (!monetary || entry.Amount is null or <= 0m
+            || classification.PrenoteStatus != IncomingNachaPrenoteStatus.NoAplica
+            || !string.IsNullOrWhiteSpace(classification.ReturnReasonCode)
+            || !string.IsNullOrWhiteSpace(classification.OriginalTraceRef))
+        {
+            throw new InvalidOperationException("ACHCOL_F52_DRYRUN_NOT_MONETARY: tipo 6 no elegible para CFA.");
+        }
+
+        var batches = await _context.BatchHeaders.AsNoTracking()
+            .Where(x => x.NachaID == entry.NachaID && x.BatchNumber == entry.BatchNumber)
+            .Take(2).ToListAsync(ct);
+        if (batches.Count != 1)
+            throw new InvalidOperationException("ACHCOL_F52_DRYRUN_BATCH_INVALID: lote faltante o ambiguo.");
+
+        // Respect published metadata: never silently reuse a CycleBound mapping to
+        // assign cycle.id, transaction.id, or uncertain institution identifiers.
+        var method = await _context.IntegrationMethods.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Code == MethodCode && x.IsActive, ct)
+            ?? throw new InvalidOperationException("ACHCOL_F52_DRYRUN_METHOD_MISSING: metodo CFA no activo.");
+        var mappingSets = await _context.IntegrationMappingSets.AsNoTracking()
+            .Where(x => x.MethodId == method.Id
+                && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive)
+            .Take(2).ToListAsync(ct);
+        if (mappingSets.Count != 1)
+            throw new InvalidOperationException("ACHCOL_F52_DRYRUN_MAPPING_INVALID: se requiere un unico mapping publicado.");
+        var parameters = await _context.IntegrationMethodParameters.AsNoTracking()
+            .Where(x => x.MethodId == method.Id && x.IsActive
+                && x.Direction == IntegrationParameterDirectionEnum.Input)
+            .ToListAsync(ct);
+        if (parameters.Count == 0 || parameters.Any(x => !AchColProcTransaccionesFieldSources.Fields.ContainsKey(x.ParameterPath)))
+            throw new InvalidOperationException("ACHCOL_F52_DRYRUN_CATALOG_INVALID: parametros desconocidos o ausentes.");
+
+        // Observed NACHA values only, without imposing unapproved formats or
+        // including conditional identifiers (IDTRAN, IDLOTE, IDCAMCOMPE, etc.).
+        var observed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["TIPTRAN"] = code!,
+            ["MONTO"] = entry.Amount.Value.ToString("G29", CultureInfo.InvariantCulture)
+        };
+        AddNonEmpty(observed, "NCTARECEP", entry.AccountNumber);
+        AddNonEmpty(observed, "NRECEP", entry.RecipUserName);
+        AddNonEmpty(observed, "IDRECEP", entry.RecipIdNumber);
+        // Optional DISCRE is intentionally not rendered until its mapping is approved.
+        var pending = AchColProcTransaccionesFieldSources.Fields.Values
+            .Where(x => x.Status != AchColProcTransaccionesFieldSources.DirectCandidate
+                || x.Parameter == "DISCRE" || !observed.ContainsKey(x.Parameter))
+            .Select(x => x.Parameter)
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToArray();
+        var missingRequired = parameters.Where(x => x.Required && !observed.ContainsKey(x.ParameterPath))
+            .Select(x => x.ParameterPath).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+
+        // SOAP-shaped diagnostic preview, NOT a complete/sendable request. The
+        // caller receives no ProcTransaccionesRequestContract or SOAP client handle.
+        var previewXml = BuildLegacySoapBody(new ProcTransaccionesRequestContract(observed));
+        var preview = new AchColProcTransaccionesDryRunPreview(
+            queueItem.Id, entryId, mappingSets[0].Id, mappingSets[0].Version,
+            observed, pending, missingRequired, previewXml, blocked);
+        // F5.3: validate offline SOAP shape and direct-field allowlist before
+        // exposing diagnostic evidence. This is NOT contract homologation and
+        // cannot unblock, enqueue or transmit a monetary operation.
+        _ = AchColProcTransaccionesDryRunContractCheck.Inspect(preview);
+        return preview;
+    }
+
+    private static void AddNonEmpty(Dictionary<string, string> values, string key, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            values[key] = value.Trim();
+    }
 
     private async Task<ProcTransaccionesRequestResolution> ResolveContractDrivenAsync(
         IncomingNachaDispatchQueue queueItem,

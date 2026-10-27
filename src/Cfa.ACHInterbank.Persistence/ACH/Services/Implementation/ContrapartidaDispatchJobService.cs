@@ -268,7 +268,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             var transactionById = transactions.ToDictionary(x => x.Id);
             var queueItems = await _context.IncomingNachaDispatchQueue
                 .AsNoTracking()
-                .Where(q => q.AchCycleId == cycle.Id && q.ClearingHouseId == cycle.ClearingHouseId && transactionIds.Contains(q.AchTransactionId))
+                .Where(q => q.AchCycleId == cycle.Id && q.ClearingHouseId == cycle.ClearingHouseId && q.AchTransactionId.HasValue && transactionIds.Contains(q.AchTransactionId.Value))
                 .ToListAsync(ct);
             var queueByTransactionId = queueItems
                 .GroupBy(q => q.AchTransactionId)
