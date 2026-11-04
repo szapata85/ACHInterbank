@@ -163,17 +163,22 @@ describe('AchColombiaMftAdministrationComponent', () => {
   });
 
   it('refreshes without unmounting the form while APIs are still responding', async () => {
-    // Let the initial ngModel/Material view settle before triggering another CD cycle.
     await fixture.whenStable();
-    fixture.detectChanges();
+    const formBeforeRefresh = fixture.nativeElement.querySelector('[data-testid=connection-config]');
+    expect(formBeforeRefresh).not.toBeNull();
+
     const pending = new Subject<ManagedMftAdministration>();
     api.administration.and.returnValue(pending);
-    component.load();
+    const refreshButton = fixture.nativeElement.querySelector('button[aria-label="Actualizar configuración"]') as HTMLButtonElement;
+    expect(refreshButton).not.toBeNull();
+    expect(refreshButton.disabled).toBeFalse();
+    // Exercise the real template event and the zoneless change notification path.
+    refreshButton.click();
     fixture.detectChanges();
 
     expect(component.refreshing).toBeTrue();
     expect(component.loading).toBeFalse();
-    expect(fixture.nativeElement.querySelector('[data-testid=connection-config]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid=connection-config]')).toBe(formBeforeRefresh);
     expect(fixture.nativeElement.textContent).toContain('Actualizando…');
 
     pending.next({ ...model, endpoint: 'new.sftp.example' });
@@ -182,6 +187,7 @@ describe('AchColombiaMftAdministrationComponent', () => {
     fixture.detectChanges();
     expect(component.refreshing).toBeFalse();
     expect(component.model?.endpoint).toBe('new.sftp.example');
+    expect(fixture.nativeElement.querySelector('[data-testid=connection-config]')).toBe(formBeforeRefresh);
   });
 
   it('unblocks the refresh after a timeout without forcing F5 or discarding the form', fakeAsync(() => {

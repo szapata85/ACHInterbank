@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -56,6 +56,7 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
   private readonly schedulesApi = inject(AchColombiaOperationalSchedulesService);
   private readonly auth = inject(AuthService);
   private readonly notifications = inject(NotificationService);
+  private readonly changeDetector = inject(ChangeDetectorRef);
 
   readonly canManage = this.auth.hasPermission(['Config.Manage', 'CanManageAch']);
   readonly scheduleColumns = ['cycle', 'window', 'automaticTime', 'latestTime', 'active'];
@@ -94,22 +95,30 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
     this.loading = !isRefresh;
     this.refreshing = isRefresh;
     this.error = '';
+    // Angular 21 zoneless: notify the view when a programmatic refresh starts.
+    this.changeDetector.markForCheck();
     forkJoin({
       configuration: this.api.administration(),
       schedules: this.schedulesApi.administration()
     }).pipe(
       timeout({ first: 15000 }),
-      finalize(() => { this.loading = false; this.refreshing = false; })
+      finalize(() => {
+        this.loading = false;
+        this.refreshing = false;
+        this.changeDetector.markForCheck();
+      })
     ).subscribe({
       next: ({ configuration, schedules }) => {
         this.applyConfiguration(configuration);
         this.schedules = schedules.map(row => this.toEditorRow(row));
         if (isRefresh) this.notifications.info('Información actualizada.');
+        this.changeDetector.markForCheck();
       },
       error: error => {
         this.error = error instanceof TimeoutError
           ? 'La actualización tardó demasiado. Puedes intentarlo nuevamente sin recargar el navegador.'
           : 'No fue posible actualizar la configuración. Puedes reintentar sin salir del formulario.';
+        this.changeDetector.markForCheck();
       }
     });
   }
