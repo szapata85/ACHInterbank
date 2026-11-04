@@ -19,9 +19,14 @@ const originalLock = readFileSync(lockPath, 'utf8');
 // Angular CLI/Express constrain these transitive versions. npm overrides are
 // needed to select patched releases without forcing a breaking Angular upgrade.
 const securityOverrides = {
-  '@modelcontextprotocol/sdk': '1.31.0',
+  '@modelcontextprotocol/sdk': '1.32.0',
+  'body-parser': '1.20.9',
   'proxy-addr': '2.0.8',
-  'shell-quote': '1.11.0'
+  'shell-quote': '1.11.0',
+  'qs': '6.16.1',
+  'undici': '7.30.1',
+  '@hono/node-server': '2.1.3',
+  'vite': '7.3.7'
 };
 
 // Invoking npm.cmd via spawnSync({ shell: false }) is unreliable on Windows.
