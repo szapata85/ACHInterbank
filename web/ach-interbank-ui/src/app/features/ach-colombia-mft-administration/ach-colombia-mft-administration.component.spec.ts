@@ -162,7 +162,10 @@ describe('AchColombiaMftAdministrationComponent', () => {
     expect(component.windowLabel(c7)).toBe('16:01 – 18:00');
   });
 
-  it('refreshes without unmounting the form while APIs are still responding', () => {
+  it('refreshes without unmounting the form while APIs are still responding', async () => {
+    // Let the initial ngModel/Material view settle before triggering another CD cycle.
+    await fixture.whenStable();
+    fixture.detectChanges();
     const pending = new Subject<ManagedMftAdministration>();
     api.administration.and.returnValue(pending);
     component.load();
@@ -175,6 +178,7 @@ describe('AchColombiaMftAdministrationComponent', () => {
 
     pending.next({ ...model, endpoint: 'new.sftp.example' });
     pending.complete();
+    await fixture.whenStable();
     fixture.detectChanges();
     expect(component.refreshing).toBeFalse();
     expect(component.model?.endpoint).toBe('new.sftp.example');

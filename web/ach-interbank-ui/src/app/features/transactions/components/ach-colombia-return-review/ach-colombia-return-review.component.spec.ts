@@ -41,11 +41,15 @@ describe('AchColombiaReturnReviewComponent', () => {
       providers: [
         { provide: AchColombiaReturnReviewApiService, useValue: api },
         { provide: AuthService, useValue: auth },
-        { provide: MatDialog, useValue: dialog },
         { provide: NotificationService, useValue: notifications }
       ]
+    }).overrideComponent(AchColombiaReturnReviewComponent, {
+      // MatDialogModule also registers MatDialog. Force the spy at the component injector
+      // so these tests never open the real Angular Material dialog/overlay.
+      add: { providers: [{ provide: MatDialog, useValue: dialog }] }
     }).compileComponents();
     fixture = TestBed.createComponent(AchColombiaReturnReviewComponent);
+    expect(fixture.debugElement.injector.get(MatDialog)).toBe(dialog);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
