@@ -153,7 +153,10 @@ public class CenitIncomingReturnPolicyTests
             returnDate: ValueDate.AddDays(10),
             returnRequestDate: ValueDate.AddDays(10),
             immediateReturnCycle: true,
-            receiverRejectionDeadline: ValueDate.AddDays(11)));
+            receiverRejectionDeadline: ValueDate.AddDays(11),
+            originalReceivedDate: ValueDate,
+            receiverNotificationDate: ValueDate.AddDays(10),
+            calculatedDeadline: ValueDate.AddDays(11)));
         var noNotificationEvidence = _sut.Evaluate(Request(
             TransactionTypeEnum.Credit,
             "R23",
@@ -168,7 +171,8 @@ public class CenitIncomingReturnPolicyTests
             returnDate: ValueDate.AddDays(16),
             returnRequestDate: ValueDate.AddDays(16),
             immediateReturnCycle: true,
-            receiverRejectionDeadline: ValueDate.AddDays(17)));
+            receiverRejectionDeadline: ValueDate.AddDays(17),
+            originalReceivedDate: ValueDate));
 
         Assert.True(sameDay.IsAllowed);
         Assert.True(later.IsAllowed);
@@ -192,7 +196,10 @@ public class CenitIncomingReturnPolicyTests
             returnDate: returnDate,
             returnRequestDate: returnDate,
             immediateReturnCycle: true,
-            receiverRejectionDeadline: returnDate.AddDays(1)));
+            receiverRejectionDeadline: returnDate.AddDays(1),
+            originalReceivedDate: ValueDate,
+            receiverNotificationDate: returnDate,
+            calculatedDeadline: returnDate.AddDays(1)));
 
         Assert.True(result.IsAllowed);
         Assert.Equal("CENIT_R23_LATER_ALLOWED", result.Code);
@@ -253,7 +260,10 @@ public class CenitIncomingReturnPolicyTests
             returnDate: returnDate,
             returnRequestDate: returnDate,
             immediateReturnCycle: true,
-            receiverRejectionDeadline: returnDate.AddDays(1)));
+            receiverRejectionDeadline: returnDate.AddDays(1),
+            originalReceivedDate: ValueDate,
+            receiverNotificationDate: returnDate,
+            calculatedDeadline: returnDate.AddDays(1)));
 
         Assert.True(result.IsAllowed);
         Assert.Equal("CENIT_R23_LATER_ALLOWED", result.Code);
@@ -283,7 +293,10 @@ public class CenitIncomingReturnPolicyTests
         bool? fundsRequired = null,
         bool? fundsAvailable = null,
         bool? originatorConfirmation = null,
-        DateTime? receiverRejectionDeadline = null)
+        DateTime? receiverRejectionDeadline = null,
+        DateTime? originalReceivedDate = null,
+        DateTime? receiverNotificationDate = null,
+        DateTime? calculatedDeadline = null)
         => new(
             type,
             code,
@@ -300,5 +313,8 @@ public class CenitIncomingReturnPolicyTests
             fundsRequired,
             fundsAvailable,
             originatorConfirmation,
-            receiverRejectionDeadline);
+            receiverRejectionDeadline,
+            originalReceivedDate,
+            receiverNotificationDate,
+            calculatedDeadline);
 }

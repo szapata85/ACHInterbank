@@ -279,6 +279,52 @@ public class IncomingNachaCommandCenterServiceTests
         Assert.NotNull(summary.IngestionsByStatus);
         Assert.NotNull(summary.ByClearingHouseCycle);
         Assert.NotNull(summary.Timeline);
+        Assert.Equal(0, summary.AchColFileBased.TotalItems);
+    }
+
+    [Theory]
+    [InlineData("ACHCOL_DISPATCH_NOT_ENABLED_F33", 1, 0, 0)]
+    [InlineData("ACHCOL_MAPPING_NOT_READY_F42", 0, 1, 0)]
+    [InlineData("ACHCOL_PREFLIGHT_REJECTED_F42", 0, 0, 1)]
+    public async Task GetObservabilitySummaryAsync_ShouldDistinguishBlockedAchColReasons(
+        string reason, int pending, int mapping, int rejected)
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        queue.SourceKind = IncomingNachaDispatchSourceKinds.AchColFileBased;
+        queue.AchTransactionId = null;
+        queue.AchCycleId = null;
+        queue.IncomingNachaTransactionLinkId = null;
+        queue.EntryDetailId = 1;
+        queue.LastErrorCode = reason;
+        await context.SaveChangesAsync();
+
+        var metrics = (await CreateSut(context).GetObservabilitySummaryAsync(24)).AchColFileBased;
+        Assert.Equal(1, metrics.TotalItems);
+        Assert.Equal(pending, metrics.PendingPreflight);
+        Assert.Equal(mapping, metrics.PendingContractHomologation);
+        Assert.Equal(rejected, metrics.PreflightRejected);
+        Assert.Equal(0, metrics.UnexpectedNonBlocked);
+        Assert.Equal(0, metrics.WithAttempts);
+    }
+
+    [Fact]
+    public async Task GetObservabilitySummaryAsync_ShouldDetectUnsafeAchColQueueWithoutExposingDetails()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Queued);
+        queue.SourceKind = IncomingNachaDispatchSourceKinds.AchColFileBased;
+        queue.AchTransactionId = null;
+        queue.AchCycleId = null;
+        queue.IncomingNachaTransactionLinkId = null;
+        queue.EntryDetailId = 1;
+        queue.AttemptCount = 1;
+        await context.SaveChangesAsync();
+
+        var metrics = (await CreateSut(context).GetObservabilitySummaryAsync(24)).AchColFileBased;
+        Assert.Equal(1, metrics.UnexpectedNonBlocked);
+        Assert.Equal(1, metrics.WithAttempts);
+        Assert.Equal(1, metrics.TotalItems);
     }
 
     [Fact]
@@ -543,6 +589,122 @@ public class IncomingNachaCommandCenterServiceTests
         Assert.Equal("Programado", item.ProcessingStatusText);
         Assert.Equal("Pendiente", item.OverallResultText);
         Assert.NotNull(item.ScheduledAtUtc);
+    }
+
+    // F4.3: use the existing Command Center and audit tables, not a parallel retry engine.
+    [Theory]
+    [InlineData(IncomingNachaDispatchQueueStatus.Blocked, "unblock")]
+    [InlineData(IncomingNachaDispatchQueueStatus.Blocked, "requeue")]
+    [InlineData(IncomingNachaDispatchQueueStatus.RetryPending, "retry")]
+    [InlineData(IncomingNachaDispatchQueueStatus.Queued, "requeue")]
+    public async Task FileBased_ManualRelease_IsRejectedAndAudited(
+        IncomingNachaDispatchQueueStatus status, string action)
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, status);
+        queue.SourceKind = IncomingNachaDispatchSourceKinds.AchColFileBased;
+        queue.AchCycleId = null;
+        queue.AchTransactionId = null;
+        queue.IncomingNachaTransactionLinkId = null;
+        queue.EntryDetailId = 1;
+        queue.LastErrorCode = "ACHCOL_MAPPING_NOT_READY_F42";
+        await context.SaveChangesAsync();
+        var sut = CreateSut(context);
+        var request = new IncomingNachaManualActionRequest
+        {
+            IdempotencyKey = $"f43-{action}",
+            Justification = "Retenido para conciliacion y homologacion"
+        };
+
+        Func<Task> execute = action switch
+        {
+            "unblock" => () => sut.UnblockManualAsync(queue.Id, request, "tester"),
+            "retry" => () => sut.RetryManualAsync(queue.Id, request, "tester"),
+            _ => () => sut.RequeueManualAsync(queue.Id, request, "tester")
+        };
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(execute);
+        Assert.Contains("ACHCOL_FILEBASED_MANUAL_RELEASE_FORBIDDEN_F43", exception.Message);
+        context.ChangeTracker.Clear();
+        var actual = await context.IncomingNachaDispatchQueue.SingleAsync();
+        Assert.Equal(status, actual.QueueStatus);
+        Assert.Equal("ACHCOL_MAPPING_NOT_READY_F42", actual.LastErrorCode);
+        Assert.Equal(0, actual.AttemptCount);
+        Assert.Null(actual.NextAttemptAtUtc);
+        Assert.Single(await context.IncomingNachaProcessingEvents
+            .Where(e => e.EventType == "DispatchTransition" && e.EventStatus == "Rejected")
+            .ToListAsync());
+        Assert.Empty(await context.IncomingNachaIntegrationExecution.ToListAsync());
+    }
+
+    [Fact]
+    public async Task FileBased_CommandCenterDoesNotExposeUnsafeReleaseActions()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        queue.SourceKind = IncomingNachaDispatchSourceKinds.AchColFileBased;
+        queue.AchCycleId = null;
+        queue.AchTransactionId = null;
+        queue.IncomingNachaTransactionLinkId = null;
+        queue.EntryDetailId = 1;
+        await context.SaveChangesAsync();
+
+        var detail = await CreateSut(context).GetQueueDetailAsync(queue.Id);
+        Assert.NotNull(detail);
+        Assert.False(detail!.Queue.AllowedActions.CanRetry);
+        Assert.False(detail.Queue.AllowedActions.CanUnblock);
+        Assert.False(detail.Queue.AllowedActions.CanRequeue);
+        Assert.DoesNotContain("unblock", detail.Queue.AllowedActions.AllowedActions);
+        Assert.DoesNotContain("requeue", detail.Queue.AllowedActions.AllowedActions);
+        Assert.True(detail.Queue.AllowedActions.CanMarkFailedFinal);
+    }
+
+    [Fact]
+    public async Task FileBased_CanCloseUnsentItemWithoutSoapAttempt()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        queue.SourceKind = IncomingNachaDispatchSourceKinds.AchColFileBased;
+        queue.AchCycleId = null;
+        queue.AchTransactionId = null;
+        queue.IncomingNachaTransactionLinkId = null;
+        queue.EntryDetailId = 1;
+        await context.SaveChangesAsync();
+        var result = await CreateSut(context).MarkFailedFinalManualAsync(
+            queue.Id, new IncomingNachaManualActionRequest
+            {
+                IdempotencyKey = "f43-final-no-send",
+                Justification = "Cierre operativo sin intento monetario"
+            }, "ops.test");
+        Assert.Equal(IncomingNachaDispatchQueueStatus.FailedFinal, result.CurrentStatus);
+        Assert.Empty(await context.IncomingNachaIntegrationExecution.ToListAsync());
+    }
+
+    [Fact]
+    public async Task FileBased_WithAnyRecordedSoapAttempt_CannotBeClosedAsFailedByOperator()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        queue.SourceKind = IncomingNachaDispatchSourceKinds.AchColFileBased;
+        queue.AttemptCount = 1;
+        queue.AchCycleId = null;
+        queue.AchTransactionId = null;
+        queue.IncomingNachaTransactionLinkId = null;
+        queue.EntryDetailId = 1;
+        queue.LastErrorCode = "ACHCOL_CFA_OUTCOME_UNCERTAIN";
+        await context.SaveChangesAsync();
+        var request = new IncomingNachaManualActionRequest
+        {
+            IdempotencyKey = "f43-uncertain-final",
+            Justification = "Resultado incierto requiere conciliacion"
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateSut(context).MarkFailedFinalManualAsync(queue.Id, request, "tester"));
+        Assert.Contains("ACHCOL_FILEBASED_MANUAL_RELEASE_FORBIDDEN_F43", error.Message);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked,
+            (await context.IncomingNachaDispatchQueue.SingleAsync()).QueueStatus);
+        Assert.True(await context.IncomingNachaProcessingEvents
+            .AnyAsync(e => e.EventType == "DispatchTransition" && e.EventStatus == "Rejected"));
     }
 
     private static async Task<IncomingNachaDispatchQueue> SeedQueueAsync(AchDbContext context, IncomingNachaDispatchQueueStatus status)

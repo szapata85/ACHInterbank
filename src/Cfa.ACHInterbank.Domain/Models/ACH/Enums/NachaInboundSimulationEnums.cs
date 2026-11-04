@@ -16,7 +16,20 @@ public enum NachaInboundSimulationType
     IncomingCreditReturn = 6,
     IncomingDebitConfirmation = 7,
     IncomingDebitRejection = 8,
-    IncomingDebitReturn = 9
+    IncomingDebitReturn = 9,
+    // I01: nuevo escenario explicito para una devolucion de prenotificacion.
+    // El valor 3 (IncomingPrenotificationResponse) es legado y no debe reasignarse.
+    // No habilitar generacion hasta homologacion I02/I03.
+    IncomingPrenotificationReturn = 10
+}
+
+/// <summary>
+/// El resultado de una prenotificacion saliente NO implica siempre un archivo recibido.
+/// </summary>
+public enum PrenotificationSimulationOutcome
+{
+    Returned = 1,
+    NoReturnByDeadline = 2
 }
 
 public enum NachaInboundSimulationStatus

@@ -37,7 +37,8 @@ public class NachaFileBuilder : INachaFileBuilder
         IBatchNumberGenerator? batchNumberGenerator = null,
         INachaControlTotalsCalculator? controlTotalsCalculator = null,
         IOperationalTimeSnapshotProvider? operationalTimeProvider = null,
-        ICycleCalendarGuard? calendarGuard = null)
+        ICycleCalendarGuard? calendarGuard = null,
+        ICenitCycleQueueService? cenitCycleQueueService = null)
     {
         _ = holidayService;
 
@@ -66,7 +67,8 @@ public class NachaFileBuilder : INachaFileBuilder
             resolvedBatchNumberGenerator,
             resolvedControlTotalsCalculator,
             resolvedOperationalTimeProvider,
-            resolvedCalendarGuard);
+            resolvedCalendarGuard,
+            cenitCycleQueueService);
     }
 
     public Task<NachaReturnOutBuildResult> BuildReturnOutAsync(

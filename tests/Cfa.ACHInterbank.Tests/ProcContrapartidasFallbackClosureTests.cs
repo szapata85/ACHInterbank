@@ -3,6 +3,8 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Microsoft.Extensions.Options;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Moq;
 using Xunit;
@@ -46,6 +48,26 @@ public sealed class ProcContrapartidasFallbackClosureTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             sut.ResolveAsync(BuildCycle(), [BuildDebitTransaction()], DateTime.UtcNow));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProcContrapartidasMapper_RechazaMultiplesTransacciones_AntesDeResolver(bool contractDriven)
+    {
+        var functionalResolver = new Mock<IProcContrapartidasFunctionalMappingResolver>(MockBehavior.Strict);
+        var sut = new ProcContrapartidasRequestMapper(
+            functionalResolver.Object,
+            Options.Create(new ProcContrapartidasDispatchOptions { UseContractDrivenRequest = contractDriven }));
+        var first = BuildDebitTransaction();
+        var second = BuildDebitTransaction();
+        second.Id = 11;
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.ResolveAsync(BuildCycle(), [first, second], DateTime.UtcNow));
+
+        Assert.Contains("PROC_CONTRAPARTIDAS_CARDINALITY", ex.Message);
+        functionalResolver.VerifyNoOtherCalls();
     }
 
     private static AchCycle BuildCycle()

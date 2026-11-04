@@ -1,0 +1,755 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "nuget:adonetcore.aseclient@0.19.2",
+      "name": "AdoNetCore.AseClient",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/AdoNetCore.AseClient@0.19.2",
+      "type": "library",
+      "version": "0.19.2"
+    },
+    {
+      "bom-ref": "nuget:automapper@16.2.0",
+      "name": "AutoMapper",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/AutoMapper@16.2.0",
+      "type": "library",
+      "version": "16.2.0"
+    },
+    {
+      "bom-ref": "nuget:coverlet.collector@10.1.0",
+      "name": "coverlet.collector",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/coverlet.collector@10.1.0",
+      "type": "library",
+      "version": "10.1.0"
+    },
+    {
+      "bom-ref": "nuget:documentformat.openxml@3.5.1",
+      "name": "DocumentFormat.OpenXml",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/DocumentFormat.OpenXml@3.5.1",
+      "type": "library",
+      "version": "3.5.1"
+    },
+    {
+      "bom-ref": "nuget:fluentassertions@6.12.2",
+      "name": "FluentAssertions",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/FluentAssertions@6.12.2",
+      "type": "library",
+      "version": "6.12.2"
+    },
+    {
+      "bom-ref": "nuget:fluentvalidation@12.1.1",
+      "name": "FluentValidation",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/FluentValidation@12.1.1",
+      "type": "library",
+      "version": "12.1.1"
+    },
+    {
+      "bom-ref": "nuget:jwt@11.1.0",
+      "name": "JWT",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/JWT@11.1.0",
+      "type": "library",
+      "version": "11.1.0"
+    },
+    {
+      "bom-ref": "nuget:mediatr@14.2.0",
+      "name": "MediatR",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/MediatR@14.2.0",
+      "type": "library",
+      "version": "14.2.0"
+    },
+    {
+      "bom-ref": "nuget:microsoft.aspnetcore.authentication.jwtbearer@10.0.14",
+      "name": "Microsoft.AspNetCore.Authentication.JwtBearer",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.AspNetCore.Authentication.JwtBearer@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.aspnetcore.dataprotection.entityframeworkcore@10.0.14",
+      "name": "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.AspNetCore.DataProtection.EntityFrameworkCore@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.aspnetcore.openapi@10.0.14",
+      "name": "Microsoft.AspNetCore.OpenApi",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.AspNetCore.OpenApi@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.aspnetcore.testhost@10.0.14",
+      "name": "Microsoft.AspNetCore.TestHost",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.AspNetCore.TestHost@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.entityframeworkcore.design@10.0.14",
+      "name": "Microsoft.EntityFrameworkCore.Design",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.EntityFrameworkCore.Design@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.entityframeworkcore.inmemory@10.0.14",
+      "name": "Microsoft.EntityFrameworkCore.InMemory",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.EntityFrameworkCore.InMemory@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.entityframeworkcore.sqlite@10.0.14",
+      "name": "Microsoft.EntityFrameworkCore.Sqlite",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.EntityFrameworkCore.Sqlite@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.entityframeworkcore.sqlserver@10.0.14",
+      "name": "Microsoft.EntityFrameworkCore.SqlServer",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.EntityFrameworkCore.SqlServer@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.entityframeworkcore.tools@10.0.14",
+      "name": "Microsoft.EntityFrameworkCore.Tools",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.EntityFrameworkCore.Tools@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.entityframeworkcore@10.0.14",
+      "name": "Microsoft.EntityFrameworkCore",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.EntityFrameworkCore@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.extensions.configuration.abstractions@10.0.14",
+      "name": "Microsoft.Extensions.Configuration.Abstractions",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.Extensions.Configuration.Abstractions@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.extensions.dependencyinjection.abstractions@10.0.14",
+      "name": "Microsoft.Extensions.DependencyInjection.Abstractions",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.Extensions.DependencyInjection.Abstractions@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.extensions.http.resilience@10.10.0",
+      "name": "Microsoft.Extensions.Http.Resilience",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.Extensions.Http.Resilience@10.10.0",
+      "type": "library",
+      "version": "10.10.0"
+    },
+    {
+      "bom-ref": "nuget:microsoft.extensions.http@10.0.14",
+      "name": "Microsoft.Extensions.Http",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.Extensions.Http@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.extensions.logging.console@10.0.14",
+      "name": "Microsoft.Extensions.Logging.Console",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.Extensions.Logging.Console@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:microsoft.net.test.sdk@18.10.1",
+      "name": "Microsoft.NET.Test.Sdk",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.NET.Test.Sdk@18.10.1",
+      "type": "library",
+      "version": "18.10.1"
+    },
+    {
+      "bom-ref": "nuget:microsoft.openapi@2.12.2",
+      "name": "Microsoft.OpenApi",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.OpenApi@2.12.2",
+      "type": "library",
+      "version": "2.12.2"
+    },
+    {
+      "bom-ref": "nuget:microsoft.visualstudio.azure.containers.tools.targets@1.23.0",
+      "name": "Microsoft.VisualStudio.Azure.Containers.Tools.Targets",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Microsoft.VisualStudio.Azure.Containers.Tools.Targets@1.23.0",
+      "type": "library",
+      "version": "1.23.0"
+    },
+    {
+      "bom-ref": "nuget:moq@4.21.0",
+      "name": "Moq",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Moq@4.21.0",
+      "type": "library",
+      "version": "4.21.0"
+    },
+    {
+      "bom-ref": "nuget:nlog.database@6.0.3",
+      "name": "NLog.Database",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/NLog.Database@6.0.3",
+      "type": "library",
+      "version": "6.0.3"
+    },
+    {
+      "bom-ref": "nuget:nlog.extensions.logging@6.2.1",
+      "name": "NLog.Extensions.Logging",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/NLog.Extensions.Logging@6.2.1",
+      "type": "library",
+      "version": "6.2.1"
+    },
+    {
+      "bom-ref": "nuget:nlog.web.aspnetcore@6.2.1",
+      "name": "NLog.Web.AspNetCore",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/NLog.Web.AspNetCore@6.2.1",
+      "type": "library",
+      "version": "6.2.1"
+    },
+    {
+      "bom-ref": "nuget:nlog@6.2.1",
+      "name": "NLog",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/NLog@6.2.1",
+      "type": "library",
+      "version": "6.2.1"
+    },
+    {
+      "bom-ref": "nuget:npgsql.entityframeworkcore.postgresql@10.0.3",
+      "name": "Npgsql.EntityFrameworkCore.PostgreSQL",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Npgsql.EntityFrameworkCore.PostgreSQL@10.0.3",
+      "type": "library",
+      "version": "10.0.3"
+    },
+    {
+      "bom-ref": "nuget:pdfpig@0.1.16",
+      "name": "PdfPig",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/PdfPig@0.1.16",
+      "type": "library",
+      "version": "0.1.16"
+    },
+    {
+      "bom-ref": "nuget:quartz.extensions.dependencyinjection@3.21.0",
+      "name": "Quartz.Extensions.DependencyInjection",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Quartz.Extensions.DependencyInjection@3.21.0",
+      "type": "library",
+      "version": "3.21.0"
+    },
+    {
+      "bom-ref": "nuget:quartz.extensions.hosting@3.21.0",
+      "name": "Quartz.Extensions.Hosting",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Quartz.Extensions.Hosting@3.21.0",
+      "type": "library",
+      "version": "3.21.0"
+    },
+    {
+      "bom-ref": "nuget:quartz.serialization.json@3.21.0",
+      "name": "Quartz.Serialization.Json",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Quartz.Serialization.Json@3.21.0",
+      "type": "library",
+      "version": "3.21.0"
+    },
+    {
+      "bom-ref": "nuget:quartz@3.21.0",
+      "name": "Quartz",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Quartz@3.21.0",
+      "type": "library",
+      "version": "3.21.0"
+    },
+    {
+      "bom-ref": "nuget:questpdf@2026.9.1",
+      "name": "QuestPDF",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/QuestPDF@2026.9.1",
+      "type": "library",
+      "version": "2026.9.1"
+    },
+    {
+      "bom-ref": "nuget:scalar.aspnetcore@2.17.14",
+      "name": "Scalar.AspNetCore",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Scalar.AspNetCore@2.17.14",
+      "type": "library",
+      "version": "2.17.14"
+    },
+    {
+      "bom-ref": "nuget:scrutor@7.0.0",
+      "name": "Scrutor",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/Scrutor@7.0.0",
+      "type": "library",
+      "version": "7.0.0"
+    },
+    {
+      "bom-ref": "nuget:ssh.net@2026.0.0",
+      "name": "SSH.NET",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/SSH.NET@2026.0.0",
+      "type": "library",
+      "version": "2026.0.0"
+    },
+    {
+      "bom-ref": "nuget:system.identitymodel.tokens.jwt@8.23.0",
+      "name": "System.IdentityModel.Tokens.Jwt",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/System.IdentityModel.Tokens.Jwt@8.23.0",
+      "type": "library",
+      "version": "8.23.0"
+    },
+    {
+      "bom-ref": "nuget:system.security.cryptography.pkcs@10.0.14",
+      "name": "System.Security.Cryptography.Pkcs",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/System.Security.Cryptography.Pkcs@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:system.security.cryptography.xml@10.0.14",
+      "name": "System.Security.Cryptography.Xml",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/System.Security.Cryptography.Xml@10.0.14",
+      "type": "library",
+      "version": "10.0.14"
+    },
+    {
+      "bom-ref": "nuget:system.servicemodel.duplex@6.0.0",
+      "name": "System.ServiceModel.Duplex",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/System.ServiceModel.Duplex@6.0.0",
+      "type": "library",
+      "version": "6.0.0"
+    },
+    {
+      "bom-ref": "nuget:system.servicemodel.federation@10.0.652802",
+      "name": "System.ServiceModel.Federation",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/System.ServiceModel.Federation@10.0.652802",
+      "type": "library",
+      "version": "10.0.652802"
+    },
+    {
+      "bom-ref": "nuget:system.servicemodel.http@10.0.652802",
+      "name": "System.ServiceModel.Http",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/System.ServiceModel.Http@10.0.652802",
+      "type": "library",
+      "version": "10.0.652802"
+    },
+    {
+      "bom-ref": "nuget:system.servicemodel.nettcp@10.0.652802",
+      "name": "System.ServiceModel.NetTcp",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/System.ServiceModel.NetTcp@10.0.652802",
+      "type": "library",
+      "version": "10.0.652802"
+    },
+    {
+      "bom-ref": "nuget:system.servicemodel.security@6.0.0",
+      "name": "System.ServiceModel.Security",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/System.ServiceModel.Security@6.0.0",
+      "type": "library",
+      "version": "6.0.0"
+    },
+    {
+      "bom-ref": "nuget:xunit.runner.visualstudio@3.1.5",
+      "name": "xunit.runner.visualstudio",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/xunit.runner.visualstudio@3.1.5",
+      "type": "library",
+      "version": "3.1.5"
+    },
+    {
+      "bom-ref": "nuget:xunit@2.9.3",
+      "name": "xunit",
+      "properties": [
+        {
+          "name": "ach:sec_i03:nuget_scope",
+          "value": "DIRECT_DECLARATION_UNRESTORED"
+        }
+      ],
+      "purl": "pkg:nuget/xunit@2.9.3",
+      "type": "library",
+      "version": "2.9.3"
+    }
+  ],
+  "compositions": [
+    {
+      "aggregate": "incomplete"
+    }
+  ],
+  "dependencies": [
+    {
+      "dependsOn": [
+        "nuget:adonetcore.aseclient@0.19.2",
+        "nuget:automapper@16.2.0",
+        "nuget:coverlet.collector@10.1.0",
+        "nuget:documentformat.openxml@3.5.1",
+        "nuget:fluentassertions@6.12.2",
+        "nuget:fluentvalidation@12.1.1",
+        "nuget:jwt@11.1.0",
+        "nuget:mediatr@14.2.0",
+        "nuget:microsoft.aspnetcore.authentication.jwtbearer@10.0.14",
+        "nuget:microsoft.aspnetcore.dataprotection.entityframeworkcore@10.0.14",
+        "nuget:microsoft.aspnetcore.openapi@10.0.14",
+        "nuget:microsoft.aspnetcore.testhost@10.0.14",
+        "nuget:microsoft.entityframeworkcore.design@10.0.14",
+        "nuget:microsoft.entityframeworkcore.inmemory@10.0.14",
+        "nuget:microsoft.entityframeworkcore.sqlite@10.0.14",
+        "nuget:microsoft.entityframeworkcore.sqlserver@10.0.14",
+        "nuget:microsoft.entityframeworkcore.tools@10.0.14",
+        "nuget:microsoft.entityframeworkcore@10.0.14",
+        "nuget:microsoft.extensions.configuration.abstractions@10.0.14",
+        "nuget:microsoft.extensions.dependencyinjection.abstractions@10.0.14",
+        "nuget:microsoft.extensions.http.resilience@10.10.0",
+        "nuget:microsoft.extensions.http@10.0.14",
+        "nuget:microsoft.extensions.logging.console@10.0.14",
+        "nuget:microsoft.net.test.sdk@18.10.1",
+        "nuget:microsoft.openapi@2.12.2",
+        "nuget:microsoft.visualstudio.azure.containers.tools.targets@1.23.0",
+        "nuget:moq@4.21.0",
+        "nuget:nlog.database@6.0.3",
+        "nuget:nlog.extensions.logging@6.2.1",
+        "nuget:nlog.web.aspnetcore@6.2.1",
+        "nuget:nlog@6.2.1",
+        "nuget:npgsql.entityframeworkcore.postgresql@10.0.3",
+        "nuget:pdfpig@0.1.16",
+        "nuget:quartz.extensions.dependencyinjection@3.21.0",
+        "nuget:quartz.extensions.hosting@3.21.0",
+        "nuget:quartz.serialization.json@3.21.0",
+        "nuget:quartz@3.21.0",
+        "nuget:questpdf@2026.9.1",
+        "nuget:scalar.aspnetcore@2.17.14",
+        "nuget:scrutor@7.0.0",
+        "nuget:ssh.net@2026.0.0",
+        "nuget:system.identitymodel.tokens.jwt@8.23.0",
+        "nuget:system.security.cryptography.pkcs@10.0.14",
+        "nuget:system.security.cryptography.xml@10.0.14",
+        "nuget:system.servicemodel.duplex@6.0.0",
+        "nuget:system.servicemodel.federation@10.0.652802",
+        "nuget:system.servicemodel.http@10.0.652802",
+        "nuget:system.servicemodel.nettcp@10.0.652802",
+        "nuget:system.servicemodel.security@6.0.0",
+        "nuget:xunit.runner.visualstudio@3.1.5",
+        "nuget:xunit@2.9.3"
+      ],
+      "ref": "app:achinterbank-nuget-declared-references"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "app:achinterbank-nuget-declared-references",
+      "name": "ACHInterbank NuGet declared references",
+      "type": "application"
+    },
+    "properties": [
+      {
+        "name": "ach:sec_i03:completeness",
+        "value": "direct_package_references_only_transitives_unknown"
+      },
+      {
+        "name": "ach:sec_i03:restore",
+        "value": "NOT_RUN_ENVIRONMENT"
+      },
+      {
+        "name": "ach:sec_i03:project_assets",
+        "value": "PRESENT_UNTRUSTED_LEGACY_NOT_USED"
+      }
+    ]
+  },
+  "specVersion": "1.6",
+  "version": 1
+}

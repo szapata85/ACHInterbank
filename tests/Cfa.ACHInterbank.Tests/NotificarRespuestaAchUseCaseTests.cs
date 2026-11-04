@@ -56,8 +56,13 @@ public class NotificarRespuestaAchUseCaseTests
         var mapper = new RegistrarRespuestaAchCommandMapper();
         var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
         var cmd = mapper.Map(attempt.AchResponse!, attempt);
+        Assert.Equal(attempt.IdCanal, cmd.IdCanal);
+        Assert.Equal(attempt.NombreCanal, cmd.NombreCanal);
+        Assert.Equal(attempt.IdTransaccion, cmd.IdTransaccion);
         Assert.Equal(attempt.IdEstado, cmd.IdEstado);
+        Assert.Equal(attempt.Causal, cmd.Causal);
         Assert.Equal(attempt.IdTransaccionServicioExterno, cmd.IdTransaccionServicioExterno);
+        Assert.Equal(attempt.DescripcionCausal, cmd.DescripcionCausal);
         Assert.Equal(attempt.AchResponse!.CodigoCamaraCompensacion, cmd.CodigoCamaraCompensacion);
         Assert.Equal(attempt.AchResponse.Id, cmd.DifferentialResponseId);
     }
@@ -100,6 +105,15 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.True(result.ExisteError);
         Assert.Equal(AchResponseNotificationStatus.ErrorFuncional, attempt.EstadoNotificacion);
         Assert.Equal(AchResponseProcessingStatus.ErrorFuncional, attempt.AchResponse!.EstadoProcesamiento);
+        Assert.True(attempt.ExisteError);
+        Assert.Equal("E01", attempt.CodigoError);
+        Assert.Equal("Err", attempt.DescripcionError);
+        using (var payload = JsonDocument.Parse(attempt.ResponsePayload!))
+        {
+            Assert.True(payload.RootElement.GetProperty("existeError").GetBoolean());
+            Assert.Equal("E01", payload.RootElement.GetProperty("codigoError").GetString());
+            Assert.Equal("Err", payload.RootElement.GetProperty("descripcionError").GetString());
+        }
         uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -128,13 +142,71 @@ public class NotificarRespuestaAchUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ShouldKeepRetryPending_WhenGatewayFailsBeforeKnownDelivery()
+    public async Task ExecuteAsync_ShouldRequireManualReview_WhenGatewayThrowsAfterInvocation()
     {
         var sut = BuildSut(out var attemptRepo, out var gateway, out var uow, out _);
         var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
         attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+        // A malformed or missing SOAP result can occur after the receiving system processed the request.
         gateway.Setup(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("endpoint configuration invalid"));
+            .ThrowsAsync(new InvalidOperationException("SOAP response does not contain result"));
+
+        var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+
+        Assert.True(result.ErrorTecnico);
+        Assert.Equal(AchResponseNotificationStatus.RequiereRevisionManual, attempt.EstadoNotificacion);
+        Assert.Equal(AchResponseProcessingStatus.RequiereRevisionManual, attempt.AchResponse!.EstadoProcesamiento);
+        Assert.Contains("ResultadoDesconocido", attempt.ResponsePayload!);
+        Assert.NotNull(attempt.RequestPayload);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        var duplicate = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+        Assert.True(duplicate.YaProcesada);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldRejectInvalidSevenFieldCommand_BeforeGateway()
+    {
+        var sut = BuildSut(out var attemptRepo, out var gateway, out var uow, out _);
+        var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
+        attempt.IdEstado = 0;
+        attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+
+        var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+
+        Assert.True(result.ExisteError);
+        Assert.Equal("REGISTRAR_RESPUESTA_COMMAND_INVALID", result.CodigoError);
+        Assert.Equal(AchResponseNotificationStatus.ErrorFuncional, attempt.EstadoNotificacion);
+        Assert.Equal(AchResponseProcessingStatus.ErrorFuncional, attempt.AchResponse!.EstadoProcesamiento);
+        Assert.Null(attempt.FechaEnvio);
+        Assert.Null(attempt.RequestPayload);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldKeepTechnicalError_WhenTraceThrowsBeforeGatewayInvocation()
+    {
+        var attemptRepo = new Mock<IAchResponseNotificationAttemptRepository>();
+        var gateway = new Mock<IRespuestaTransaccionesAchGateway>();
+        var uow = new Mock<IUnitOfWork>();
+        var responseRepo = new Mock<IAchResponseRepository>();
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        var traceWriter = new Mock<IIntegrationMappingTraceWriter>();
+        var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
+        attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+        operationResolver.Setup(x => x.ResolveDifferentialResponse(It.IsAny<string?>(), It.IsAny<int?>())).Returns(DifferentialOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ReadyDifferentialResponse());
+        traceWriter.Setup(x => x.WriteAsync(
+            It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<RegistrarRespuestaAchCommand>(),
+            It.IsAny<int?>(), It.IsAny<string>(), It.IsAny<string>(), true, false, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("trace storage unavailable"));
+        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object,
+            new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object,
+            operationResolver.Object, readiness.Object, traceWriter.Object);
 
         var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
 
@@ -142,7 +214,25 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.Equal(AchResponseNotificationStatus.ErrorTecnico, attempt.EstadoNotificacion);
         Assert.Equal(AchResponseProcessingStatus.PendienteReintento, attempt.AchResponse!.EstadoProcesamiento);
         Assert.Contains("ErrorTecnico", attempt.ResponsePayload!);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Never);
         uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldNotSendAgain_WhenFunctionalRejectionAlreadyPersisted()
+    {
+        var sut = BuildSut(out var attemptRepo, out var gateway, out _, out _);
+        var attempt = BuildAttempt(AchResponseNotificationStatus.ErrorFuncional);
+        attempt.ExisteError = true;
+        attempt.CodigoError = "E01";
+        attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+
+        var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+
+        Assert.True(result.YaProcesada);
+        Assert.True(result.ExisteError);
+        Assert.Equal("E01", result.CodigoError);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

@@ -34,7 +34,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Quartz;
-using Quartz.Simpl;
 
 namespace Cfa.ACHInterbank.Persistence;
 
@@ -177,6 +176,14 @@ public static class DependencyInjectionService
         services.AddScoped<IExternalFileNameSequenceProvider, SqlServerExternalFileNameSequenceService>();
         services.AddScoped<IExternalFileNameSequenceProvider, EfGenericExternalFileNameSequenceService>();
         services.AddScoped<IPaymentRailCapabilityRegistryService, ACH.Services.Implementation.PaymentRailCapabilityRegistryService>();
+        services.AddScoped<IAchColombiaAutomaticReturnSettingsService, AchColombiaAutomaticReturnSettingsService>();
+        services.AddScoped<ICenitAutomaticReturnSettingsService, CenitAutomaticReturnSettingsService>();
+        services.AddScoped<ICenitPassiveReturnDetector, CenitPassiveReturnDetector>();
+        services.AddScoped<ICenitReturnPreparationService, CenitReturnPreparationService>();
+        services.AddScoped<ICenitReturnReviewService, CenitReturnReviewService>();
+        services.AddScoped<ICenitReturnArtifactService, CenitReturnArtifactService>();
+        services.AddScoped<ICenitReturnIntegrationReadService, CenitReturnIntegrationReadService>();
+        services.AddScoped<IAchColombiaReturnReviewService, AchColombiaReturnReviewService>();
         services.AddScoped<IAchReturnEligibilityService, AchReturnEligibilityService>();
         services.AddScoped<IAchReturnOfReturnEligibilityService, AchReturnOfReturnEligibilityService>();
         services.AddScoped<IAchReturnOfReturnFileGenerationService, AchReturnOfReturnFileGenerationService>();
@@ -189,19 +196,35 @@ public static class DependencyInjectionService
         services.AddScoped<INachaRealSoapClientAdapter, NachaBlockedRealSoapClientAdapter>();
         services.AddSingleton<IAchReturnGenerationLockService, AchReturnGenerationLockService>();
 
+        // Quartz.NET 4: servicios de DI/Hosting/JSON incorporados en Quartz.
+        // Configuración tipada; conserva las opciones operacionales anteriores.
         services.AddQuartz(q =>
         {
-            q.UseJobFactory<MicrosoftDependencyInjectionJobFactory>();
-
             var quartzOptions = QuartzJobStoreOptionsFactory.Create(configuration);
-            q.SchedulerName = quartzOptions.SchedulerName;
-            q.SchedulerId = quartzOptions.InstanceId;
-            q.MisfireThreshold = TimeSpan.FromMilliseconds(quartzOptions.MisfireThresholdMilliseconds);
-            q.MaxBatchSize = quartzOptions.MaxBatchSize;
-            q.BatchTriggerAcquisitionFireAheadTimeWindow = TimeSpan.FromMilliseconds(quartzOptions.BatchFireAheadMilliseconds);
-            q.UseDefaultThreadPool(quartzOptions.MaxConcurrency);
+            q.ConfigureScheduler(options =>
+            {
+                options.InstanceName = quartzOptions.SchedulerName;
+                // Quartz 4 genera el identificador del nodo mediante esta opción,
+                // no asignando literalmente la cadena heredada "AUTO".
+                if (string.IsNullOrWhiteSpace(quartzOptions.InstanceId)
+                    || string.Equals(quartzOptions.InstanceId, "AUTO", StringComparison.OrdinalIgnoreCase))
+                {
+                    options.GenerateInstanceId = true;
+                }
+                else
+                {
+                    options.InstanceId = quartzOptions.InstanceId;
+                }
+                options.MaxBatchSize = quartzOptions.MaxBatchSize;
+                options.BatchTriggerAcquisitionFireAheadTimeWindow =
+                    TimeSpan.FromMilliseconds(quartzOptions.BatchFireAheadMilliseconds);
+            });
+            q.UseDefaultThreadPool(maxConcurrency: quartzOptions.MaxConcurrency);
+            // El factory de Microsoft DI es la opción por defecto desde Quartz 4.
             if (!quartzOptions.IsPersistentMode())
             {
+                q.UseInMemoryStore(options =>
+                    options.MisfireThreshold = TimeSpan.FromMilliseconds(quartzOptions.MisfireThresholdMilliseconds));
                 return;
             }
 
@@ -215,30 +238,35 @@ public static class DependencyInjectionService
                 throw new InvalidOperationException($"Quartz persistent mode requiere cadena de conexión para proveedor {provider}.");
             }
 
-            q.SetProperty("quartz.jobStore.type", "Quartz.Impl.AdoJobStore.JobStoreTX, Quartz");
-            q.SetProperty("quartz.jobStore.useProperties", "true");
-            q.SetProperty("quartz.jobStore.dataSource", "default");
-            q.SetProperty("quartz.jobStore.tablePrefix", quartzOptions.TablePrefix);
-            q.SetProperty("quartz.jobStore.misfireThreshold", quartzOptions.MisfireThresholdMilliseconds.ToString());
-            q.SetProperty("quartz.jobStore.performSchemaValidation", quartzOptions.PerformSchemaValidation.ToString().ToLowerInvariant());
-            q.SetProperty("quartz.jobStore.acquireTriggersWithinLock", quartzOptions.AcquireTriggersWithinLock.ToString().ToLowerInvariant());
-            q.SetProperty("quartz.serializer.type", "json");
-
-            q.SetProperty("quartz.jobStore.driverDelegateType", provider == "SqlServer"
-                ? "Quartz.Impl.AdoJobStore.SqlServerDelegate, Quartz"
-                : "Quartz.Impl.AdoJobStore.PostgreSQLDelegate, Quartz");
-            q.SetProperty("quartz.dataSource.default.provider", provider == "SqlServer" ? "SqlServer" : "Npgsql");
-            q.SetProperty("quartz.dataSource.default.connectionString", connectionString);
-
-            if (quartzOptions.Clustered)
+            q.UsePersistentStore(store =>
             {
-                q.SetProperty("quartz.jobStore.clustered", "true");
-                q.SetProperty("quartz.jobStore.clusterCheckinInterval", (quartzOptions.ClusterCheckinIntervalSeconds * 1000).ToString());
-            }
-            else
-            {
-                q.SetProperty("quartz.jobStore.clustered", "false");
-            }
+                if (provider == "SqlServer")
+                {
+                    store.UseSqlServer(connectionString);
+                }
+                else
+                {
+                    store.UsePostgres(connectionString);
+                }
+
+                store.UseSystemTextJsonSerializer();
+                store.ConfigureStore(options =>
+                {
+                    options.StoreJobDataAsStrings = true;
+                    options.TablePrefix = quartzOptions.TablePrefix;
+                    options.MisfireThreshold = TimeSpan.FromMilliseconds(quartzOptions.MisfireThresholdMilliseconds);
+                    options.SchemaProvisioning = quartzOptions.PerformSchemaValidation
+                        ? SchemaProvisioning.Validate
+                        : SchemaProvisioning.None;
+                    options.AcquireTriggersWithinLock = quartzOptions.AcquireTriggersWithinLock;
+                });
+
+                if (quartzOptions.Clustered)
+                {
+                    store.UseClustering(cluster =>
+                        cluster.CheckinInterval = TimeSpan.FromSeconds(quartzOptions.ClusterCheckinIntervalSeconds));
+                }
+            });
         });
 
         services.AddQuartzHostedService(opt =>

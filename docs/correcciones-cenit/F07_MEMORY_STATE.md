@@ -1,0 +1,11 @@
+# MEMORY_STATE — Correcciones CENIT F07
+
+**Fecha 2026-11-02**. ZIP base inmediata F06: `ACHInterbank_PROYECTO_COMPLETO_CORRECCIONES_CENIT_F06_2026-11-02.zip` SHA-256 `a43539f83b8b6cdc5e36cbadf5d9334dc578bd88ddf2d22cd5acf088ffc8b76d` (4.651 entradas y CRC OK). Auditoría I01–I10, F01–F06 preservadas. Raíz `ACHInterbank_ajustado/`.
+
+- **F07 ejecutada como regresión ESTÁTICA**, 7/8 entregas (87,5 %), sin homologación. **Siguiente F08** dictamen documental final con bloqueos y plan para ejecución de pruebas.
+- **Estado 13 HC**: 13 implementados pendientes de verificación dinámica/integración, 0 sin implementar, 0 cerrados formalmente. Invariante de nombres HC-CENIT-001..013.
+- **Cambios de F07**: cero productivos; nueva clase de pruebas `tests/Cfa.ACHInterbank.Tests/CenitF07CrossPhaseRegressionTests.cs`; ampliación de `CenitChamberResponseLifecycleTests.cs`; scripts `scripts/test/cenit_f07_regression_check.py`, `scripts/test/run_cenit_f07_dotnet_regression.sh`; documentación F07, matriz, estado, plan, pruebas y registro.
+- **Pruebas ejecutadas de verdad:** F07 24/24 PASS; F01–F06 113/113 PASS. Checks de fuente y fixtures, NO ejecución C#; comparación de golden ACH Colombia/CENIT con 1060 bytes cada uno, ROR sintético 10x106. `run_cenit_f07_dotnet_regression.sh` intentado: salida 2, falta SDK. **xUnit ejecutadas=0, aprobadas=0, fallidas ejecutadas=0**. **11 casos xUnit fuente añadidos y NO ejecutados.**
+- **ACH Colombia:** códigos/rutas exclusivos y golden no modificados; el aislamiento de Ñ/ñ y Dxx está cubierto por casos fuente, no ejecución funcional. **CUD** no integrado. No cambios a DB/WSDL/migraciones.
+- **F08 debe** conservar historial, manifiesto, SHA-256 y evidencias de F01–F07, declarar bloqueos .NET/DB/Quartz/gateway/operador/Tesorería y no cerrar 13 HC sin pruebas certificadas. PT-01–PT-22 pendientes.
+- **Entrega:** `F07_INFORME_REGRESION.md`, `F07_EVIDENCIA_REGRESION_ESTATICA.txt`, `F07_CAMBIOS.patch`, `F07_COMPARACION_SHA256.tsv`, `MANIFIESTO_F07.md`, `F07_MEMORY_STATE.md`; estado general `MEMORY_STATE.md` actualizado. Salida: `ACHInterbank_PROYECTO_COMPLETO_CORRECCIONES_CENIT_F07_2026-11-02.zip`; hash ZIP solo en `.zip.sha256` lateral para evitar circularidad.

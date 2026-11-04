@@ -1,14 +1,13 @@
 using Cfa.ACHInterbank.Application.Common;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
+using Cfa.ACHInterbank.Application.Security.PasswordHashing;
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace Cfa.ACHInterbank.Persistence.Security.Services;
 
@@ -141,7 +140,7 @@ public class UsersService : IUsersService
             Username = request.UserName,
             FullName = request.FullName,
             Email = request.Email,
-            PasswordHash = BuildHash(request.Password),
+            PasswordHash = CredentialPasswordHasher.HashPassword(request.Password),
             IsActive = true
         };
 
@@ -190,7 +189,7 @@ public class UsersService : IUsersService
 
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
-            user.PasswordHash = BuildHash(request.Password);
+            user.PasswordHash = CredentialPasswordHasher.HashPassword(request.Password);
         }
 
         await UpdateUserRolesAsync(user, request.RoleIds, ct);
@@ -288,11 +287,4 @@ public class UsersService : IUsersService
         }
     }
 
-    private static string BuildHash(string value)
-    {
-        using var sha256 = SHA256.Create();
-        var bytes = Encoding.UTF8.GetBytes(value);
-        var hashBytes = sha256.ComputeHash(bytes);
-        return BitConverter.ToString(hashBytes).Replace("-", string.Empty).ToLowerInvariant();
-    }
 }

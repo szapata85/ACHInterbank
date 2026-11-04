@@ -1,0 +1,49 @@
+EVIDENCIA I01 / 2026-11-02
+
+[GRAFO_SOLUCION]
+Comando: python scripts/validate-solution-projects.py
+Resultado: PASS
+SOLUTION GRAPH: OK
+  solution projects: 7
+  disk projects:     7
+  project references: all targets exist and are loaded by the solution
+
+
+[CONTRATO_ESTATICO_I01]
+Comando: python scripts/test/prenotification_simulator_i01_static_check.py
+Resultado: PASS
+PASS_STATIC legacy scenario retains number 3
+PASS_STATIC new scenario number is distinct 10
+PASS_STATIC typed outcome has only two semantic branches
+PASS_STATIC contract includes original ids
+PASS_STATIC contract separates original / response cycles
+PASS_STATIC contract includes chamber + bank
+PASS_STATIC contract includes business date / reason / idempotency
+PASS_STATIC outcome JSON string converter explicit
+PASS_STATIC contract validates duplicate IDs
+PASS_STATIC contract validates return fields
+PASS_STATIC no-return forbids false response attributes
+PASS_STATIC new capability explicitly advertises not operational
+PASS_STATIC routes have read authorization
+PASS_STATIC controller only calls pure validation/description
+PASS_STATIC service has fail-closed new scenario and explicit diagnostic
+PASS_STATIC guard precedes any downstream build in Preview
+PASS_STATIC generate always runs preview before building
+PASS_STATIC pure C# contract test cases added
+PASS_STATIC fail-closed service test added
+PASS_STATIC contract documentation included
+SUMMARY: 20/20 PASS_STATIC; 0 FAIL_STATIC; C# runtime NOT EXECUTED
+
+
+[BUILD_DOTNET]
+Comando: dotnet build ACHInterbank.sln -c Release
+Resultado: NO_EJECUTADA_POR_AMBIENTE
+dotnet: command not found
+
+[XUNIT_I01]
+Comando: dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter FullyQualifiedName~PrenotificationSimulatorContractI01Tests
+Resultado: NO_EJECUTADA_POR_AMBIENTE
+dotnet: command not found
+
+
+AVISO: PASS_STATIC no es prueba runtime ni compilacion C#.

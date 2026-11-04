@@ -7,7 +7,11 @@ import { Subject, of, throwError } from 'rxjs';
 import { NachaInboundSimulatorComponent } from './nacha-inbound-simulator.component';
 import {
   GenerateNachaInboundSimulationRequest,
+  AchReturnCodeOption,
+  AvailableInboundCycle,
   NachaInboundSimulationResult,
+  PrenotificationCandidate,
+  PrenotificationCandidatePage,
   NachaInboundSimulatorService
 } from '../../services/nacha-inbound-simulator.service';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -65,7 +69,9 @@ describe('NachaInboundSimulatorComponent', () => {
   beforeEach(async () => {
     service = jasmine.createSpyObj<NachaInboundSimulatorService>(
       'NachaInboundSimulatorService',
-      ['list', 'preview', 'generate', 'eligibleDifferentialTransactions', 'availableCycles', 'returnCodes', 'downloadUrl']
+      ['list', 'preview', 'generate', 'eligibleDifferentialTransactions', 'availableCycles', 'returnCodes', 'downloadUrl',
+       'listOriginatedPrenotifications', 'previewPrenotificationReturn', 'generatePrenotificationReturn',
+       'previewTacitAcceptance', 'applyDueTacitAcceptance', 'downloadFile']
     );
     financialInstitutionsApi = jasmine.createSpyObj<FinancialInstitutionsApiService>(
       'FinancialInstitutionsApiService',
@@ -118,6 +124,25 @@ describe('NachaInboundSimulatorComponent', () => {
       isActive: true
     }]));
     service.downloadUrl.and.returnValue('/download');
+    service.downloadFile.and.returnValue(of(new Blob(['file'])));
+    service.listOriginatedPrenotifications.and.returnValue(of({
+      items: [], page: 1, pageSize: 10, total: 0, executionEnabled: false
+    }));
+    service.previewPrenotificationReturn.and.returnValue(of({
+      shapeValid: true, businessEligible: true, executionEnabled: false,
+      contractVersion: 'I01', violations: [], candidates: []
+    }));
+    service.generatePrenotificationReturn.and.returnValue(of(result));
+    service.previewTacitAcceptance.and.returnValue(of({
+      evaluationTimeUtc: '2026-05-21T11:00:00Z', realTimeUtc: '2026-05-21T10:00:00Z',
+      isVirtualTime: true, readOnly: true, executionEnabled: true, violations: [],
+      items: [{ originalPrenotificationId: 42, deadlineAtUtc: '2026-05-21T10:30:00Z',
+        wouldApplyAtEvaluationTime: true, eligibleAtRealTime: false, decision: 'WouldApply', violations: [] }]
+    }));
+    service.applyDueTacitAcceptance.and.returnValue(of({
+      realTimeUtc: '2026-05-21T11:00:00Z', applied: 1, alreadyApplied: 0,
+      createsNachaFile: false, externalTransmission: false, items: []
+    }));
 
     financialInstitutionsApi.getAll.and.returnValue(of([
       {
@@ -445,4 +470,209 @@ describe('NachaInboundSimulatorComponent', () => {
     expect(component.hasLoadedHistory).toBeTrue();
     expect(fixture.nativeElement.textContent).toContain('No se pudo cargar el historial');
   });
+  const prenotification: PrenotificationCandidate = {
+    originalPrenotificationId: 42,
+    originalCycleId: 'ACH-20260520-C1',
+    clearingHouseCode: 'ACHCOL',
+    respondingFinancialInstitutionId: 2,
+    respondingFinancialInstitution: 'Banco UAT Externo',
+    traceNumber: '009999990000042',
+    transactionExternalId: 'PRE-42',
+    destinationAccountMasked: '****0042',
+    originalBusinessDate: '2026-05-20',
+    transactionStatus: 'Pending',
+    validationAttemptId: 123,
+    validationAttemptStatus: 'AwaitingResponse',
+    responseDeadlineAtUtc: '2026-05-21T10:30:00Z',
+    transmittedOrAcknowledged: true,
+    hasPriorResponse: false,
+    eligibleForReturn: true,
+    eligibleForNoReturnByDeadline: false,
+    violations: []
+  };
+
+  it('I06: encuentra prenotificaciones originadas y permite seleccionar una', () => {
+    service.listOriginatedPrenotifications.and.returnValue(of({
+      items: [prenotification], page: 1, pageSize: 10, total: 1, executionEnabled: false
+    }));
+    component.openPrenotifications();
+    fixture.detectChanges();
+
+    expect(service.listOriginatedPrenotifications).toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Buscar prenotificación enviada');
+    component.selectPrenotification(prenotification);
+    expect(component.pnSelected?.originalPrenotificationId).toBe(42);
+    expect(component.pnGenerated).toBeNull();
+  });
+
+  it('I06: genera una devolución solo tras previsualizar y confirmar', () => {
+    service.returnCodes.and.returnValue(of([{
+      id: 5, clearingHouseId: 1, code: 'R04', flowType: 'Return',
+      description: 'Número de cuenta inválido', appliesToDebit: true, appliesToCredit: true,
+      appliesToPrenotification: true, appliesToReturn: true,
+      effectiveFrom: '2026-01-01', isActive: true
+    }]));
+    service.availableCycles.and.returnValue(of([{
+      cycleId: 'ACH-20260520-C2', cycleCode: 'ACH-20260520-C2', cycleName: 'Ciclo 2',
+      clearingHouseId: 1, clearingHouseCode: 'ACHCOL', clearingHouseName: 'ACH Colombia',
+      processingDate: '2026-05-20', transactionCount: 1, status: 'Disponible'
+    }]));
+    component.openPrenotifications();
+    component.selectPrenotification(prenotification);
+    expect(component.pnApplicableCodes.map(item => item.code)).toContain('R04');
+    expect(component.pnCycles.map(item => item.cycleId)).toContain('ACH-20260520-C2');
+    component.pnReasonCode = 'R04';
+    component.pnResponseCycleId = 'ACH-20260520-C2';
+    component.previewPn();
+    expect(component.pnCanCommit).toBeTrue();
+    expect(service.generatePrenotificationReturn).not.toHaveBeenCalled();
+
+    component.confirmPn();
+    expect(service.generatePrenotificationReturn).toHaveBeenCalledTimes(1);
+    const payload = service.generatePrenotificationReturn.calls.mostRecent().args[0];
+    expect(payload.originalPrenotificationIds).toEqual([42]);
+    expect(payload.outcome).toBe('Returned');
+    expect(payload.reasonCode).toBe('R04');
+    expect(payload.idempotencyKey).toBeTruthy();
+    expect(component.pnGenerated?.id).toBe(91);
+    expect(service.generate).not.toHaveBeenCalled();
+  });
+
+  it('I06: la hora virtual no habilita una aplicación antes del vencimiento real', () => {
+    component.openPrenotifications();
+    component.selectPrenotification(prenotification);
+    component.changePnOutcome('NoReturnByDeadline');
+    component.pnVirtualDateTime = '2026-05-21T11:00';
+    component.previewPn();
+
+    expect(component.pnTacitPreview?.items[0].wouldApplyAtEvaluationTime).toBeTrue();
+    expect(component.pnCanCommit).toBeFalse();
+    component.confirmPn();
+    expect(service.applyDueTacitAcceptance).not.toHaveBeenCalled();
+    expect(service.generatePrenotificationReturn).not.toHaveBeenCalled();
+  });
+
+  it('I06: permite aplicar solo cuando el plazo real y el backend lo autorizan', () => {
+    service.previewTacitAcceptance.and.returnValue(of({
+      evaluationTimeUtc: '2026-05-21T11:00:00Z', realTimeUtc: '2026-05-21T11:00:00Z',
+      isVirtualTime: false, readOnly: true, executionEnabled: true, violations: [],
+      items: [{ originalPrenotificationId: 42, deadlineAtUtc: '2026-05-21T10:30:00Z',
+        wouldApplyAtEvaluationTime: true, eligibleAtRealTime: true, decision: 'WouldApply', violations: [] }]
+    }));
+    component.openPrenotifications();
+    component.selectPrenotification(prenotification);
+    component.changePnOutcome('NoReturnByDeadline');
+    component.previewPn();
+    expect(component.pnCanCommit).toBeTrue();
+    component.confirmPn();
+
+    expect(service.applyDueTacitAcceptance).toHaveBeenCalledTimes(1);
+    expect(component.pnApplied).toBe(1);
+    expect(service.generatePrenotificationReturn).not.toHaveBeenCalled();
+  });
+
+  it('I06: conserva la justificación del backend para una prenotificación no elegible', () => {
+    component.openPrenotifications();
+    component.selectPrenotification({ ...prenotification,
+      eligibleForReturn: false, eligibleForNoReturnByDeadline: false,
+      violations: [{ code: 'NOT_TRANSMITTED', field: 'OriginalPrenotificationIds',
+        message: 'No hay evidencia de transmisión.' }] });
+    expect(component.pnCanPreview).toBeFalse();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('No hay evidencia de transmisión.');
+  });
+
+  it('I07-R: una vista previa de devolución tardía no se interpreta como aceptación tácita', () => {
+    const delayed = new Subject<{
+      shapeValid: boolean; businessEligible: boolean; executionEnabled: boolean;
+      contractVersion: string; violations: never[]; candidates: never[];
+    }>();
+    service.previewPrenotificationReturn.and.returnValue(delayed.asObservable());
+    component.openPrenotifications();
+    component.selectPrenotification(prenotification);
+    component.pnReasonCode = 'R04';
+    component.pnResponseCycleId = 'ACH-20260520-C2';
+    component.previewPn();
+    component.changePnOutcome('NoReturnByDeadline');
+    delayed.next({ shapeValid: true, businessEligible: true, executionEnabled: false,
+      contractVersion: 'I01', violations: [], candidates: [] });
+    delayed.complete();
+    expect(component.pnReturnPreview).toBeNull();
+    expect(component.pnTacitPreview).toBeNull();
+    expect(component.pnCanCommit).toBeFalse();
+    expect(component.pnBusy).toBeFalse();
+  });
+
+  it('I07-R: al cambiar causal descarta la vista previa que estaba en curso', () => {
+    const delayed = new Subject<{
+      shapeValid: boolean; businessEligible: boolean; executionEnabled: boolean;
+      contractVersion: string; violations: never[]; candidates: never[];
+    }>();
+    service.previewPrenotificationReturn.and.returnValue(delayed.asObservable());
+    component.openPrenotifications();
+    component.selectPrenotification(prenotification);
+    component.pnReasonCode = 'R04';
+    component.pnResponseCycleId = 'ACH-20260520-C2';
+    component.previewPn();
+    component.pnReasonCode = 'R03';
+    component.changePnDetails();
+    delayed.next({ shapeValid: true, businessEligible: true, executionEnabled: false,
+      contractVersion: 'I01', violations: [], candidates: [] });
+    delayed.complete();
+    expect(component.pnReturnPreview).toBeNull();
+    expect(component.pnCanCommit).toBeFalse();
+  });
+
+  it('I07: la respuesta de una consulta antigua no sobrescribe la cámara vigente', () => {
+    const oldRequest = new Subject<PrenotificationCandidatePage>();
+    const currentRequest = new Subject<PrenotificationCandidatePage>();
+    service.listOriginatedPrenotifications.and.returnValues(oldRequest, currentRequest);
+    component.openPrenotifications(); // ACHCOL
+    component.changePnHouse('CENIT');
+    const cenit = { ...prenotification, originalPrenotificationId: 51, clearingHouseCode: 'CENIT' };
+    currentRequest.next({ items: [cenit], page: 1, pageSize: 10, total: 1, executionEnabled: false });
+    currentRequest.complete();
+    oldRequest.next({ items: [prenotification], page: 1, pageSize: 10, total: 1, executionEnabled: false });
+    oldRequest.complete();
+    expect(component.pnHouseCode).toBe('CENIT');
+    expect(component.pnCandidates.map(item => item.originalPrenotificationId)).toEqual([51]);
+    expect(component.pnLoading).toBeFalse();
+  });
+
+  it('I07: ignora resultados tardíos al cerrar el flujo de prenotificaciones', () => {
+    const oldRequest = new Subject<PrenotificationCandidatePage>();
+    service.listOriginatedPrenotifications.and.returnValue(oldRequest);
+    component.openPrenotifications();
+    component.closePrenotifications();
+    oldRequest.next({ items: [prenotification], page: 1, pageSize: 10, total: 1, executionEnabled: false });
+    oldRequest.complete();
+    expect(component.prenotificationFlow).toBeFalse();
+    expect(component.pnCandidates).toEqual([]);
+    expect(component.pnLoading).toBeFalse();
+  });
+
+  it('I07: no utiliza catálogos de otra prenotificación si su respuesta llega tarde', () => {
+    const oldCodes = new Subject<AchReturnCodeOption[]>();
+    const oldCycles = new Subject<AvailableInboundCycle[]>();
+    service.returnCodes.and.returnValues(oldCodes, of([]));
+    service.availableCycles.and.returnValues(oldCycles, of([]));
+    component.openPrenotifications();
+    component.selectPrenotification(prenotification);
+    component.selectPrenotification({ ...prenotification, originalPrenotificationId: 43 });
+    oldCodes.next([{ id: 7, clearingHouseId: 1, code: 'R04', flowType: 'Return',
+      description: 'Cuenta inválida', appliesToDebit: true, appliesToCredit: true,
+      appliesToPrenotification: true, appliesToReturn: true,
+      effectiveFrom: '2026-01-01', isActive: true }]);
+    oldCycles.next([{ cycleId: 'ACH-20260520-C2', cycleCode: 'ACH-20260520-C2',
+      cycleName: 'Ciclo 2', clearingHouseId: 1, clearingHouseCode: 'ACHCOL',
+      clearingHouseName: 'ACH Colombia', processingDate: '2026-05-20',
+      transactionCount: 0, status: 'Disponible' }]);
+    oldCodes.complete();
+    oldCycles.complete();
+    expect(component.pnSelected?.originalPrenotificationId).toBe(43);
+    expect(component.pnReturnCodes).toEqual([]);
+    expect(component.pnCycles).toEqual([]);
+    expect(component.pnOptionsLoading).toBeFalse();
+  });
+
 });

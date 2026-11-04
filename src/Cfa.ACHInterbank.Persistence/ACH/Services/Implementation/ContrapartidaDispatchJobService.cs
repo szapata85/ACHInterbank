@@ -163,7 +163,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         int? transactionId,
         CancellationToken ct)
     {
-        chunkSize = Math.Clamp(chunkSize, 10, 2000);
+        // chunkSize se conserva en el contrato público; cada envío SOAP exige cardinalidad 1:1.
         var safeTriggeredBy = string.IsNullOrWhiteSpace(triggeredBy) ? "quartz:contrapartida" : triggeredBy.Trim();
         var nowUtcOffset = _timeProvider.GetUtcNow();
         var nowUtc = nowUtcOffset.UtcDateTime;
@@ -208,7 +208,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 .Where(i => !i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= nowUtc)
                 .OrderBy(i => i.Id)
                 .Select(i => i.Id)
-                .Take(chunkSize)
+                // Proc_Contrapartidas recibe una sola transacción por SOAP.
+                .Take(1)
                 .ToListAsync(ct);
 
             if (pendingItemIds.Count == 0)
@@ -268,7 +269,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             var transactionById = transactions.ToDictionary(x => x.Id);
             var queueItems = await _context.IncomingNachaDispatchQueue
                 .AsNoTracking()
-                .Where(q => q.AchCycleId == cycle.Id && q.ClearingHouseId == cycle.ClearingHouseId && transactionIds.Contains(q.AchTransactionId))
+                .Where(q => q.AchCycleId == cycle.Id && q.ClearingHouseId == cycle.ClearingHouseId && q.AchTransactionId.HasValue && transactionIds.Contains(q.AchTransactionId.Value))
                 .ToListAsync(ct);
             var queueByTransactionId = queueItems
                 .GroupBy(q => q.AchTransactionId)
@@ -279,6 +280,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             string dispatchEndpoint = string.Empty;
             string executionMode = _dispatchOptions.NormalizedMode;
             string technicalException = string.Empty;
+            var liveTransportAttempted = false;
             ProcContrapartidasParsedResponse? parseResult = null;
             var startedAtUtc = nowUtc;
 
@@ -295,6 +297,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 batch.MappingVersion = resolution.MappingVersion;
                 batch.MappingSnapshotHash = resolution.MappingSnapshotHash;
 
+                liveTransportAttempted = IsLiveMode(executionMode);
                 var dispatchResult = await DispatchProcContrapartidasAsync(
                     requestPayload,
                     cycle.Id,
@@ -343,9 +346,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 var businessStatus = catalogResult?.BusinessStatus ?? IntegrationResponseBusinessStatus.Unknown;
                 var isSuccess = transportStatus == IntegrationTransportStatus.Succeeded
                     && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
-                var retryAllowed = catalogResult is null
+                var requiresReconciliation = RequiresReconciliation(transportStatus, parseResult, technicalException, liveTransportAttempted);
+                var retryAllowed = !requiresReconciliation && (catalogResult is null
                     ? (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable)
-                    : catalogResult.RetryAllowed;
+                    : catalogResult.RetryAllowed);
                 var itemMessage = catalogResult?.Description
                     ?? (hasItemResult ? txResult!.Message : parseResult.ErrorMessage);
                 var soapAudit = BuildAttemptSoapAuditFields(
@@ -393,7 +397,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     TransportStatus = transportStatus,
                     BusinessStatus = businessStatus,
                     RetryAllowed = retryAllowed,
-                    RequiresManualReview = catalogResult?.RequiresManualReview ?? false,
+                    RequiresManualReview = requiresReconciliation || catalogResult?.RequiresManualReview == true,
                     ProcessedAtUtc = finishedAtUtc,
                     IsSuccessful = isSuccess,
                     IsFunctionalRejection = businessStatus == IntegrationResponseBusinessStatus.Rejected,
@@ -427,7 +431,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                         TransportStatus = transportStatus,
                         BusinessStatus = businessStatus,
                         RetryAllowed = retryAllowed,
-                        RequiresManualReview = catalogResult?.RequiresManualReview ?? false,
+                        RequiresManualReview = requiresReconciliation || catalogResult?.RequiresManualReview == true,
                         ProcessedAtUtc = finishedAtUtc,
                         IsSuccessful = isSuccess,
                         IsFunctionalRejection = businessStatus == IntegrationResponseBusinessStatus.Rejected,
@@ -514,7 +518,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         }
 
         var safeTriggeredBy = string.IsNullOrWhiteSpace(request.TriggeredBy) ? "manual:unknown" : request.TriggeredBy.Trim();
-        var chunkSize = Math.Clamp(request.ChunkSize, 10, 2000);
+        // request.ChunkSize se conserva para compatibilidad; cada envío SOAP procesa un ítem.
         var retryJobId = $"manual-retry:{request.SourceBatchId:N}";
 
         var conflictingRetryInProgress = await _context.ContrapartidaDispatchBatches
@@ -582,35 +586,35 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             .AsNoTracking()
             .Where(a => sourceItemIds.Contains(a.DispatchItemId))
             .GroupBy(a => a.DispatchItemId)
-            .Select(g => g.OrderByDescending(x => x.AttemptNumber).Select(x => new { x.DispatchItemId, x.RetryEligible }).First())
+            .Select(g => g.OrderByDescending(x => x.AttemptNumber)
+                .Select(x => new { x.DispatchItemId, x.RetryEligible, x.RequiresManualReview, x.IsSuccessful, x.TransportStatus, x.SoapResponseCode })
+                .First())
             .ToListAsync(ct);
 
-        var lastAttemptByItemId = lastAttempts.ToDictionary(x => x.DispatchItemId, x => x.RetryEligible);
+        var lastAttemptByItemId = lastAttempts.ToDictionary(x => x.DispatchItemId);
 
         var selectedItemIds = items
             .Where(i =>
             {
-                if (i.AttemptCount >= MaxAttempts)
+                if (i.AttemptCount >= MaxAttempts
+                    || i.State == ContrapartidaDispatchItemStateEnum.ReportedToContrapartida
+                    || (lastAttemptByItemId.TryGetValue(i.Id, out var lastAttempt)
+                        && (lastAttempt.IsSuccessful || lastAttempt.RequiresManualReview
+                            || lastAttempt.TransportStatus == IntegrationTransportStatus.TimedOut
+                            || lastAttempt.SoapResponseCode == "SOAP_EXCEPTION"
+                            || lastAttempt.SoapResponseCode == "PARSER_ERROR")))
                 {
                     return false;
                 }
 
                 if (request.Scope == ContrapartidaDispatchRetryScope.Full)
                 {
-                    if (!request.AllowReplaySucceeded && i.State == ContrapartidaDispatchItemStateEnum.ReportedToContrapartida)
-                    {
-                        return false;
-                    }
                     return i.State != ContrapartidaDispatchItemStateEnum.ReportingContrapartida
                         && i.State != ContrapartidaDispatchItemStateEnum.Retrying;
                 }
 
-                if (i.State == ContrapartidaDispatchItemStateEnum.ReportedToContrapartida)
-                {
-                    return false;
-                }
-
-                return lastAttemptByItemId.TryGetValue(i.Id, out var retryEligible) && retryEligible;
+                return lastAttemptByItemId.TryGetValue(i.Id, out var eligibleAttempt)
+                    && eligibleAttempt.RetryEligible;
             })
             .Select(i => i.Id)
             .ToList();
@@ -644,7 +648,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
         while (selectedItemIds.Count > 0)
         {
-            var chunkIds = selectedItemIds.Take(chunkSize).ToList();
+            // Mantener lote operativo, pero aislar cada request y su respuesta.
+            var chunkIds = selectedItemIds.Take(1).ToList();
             selectedItemIds.RemoveRange(0, chunkIds.Count);
 
             await _context.ContrapartidaDispatchItems
@@ -683,6 +688,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             string dispatchEndpoint = string.Empty;
             string executionMode = _dispatchOptions.NormalizedMode;
             string technicalException = string.Empty;
+            var liveTransportAttempted = false;
             ProcContrapartidasParsedResponse parseResult;
             try
             {
@@ -696,6 +702,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 processingBatch.MappingSetId = resolution.MappingSetId;
                 processingBatch.MappingVersion = resolution.MappingVersion;
                 processingBatch.MappingSnapshotHash = resolution.MappingSnapshotHash;
+                liveTransportAttempted = IsLiveMode(executionMode);
                 var dispatchResult = await DispatchProcContrapartidasAsync(
                     requestPayload,
                     cycle.Id,
@@ -734,9 +741,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 var businessStatus = catalogResult?.BusinessStatus ?? IntegrationResponseBusinessStatus.Unknown;
                 var isSuccess = transportStatus == IntegrationTransportStatus.Succeeded
                     && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
-                var retryAllowed = catalogResult is null
+                var requiresReconciliation = RequiresReconciliation(transportStatus, parseResult, technicalException, liveTransportAttempted);
+                var retryAllowed = !requiresReconciliation && (catalogResult is null
                     ? (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable)
-                    : catalogResult.RetryAllowed;
+                    : catalogResult.RetryAllowed);
                 var canRetry = !isSuccess && retryAllowed && item.AttemptCount + 1 < MaxAttempts;
                 var message = catalogResult?.Description
                     ?? (hasItemResult ? txResult!.Message : parseResult.ErrorMessage);
@@ -785,7 +793,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     TransportStatus = transportStatus,
                     BusinessStatus = businessStatus,
                     RetryAllowed = retryAllowed,
-                    RequiresManualReview = catalogResult?.RequiresManualReview ?? false,
+                    RequiresManualReview = requiresReconciliation || catalogResult?.RequiresManualReview == true,
                     ProcessedAtUtc = finishedAtUtc,
                     IsSuccessful = isSuccess,
                     IsFunctionalRejection = businessStatus == IntegrationResponseBusinessStatus.Rejected,
@@ -828,8 +836,12 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 totalProcessed++;
             }
 
-            processingBatch.RequestPayloadXml = requestPayload;
-            processingBatch.ResponsePayloadXml = responsePayload;
+            // Los XML individuales quedan en cada intento; el lote con múltiples ítems no representa una llamada SOAP única.
+            if (processingBatch.TotalItems == 1)
+            {
+                processingBatch.RequestPayloadXml = requestPayload;
+                processingBatch.ResponsePayloadXml = responsePayload;
+            }
             await _context.SaveChangesAsync(ct);
         }
 
@@ -1089,6 +1101,17 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             string.Empty,
             false);
     }
+
+    private static bool RequiresReconciliation(
+        IntegrationTransportStatus status,
+        ProcContrapartidasParsedResponse parsed,
+        string technicalException,
+        bool liveTransportAttempted)
+        => status == IntegrationTransportStatus.TimedOut
+            || (liveTransportAttempted && !string.IsNullOrWhiteSpace(technicalException))
+            || (liveTransportAttempted && (parsed.ErrorMessage.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+                || parsed.ResponseCode.Equals("PARSER_ERROR", StringComparison.OrdinalIgnoreCase)
+                || parsed.ResponseCode.Equals("EMPTY_RESPONSE", StringComparison.OrdinalIgnoreCase)));
 
     private IntegrationTransportStatus ResolveTransportStatus(
         ProcContrapartidasParsedResponse parsed,

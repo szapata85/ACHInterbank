@@ -118,7 +118,7 @@ describe('MainLayoutComponent', () => {
       { id: 501, label: 'Contrato del servicio', route: '/integraciones/contrato', order: 10, exact: true },
       { id: 502, label: 'Relación de información', route: '/integraciones/relacion-informacion', order: 20, exact: true },
       { id: 503, label: 'Conexión entidad participante', route: '/integraciones/conexion', order: 30, exact: true },
-      { id: 504, label: 'Configuración del intercambio de archivos', route: '/administracion/mft-ach', order: 40, exact: true }
+      { id: 504, label: 'Administración de transferencias de archivos (MFT)', route: '/administracion/mft-ach', order: 40, exact: true }
     ]
   };
 
@@ -266,16 +266,18 @@ describe('MainLayoutComponent', () => {
     fixture.detectChanges();
 
     const link = fixture.nativeElement.querySelector(
-      'a[data-menu-item-id="40"]'
+      'a[data-menu-destination-id="40"]'
     ) as HTMLAnchorElement;
     const toggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="40"]'
     ) as HTMLButtonElement;
 
     expect(component.navigableParentIds.has(40)).toBeTrue();
+    expect(fixture.nativeElement.querySelector('button[data-menu-item-id="40"]')).toBe(toggle);
+    expect(link.getAttribute('aria-label')).toBe('Abrir página de Parent futuro');
     expect(component.menuItems[0]).toEqual(futureFunctionalParent);
     expect(link).not.toBeNull();
-    expect(link.textContent).toContain('Parent futuro');
+    expect(toggle.textContent).toContain('Parent futuro');
     expect(toggle).not.toBeNull();
     expect(toggle.type).toBe('button');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
@@ -313,7 +315,7 @@ describe('MainLayoutComponent', () => {
     expect(component.isDesktopCompact).toBeTrue();
 
     const link = fixture.nativeElement.querySelector(
-      'a[data-menu-item-id="40"]'
+      'a[data-menu-destination-id="40"]'
     ) as HTMLAnchorElement;
     const toggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="40"]'
@@ -331,6 +333,36 @@ describe('MainLayoutComponent', () => {
     expect(component.expandedItems.has(40)).toBeTrue();
   }));
 
+  it('does not announce hidden children as expanded in desktop compact mode', fakeAsync(() => {
+    menuSource.next([futureFunctionalParent]);
+    fixture.detectChanges();
+    flushMicrotasks();
+    fixture.detectChanges();
+
+    const toggle = fixture.nativeElement.querySelector(
+      'button[data-menu-toggle-id="40"]'
+    ) as HTMLButtonElement;
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(fixture.nativeElement.querySelector('#submenu-40')).not.toBeNull();
+
+    component.toggleNavigation();
+    fixture.detectChanges();
+    expect(component.isDesktopCompact).toBeTrue();
+    expect(component.expandedItems.has(40)).toBeTrue();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-label')).toBe('Expandir Parent futuro');
+    expect(fixture.nativeElement.querySelector('#submenu-40')).toBeNull();
+
+    component.toggleNavigation();
+    fixture.detectChanges();
+    expect(component.isDesktopCompact).toBeFalse();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(fixture.nativeElement.querySelectorAll('#submenu-40 [data-menu-item-id]').length).toBe(2);
+  }));
+
   it('keeps functional-parent children reachable on mobile and closes only after parent navigation', fakeAsync(() => {
     menuSource.next([futureFunctionalParent]);
     fixture.detectChanges();
@@ -344,7 +376,7 @@ describe('MainLayoutComponent', () => {
     expect(component.isMobileDrawerOpen).toBeTrue();
 
     const link = fixture.nativeElement.querySelector(
-      'a[data-menu-item-id="40"]'
+      'a[data-menu-destination-id="40"]'
     ) as HTMLAnchorElement;
     const toggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="40"]'
@@ -406,13 +438,14 @@ describe('MainLayoutComponent', () => {
     fixture.detectChanges();
 
     const reportLink = fixture.nativeElement.querySelector(
-      'a[data-menu-item-id="70"]'
+      'a[data-menu-destination-id="70"]'
     ) as HTMLAnchorElement;
     const reportToggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="70"]'
     ) as HTMLButtonElement;
 
     expect(component.navigableParentIds.has(70)).toBeTrue();
+    expect(fixture.nativeElement.querySelector('button[data-menu-item-id="70"]')).toBe(reportToggle);
     expect(reportLink).not.toBeNull();
     expect(reportToggle).not.toBeNull();
 
@@ -467,13 +500,14 @@ describe('MainLayoutComponent', () => {
     fixture.detectChanges();
 
     const link = fixture.nativeElement.querySelector(
-      'a[data-menu-item-id="50"]'
+      'a[data-menu-destination-id="50"]'
     ) as HTMLAnchorElement;
     const toggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="50"]'
     ) as HTMLButtonElement;
 
     expect(component.navigableParentIds.has(50)).toBeTrue();
+    expect(fixture.nativeElement.querySelector('button[data-menu-item-id="50"]')).toBe(toggle);
     expect(link).not.toBeNull();
     expect(toggle).not.toBeNull();
 
@@ -487,7 +521,7 @@ describe('MainLayoutComponent', () => {
       'Contrato del servicio',
       'Relación de información',
       'Conexión entidad participante',
-      'Configuración del intercambio de archivos'
+      'Administración de transferencias de archivos (MFT)'
     ]);
     expect(fixture.nativeElement.textContent).not.toContain('Centro de integración CFA');
 
@@ -495,6 +529,35 @@ describe('MainLayoutComponent', () => {
     tick();
     fixture.detectChanges();
     expect(router.url).toBe('/integraciones');
+  }));
+
+  it('uses the same whole-row disclosure control for structural and functional parents', fakeAsync(() => {
+    menuSource.next([menu[1], futureFunctionalParent, reportsMenu, connectionsMenu]);
+    fixture.detectChanges();
+    flushMicrotasks();
+    fixture.detectChanges();
+
+    for (const id of [2, 40, 70, 50]) {
+      const button = fixture.nativeElement.querySelector(
+        `button.nav-parent[data-menu-item-id="${id}"][data-menu-toggle-id="${id}"]`
+      ) as HTMLButtonElement;
+      expect(button).not.toBeNull();
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      button.click();
+      fixture.detectChanges();
+      expect(button.getAttribute('aria-expanded')).toBe('true');
+      expect(component.expandedItems.has(id)).toBeTrue();
+    }
+
+    expect(fixture.nativeElement.querySelector('a[data-menu-destination-id="2"]')).toBeNull();
+    for (const id of [40, 70, 50]) {
+      expect(fixture.nativeElement.querySelector(`a[data-menu-destination-id="${id}"]`)).not.toBeNull();
+    }
+    const mft = fixture.nativeElement.querySelector(
+      'a[data-menu-item-id="504"]'
+    ) as HTMLAnchorElement;
+    expect(mft.textContent).toContain('Administración de transferencias de archivos (MFT)');
+    expect(mft.getAttribute('href')).toContain('/administracion/mft-ach');
   }));
 
   it('uses BrandingService for the private logo and centralized product fallback', () => {
@@ -511,7 +574,7 @@ describe('MainLayoutComponent', () => {
     fixture.detectChanges();
 
     const catalogsLink = fixture.nativeElement.querySelector(
-      'a[data-menu-item-id="3"]'
+      'a[data-menu-destination-id="3"]'
     ) as HTMLAnchorElement;
     const catalogsToggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="3"]'

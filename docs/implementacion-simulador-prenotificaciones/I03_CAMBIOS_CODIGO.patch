@@ -1,0 +1,621 @@
+--- a/MEMORY_STATE.md
++++ b/MEMORY_STATE.md
+@@ -1,8 +1,8 @@
+ # MEMORY_STATE — ACH Interbank / simulador de respuesta a prenotificaciones
+ 
+ **Corte:** 2026-11-02  
+-**Paquete:** I02 — consulta y preflight de elegibilidad incorporados; compilación C# pendiente  
+-**Último ZIP íntegro vigente:** `ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I02_2026-11-02.zip` (derivado de I00; no reutilizar ZIP de F08 como base)  
++**Paquete:** I03 — generación de devolución incorporada; sin compilación/homologación runtime  
++**Último ZIP íntegro vigente:** `ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I03_2026-11-02.zip` (derivado de I00; no reutilizar ZIP de F08 como base)  
+ **Directorio raíz del proyecto dentro del ZIP:** `ACHInterbank_ajustado/`  
+ **Continuidad:** usar siempre el **último ZIP incremental** como única base, no reconstruir el proyecto desde memoria de chat.
+ 
+@@ -21,7 +21,7 @@
+ - Existe `IncomingPrenotificationResponse` en la selección/contrato pero el flujo diferencial no devolutivo está bloqueado por `DIFFERENTIAL_GENERATOR_NOT_HOMOLOGATED`; **no declararlo implementado**.
+ - La auditoría del simulador del 2026-11-02 registró **12 hallazgos abiertos** y 14 comprobaciones por patrones estáticos; **esas comprobaciones no equivalen a pruebas runtime**.
+ - **I00 = COMPLETADO** solo para documentación, seguimiento y entrega íntegra del proyecto; no constituye implementación de la funcionalidad.
+-- **I01 = EN_PROGRESO**: contrato, enums, 2 endpoints read-only, validación de forma, bloqueo del escenario y tests C# incorporados. **20/20 comprobaciones estáticas PASS** y grafo .sln PASS; no hay dotnet disponible para compilar/ejecutar tests C#. I02 código incorporado con 26/26 PASS_STATIC, runtime .NET pendiente; I03–I07 pendientes. No hay verificación E2E/runtime de la nueva función.
++- **I01 = EN_PROGRESO**: contrato, enums, 2 endpoints read-only, validación de forma, bloqueo del escenario y tests C# incorporados. **20/20 comprobaciones estáticas PASS** y grafo .sln PASS; no hay dotnet disponible para compilar/ejecutar tests C#. I02 código incorporado con 26/26 PASS_STATIC, runtime .NET pendiente; I03 código incorporado, I04–I07 pendientes. No hay verificación E2E/runtime de la nueva función.
+ - El proyecto tiene un `MEMORY.md` anterior y múltiples estados históricos: **no sobrescribirlos ni presentarlos como estados de este nuevo trabajo**. Este archivo documenta únicamente la iniciativa del simulador de respuestas a prenotificaciones.
+ 
+ ## Referencias normativas provistas
+@@ -38,7 +38,7 @@
+ | I00 — Empaquetado y seguimiento | COMPLETADO (documental) | Sin cambios funcionales |
+ | I01 — Contrato y casos de uso | EN_PROGRESO | Código y documentos realizados; faltan `dotnet build` y `dotnet test` |
+ | I02 — Consulta y elegibilidad | EN_PROGRESO | Consulta paginada, policy y preview incorporados; compilar y ejecutar Xunit/API; reserva única en I03 |
+-| I03 — Archivo NACHA-M devolución | PENDIENTE | Builder oficial + fixtures por cámara + secuencia/evidencia |
++| I03 — Archivo NACHA-M devolución | EN_PROGRESO | Endpoint y builder incorporados; falta compilar, fixtures y concurrency SQL |
+ | I04 — NachaUpload y reconciliación | PENDIENTE | Correlación y transición idempotente comprobada |
+ | I05 — Sin devolución/aceptación tácita | PENDIENTE | Reloj inyectable + job probado + prevención de carreras |
+ | I06 — SPA completa | PENDIENTE | UX, descarga autenticada, estados/errores, E2E |
+@@ -53,10 +53,10 @@
+ 5. E2E anteriores con selectores Material desactualizados; actualizar como parte de implementación.
+ 6. Algunos archivos de evidencia históricos contienen etiquetas de prenotificación, **no prueban homologación de la nueva ruta**.
+ 
+-## Instrucción inequívoca para el siguiente turno (I03)
++## Instrucción inequívoca para el siguiente turno (I04)
+ 
+ 1. Abrir el **ZIP incremental más reciente**, revisar este `MEMORY_STATE.md`, el `docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md`, el plan y la auditoría.
+-2. Implementar **I03** (generación oficial NACHA-M de devoluciones) apoyándose en preflight I02 y revalidación transaccional, reserva durable de idempotencia y perfiles por cámara; no repetir auditoría total.
++2. Implementar **I04** (NachaUpload y reconciliación) sobre el endpoint I03; no repetir auditoría total.
+ 3. Ejecutar lo ejecutable. Si falta .NET, Node, Postgres u otro componente: registrar `NO_EJECUTADA_POR_AMBIENTE`, hacer verificaciones estáticas o pruebas independientes cuando sea posible, **continuar el trabajo seguro del incremento**. Nunca reportar `PASS` sin ejecución; no habilitar operación sin evidencias requeridas.
+ 4. Actualizar el plan si cambia el diseño, `ESTADO_INCREMENTAL.md`, este `MEMORY_STATE.md`, informe y changelog; incorporar diff y pruebas en la carpeta de evidencias.
+ 5. Entregar **el ZIP completo con TODO el proyecto** (no solo patch) y resumen: implementado, probado, pendiente, bloqueado, riesgos, siguiente incremento.
+@@ -64,7 +64,7 @@
+ 
+ ## Cómo continuar en ChatGPT en modo chat
+ 
+-Adjuntar el ZIP incremental más reciente y escribir: «Ejecuta I03 del simulador de respuestas a prenotificaciones. Usa `MEMORY_STATE.md` y el plan interno. Entrega ZIP COMPLETO, cambios y estado». Repetir con I03, I04, etc.; cada nueva entrega sustituye a la anterior como base única. Este archivo es memoria **documental portátil**, no una modificación de la memoria del producto ChatGPT.
++Adjuntar el ZIP incremental más reciente y escribir: «Ejecuta I04 del simulador de respuestas a prenotificaciones. Usa `MEMORY_STATE.md` y el plan interno. Entrega ZIP COMPLETO, cambios y estado». Repetir con I05, I06, etc.; cada nueva entrega sustituye a la anterior como base única. Este archivo es memoria **documental portátil**, no una modificación de la memoria del producto ChatGPT.
+ 
+ ## Estado específico de I01 (2026-11-02)
+ 
+@@ -85,3 +85,14 @@
+ - Resultado de pruebas: 26/26 `PASS_STATIC` y grafo proyectos 7/7; `dotnet` no está instalado: build/Xunit/API/BD `NO_EJECUTADA_POR_AMBIENTE`, no reportar falsamente PASS.
+ - Ruta de evidencia: `docs/implementacion-simulador-prenotificaciones/INFORME_I02.md`, `CONTRATO_ELEGIBILIDAD_I02.md`, `EVIDENCIA_I02.txt`, `scripts/test/prenotification_simulator_i02_static_check.py`.
+ - **Siguiente: I03**, reserva idempotente y retorno NACHA-M homologado. Usar I02 ZIP completo como base única.
++
++## Estado específico de I03 (2026-11-02)
++
++- Nuevo contrato de ejecución `POST /api/uat/nacha-inbound-simulator/prenotifications/generate-return` y `INachaInboundSimulationService.GeneratePrenotificationReturnAsync`, guardados por TestTools.Access + NachaSimulatorGenerateDifferential.
++- Valida contrato, elegibilidad I02, causal y perfil homologado RETORNO/ENTRADA; crea NACHA-M mediante `BuildOfficialReturnFileAsync`, monto cero, correlación y trace nuevo, sin autoimportar ni alterar estados.
++- Reserva `SimulationId` determinista SHA-256 con índice UNIQUE existente y huella de payload; usa transacción serializable para revalidación, bloqueo de archivos previos, consecutivos, escritura y evidencia. Intenta borrar el directorio físico ante rollback. No crear archivo positivo de aceptación tácita.
++- Ruta genérica escenario 10 continúa bloqueada; endpoint dedicado I03 es el único que puede generar retornos de prenotificaciones.
++- `PASS`: proyecto 7/7, verificaciones I01 20/20, I02 26/26, I03 31/31 `PASS_STATIC`. `NO_EJECUTADA_POR_AMBIENTE`: .NET SDK, tests C#, archivos reales, BD concurrency, importación NachaUpload. **No homologado**.
++- Riesgos: bloqueo en concurrencia debe verificarse en SQL Server/PostgreSQL; fallos bruscos pueden dejar archivos físicos huérfanos; verificar semántica NACHA real y el impacto de la auditoría del builder en transacción.
++- Evidencia: `docs/implementacion-simulador-prenotificaciones/INFORME_I03.md`, `CONTRATO_GENERACION_I03.md`, `EVIDENCIA_I03.txt`, `scripts/test/prenotification_simulator_i03_static_check.py`.
++- Próximo I04: importación manual NachaUpload, correlación y resultados idempotentes.
+--- a/docs/implementacion-simulador-prenotificaciones/CHANGELOG_INCREMENTAL.md
++++ b/docs/implementacion-simulador-prenotificaciones/CHANGELOG_INCREMENTAL.md
+@@ -27,6 +27,15 @@
+ - Pruebas Xunit unitarias/SQLite añadidas, no ejecutadas por falta de SDK; 26/26 comprobaciones estáticas PASS.
+ - Se mantuvo bloqueo de generación y ninguna escritura de estado. I03 queda encargado de idempotencia durable transaccional, secuencias y NACHA-M de devolución.
+ 
+-## I03–I07 — Pendientes
++## I03 — 2026-11-02 — EN_PROGRESO (código incorporado, runtime pendiente)
++
++- Nuevo endpoint protegido de devolución de prenotificaciones, contrato de servicio, identidad idempotente y builder oficial.
++- Revalidación I02 dentro de transacción serializable, reserva UNIQUE y rechazo de archivos duplicados por ID original.
++- Perfil homologado, catálogo de causal, SEC, trace, monto cero y evidencia; directorio aislado con limpieza best-effort.
++- Sin autoimportación, alteración de estados, transmisión externa ni generación de aprobación por ausencia de devolución.
++- Nuevas pruebas Xunit y comprobaciones estáticas 31/31 PASS_STATIC; I01 20/20 e I02 26/26 permanecen PASS_STATIC. SDK .NET ausente, no compilado ni homologado.
++- Riesgos y pendientes: pruebas reales multibase, concurrencia, recuperación de archivos huérfanos, validez de bytes NACHA y NachaUpload E2E.
++
++## I04–I07 — Pendientes
+ 
+ Agregar aquí para cada incremento: archivos modificados, decisiones, casos, evidencias, pruebas ejecutadas/no ejecutadas, SHA-256 del ZIP, hallazgos remanentes y próxima entrega.
+--- a/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.json
++++ b/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.json
+@@ -1,7 +1,7 @@
+ {
+   "fecha_corte": "2026-11-02",
+-  "entrega_actual": "I02",
+-  "estado_nueva_funcionalidad": "PREVIEW_ELEGIBILIDAD_IMPLEMENTADO_EJECUCION_NO_HABILITADA",
++  "entrega_actual": "I03",
++  "estado_nueva_funcionalidad": "ENDPOINT_GENERACION_RETORNO_CODIGO_IMPLEMENTADO_RUNTIME_PENDIENTE",
+   "incrementos": [
+     {
+       "id": "I00",
+@@ -29,8 +29,10 @@
+     {
+       "id": "I03",
+       "nombre": "Generacion NACHA-M de devoluciones",
+-      "estado": "PENDIENTE",
+-      "pendiente": "builder fixtures perfiles secuencias evidencia"
++      "estado": "EN_PROGRESO",
++      "pendiente": "ruta oficial e idempotencia implementadas; compilar, Xunit, fixtures ACHCOL/CENIT, concurrencia y NachaUpload",
++      "pruebas_estaticas": "31/31 PASS_STATIC",
++      "pruebas_runtime": "NO_EJECUTADA_POR_AMBIENTE"
+     },
+     {
+       "id": "I04",
+@@ -60,8 +62,9 @@
+   "pre_pruebas_ejecutadas": 0,
+   "hallazgos_auditoria_previos_abiertos": 12,
+   "nota": "Nunca equiparar comprobaciones estaticas con PASS runtime.",
+-  "proximo_incremento": "I03",
++  "proximo_incremento": "I04",
+   "verificacion_grafo_solution": "PASS",
+   "verificacion_estatica_i01": "20/20 PASS_STATIC",
+-  "verificacion_estatica_i02": "26/26 PASS_STATIC"
++  "verificacion_estatica_i02": "26/26 PASS_STATIC",
++  "verificacion_estatica_i03": "31/31 PASS_STATIC"
+ }
+--- a/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md
++++ b/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md
+@@ -1,6 +1,6 @@
+ # Estado de implementación — simulador de respuestas a prenotificaciones
+ 
+-**Corte:** 2026-11-02 · **Entrega vigente:** I02 · **Versión funcional nueva:** consulta y preflight implementados; generación de devolución sigue deshabilitada.
++**Corte:** 2026-11-02 · **Entrega vigente:** I03 · **Versión funcional nueva:** API de generación de devolución incorporada; compilación y homologación pendiente.
+ 
+ ## Leyenda obligatoria
+ 
+@@ -18,7 +18,7 @@
+ | I00 | ZIP íntegro + documentación + `MEMORY_STATE.md` + tablero + referencias | **COMPLETADO (documental)** | No exige código de nueva función |
+ | I01 | Contrato API/DTO, resultados Returned vs NoReturnByDeadline, enum compatible, casos de uso, tests de contrato | **EN_PROGRESO** (código implementado, 20 verificaciones estáticas PASS) | Falta compilar y ejecutar Xunit cuando exista .NET; no habilitar ejecución sin I02/I03 |
+ | I02 | Consulta y preflight de prenotificaciones originadas; estado, cámara, banco, ciclo, transmisión y resultado | **EN_PROGRESO** (código, 26/26 PASS_STATIC) | Compilar y correr Xunit/API; reserva idempotente y revalidación de Generate quedan para I03; no se habilita ejecución |
+-| I03 | Devolución NACHA-M válida (ACHCOL y CENIT), secuencia/archivo/evidencia consistentes | PENDIENTE | Builder reutilizado, catálogos de causales, fixtures, checksum, manejo de fallos y concurrencia |
++| I03 | Devolución NACHA-M (ACHCOL y CENIT), secuencia/archivo/evidencia | **EN_PROGRESO** (ruta y generador incorporados; 31/31 PASS_STATIC) | Compilar y ejecutar Xunit, fixtures, importación de archivo real, concurrencia de BD y recuperación de huérfanos |
+ | I04 | NachaUpload correlaciona devolución y sincroniza intento de validación sin dobles efectos | PENDIENTE | Integración, reglas de transición, reupload idempotente y evidencias por cámara |
+ | I05 | Sin devolución: prueba de deadline con reloj aislado y job de aceptación tácita | PENDIENTE | Servicio de reloj, pruebas antes/después, feriados, carreras y doble ejecución |
+ | I06 | Pantalla Angular, selectores, filtros, mensajes, preview, descarga con JWT, E2E | PENDIENTE | UI terminada, errores controlados, roles y regresión Playwright |
+@@ -34,8 +34,8 @@
+ 
+ - **8 hitos** contemplados (I00 preparación + I01–I07 funcionales).
+ - **1 hito documental completado** (I00).
+-- **2 incrementos (I01, I02) con código entregado pero sin cierre runtime**.
+-- **2 incrementos EN_PROGRESO (I01–I02) y 5 PENDIENTES (I03–I07)**.
++- **3 incrementos (I01, I02, I03) con código entregado pero sin cierre runtime**.
++- **3 incrementos EN_PROGRESO (I01–I03) y 4 PENDIENTES (I04–I07)**.
+ - **14 pruebas PRE definidas; todavía 0 ejecutadas en entorno C# UAT. I01 agregó Xunit que requieren SDK .NET.**
+ - **12 hallazgos heredados abiertos** según auditoría SPA del 2026-11-02; revisar y corregir los que intersecten este alcance en sus incrementos.
+ 
+@@ -49,7 +49,7 @@
+ - `PASS_STATIC` — `python scripts/test/prenotification_simulator_i01_static_check.py`: 20/20 invariantes estructurales. No es compilación ni prueba de comportamiento.
+ - `NO_EJECUTADA_POR_AMBIENTE` — `dotnet build ACHInterbank.sln -c Release`: `dotnet: command not found`.
+ - `NO_EJECUTADA_POR_AMBIENTE` — `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter ...`: falta SDK; pruebas Xunit incorporadas sin afirmar aprobación.
+-- Ruta de generación nueva conserva bloqueo `PRENOTIFICATION_RETURN_NOT_IMPLEMENTED`. El modo NoReturn no produce archivo.
++- Ruta genérica de generación nueva conserva bloqueo `PRENOTIFICATION_RETURN_NOT_IMPLEMENTED`; I03 introduce endpoint dedicado con revalidación. El modo NoReturn no produce archivo.
+ - Siguiente trabajo implementable sin esperar al entorno: **I03 — generación normativa NACHA-M + reserva de idempotencia**, revisando asimismo la compilación de I01 cuando exista SDK.
+ 
+ ## Evidencia específica I02
+@@ -59,3 +59,11 @@
+ - `NO_EJECUTADA_POR_AMBIENTE`: `dotnet build` y `dotnet test` (SDK ausente); las pruebas C# añadidas **no** están aprobadas.
+ - `BusinessEligible` es diagnóstico read-only, `ExecutionEnabled=false`; Generate conserva bloqueo `PRENOTIFICATION_RETURN_NOT_IMPLEMENTED`.
+ - I02 no reserva `IdempotencyKey` ni modifica estados: la reserva única y revalidación bajo concurrencia es responsabilidad de I03.
++
++## Evidencia específica I03
++
++- `PASS`: grafo solución 7/7.
++- `PASS_STATIC`: I03 31/31; regresiones I01 20/20 e I02 26/26.
++- Endpoint `prenotifications/generate-return` incorpora reserva durable UNIQUE y revalidación serializable; genera solamente archivo en UAT/local y no importa.
++- `NO_EJECUTADA_POR_AMBIENTE`: compilación, Xunit, PostgreSQL/SQL Server, generación de fixture NACHA-M y NachaUpload E2E. El código **no está homologado**.
++- `I04`: correlacionar archivo importado, estados e idempotencia, con pruebas de extremo a extremo.
+--- a/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs
++++ b/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs
+@@ -60,8 +60,27 @@
+         [FromBody] PrenotificationSimulationContractRequest request, CancellationToken ct)
+         => Ok(await _service.PreviewPrenotificationAsync(request, ct));
+ 
++    
++    [HttpPost("prenotifications/generate-return")]
++    [Authorize(Policy = P1Policies.NachaSimulatorGenerateDifferential)]
++    [EndpointDescription("I03: genera solo un archivo de devolucion NACHA-M de prenotificaciones SALIENTES verificadas. UAT/local, con idempotencia en base de datos, sin autoimportar ni cambiar estados. NoReturnByDeadline no genera archivo (I05).")]
++    [ProducesResponseType(typeof(GenerateNachaInboundSimulationResponse), StatusCodes.Status201Created)]
++    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
++    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
++    public async Task<ActionResult<GenerateNachaInboundSimulationResponse>> GeneratePrenotificationReturn(
++        [FromBody] PrenotificationSimulationContractRequest request, CancellationToken ct)
++    {
++        try
++        {
++            var result = await _service.GeneratePrenotificationReturnAsync(request, User?.Identity?.Name ?? "uat-local", ct);
++            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
++        }
++        catch (ArgumentException ex) { return BadRequest(ToProblem(ex.Message)); }
++        catch (InvalidOperationException ex) { return UnprocessableEntity(ToProblem(ex.Message)); }
++    }
++
+     [HttpPost("generate")]
+-    [EndpointDescription("Genera un archivo NACHA-M de entrada simulado para UAT/local. El simulador solo genera y permite descargar el archivo: no llama NachaUpload, no importa automaticamente, no crea transacciones de entrada, no cambia estados y no transmite a camaras externas. El usuario debe cargar manualmente el archivo generado por la SPA mediante el flujo real NachaUpload. Ejemplos vigentes: ACH Colombia IncomingCredit, CENIT IncomingDebit, ACH Colombia IncomingCreditReturn. La respuesta de prenotificacion legado y el nuevo IncomingPrenotificationReturn no estan habilitados en I01. Errores esperados: 400 request invalido; 401/403 autenticacion/autorizacion; 422 simulador deshabilitado, regla no configurada, referencia inexistente o causal requerida; 500 error no controlado.")]
++    [EndpointDescription("Genera un archivo NACHA-M de entrada simulado para UAT/local. El simulador solo genera y permite descargar el archivo: no llama NachaUpload, no importa automaticamente, no crea transacciones de entrada, no cambia estados y no transmite a camaras externas. El usuario debe cargar manualmente el archivo generado por la SPA mediante el flujo real NachaUpload. Ejemplos vigentes: ACH Colombia IncomingCredit, CENIT IncomingDebit, ACH Colombia IncomingCreditReturn. El escenario legado continua bloqueado; IncomingPrenotificationReturn se genera exclusivamente por prenotifications/generate-return bajo contrato I03. Errores esperados: 400 request invalido; 401/403 autenticacion/autorizacion; 422 simulador deshabilitado, regla no configurada, referencia inexistente o causal requerida; 500 error no controlado.")]
+     [ProducesResponseType(typeof(GenerateNachaInboundSimulationResponse), StatusCodes.Status201Created)]
+     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+--- a/src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs
++++ b/src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs
+@@ -4,6 +4,7 @@
+ 
+ public interface INachaInboundSimulationService
+ {
++    Task<GenerateNachaInboundSimulationResponse> GeneratePrenotificationReturnAsync(PrenotificationSimulationContractRequest request, string userName, CancellationToken ct = default);
+     Task<PrenotificationCandidatePage> ListOriginatedPrenotificationsAsync(PrenotificationCandidateQuery request, CancellationToken ct = default);
+     Task<PrenotificationBusinessEligibilityPreviewResponse> PreviewPrenotificationAsync(PrenotificationSimulationContractRequest request, CancellationToken ct = default);
+     Task<GenerateNachaInboundSimulationResponse> GenerateAsync(GenerateNachaInboundSimulationRequest request, string userName, CancellationToken ct = default);
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
+@@ -264,7 +264,7 @@
+         if (request.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn)
+         {
+             return Blocked("PRENOTIFICATION_RETURN_NOT_IMPLEMENTED",
+-                "Contrato I01 disponible; faltan elegibilidad I02 y devolucion normativa I03. No se genera archivo ni se cambian estados.",
++                "Usar POST prenotifications/generate-return con el contrato I03; la ruta generica permanece bloqueada para evitar saltarse la revalidacion transaccional.",
+                 request.SimulationMode);
+         }
+ 
+@@ -1409,7 +1409,9 @@
+     private string ResolveOutputDirectory(string clearingHouseCode, NachaInboundSimulationType scenario)
+     {
+         var chamber = clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase) ? "cenit" : "ach-colombia";
+-        var bucket = scenario == NachaInboundSimulationType.IncomingPrenotificationResponse
++        var bucket = scenario == NachaInboundSimulationType.IncomingPrenotificationReturn
++            ? $"prenotification-returns/{chamber}"
++            : scenario == NachaInboundSimulationType.IncomingPrenotificationResponse
+             ? $"prenotification-responses/{chamber}"
+             : (RequiresTransactionReferences(scenario) ? $"transaction-responses/{chamber}" : chamber);
+         return Path.GetFullPath(Path.Combine(_options.OutputDirectory, bucket));
+@@ -1467,7 +1469,7 @@
+             or NachaInboundSimulationType.IncomingCreditReturn or NachaInboundSimulationType.IncomingDebitConfirmation
+             or NachaInboundSimulationType.IncomingDebitRejection or NachaInboundSimulationType.IncomingDebitReturn;
+     private static NachaSimulationMode InferSimulationMode(NachaInboundSimulationType scenario)
+-        => RequiresTransactionReferences(scenario) || scenario == NachaInboundSimulationType.IncomingPrenotificationResponse
++        => RequiresTransactionReferences(scenario) || scenario is NachaInboundSimulationType.IncomingPrenotificationResponse or NachaInboundSimulationType.IncomingPrenotificationReturn
+             ? NachaSimulationMode.DifferentialResponses
+             : NachaSimulationMode.IncomingTransactions;
+     private static bool IsDebitScenario(NachaInboundSimulationType scenario) => scenario.ToString().Contains("Debit", StringComparison.OrdinalIgnoreCase);
+--- a/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationIdentity.cs
++++ b/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationIdentity.cs
+@@ -0,0 +1,46 @@
++using System.Security.Cryptography;
++using System.Text;
++using System.Text.Json;
++using Cfa.ACHInterbank.Application.ACH.Models;
++
++namespace Cfa.ACHInterbank.Application.ACH.Services;
++
++/// <summary>
++/// I03: la restriccion UNIQUE de NachaInboundSimulations.SimulationId funciona
++/// como llave durable de idempotencia. La huella del payload evita reutilizar
++/// una misma llave con una devolucion distinta. No incluye datos de cuenta.
++/// </summary>
++public static class PrenotificationSimulationIdentity
++{
++    public static Guid ReservationId(PrenotificationSimulationContractRequest request)
++    {
++        ArgumentNullException.ThrowIfNull(request);
++        var key = request.IdempotencyKey?.Trim();
++        if (string.IsNullOrEmpty(key)) throw new ArgumentException("IDEMPOTENCY_KEY_REQUIRED");
++        var normalized = $"PRENOTIFICATION_RETURN_V1|{request.ClearingHouseCode.Trim().ToUpperInvariant()}|{request.RespondingFinancialInstitutionId}|{key}";
++        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
++        return new Guid(hash.AsSpan(0, 16));
++    }
++
++    public static string RequestHash(PrenotificationSimulationContractRequest request)
++    {
++        ArgumentNullException.ThrowIfNull(request);
++        var canonical = JsonSerializer.Serialize(new
++        {
++            Outcome = request.Outcome.ToString(),
++            ClearingHouse = request.ClearingHouseCode.Trim().ToUpperInvariant(),
++            OriginalIds = request.OriginalPrenotificationIds.OrderBy(id => id).ToArray(),
++            OriginalCycle = request.OriginalCycleId.Trim(),
++            ResponseCycle = request.ResponseCycleId?.Trim(),
++            request.BusinessDate,
++            request.RespondingFinancialInstitutionId,
++            ReasonCode = request.ReasonCode?.Trim().ToUpperInvariant()
++        });
++        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
++    }
++
++    public static string AuditMarker(string hash) => $"I03-PRENOTIFICATION-RETURN;REQUEST-SHA256={hash}";
++
++    public static bool MatchesStoredPayload(string? notes, string expectedHash)
++        => notes?.Contains(AuditMarker(expectedHash), StringComparison.Ordinal) == true;
++}
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.PrenotificationReturns.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.PrenotificationReturns.cs
+@@ -0,0 +1,195 @@
++using System.Data;
++using System.Security.Cryptography;
++using System.Text;
++using System.Text.Json;
++using Cfa.ACHInterbank.Application.ACH.Models;
++using Cfa.ACHInterbank.Application.ACH.Services;
++using Cfa.ACHInterbank.Domain.Models.ACH;
++using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
++using Microsoft.EntityFrameworkCore;
++
++namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
++
++/// <summary>
++/// I03: solo genera un archivo de devolucion simulado. Toda la reserva en BD,
++/// revalidacion y asignacion de trace se ejecutan dentro de la transaccion.
++/// El archivo fisico se elimina si no se confirma la transaccion. No autoimporta.
++/// </summary>
++public sealed partial class NachaInboundSimulationService
++{
++    public async Task<GenerateNachaInboundSimulationResponse> GeneratePrenotificationReturnAsync(
++        PrenotificationSimulationContractRequest request, string userName, CancellationToken ct = default)
++    {
++        ArgumentNullException.ThrowIfNull(request);
++        var shape = PrenotificationSimulationContract.Validate(request);
++        if (!shape.ShapeValid)
++            throw new ArgumentException($"PRENOTIFICATION_CONTRACT_INVALID: {string.Join("; ", shape.Violations.Select(v => v.Code))}");
++        if (request.Outcome != PrenotificationSimulationOutcome.Returned)
++            throw new InvalidOperationException("NO_RETURN_HAS_NO_NACHA_FILE: La aceptacion tacita se verificara en I05, no genera archivo.");
++        if (!_options.IsUatLike() || !_options.DifferentialResponsesEnabled || !_options.RequirePublishedDifferentialProfile
++            || _options.AllowAutoImport || _options.AllowExternalTransmission || _nachaFileBuilder is null)
++            throw new InvalidOperationException("SIMULATOR_UNAVAILABLE: UAT/local, guardas y generador oficial son obligatorios.");
++        if (request.OriginalPrenotificationIds.Count > _options.MaxEntriesPerSimulation)
++            throw new InvalidOperationException("ENTRIES_COUNT_INVALID: La seleccion supera el maximo de la configuracion UAT.");
++
++        var reservationId = PrenotificationSimulationIdentity.ReservationId(request);
++        var requestHash = PrenotificationSimulationIdentity.RequestHash(request);
++        var previous = await _context.NachaInboundSimulations.AsNoTracking()
++            .FirstOrDefaultAsync(x => x.SimulationId == reservationId, ct);
++        if (previous is not null)
++            return ToPrenotificationReturnReplay(previous, requestHash);
++
++        // SERIALIZABLE protege la consulta de devoluciones generadas para los IDs
++        // seleccionados. UNIQUE(SimulationId) protege reintentos con igual clave
++        // incluso en varias instancias. No reserva una clave en memoria local.
++        await using var tx = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
++        string? outputDirectory = null;
++        try
++        {
++            previous = await _context.NachaInboundSimulations
++                .FirstOrDefaultAsync(x => x.SimulationId == reservationId, ct);
++            if (previous is not null)
++                return ToPrenotificationReturnReplay(previous, requestHash);
++
++            var preview = await PreviewPrenotificationAsync(request, ct);
++            if (!preview.ShapeValid || !preview.BusinessEligible || preview.Candidates.Count != request.OriginalPrenotificationIds.Count)
++                throw new InvalidOperationException($"PRENOTIFICATION_NOT_ELIGIBLE: {string.Join("; ", preview.Violations.Select(v => v.Code))}");
++
++            var ids = request.OriginalPrenotificationIds.ToArray();
++            var priorFile = await _context.NachaInboundSimulationEntries.AsNoTracking()
++                .AnyAsync(x => x.TransactionId.HasValue && ids.Contains(x.TransactionId.Value)
++                    && x.Simulation.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn
++                    && x.Simulation.Status != NachaInboundSimulationStatus.Failed
++                    && x.Simulation.Status != NachaInboundSimulationStatus.Blocked, ct);
++            if (priorFile)
++                throw new InvalidOperationException("PRENOTIFICATION_RETURN_ALREADY_GENERATED: Ya existe devolucion simulada para al menos un ID seleccionado.");
++
++            var clearingHouse = await ResolveClearingHouseAsync(request.ClearingHouseCode, ct);
++            var respondingInstitution = await ResolveOriginAsync(request.RespondingFinancialInstitutionId, null, ct);
++            var localReceivingInstitution = await ResolveDestinationAsync(null, null, ct);
++            if (respondingInstitution.Id == localReceivingInstitution.Id)
++                throw new InvalidOperationException("PRENOTIFICATION_BANK_MISMATCH: Banco receptor original y origen del retorno deben ser externos.");
++            var responseCycle = await _context.AchCycles.AsNoTracking()
++                .SingleAsync(x => x.Id == request.ResponseCycleId && x.ClearingHouseId == clearingHouse.Id, ct);
++            var originals = await _context.AchTransactions.AsNoTracking()
++                .Include(x => x.AchBatch)
++                .Where(x => ids.Contains(x.Id) && x.AchCycleId == request.OriginalCycleId)
++                .ToListAsync(ct);
++            if (originals.Count != ids.Length || originals.Any(x => x.SourceInstitutionId != localReceivingInstitution.Id
++                || x.DestinationInstitutionId != respondingInstitution.Id || !x.IsPrenotification))
++                throw new InvalidOperationException("PRENOTIFICATION_ORIGIN_MISMATCH: Origen, receptor o correlacion inconsistente.");
++            if (originals.Select(x => x.TraceNumber).Distinct(StringComparer.Ordinal).Count() != ids.Length)
++                throw new InvalidOperationException("PRENOTIFICATION_TRACE_NOT_UNIQUE: No es seguro emitir dos devoluciones con el mismo trace original.");
++            var reason = request.ReasonCode!.Trim().ToUpperInvariant();
++            if (clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
++                && CenitReturnIn2026Layout.IsReturnOfReturnCause(reason))
++                throw new InvalidOperationException("CENIT_ROR_NOT_ORDINARY_RETURN: R60-R74 usan un flujo distinto.");
++            var reasonCheck = await ValidateReturnReasonAsync(clearingHouse.Id, reason, request.BusinessDate, originals, ct);
++            if (reasonCheck is not null)
++                throw new InvalidOperationException($"{reasonCheck.FunctionalCode}: {reasonCheck.Message}");
++            var profile = await ResolvePublishedDifferentialProfileAsync(clearingHouse, request.BusinessDate, ct);
++            if (!profile.Success)
++                throw new InvalidOperationException($"RETURN_PROFILE_NOT_HOMOLOGATED: {profile.DiagnosticCode}");
++
++            var sequence = await NextDailySequenceAsync(clearingHouse.Id, respondingInstitution.Id, request.BusinessDate, ct);
++            var fileName = BuildExternalFileName(clearingHouse, localReceivingInstitution, request.BusinessDate, sequence);
++            var simulatorRequest = new GenerateNachaInboundSimulationRequest
++            {
++                SimulationMode = NachaSimulationMode.DifferentialResponses,
++                ScenarioType = NachaInboundSimulationType.IncomingPrenotificationReturn,
++                ClearingHouseCode = clearingHouse.Code,
++                OriginFinancialInstitutionId = respondingInstitution.Id,
++                DestinationFinancialInstitutionId = localReceivingInstitution.Id,
++                EntriesCount = ids.Length,
++                Amount = 0,
++                BusinessDate = request.BusinessDate,
++                CycleCode = request.ResponseCycleId!,
++                ResponseMode = InboundResponseMode.Returned,
++                ReasonCode = reason
++            };
++            outputDirectory = Path.Combine(ResolveOutputDirectory(clearingHouse.Code, simulatorRequest.ScenarioType), reservationId.ToString("N"));
++            var path = Path.Combine(outputDirectory, fileName);
++            var simulation = new NachaInboundSimulation
++            {
++                SimulationId = reservationId,
++                ClearingHouseId = clearingHouse.Id,
++                ClearingHouseName = clearingHouse.Name,
++                ScenarioType = NachaInboundSimulationType.IncomingPrenotificationReturn,
++                ResponseMode = InboundResponseMode.Returned,
++                ReasonCode = reason,
++                OriginFinancialInstitutionId = respondingInstitution.Id,
++                DestinationFinancialInstitutionId = localReceivingInstitution.Id,
++                EntriesCount = ids.Length,
++                Amount = 0,
++                BusinessDate = request.BusinessDate,
++                CycleCode = request.ResponseCycleId!,
++                FileName = fileName,
++                FilePath = path,
++                Status = NachaInboundSimulationStatus.Draft,
++                GeneratedOnly = true,
++                AutoImported = false,
++                UploadRequired = true,
++                ExternalTransmission = false,
++                CreatedBy = string.IsNullOrWhiteSpace(userName) ? "uat-local" : userName,
++                Notes = PrenotificationSimulationIdentity.AuditMarker(requestHash)
++            };
++            // Reserva de la llave UNIQUE antes de asignar traces y crear archivos.
++            _context.NachaInboundSimulations.Add(simulation);
++            await _context.SaveChangesAsync(ct);
++            var artifact = await BuildOfficialReturnFileAsync(simulatorRequest, clearingHouse,
++                respondingInstitution, localReceivingInstitution, responseCycle, originals,
++                sequence, MapSequenceToFileId(sequence), ct);
++            if (artifact.Entries.Count != ids.Length || artifact.Entries.Any(e => e.Amount != 0))
++                throw new InvalidOperationException("PRENOTIFICATION_RETURN_ARTIFACT_INVALID: Una devolucion de prenotificacion debe conservar una entrada a valor cero por ID.");
++            var bytes = Encoding.ASCII.GetBytes(artifact.Content);
++            var sha = Convert.ToHexString(SHA256.HashData(bytes));
++            simulation.Sha256 = sha;
++            simulation.FileSizeBytes = bytes.LongLength;
++            simulation.Status = NachaInboundSimulationStatus.Generated;
++            foreach (var entry in artifact.Entries)
++            {
++                entry.PrenotificationReference = originals.Single(x => x.Id == entry.TransactionId).TraceNumber;
++                simulation.Entries.Add(entry);
++            }
++            var metadata = CreateMetadata(simulation, respondingInstitution, localReceivingInstitution, artifact,
++                sha, fileName, bytes.LongLength);
++            simulation.MetadataJson = JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true });
++            Directory.CreateDirectory(outputDirectory);
++            await File.WriteAllBytesAsync(path, bytes, ct);
++            await WriteEvidenceAsync(outputDirectory, simulation, metadata, artifact.Content, ct);
++            await _context.SaveChangesAsync(ct);
++            await tx.CommitAsync(ct);
++            return ToPrenotificationReturnReplay(simulation, requestHash);
++        }
++        catch
++        {
++            try { await tx.RollbackAsync(CancellationToken.None); }
++            finally
++            {
++                // Un fallo del filesystem no debe ocultar el error de negocio/BD.
++                if (outputDirectory is not null && Directory.Exists(outputDirectory))
++                {
++                    try { Directory.Delete(outputDirectory, recursive: true); }
++                    catch (IOException) { /* residuo fisico: se documenta para reconciliacion I07 */ }
++                    catch (UnauthorizedAccessException) { /* residuo fisico sin registro confirmado */ }
++                }
++            }
++            throw;
++        }
++    }
++
++    private static GenerateNachaInboundSimulationResponse ToPrenotificationReturnReplay(
++        NachaInboundSimulation existing, string expectedHash)
++    {
++        if (!PrenotificationSimulationIdentity.MatchesStoredPayload(existing.Notes, expectedHash))
++            throw new InvalidOperationException("IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST: La clave ya fue usada con otra seleccion o causal.");
++        if (existing.Status is not (NachaInboundSimulationStatus.Generated or NachaInboundSimulationStatus.Downloaded)
++            || string.IsNullOrWhiteSpace(existing.FilePath) || !File.Exists(existing.FilePath))
++            throw new InvalidOperationException("IDEMPOTENCY_RESERVATION_NOT_READY: La reserva existe pero su archivo todavia no esta disponible.");
++        return new GenerateNachaInboundSimulationResponse(existing.SimulationId, existing.Id,
++            existing.FileName, $"/api/uat/nacha-inbound-simulator/{existing.Id}/file",
++            $"/api/uat/nacha-inbound-simulator/{existing.Id}/evidence", existing.Sha256,
++            existing.FileSizeBytes, true, false, true, false,
++            "Devolucion NACHA-M generada o recuperada de una clave idempotente. Requiere NachaUpload manual; no se modificaron estados.");
++    }
++}
+--- a/tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorI03ContractTests.cs
++++ b/tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorI03ContractTests.cs
+@@ -0,0 +1,69 @@
++using System.Reflection;
++using Cfa.ACHInterbank.Api.Controllers;
++using Cfa.ACHInterbank.Application.ACH.Models;
++using Cfa.ACHInterbank.Application.ACH.Services;
++using Cfa.ACHInterbank.Application.Security;
++using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Xunit;
++
++namespace Cfa.ACHInterbank.Tests;
++
++public sealed class PrenotificationSimulatorI03ContractTests
++{
++    private static PrenotificationSimulationContractRequest Valid() => new()
++    {
++        Outcome = PrenotificationSimulationOutcome.Returned,
++        ClearingHouseCode = "CENIT",
++        OriginalPrenotificationIds = [11, 12],
++        OriginalCycleId = "CENIT-C1",
++        ResponseCycleId = "CENIT-C2",
++        BusinessDate = new DateOnly(2026, 11, 2),
++        RespondingFinancialInstitutionId = 55,
++        ReasonCode = "R02",
++        IdempotencyKey = "sample-request-01"
++    };
++
++    private static PrenotificationSimulationContractRequest AnotherKey()
++    {
++        var req = Valid();
++        req.IdempotencyKey = "sample-request-02";
++        return req;
++    }
++
++    [Fact]
++    public void SameScopedKeySameGuid_AndDifferentScopeDifferentGuid()
++    {
++        var req = Valid();
++        var id = PrenotificationSimulationIdentity.ReservationId(req);
++        Assert.Equal(id, PrenotificationSimulationIdentity.ReservationId(req));
++        Assert.NotEqual(id, PrenotificationSimulationIdentity.ReservationId(AnotherKey()));
++        req.ClearingHouseCode = "ACHCOL";
++        Assert.NotEqual(id, PrenotificationSimulationIdentity.ReservationId(req));
++    }
++
++    [Fact]
++    public void ReorderedIdsHaveSameFingerprint_ButDifferentPayloadIsRejected()
++    {
++        var req = Valid();
++        var hash = PrenotificationSimulationIdentity.RequestHash(req);
++        req.OriginalPrenotificationIds = [12, 11];
++        Assert.Equal(hash, PrenotificationSimulationIdentity.RequestHash(req));
++        Assert.True(PrenotificationSimulationIdentity.MatchesStoredPayload(PrenotificationSimulationIdentity.AuditMarker(hash), hash));
++        req.ReasonCode = "R03";
++        Assert.NotEqual(hash, PrenotificationSimulationIdentity.RequestHash(req));
++        Assert.False(PrenotificationSimulationIdentity.MatchesStoredPayload(
++            PrenotificationSimulationIdentity.AuditMarker(hash), PrenotificationSimulationIdentity.RequestHash(req)));
++    }
++
++    [Fact]
++    public void ExplicitReturnRouteRequiresDifferentialPermission()
++    {
++        var method = typeof(NachaInboundSimulatorController).GetMethod(nameof(NachaInboundSimulatorController.GeneratePrenotificationReturn));
++        Assert.NotNull(method);
++        Assert.Equal("prenotifications/generate-return", method!.GetCustomAttribute<HttpPostAttribute>()?.Template);
++        Assert.Contains(method.GetCustomAttributes<AuthorizeAttribute>(), x => x.Policy == P1Policies.NachaSimulatorGenerateDifferential);
++        Assert.False(PrenotificationSimulationContract.Validate(Valid()).ExecutionEnabled); // forma != ejecucion
++    }
++}
+--- a/scripts/test/prenotification_simulator_i03_static_check.py
++++ b/scripts/test/prenotification_simulator_i03_static_check.py
+@@ -0,0 +1,52 @@
++#!/usr/bin/env python3
++"""I03: comprobaciones estructurales, NO sustituyen compilacion .NET ni pruebas UAT."""
++from pathlib import Path
++import json
++root = Path(__file__).resolve().parents[2]
++paths = {
++    'service': 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.PrenotificationReturns.cs',
++    'legacy': 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs',
++    'identity': 'src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationIdentity.cs',
++    'api': 'src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs',
++    'iface': 'src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs',
++    'tests': 'tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorI03ContractTests.cs',
++    'config': 'src/Cfa.ACHInterbank.Persistence/Configuration/NachaInboundSimulationConfiguration.cs',
++}
++text = {k: (root / v).read_text(encoding='utf-8') for k, v in paths.items()}
++checks = {
++    'new-endpoint': 'prenotifications/generate-return' in text['api'],
++    'endpoint-write-role': 'P1Policies.NachaSimulatorGenerateDifferential' in text['api'].split('prenotifications/generate-return')[1][:250],
++    'new-interface-contract': 'GeneratePrenotificationReturnAsync' in text['iface'],
++    'no-return-not-file': 'NO_RETURN_HAS_NO_NACHA_FILE' in text['service'],
++    'uat-only': '_options.IsUatLike()' in text['service'],
++    'no-autoimport': '_options.AllowAutoImport' in text['service'],
++    'no-transmission': '_options.AllowExternalTransmission' in text['service'],
++    'shape-check': 'PrenotificationSimulationContract.Validate(request)' in text['service'],
++    'reuse-preview': 'PreviewPrenotificationAsync(request, ct)' in text['service'],
++    'serializable': 'IsolationLevel.Serializable' in text['service'],
++    'atomic-reservation': 'SimulationId = reservationId' in text['service'] and 'SaveChangesAsync(ct)' in text['service'],
++    'db-unique-key': 'HasIndex(x => x.SimulationId).IsUnique()' in text['config'],
++    'idempotency-key-hash': 'ReservationId(' in text['identity'] and 'SHA256.HashData' in text['identity'],
++    'payload-fingerprint': 'RequestHash(' in text['identity'],
++    'replay-payload-check': 'MatchesStoredPayload(' in text['service'],
++    'duplicate-original-check': 'PRENOTIFICATION_RETURN_ALREADY_GENERATED' in text['service'],
++    'trace-original-uniqueness': 'PRENOTIFICATION_TRACE_NOT_UNIQUE' in text['service'],
++    'official-builder': 'BuildOfficialReturnFileAsync(' in text['service'],
++    'official-reason': 'ValidateReturnReasonAsync(' in text['service'],
++    'published-profile': 'ResolvePublishedDifferentialProfileAsync(' in text['service'],
++    'cenit-ror-exclusion': 'CenitReturnIn2026Layout.IsReturnOfReturnCause' in text['service'],
++    'sequence-reservation': 'NextDailySequenceAsync(' in text['service'] and 'MapSequenceToFileId(' in text['service'],
++    'zero-value-assert': 'e.Amount != 0' in text['service'],
++    'manually-imported-only': 'AutoImported = false' in text['service'] and 'UploadRequired = true' in text['service'],
++    'no-external-transmission': 'ExternalTransmission = false' in text['service'],
++    'rollback-on-failure': 'RollbackAsync(CancellationToken.None)' in text['service'],
++    'delete-file-on-rollback': 'Directory.Delete(outputDirectory' in text['service'],
++    'write-evidence': 'WriteEvidenceAsync(' in text['service'],
++    'old-generate-fail-closed': 'PRENOTIFICATION_RETURN_NOT_IMPLEMENTED' in text['legacy'],
++    'enum-compatible': 'IncomingPrenotificationReturn = 10' in (root/'src/Cfa.ACHInterbank.Domain/Models/ACH/Enums/NachaInboundSimulationEnums.cs').read_text(),
++    'unit-tests-added': '[Fact]' in text['tests'] and 'SameScopedKeySameGuid' in text['tests'],
++}
++for k, good in checks.items(): print(('PASS_STATIC' if good else 'FAIL_STATIC'), k)
++result = {'classification':'STATIC_ONLY_NOT_DOTNET_BUILD_OR_TEST','checks_total':len(checks),'passed':sum(checks.values()),'failed':[k for k,v in checks.items() if not v]}
++print(json.dumps(result, ensure_ascii=False))
++raise SystemExit(0 if all(checks.values()) else 1)

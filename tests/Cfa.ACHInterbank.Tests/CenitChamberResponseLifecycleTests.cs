@@ -34,9 +34,39 @@ public sealed class CenitChamberResponseLifecycleTests
         Assert.Equal(expectedState, result.State);
         Assert.Equal(CenitChamberCorrelationOutcome.Matched, result.CorrelationOutcome);
         Assert.True(result.IsApplied);
-        Assert.Equal(expectedState, (await context.AchFileExports.SingleAsync()).ChamberResponseState);
-        Assert.Equal(expectedState == CenitChamberResponseState.Pending, (await context.AchFileExports.SingleAsync()).AllowsCenitChamberRetransmission());
-        if (fixture == "OPERATOR") Assert.Equal(7301, result.RelatedTransactionId);
+        var expectedFileState = fixture == "OPERATOR" ? CenitChamberResponseState.Pending : expectedState;
+        Assert.Equal(expectedFileState, (await context.AchFileExports.SingleAsync()).ChamberResponseState);
+        Assert.Equal(expectedFileState == CenitChamberResponseState.Pending,
+            (await context.AchFileExports.SingleAsync()).AllowsCenitChamberRetransmission());
+        if (fixture == "OPERATOR")
+        {
+            Assert.Equal(7301, result.RelatedTransactionId);
+            Assert.Equal(AchTransferStateEnum.ReturnedByOperator, (await context.AchTransactions.SingleAsync()).State);
+            Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+        }
+    }
+
+    [Theory]
+    [InlineData(AchTransferStateEnum.Pending)]
+    [InlineData(AchTransferStateEnum.AppliedTacitly)]
+    public async Task I10_PrenoteWithoutCurrentAttempt_IsFlaggedForReview_NoDirectStateMutation(
+        AchTransferStateEnum previous)
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var original = await context.AchTransactions.SingleAsync();
+        original.IsPrenotification = true;
+        original.Amount = 0m;
+        original.State = previous;
+        await context.SaveChangesAsync();
+
+        var result = await CreateService(context).ImportAsync(Command("OPERATOR"));
+
+        Assert.False(result.IsApplied);
+        Assert.Equal(CenitChamberCorrelationOutcome.InvalidTransition, result.CorrelationOutcome);
+        Assert.Equal("CENIT_PRENOTE_RETURN_REQUIRES_MANUAL_REVIEW", result.ProblemCode);
+        Assert.Equal(previous, (await context.AchTransactions.SingleAsync()).State);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
     }
 
     [Theory]
@@ -120,6 +150,8 @@ public sealed class CenitChamberResponseLifecycleTests
         Assert.Equal("ERR_FILENAME_EXTENSION", result.ReasonCode);
         Assert.Null(result.RelatedTransactionId);
         Assert.Equal("urn:xs:FileNack", result.XmlNamespace);
+        Assert.Equal(AchTransferStateEnum.Pending, (await context.AchTransactions.SingleAsync()).State);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
     }
 
     [Fact]
@@ -160,6 +192,8 @@ public sealed class CenitChamberResponseLifecycleTests
         Assert.All(responses, x => Assert.Equal("ERR_TRACE_NO_INV", x.ReasonCode));
         Assert.Equal(2, result.ItemCount);
         Assert.Equal(CenitChamberResponseType.OperatorRejected, result.ResponseType);
+        Assert.Equal(2, await context.AchTransactionStateEvents.CountAsync());
+        Assert.Equal(CenitChamberResponseState.Pending, export.ChamberResponseState);
     }
 
     [Theory]
@@ -279,6 +313,246 @@ public sealed class CenitChamberResponseLifecycleTests
         var problem = Assert.IsType<ObjectResult>(invalid);
         Assert.Equal(422, problem.StatusCode);
         Assert.Equal("CENIT_RESPONSE_NOT_RECOGNIZED", Assert.IsType<ProblemDetails>(problem.Value).Title);
+    }
+
+    [Fact]
+    public async Task IndividualNack_ShouldRejectOnlyMatchingTransaction_AndPreserveFileState()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var original = await context.AchTransactions.SingleAsync();
+        var second = Transaction(7302, original.AchCycleId, original.AchBatchId,
+            original.SourceInstitutionId, original.DestinationInstitutionId, "000010070007302");
+        context.AchTransactions.Add(second);
+        var export = await context.AchFileExports.Include(x => x.Transactions).SingleAsync();
+        export.TotalTransactions = 2;
+        export.Transactions.Add(new AchFileExportTransaction
+        {
+            AchTransactionId = second.Id, AchCycleId = second.AchCycleId,
+            AchBatchId = second.AchBatchId, FileSequence = 2,
+            TraceNumber = second.TraceNumber, Amount = second.Amount,
+            IncludedAtUtc = Utc()
+        });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var first = await service.ImportAsync(Command("OPERATOR"));
+        Assert.True(first.IsApplied);
+        Assert.Equal(AchTransferStateEnum.ReturnedByOperator, original.State);
+        Assert.Equal(AchTransferStateEnum.Pending, second.State);
+        Assert.Equal(CenitChamberResponseState.Pending, export.ChamberResponseState);
+        var audit = Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+        Assert.Equal(7301, audit.AchTransactionId);
+        Assert.Equal(AchStateEventSourceEnum.Operator, audit.Source);
+        Assert.Equal("ERR_TRACE", audit.ReasonCode);
+
+        var repeated = await service.ImportAsync(Command("OPERATOR"));
+        Assert.True(repeated.IsDuplicate);
+        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+        var ack = await service.ImportAsync(Command("ACK"));
+        Assert.True(ack.IsApplied);
+        Assert.Equal(CenitChamberResponseState.Accepted, export.ChamberResponseState);
+        Assert.Equal(AchTransferStateEnum.Pending, second.State);
+    }
+
+    [Fact]
+    public async Task IndividualNackAfterTechnicalAck_ShouldStillRejectOnlyTheTransaction()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var service = CreateService(context);
+        await service.ImportAsync(Command("ACK"));
+        var item = await service.ImportAsync(Command("OPERATOR"));
+        Assert.True(item.IsApplied);
+        Assert.Equal(AchTransferStateEnum.ReturnedByOperator,
+            (await context.AchTransactions.SingleAsync()).State);
+        Assert.Equal(CenitChamberResponseState.Accepted,
+            (await context.AchFileExports.SingleAsync()).ChamberResponseState);
+        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task BatchOnlyNack_ShouldNotRejectAnUnidentifiedTransaction()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var cmd = Command("OPERATOR") with
+        {
+            Content = Xml("OPERATOR").Replace("<TraceNo>000010070007301</TraceNo>", ""),
+        };
+        var result = await CreateService(context).ImportAsync(cmd);
+        Assert.Equal("CENIT_OPERATOR_REJECTION_TRACE_REQUIRED", result.ProblemCode);
+        Assert.False(result.IsApplied);
+        Assert.Equal(AchTransferStateEnum.Pending, (await context.AchTransactions.SingleAsync()).State);
+        Assert.Equal(CenitChamberResponseState.Pending, (await context.AchFileExports.SingleAsync()).ChamberResponseState);
+    }
+
+    [Fact]
+    public async Task ItemNackWithUnmatchedTrace_ShouldNotAlterFileOrTransaction()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var unmatched = Command("OPERATOR") with
+        {
+            Content = Xml("OPERATOR").Replace("000010070007301", "000010070009999"),
+            TransactionTraceNumber = "000010070007301" // No debe sustituir TraceNo oficial.
+        };
+        var result = await CreateService(context).ImportAsync(unmatched);
+        Assert.Equal(CenitChamberCorrelationOutcome.TransactionNotFound, result.CorrelationOutcome);
+        Assert.False(result.IsApplied);
+        Assert.Equal(CenitChamberResponseState.Pending, (await context.AchFileExports.SingleAsync()).ChamberResponseState);
+        Assert.Equal(AchTransferStateEnum.Pending, (await context.AchTransactions.SingleAsync()).State);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Adv280_ShouldPersistEachCodeAndAmount_AsEvidenceOnly_AndBeIdempotent()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var command = new CenitChamberResponseImportCommand("ADV-1", "adv.ach", "ADV",
+            AdvContent("81", "82"), Utc(), AchCycleId: "CENIT-CYCLE-1");
+        var service = CreateService(context);
+        var result = await service.ImportAsync(command);
+        Assert.Equal(2, result.ItemCount);
+        Assert.Equal(CenitChamberResponseType.Reconciliation, result.ResponseType);
+        Assert.True(result.IsApplied);
+        var responses = await context.CenitChamberResponses.OrderBy(x => x.ItemSequence).ToListAsync();
+        Assert.Equal(["81", "82"], responses.Select(x => x.ReasonCode));
+        Assert.All(responses, x => Assert.Contains("amountCOP=123.45", x.Description));
+        Assert.All(responses, x => Assert.Equal("ADV-280", x.MessageStatus));
+        Assert.Equal(CenitChamberResponseState.Pending, (await context.AchFileExports.SingleAsync()).ChamberResponseState);
+        Assert.Equal(AchTransferStateEnum.Pending, (await context.AchTransactions.SingleAsync()).State);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+        Assert.True((await service.ImportAsync(command)).IsDuplicate);
+        Assert.Equal(2, await context.CenitChamberResponses.CountAsync());
+    }
+
+    [Fact]
+    public async Task LegacyReconciliationEnvelope_ShouldInterpretPhysicalAdv280()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var result = await CreateService(context).ImportAsync(
+            new CenitChamberResponseImportCommand("ADV-LEGACY", "adv.dat", "Reconciliation",
+                AdvContent("87"), Utc(), AchCycleId: "CENIT-CYCLE-1"));
+        Assert.Equal("87", result.ReasonCode);
+        Assert.Contains("amountCOP=123.45", result.Description);
+        Assert.Equal("ADV-280", result.MessageStatus);
+        Assert.True(result.IsApplied);
+    }
+
+    [Theory]
+    [InlineData("PPD", "280", "CENIT_ADV_BATCH_PROFILE_INVALID")]
+    [InlineData("ADV", "220", "CENIT_ADV_BATCH_PROFILE_INVALID")]
+    public async Task AdvWithWrongServiceOrClass_ShouldFailClosed(string serviceCode, string classCode, string problem)
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var content = AdvContent("81").Replace("280", classCode).Replace("ADV", serviceCode);
+        var response = await CreateService(context).ImportAsync(
+            new CenitChamberResponseImportCommand("ADV-BAD", "bad.ach", "ADV", content,
+                Utc(), AchCycleId: "CENIT-CYCLE-1"));
+        Assert.Equal(problem, response.ProblemCode);
+        Assert.False(response.IsApplied);
+        Assert.Equal(AchTransferStateEnum.Pending, (await context.AchTransactions.SingleAsync()).State);
+    }
+
+    [Fact]
+    public async Task AdvWrongBatchTotals_ShouldNotApply()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var valid = AdvContent("81");
+        var records = valid.Split('\n');
+        records[^2] = records[^2].Remove(20, 18).Insert(20, "000000000000000000");
+        var result = await CreateService(context).ImportAsync(
+            new CenitChamberResponseImportCommand("ADV-WRONGTOTAL", "bad.ach", "ADV",
+                string.Join("\n", records), Utc(), AchCycleId: "CENIT-CYCLE-1"));
+        Assert.Equal("CENIT_ADV_BATCH_CONTROL_INVALID", result.ProblemCode);
+        Assert.False(result.IsApplied);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task AdvWithoutCycle_ShouldRetainEvidenceButNotApply()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var response = await CreateService(context).ImportAsync(
+            new CenitChamberResponseImportCommand("ADV-NOCYCLE", "adv.ach", "ADV",
+                AdvContent("88"), Utc()));
+        Assert.Equal("CENIT_SESSION_IDENTIFIER_REQUIRED", response.ProblemCode);
+        Assert.False(response.IsApplied);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task F07_OfficialAckIndividualNackAndAdv_KeepFileTransactionAndReconciliationIndependent(bool ackFirst)
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var service = CreateService(context);
+        if (ackFirst)
+        {
+            Assert.True((await service.ImportAsync(Command("ACK"))).IsApplied);
+        }
+
+        var individual = await service.ImportAsync(Command("OPERATOR"));
+        Assert.True(individual.IsApplied);
+        Assert.Equal(AchTransferStateEnum.ReturnedByOperator,
+            (await context.AchTransactions.SingleAsync()).State);
+        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+        if (!ackFirst)
+        {
+            Assert.True((await service.ImportAsync(Command("ACK"))).IsApplied);
+        }
+
+        var advance = new CenitChamberResponseImportCommand(
+            "F07-ADV", "adv-f07.ach", "ADV", AdvContent("81", "82"),
+            Utc(), AchCycleId: "CENIT-CYCLE-1");
+        var reconciliation = await service.ImportAsync(advance);
+        Assert.True(reconciliation.IsApplied);
+        Assert.Equal(2, reconciliation.ItemCount);
+        Assert.Equal(CenitChamberResponseState.Accepted,
+            (await context.AchFileExports.SingleAsync()).ChamberResponseState);
+        Assert.Equal(AchTransferStateEnum.ReturnedByOperator,
+            (await context.AchTransactions.SingleAsync()).State);
+        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+        Assert.True((await service.ImportAsync(advance)).IsDuplicate);
+        Assert.True((await service.ImportAsync(Command("OPERATOR"))).IsDuplicate);
+        Assert.Equal(4, await context.CenitChamberResponses.CountAsync());
+        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    // 106-character records; CENIT §7.3.3; no CUD integration or synthetic posting.
+    private static string AdvContent(params string[] codes)
+    {
+        static string Record(char type, params (int start, string content)[] fields)
+        {
+            var chars = new string(' ', 106).ToCharArray();
+            chars[0] = type;
+            foreach (var (start, content) in fields) content.CopyTo(0, chars, start - 1, content.Length);
+            return new string(chars);
+        }
+        var records = new List<string>
+        {
+            Record('1', (37, "106"), (40, "10")),
+            Record('5', (2, "280"), (51, "ADV"), (72, "20260831"), (92, "0000001"))
+        };
+        foreach (var (code, i) in codes.Select((code, i) => (code, i)))
+        {
+            records.Add(Record('6', (2, code), (4, "00010010"), (28, "000000000000012345"),
+                (55, "0101A"), (85, "0"), (97, (i + 1).ToString("D4"))));
+        }
+        var debitCount = codes.Count(code => code is "81" or "84" or "86" or "88");
+        var creditCount = codes.Length - debitCount;
+        records.Add(Record('8', (2, "280"), (5, codes.Length.ToString("D6")),
+            (21, (12345L * debitCount).ToString("D18")),
+            (39, (12345L * creditCount).ToString("D18")), (100, "0000001")));
+        records.Add(Record('9'));
+        return string.Join("\n", records);
     }
 
     private static CenitChamberResponseImportCommand Command(string fixture)

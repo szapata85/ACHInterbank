@@ -1,5 +1,8 @@
+using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text.Json;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -17,7 +20,8 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public sealed class CenitChamberResponseService(
     AchDbContext context,
-    ILogger<CenitChamberResponseService> logger) : ICenitChamberResponseService
+    ILogger<CenitChamberResponseService> logger,
+    IAchStateTransitionService? stateTransitions = null) : ICenitChamberResponseService
 {
     private const string CenitCode = "CENIT";
 
@@ -51,6 +55,12 @@ public sealed class CenitChamberResponseService(
         }
 
         var parsedItems = Parse(command.MessageType, content);
+        // APN-I10: a prenotification state transition may save before the
+        // chamber response is persisted. Keep both within one database commit.
+        await using var receiptTransaction = context.Database.IsRelational()
+            && context.Database.CurrentTransaction is null
+            ? await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
+            : null;
         logger.LogInformation(
             "CENIT_CHAMBER_RESPONSE_RECEIVED SourceResponseId={SourceResponseId} SourceFileName={SourceFileName} ItemCount={ItemCount}",
             sourceId,
@@ -75,9 +85,13 @@ public sealed class CenitChamberResponseService(
         try
         {
             await context.SaveChangesAsync(ct);
+            if (receiptTransaction is not null)
+                await receiptTransaction.CommitAsync(ct);
         }
         catch (DbUpdateException)
         {
+            if (receiptTransaction is not null)
+                await receiptTransaction.RollbackAsync(CancellationToken.None);
             context.ChangeTracker.Clear();
             var winner = await context.CenitChamberResponses
                 .AsNoTracking()
@@ -105,7 +119,9 @@ public sealed class CenitChamberResponseService(
     {
         var relatedFileName = NormalizeOptionalFileName(command.RelatedOutboundFileName);
         var relatedReference = NormalizeOptional(command.RelatedReference, 120) ?? parsed.RelatedReference;
-        var transactionTrace = NormalizeOptional(command.TransactionTraceNumber, 20) ?? parsed.TransactionTrace;
+        var transactionTrace = parsed.Type == CenitChamberResponseType.OperatorRejected
+            ? parsed.TransactionTrace
+            : NormalizeOptional(command.TransactionTraceNumber, 20) ?? parsed.TransactionTrace;
         var requestedCycleId = NormalizeOptional(command.AchCycleId, 40);
         var now = DateTime.UtcNow;
         var sessionOutput = parsed.Type is CenitChamberResponseType.Reconciliation or CenitChamberResponseType.NoActivity;
@@ -185,6 +201,12 @@ public sealed class CenitChamberResponseService(
                 cycleId = export?.AchCycleId;
             }
 
+            if (export is not null && parsed.Type == CenitChamberResponseType.OperatorRejected
+                && transactionTrace is null)
+            {
+                correlation = CenitChamberCorrelationOutcome.TransactionNotFound;
+                problemCode = "CENIT_OPERATOR_REJECTION_TRACE_REQUIRED";
+            }
             if (export is not null && transactionTrace is not null)
             {
                 var transactionMatches = export.Transactions
@@ -262,7 +284,133 @@ public sealed class CenitChamberResponseService(
             response.IsApplied = true;
             response.ProcessedAtUtc = now;
         }
-        else if (export is not null && correlation == CenitChamberCorrelationOutcome.Matched)
+        else if (export is not null && correlation == CenitChamberCorrelationOutcome.Matched
+                 && parsed.Type == CenitChamberResponseType.OperatorRejected)
+        {
+            // Un FileNack con TraceNo es un rechazo de una operación, NO del archivo completo.
+            // Archivo y operación permanecen independientes; un ACK técnico previo no bloquea el NACK individual.
+            if (membership is null || string.IsNullOrWhiteSpace(parsed.ReasonCode))
+            {
+                response.CorrelationOutcome = CenitChamberCorrelationOutcome.TransactionNotFound;
+                response.ProblemCode = "CENIT_OPERATOR_REJECTION_TRACE_OR_REASON_REQUIRED";
+            }
+            else
+            {
+                var transaction = await context.AchTransactions.SingleOrDefaultAsync(
+                    x => x.Id == membership.AchTransactionId && x.AchCycleId == export.AchCycleId, ct);
+                if (transaction is null)
+                {
+                    response.CorrelationOutcome = CenitChamberCorrelationOutcome.TransactionNotFound;
+                    response.ProblemCode = "CENIT_TRANSACTION_CORRELATION_NOT_FOUND";
+                }
+                else if (transaction.State == AchTransferStateEnum.ReturnedByOperator)
+                {
+                    // Repeticiones de distinta fuente no vuelven a emitir eventos ni cambiar el estado.
+                    response.ProcessedAtUtc = now;
+                    response.ProblemCode = "CENIT_TRANSACTION_ALREADY_REJECTED";
+                }
+                else if (transaction.IsPrenotification)
+                {
+                    // A legacy direct mutation used to leave the immutable TPA
+                    // validation pending/accepted while rejecting the ACH transaction.
+                    // Reject ambiguous/terminal prenotes to manual review instead of
+                    // rewriting the transaction or its already-terminal evidence.
+                    var attempts = await context.PrenotificationValidationAttempts
+                        .AsNoTracking()
+                        .Include(x => x.ThirdPartyAccountValidation)
+                        .Where(x => x.AchTransactionId == transaction.Id)
+                        .Take(2)
+                        .ToListAsync(ct);
+                    if (transaction.State != AchTransferStateEnum.Pending
+                        || attempts.Count != 1
+                        || attempts[0].Status != PrenotificationValidationAttemptStatus.AwaitingResponse
+                        || attempts[0].Resolution != PrenotificationValidationResolution.None
+                        || attempts[0].ThirdPartyAccountValidation.CurrentAttemptId != attempts[0].Id
+                        || attempts[0].ThirdPartyAccountValidation.ClearingHouseId != clearingHouseId
+                        || attempts[0].ThirdPartyAccountValidation.Status != ThirdPartyAccountValidationStatus.PendingResponse
+                        || attempts[0].SourceCycleId != transaction.AchCycleId
+                        || stateTransitions is null)
+                    {
+                        response.CorrelationOutcome = CenitChamberCorrelationOutcome.InvalidTransition;
+                        response.ProblemCode = "CENIT_PRENOTE_RETURN_REQUIRES_MANUAL_REVIEW";
+                    }
+                    else
+                    {
+                        var result = await stateTransitions.TransitionAsync(new AchStateTransitionRequest(
+                            transaction.Id,
+                            AchTransferStateEnum.ReturnedByOperator,
+                            AchStateEventSourceEnum.Operator,
+                            Trim(parsed.ReasonCode, 20),
+                            JsonSerializer.Serialize(new
+                            {
+                                response.SourceResponseId, response.SourceFileName, response.ItemSequence,
+                                response.TransactionTraceNumber, response.AchFileExportId,
+                                response.ReasonCode, Gate = "APN-I10"
+                            }),
+                            null,
+                            now,
+                            $"cenit-response:{response.Id:N}",
+                            clearingHouseId,
+                            null,
+                            NormalizeOptional(parsed.Description, 300)), ct);
+                        response.IsApplied = result.Applied || result.WasDuplicate;
+                        if (response.IsApplied)
+                        {
+                            // The transition must have actually synchronized the
+                            // canonical TPA attempt and validation. Otherwise rollback
+                            // rather than persisting a divergent chamber response.
+                            var synchronized = await context.PrenotificationValidationAttempts
+                                .AsNoTracking()
+                                .AnyAsync(x => x.AchTransactionId == transaction.Id
+                                    && x.Resolution == PrenotificationValidationResolution.Rejected
+                                    && x.Status == PrenotificationValidationAttemptStatus.Rejected
+                                    && x.ThirdPartyAccountValidation.Status == ThirdPartyAccountValidationStatus.Rejected,
+                                    ct);
+                            if (!synchronized)
+                                throw new InvalidOperationException("CENIT_PRENOTE_CANONICAL_SYNCHRONIZATION_REQUIRED");
+                            response.ProcessedAtUtc = now;
+                        }
+                    }
+                }
+                else if (transaction.State is AchTransferStateEnum.Pending
+                         or AchTransferStateEnum.AppliedTacitly
+                         or AchTransferStateEnum.Certified)
+                {
+                    // Preserve existing direct state path for monetary transfers.
+                    var fromState = transaction.State;
+                    transaction.State = AchTransferStateEnum.ReturnedByOperator;
+                    transaction.StateChangedAtUtc = now;
+                    transaction.ReturnReasonCode = Trim(parsed.ReasonCode, 20);
+                    context.AchTransactionStateEvents.Add(new AchTransactionStateEvent
+                    {
+                        AchTransactionId = transaction.Id,
+                        FromState = fromState,
+                        ToState = AchTransferStateEnum.ReturnedByOperator,
+                        Source = AchStateEventSourceEnum.Operator,
+                        ClearingHouseId = clearingHouseId,
+                        ReasonCode = Trim(parsed.ReasonCode, 20),
+                        ResolvedReasonDescription = NormalizeOptional(parsed.Description, 300),
+                        IdempotencyKey = $"cenit-response:{response.Id:N}",
+                        PayloadJson = JsonSerializer.Serialize(new
+                        {
+                            response.SourceResponseId, response.SourceFileName, response.ItemSequence,
+                            response.TransactionTraceNumber, response.AchFileExportId,
+                            response.ReasonCode
+                        }),
+                        OccurredAtUtc = now
+                    });
+                    response.IsApplied = true;
+                    response.ProcessedAtUtc = now;
+                }
+                else
+                {
+                    response.CorrelationOutcome = CenitChamberCorrelationOutcome.InvalidTransition;
+                    response.ProblemCode = "CENIT_TRANSACTION_INVALID_TRANSITION";
+                }
+            }
+        }
+        else if (export is not null && correlation == CenitChamberCorrelationOutcome.Matched
+                 && parsed.Type != CenitChamberResponseType.OperatorRejected)
         {
             if (CanTransition(export.ChamberResponseState, targetState))
             {
@@ -346,6 +494,7 @@ public sealed class CenitChamberResponseService(
     private static IReadOnlyList<ParsedResponse> Parse(string messageType, string content)
     {
         var normalized = messageType.Trim().Replace("_", string.Empty).Replace("-", string.Empty).ToUpperInvariant();
+        if (normalized is "ADV" or "NACHAMADV") return ParseAdv(content);
         if (normalized is "NOACTIVITY" or "SINACTIVIDAD")
         {
             return [string.IsNullOrWhiteSpace(content)
@@ -354,6 +503,10 @@ public sealed class CenitChamberResponseService(
         }
         if (normalized is "RECONCILIATION" or "RECONCILIACION")
         {
+            // Metadatos históricos de gateway pueden clasificar un ADV físico como conciliación.
+            var records = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            if (records.Length > 1 && records[1].TrimEnd('\r').StartsWith("5280", StringComparison.Ordinal))
+                return ParseAdv(content);
             return [!string.IsNullOrWhiteSpace(content)
                 ? new(CenitChamberResponseType.Reconciliation, null, "Archivo de reconciliación CENIT.", null, null, null, null, null, null, null, null)
                 : ParsedResponse.Invalid("CENIT_RECONCILIATION_EMPTY")];
@@ -407,7 +560,7 @@ public sealed class CenitChamberResponseService(
                     ? CenitChamberResponseType.OperatorRejected
                     : CenitChamberResponseType.Nack;
                 return new ParsedResponse(type,
-                    DescendantValue(error, "ErrorCode") ?? itemStatus,
+                    DescendantValue(error, "ErrorCode"),
                     DescendantValue(error, "AdditionalDesc") ?? itemStatus,
                     relatedRef,
                     trace,
@@ -423,6 +576,75 @@ public sealed class CenitChamberResponseService(
         {
             return [ParsedResponse.Invalid("CENIT_RESPONSE_XML_INVALID")];
         }
+    }
+
+    // Manual NACHA-M CENIT 07-may-2026 §7.3.3: lote 280/ADV y avisos 81–88.
+    // Se guarda evidencia de conciliación; NO se genera asiento ni se cambia estado financiero.
+    private static IReadOnlyList<ParsedResponse> ParseAdv(string content)
+    {
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r')).ToArray();
+        if (lines.Length < 5 || lines.Any(x => x.Length != 106))
+            return [ParsedResponse.Invalid("CENIT_ADV_RECORD_LENGTH_INVALID")];
+        if (lines[0][0] != '1' || lines[0].Substring(36, 3) != "106"
+            || lines[0].Substring(39, 2) != "10")
+            return [ParsedResponse.Invalid("CENIT_ADV_FILE_HEADER_INVALID")];
+
+        var output = new List<ParsedResponse>();
+        var index = 1;
+        var sawBatch = false;
+        while (index < lines.Length && lines[index][0] == '5')
+        {
+            sawBatch = true;
+            var header = lines[index++];
+            if (header.Substring(1, 3) != "280" || header.Substring(50, 3) != "ADV"
+                || !DateTime.TryParseExact(header.Substring(71, 8), "yyyyMMdd",
+                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var valueDate))
+                return [ParsedResponse.Invalid("CENIT_ADV_BATCH_PROFILE_INVALID")];
+            var batchId = header.Substring(91, 7);
+            var details = 0;
+            decimal debits = 0m, credits = 0m;
+            while (index < lines.Length && lines[index][0] == '6')
+            {
+                var line = lines[index++];
+                var code = line.Substring(1, 2);
+                var rawAmount = line.Substring(27, 18);
+                if (code is not ("81" or "82" or "83" or "84" or "85" or "86" or "87" or "88")
+                    || !rawAmount.All(char.IsAsciiDigit)
+                    || line[84] != '0') // ADV no requiere addenda; no inventar procesamiento de adendas.
+                    return [ParsedResponse.Invalid("CENIT_ADV_DETAIL_INVALID")];
+                var amount = decimal.Parse(rawAmount, CultureInfo.InvariantCulture) / 100m;
+                if (code is "81" or "84" or "86" or "88") debits += amount;
+                else credits += amount;
+                var route = line.Substring(3, 8);
+                var fileId = line.Substring(54, 5).Trim();
+                var sequence = line.Substring(96, 4);
+                var description = $"ADV code={code}; amountCOP={amount.ToString("F2", CultureInfo.InvariantCulture)}; "
+                    + $"route={route}; fileId={fileId}; batch={batchId}; sequence={sequence}; "
+                    + $"valueDate={valueDate:yyyy-MM-dd}; officialAccountNotPosted=true";
+                output.Add(new ParsedResponse(CenitChamberResponseType.Reconciliation, code,
+                    description, fileId.Length == 0 ? null : fileId, null, null,
+                    null, batchId, "ADV-280", null, null));
+                details++;
+            }
+            if (index >= lines.Length || lines[index][0] != '8')
+                return [ParsedResponse.Invalid("CENIT_ADV_BATCH_CONTROL_REQUIRED")];
+            var control = lines[index++];
+            if (control.Substring(1, 3) != "280"
+                || !int.TryParse(control.Substring(4, 6), out var expectedCount)
+                || expectedCount != details
+                || control.Substring(99, 7) != batchId
+                || !decimal.TryParse(control.Substring(20, 18), NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var rawDebits)
+                || !decimal.TryParse(control.Substring(38, 18), NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var rawCredits)
+                || rawDebits != debits * 100m || rawCredits != credits * 100m)
+                return [ParsedResponse.Invalid("CENIT_ADV_BATCH_CONTROL_INVALID")];
+        }
+        if (!sawBatch || output.Count == 0 || index >= lines.Length || lines[index++][0] != '9'
+            || lines.Skip(index).Any(x => x != new string('9', 106)))
+            return [ParsedResponse.Invalid("CENIT_ADV_FILE_STRUCTURE_INVALID")];
+        return output;
     }
 
     private static DateTime? ParseXmlDate(string? value)

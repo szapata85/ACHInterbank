@@ -1,0 +1,63 @@
+OK - Archivo I06 dto creado
+OK - Archivo I06 interface creado
+OK - Archivo I06 service creado
+OK - Archivo I06 controller creado
+OK - Archivo I06 tests creado
+OK - Contrato solo lectura
+OK - DTO no habilita transmisión
+OK - DTO no atribuye acuse
+OK - DTO no declara conciliado
+OK - Servicio implementa contrato propio
+OK - DI registra servicio I06
+OK - Endpoint único de conciliación CENIT
+OK - Autenticación general
+OK - GET único
+OK - Ambos GET protegidos ConfigRead
+OK - Sin endpoints de mutación
+OK - Sin descarga de contenido desde I06
+OK - Respuesta no almacenable en caché
+OK - Límite de consulta 1..100
+OK - Truncamiento explícito
+OK - Búsqueda filtrada por código CENIT
+OK - No usa modo ACH Colombia
+OK - Lectura de modo CENIT
+OK - Modo desactivado no marca conciliación
+OK - Inspect after expiry sin ValidateApproval
+OK - Carga sin tracking
+OK - Verifica cifra con mismo propósito I05
+OK - Desprotección sólo interna
+OK - Verifica nombre local NO_TRANSMITIR
+OK - Perfil oficial CENIT exclusivo
+OK - Longitud 106x10
+OK - Hash SHA-256
+OK - Detecta corrupción de clave
+OK - Detecta estructura 1/5/6/7/8/9
+OK - Verifica adenda 99
+OK - Verifica causal propia
+OK - Verifica original trace
+OK - Verifica trace nuevo en 6 y 7
+OK - Verifica importe original
+OK - Cruce con devolución manual existente
+OK - Cruce con exportaciones por traza CENIT
+OK - Cruce respuestas CENIT aislado
+OK - Acuse externo nunca atribuido a I05
+OK - Sin nombre externo homologado
+OK - Sin canal financiero
+OK - Sin conciliación financiera
+OK - Sin SaveChanges en servicio
+OK - Sin tablas nuevas
+OK - Sin llamadas de envío
+OK - Caso xUnit incorporado: InitialPreparationRemainsUnsentUnacknowledgedAndReadOnly
+OK - Caso xUnit incorporado: EncryptedLocalFileCanBeVerifiedAfterWindowWithoutBeingMarkedTransmitted
+OK - Caso xUnit incorporado: TamperedCiphertextHashOrPhysicalRecordsFailClosed
+OK - Caso xUnit incorporado: ManualDuplicateAndExternalAckNeverConfirmI05
+OK - Caso xUnit incorporado: WrongHouseAndBoundedListCannotLeakAchColombia
+OK - Caso xUnit incorporado: LimitedWindowIsReportedAndApiHasOnlyAuthorizedReads
+OK - Caso xUnit incorporado: LocalTraceFoundInOtherCenitExportIsAConflictNotAnI05Delivery
+OK - Caso xUnit incorporado: MissingDecryptionKeysAndOtherHouseAckFailClosed
+OK - xUnit comprueba ausencia de conciliación
+OK - xUnit comprueba respuestas no atribuibles
+OK - xUnit comprueba no exportación
+OK - Se conserva I05 original
+OK - No modifica snapshot SQL Server
+RESULTADO ESTATICO I06-CENIT: 62/62

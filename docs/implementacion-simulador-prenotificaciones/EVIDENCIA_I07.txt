@@ -1,0 +1,246 @@
+# Evidencia reproducible I07 — 2026-11-02
+
+Clasificación: controles estáticos y grafo de proyectos; NO compilación .NET, NO build Angular y NO end-to-end.
+
+$ python scripts/test/prenotification_simulator_i01_static_check.py
+exit_code=0
+PASS_STATIC legacy scenario retains number 3
+PASS_STATIC new scenario number is distinct 10
+PASS_STATIC typed outcome has only two semantic branches
+PASS_STATIC contract includes original ids
+PASS_STATIC contract separates original / response cycles
+PASS_STATIC contract includes chamber + bank
+PASS_STATIC contract includes business date / reason / idempotency
+PASS_STATIC outcome JSON string converter explicit
+PASS_STATIC contract validates duplicate IDs
+PASS_STATIC contract validates return fields
+PASS_STATIC no-return forbids false response attributes
+PASS_STATIC new capability explicitly advertises not operational
+PASS_STATIC routes have read authorization
+PASS_STATIC controller only calls pure validation/description
+PASS_STATIC service has fail-closed new scenario and explicit diagnostic
+PASS_STATIC guard precedes any downstream build in Preview
+PASS_STATIC generate always runs preview before building
+PASS_STATIC pure C# contract test cases added
+PASS_STATIC fail-closed service test added
+PASS_STATIC contract documentation included
+SUMMARY: 20/20 PASS_STATIC; 0 FAIL_STATIC; C# runtime NOT EXECUTED
+
+$ python scripts/test/prenotification_simulator_i02_static_check.py
+exit_code=0
+PASS_STATIC contracts-paged
+PASS_STATIC contract-max-100
+PASS_STATIC policy-outcome-separation
+PASS_STATIC policy-not-prenotification
+PASS_STATIC policy-source
+PASS_STATIC policy-incomplete-correlation
+PASS_STATIC policy-not-transmitted
+PASS_STATIC policy-not-active
+PASS_STATIC policy-duplicate
+PASS_STATIC policy-deadline-unknown
+PASS_STATIC query-house
+PASS_STATIC query-src-dest
+PASS_STATIC query-readonly
+PASS_STATIC query-transmission
+PASS_STATIC query-attempt-correlated
+PASS_STATIC query-previous-response
+PASS_STATIC preview-cycle-check
+PASS_STATIC preview-bank-check
+PASS_STATIC preview-chamber-check
+PASS_STATIC preview-cenit-value-date
+PASS_STATIC preview-readonly-execution-off
+PASS_STATIC query-local-uat-only
+PASS_STATIC api-policy-both-endpoints
+PASS_STATIC api-interface
+PASS_STATIC legacy-scenario-preserved
+PASS_STATIC tests-adversarial
+{"checks_total": 26, "passed": 26, "failed": [], "classification": "STATIC_ONLY_NOT_DOTNET_BUILD_OR_TEST"}
+
+$ python scripts/test/prenotification_simulator_i03_static_check.py
+exit_code=0
+PASS_STATIC new-endpoint
+PASS_STATIC endpoint-write-role
+PASS_STATIC new-interface-contract
+PASS_STATIC no-return-not-file
+PASS_STATIC uat-only
+PASS_STATIC no-autoimport
+PASS_STATIC no-transmission
+PASS_STATIC shape-check
+PASS_STATIC reuse-preview
+PASS_STATIC serializable
+PASS_STATIC atomic-reservation
+PASS_STATIC db-unique-key
+PASS_STATIC idempotency-key-hash
+PASS_STATIC payload-fingerprint
+PASS_STATIC replay-payload-check
+PASS_STATIC duplicate-original-check
+PASS_STATIC trace-original-uniqueness
+PASS_STATIC official-builder
+PASS_STATIC official-reason
+PASS_STATIC published-profile
+PASS_STATIC cenit-ror-exclusion
+PASS_STATIC sequence-reservation
+PASS_STATIC zero-value-assert
+PASS_STATIC manually-imported-only
+PASS_STATIC no-external-transmission
+PASS_STATIC rollback-on-failure
+PASS_STATIC delete-file-on-rollback
+PASS_STATIC write-evidence
+PASS_STATIC old-generate-fail-closed
+PASS_STATIC enum-compatible
+PASS_STATIC unit-tests-added
+{"classification": "STATIC_ONLY_NOT_DOTNET_BUILD_OR_TEST", "checks_total": 31, "passed": 31, "failed": []}
+
+$ python scripts/test/prenotification_simulator_i04_static_check.py
+exit_code=0
+PASS_STATIC guard-is-pure-no-sql
+PASS_STATIC original-trace-exact
+PASS_STATIC addenda-type-99
+PASS_STATIC zero-value
+PASS_STATIC new-trace
+PASS_STATIC same-clearing-house
+PASS_STATIC final-exact-link
+PASS_STATIC current-attempt
+PASS_STATIC already-resolved
+PASS_STATIC same-return-replay
+PASS_STATIC simulation-hash-ambiguous
+PASS_STATIC simulation-bank-match
+PASS_STATIC simulation-source-match
+PASS_STATIC simulation-cause-match
+PASS_STATIC simulation-membership
+PASS_STATIC simulation-attempt-required
+PASS_STATIC non-prenote-unmodified
+PASS_STATIC pre-transition
+PASS_STATIC blocked-manual-review
+PASS_STATIC audit-correlated
+PASS_STATIC sha-upper-normalized
+PASS_STATIC sha-lower-ingested
+PASS_STATIC no-filename-trust
+PASS_STATIC prenote-type-flag
+PASS_STATIC cenit-prenote-type
+PASS_STATIC existing-state-sync
+PASS_STATIC no-parallel-state-writer
+PASS_STATIC original-tests-two-chambers
+PASS_STATIC duplicate-tests
+PASS_STATIC integration-block-test
+PASS_STATIC integration-good-trace
+{"checks_total": 31, "passed": 31, "failed": [], "classification": "STATIC_ONLY_NOT_DOTNET_BUILD_OR_NACHAUPLOAD_E2E"}
+
+$ python scripts/test/prenotification_simulator_i05_static_check.py
+exit_code=0
+PASS_STATIC: preview route
+PASS_STATIC: apply route
+PASS_STATIC: preview permission
+PASS_STATIC: apply differential permission
+PASS_STATIC: preview API
+PASS_STATIC: apply API
+PASS_STATIC: clock is read only
+PASS_STATIC: virtual time range limit
+PASS_STATIC: virtual preview uses no state transition
+PASS_STATIC: real time from provider
+PASS_STATIC: job uses provider
+PASS_STATIC: job still uses canonical deadline
+PASS_STATIC: job protects effective policy
+PASS_STATIC: job compatibility legacy
+PASS_STATIC: no NACHA file in apply
+PASS_STATIC: apply uses physical clock
+PASS_STATIC: apply cross checks actual deadline
+PASS_STATIC: apply non-production gate
+PASS_STATIC: apply UAT gate
+PASS_STATIC: apply no external
+PASS_STATIC: apply no autoimport
+PASS_STATIC: apply transaction
+PASS_STATIC: apply revalidates
+PASS_STATIC: uses official state service
+PASS_STATIC: state target tacit
+PASS_STATIC: prohibits duplicate prior return
+PASS_STATIC: requires rule enabled
+PASS_STATIC: requires real deadline
+PASS_STATIC: requires matching original bank
+PASS_STATIC: requires matching business date
+PASS_STATIC: no mixed terminal
+PASS_STATIC: stable idempotency
+PASS_STATIC: pure decision
+PASS_STATIC: deadline exact boundary tests
+PASS_STATIC: generated return block tested
+PASS_STATIC: contract no fictitious response
+RESULT: 36/36 PASS_STATIC
+
+$ python scripts/test/prenotification_simulator_i06_static_check.py
+exit_code=0
+PASS_STATIC HTML balanced tags
+PASS_STATIC No alternate SPA / routes
+PASS_STATIC Existing simulation form preserved
+PASS_STATIC Three-step workflow
+PASS_STATIC Single prenotification payload
+PASS_STATIC No fictitious NACHA approval
+PASS_STATIC Prevent virtual-time apply
+PASS_STATIC Prevent apply without backend real deadline
+PASS_STATIC Contract returned and tacit
+PASS_STATIC Validates before action
+PASS_STATIC Confirmation dialogue
+PASS_STATIC No autoimport 
+PASS_STATIC Explicit NachaUpload handoff
+PASS_STATIC User choice of official return cause
+PASS_STATIC Separates original cycle from return cycle
+PASS_STATIC Server paginated search
+PASS_STATIC Read-only virtual preview
+PASS_STATIC Send only real clock to apply
+PASS_STATIC Authenticated blob download
+PASS_STATIC Unsafe window.open removed
+PASS_STATIC Blob object cleanup
+PASS_STATIC Accessible selected state
+PASS_STATIC Empty and error states
+PASS_STATIC Responsive mobile layouts
+PASS_STATIC No CSS fixed color
+PASS_STATIC Backend generation route exists
+PASS_STATIC Backend tacit routes exist
+PASS_STATIC New UI unit tests
+PASS_STATIC No extra dependency
+PASS_STATIC Existing history retained
+PASS_STATIC Legacy option only in history
+PASS_STATIC TS syntax parser 3 files
+SUMMARY 32 / 32
+
+$ python scripts/test/prenotification_simulator_i07_static_check.py
+exit_code=0
+PASS_STATIC Return-cycle exception narrowly scoped
+PASS_STATIC Return-cycle active config still enforced
+PASS_STATIC Cancelled cycle excluded for prenotification return
+PASS_STATIC Legacy scenarios retain transaction requirement
+PASS_STATIC Return-cycle reports zero existing return transactions
+PASS_STATIC Generator preview still validates return after original
+PASS_STATIC C# tests both clearing houses
+PASS_STATIC C# test cancelled return cycle
+PASS_STATIC SPA query version increments
+PASS_STATIC SPA stale results rejected
+PASS_STATIC SPA stale catalog responses rejected
+PASS_STATIC SPA close invalidates outstanding queries
+PASS_STATIC SPA selected disabled during load
+PASS_STATIC SPA stale search ignored
+PASS_STATIC SPA clear candidate results during refresh
+PASS_STATIC SPA tests stale camera selection
+PASS_STATIC SPA tests closed dialog response
+PASS_STATIC SPA tests stale catalog
+PASS_STATIC Tacit preview guard equals apply environment constraints
+PASS_STATIC Tacit apply ignores virtual time
+PASS_STATIC No fictitious confirmation in SPA
+PASS_STATIC Authenticated blob download preserved
+PASS_STATIC Angular HTML balanced
+PASS_STATIC Global TypeScript AST parser: source/spec
+SUMMARY_JSON {"classification": "STATIC_ONLY_NOT_DOTNET_BUILD_ANGULAR_BUILD_OR_E2E", "checks_total": 24, "passed": 24, "failed": []}
+
+$ python scripts/validate-solution-projects.py
+exit_code=0
+SOLUTION GRAPH: OK
+  solution projects: 7
+  disk projects:     7
+  project references: all targets exist and are loaded by the solution
+
+$ dotnet --version
+NO_EJECUTADA_POR_AMBIENTE: bash: dotnet: command not found
+
+$ npm ci --offline --ignore-scripts --no-audit --no-fund
+NO_EJECUTADA_POR_AMBIENTE: ENOTCACHED zone.js@0.16.3; ver npm-ci-i07.log
+
+Angular/Karma/Playwright, .NET/Xunit, PostgreSQL/SQL Server, archivos NACHA importados y UAT: NO_EJECUTADA_POR_AMBIENTE (no se presentan como PASS).

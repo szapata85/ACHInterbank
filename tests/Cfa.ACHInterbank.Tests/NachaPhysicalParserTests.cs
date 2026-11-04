@@ -90,6 +90,67 @@ public sealed class NachaPhysicalParserTests
         parsed.Records[2].Content[62].Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData(0xD1)]
+    [InlineData(0xF1)]
+    [InlineData(0xE1)]
+    [InlineData(0x09)]
+    public async Task ParseAsync_CenitPublishedProfile_ShouldRejectUnsupportedRepertoire(int encodedValue)
+    {
+        var bytes = Encoding.Latin1.GetBytes(BuildTenRecordFile('7', "05CENIT CHARACTERIZATION"));
+        bytes[(2 * 106) + 62] = (byte)encodedValue;
+        await using var stream = new MemoryStream(bytes);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            NachaPhysicalParser.ParseAsync(stream, CancellationToken.None, isCenitNachaProfile: true));
+
+        error.Message.Should().Contain("[Technical]").And.Contain("CENIT-NACHA-FATAL")
+            .And.Contain("ERR_INV_PATTERN");
+        error.Message.Should().NotContain("ACHCOL-PHYSICAL").And.NotContain("D02");
+    }
+
+    [Theory]
+    [InlineData((byte)'a')]
+    [InlineData((byte)'Z')]
+    [InlineData((byte)'0')]
+    [InlineData((byte)'#')]
+    [InlineData((byte)'=')]
+    public async Task ParseAsync_CenitPublishedProfile_ShouldAcceptDocumentedCharacters(byte value)
+    {
+        var bytes = Encoding.Latin1.GetBytes(BuildTenRecordFile('7', "05CENIT CHARACTERIZATION"));
+        bytes[(2 * 106) + 62] = value;
+        await using var stream = new MemoryStream(bytes);
+
+        var parsed = await NachaPhysicalParser.ParseAsync(stream, CancellationToken.None,
+            isCenitNachaProfile: true);
+
+        parsed.Records.Should().HaveCount(10);
+        parsed.Records[2].Content[62].Should().Be((char)value);
+    }
+
+    [Theory]
+    [InlineData("LINE_ENDING", "CENIT-NACHA-FATAL-LINE-ENDINGS")]
+    [InlineData("BAD_FIRST_RECORD", "CENIT-NACHA-FATAL-T1")]
+    [InlineData("BAD_BLOCKING", "CENIT-NACHA-FATAL-BLOCKING")]
+    public async Task ParseAsync_CenitPhysicalFatal_ShouldNeverUseAchColombiaErrorCode(
+        string mutation, string expected)
+    {
+        var content = BuildTenRecordFile('7', "05CENIT PHYSICAL FATAL");
+        var bytes = mutation switch
+        {
+            "LINE_ENDING" => Encoding.Latin1.GetBytes(content + "\r\n"),
+            "BAD_FIRST_RECORD" => Encoding.Latin1.GetBytes("5" + content[1..]),
+            "BAD_BLOCKING" => Encoding.Latin1.GetBytes(Replace(content, 39, "09")),
+            _ => throw new InvalidOperationException(mutation)
+        };
+        await using var stream = new MemoryStream(bytes);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            NachaPhysicalParser.ParseAsync(stream, CancellationToken.None, isCenitNachaProfile: true));
+
+        error.Message.Should().Contain(expected).And.NotContain("ACHCOL-");
+    }
+
     private static string BuildTenRecordFile(char addendaRecordType, string addendaPayload)
     {
         var type1 = Record('1');

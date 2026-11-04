@@ -167,6 +167,12 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             {
                 IngestionId = effectiveCandidate.Id,
                 OriginalFileName = effectiveCandidate.FileName,
+                CanonicalPlainFileName = effectiveCandidate.CanonicalPlainFileName,
+                FileIdModifier = effectiveCandidate.FileIdModifier,
+                FileSequence = effectiveCandidate.FileSequence,
+                ExternalCycleNumber = effectiveCandidate.ExternalCycleNumber,
+                FileProtectionKind = effectiveCandidate.FileProtectionKind,
+                FileNameDate = effectiveCandidate.FileNameDate,
                 FileHash = effectiveCandidate.FileHashSha256,
                 CorrelationId = effectiveCandidate.CorrelationId,
                 IngestionStatus = IncomingNachaIngestionStatus.Duplicado,
@@ -277,6 +283,12 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                     {
                         IngestionId = existing.Id,
                         OriginalFileName = existing.FileName,
+                        CanonicalPlainFileName = existing.CanonicalPlainFileName,
+                        FileIdModifier = existing.FileIdModifier,
+                        FileSequence = existing.FileSequence,
+                        ExternalCycleNumber = existing.ExternalCycleNumber,
+                        FileProtectionKind = existing.FileProtectionKind,
+                        FileNameDate = existing.FileNameDate,
                         FileHash = existing.FileHashSha256,
                         CorrelationId = existing.CorrelationId,
                         IngestionStatus = IncomingNachaIngestionStatus.Duplicado,
@@ -418,6 +430,66 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             return BuildResponse(ingestion, null, [mismatch]);
         }
 
+        // ACHCOL: correlate the *original physical* OUT[.env] name with the
+        // canonical plaintext header. Preserve .env handling; never parse ciphertext.
+        // Correlation is independent from operational cycle resolution (F2).
+        var correlationClearingHouseId = resolution.ClearingHouseId ?? request.RequestedClearingHouseId;
+        var isAchColombia = correlationClearingHouseId.HasValue
+            && string.Equals(await ResolveClearingHouseCodeAsync(correlationClearingHouseId, ct),
+                "ACHCOL", StringComparison.OrdinalIgnoreCase);
+        var hasOutPhysicalExtension = request.FileName.EndsWith(".OUT", StringComparison.OrdinalIgnoreCase)
+            || request.FileName.EndsWith(".OUT.env", StringComparison.OrdinalIgnoreCase);
+        if (isAchColombia && hasOutPhysicalExtension)
+        {
+            if (!AchColInboundHeaderCorrelation.TryValidate(
+                    request.FileName, processingFileName, records, out var achColName, out var correlationError))
+            {
+                ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
+                ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+                ingestion.Notes = correlationError;
+                IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
+                _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+                {
+                    IncomingNachaFileIngestionId = ingestion.Id,
+                    AttemptNumber = 1,
+                    StartedAtUtc = UtcNow,
+                    FinishedAtUtc = UtcNow,
+                    OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Fallido,
+                    FailureStage = "AchColInboundHeaderCorrelation",
+                    ErrorCount = 1,
+                    ParserErrorsJson = JsonSerializer.Serialize(new[] { correlationError }),
+                    IsReprocessable = true
+                });
+                await _context.SaveChangesAsync(ct);
+                return BuildResponse(ingestion, null, [correlationError ?? "ACHCOL_INBOUND_NAME_INVALID"]);
+            }
+
+            // Persist the validated external name context even if admission or a
+            // later parser/profile check rejects the file. No internal cycle is inferred.
+            AchColInboundIngestionContext.ApplyValidated(ingestion, achColName!);
+
+            _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                EventType = "AchColInboundHeaderCorrelated",
+                EventStatus = "Validated",
+                Message = "Nombre físico ACH Colombia correlacionado con el encabezado NACHA-M en claro.",
+                EvidenceJson = JsonSerializer.Serialize(new
+                {
+                    physicalFileName = request.FileName,
+                    canonicalPlainFileName = processingFileName,
+                    fileSequence = achColName!.FileSequence,
+                    achColName.ExternalCycleNumber,
+                    fileDate = achColName.FileDate,
+                    protectionKind = achColName.ProtectionKind.ToString(),
+                    headerIdentifier = records.First(x => x.Length == 106 && x[0] == '1')[35].ToString(),
+                    internalCycleInferredFromFilename = false
+                }),
+                RaisedBy = "IncomingNachaIngestionAppService"
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+
         if (!resolution.IsResolved)
         {
             ingestion.IngestionStatus = resolution.IsAmbiguous
@@ -450,7 +522,13 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         var admission = await _admissionValidator.ValidateAsync(
             new IncomingNachaAdmissionRequest(processingFileName, records, resolution, request.ForceReprocess),
             ct);
-        ingestion.FileNameDate = admission.FileNameDate?.ToDateTime(TimeOnly.MinValue);
+        // Retain the already correlated ACHCOL date on a rejected admission.
+        // Npgsql timestamp-with-time-zone requires DateTimeKind.Utc.
+        ingestion.FileNameDate = admission.FileNameDate.HasValue
+            ? ingestion.FileSequence.HasValue
+                ? DateTime.SpecifyKind(admission.FileNameDate.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc)
+                : admission.FileNameDate.Value.ToDateTime(TimeOnly.MinValue)
+            : ingestion.FileNameDate;
         ingestion.HeaderDate = admission.Header?.FileCreationDate.ToDateTime(TimeOnly.MinValue);
         ingestion.EffectiveDate = admission.EffectiveDate?.ToDateTime(TimeOnly.MinValue);
         ingestion.DetectedCycleNumber = admission.CycleNumber;
@@ -825,6 +903,12 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         {
             IngestionId = ingestion.Id,
             OriginalFileName = ingestion.FileName,
+            CanonicalPlainFileName = ingestion.CanonicalPlainFileName,
+            FileIdModifier = ingestion.FileIdModifier,
+            FileSequence = ingestion.FileSequence,
+            ExternalCycleNumber = ingestion.ExternalCycleNumber,
+            FileProtectionKind = ingestion.FileProtectionKind,
+            FileNameDate = ingestion.FileNameDate,
             FileHash = ingestion.FileHashSha256,
             CorrelationId = ingestion.CorrelationId,
             IngestionStatus = ingestion.IngestionStatus,

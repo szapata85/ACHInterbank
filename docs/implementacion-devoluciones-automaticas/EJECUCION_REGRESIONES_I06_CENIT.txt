@@ -1,0 +1,101 @@
+Ejecucion real de verificadores de FUENTE - 2026-11-03
+NO representa compilacion ni pruebas .NET
+
+COMANDO: python scripts/validate-solution-projects.py
+EXIT: 0
+SOLUTION GRAPH: OK
+  solution projects: 7
+  disk projects:     7
+  project references: all targets exist and are loaded by the solution
+
+COMANDO: python scripts/test/automatic_returns_i01_cenit_static_check.py
+EXIT: 0
+PASS: pruebas incluyen doble escritura
+PASS: pruebas incluyen ACH y CENIT
+PASS: pruebas incluyen conservación de permisos
+I01-CENIT: 29/29 controles estáticos
+
+COMANDO: python scripts/test/automatic_returns_i02_cenit_static_check.py
+EXIT: 0
+PASS: prueba aislamiento catalogo
+PASS: prueba de permisos
+PASS: conserva API I01
+I02-CENIT: 50/50 controles estáticos
+
+COMANDO: python scripts/test/automatic_returns_i03_cenit_static_check.py
+EXIT: 0
+OK - test cámara y Fecha Valor
+OK - test festivo y retorno existente
+OK - test permisos
+RESULTADO ESTATICO I03-CENIT: 57/57
+
+COMANDO: python scripts/test/automatic_returns_i04_cenit_static_check.py
+EXIT: 0
+OK - prueba token concurrency
+OK - sin cambios ACH Colombia en persistencia I04
+OK - sin escritura de políticas ACH Colombia
+I04-CENIT: 71/71 controles estáticos
+
+COMANDO: python scripts/test/automatic_returns_i05_cenit_static_check.py
+EXIT: 0
+OK - Prueba permisos
+OK - Prueba corrupción física
+OK - Golden master de CENIT ya existe
+RESULTADO ESTATICO I05-CENIT: 84/84
+
+COMANDO: python scripts/test/automatic_returns_i06_cenit_static_check.py
+EXIT: 0
+OK - xUnit comprueba no exportación
+OK - Se conserva I05 original
+OK - No modifica snapshot SQL Server
+RESULTADO ESTATICO I06-CENIT: 62/62
+
+COMANDO: python scripts/test/automatic_returns_i02_ach_static_check.py
+EXIT: 0
+PASS_STATIC: Sin llamadas a generador/transporte en detector
+PASS_STATIC: Escenarios de cámara, modo e incidencias
+PASS_STATIC: Pruebas sin efectos monetarios
+RESULTADO: 18/18 comprobaciones estáticas
+
+COMANDO: python scripts/test/automatic_returns_i03_ach_static_check.py
+EXIT: 0
+PASS_STATIC: Pruebas tres tipos
+PASS_STATIC: Pruebas no envío / CENIT
+PASS_STATIC: Pruebas de ventana y unicidad
+RESULTADO: 25/25
+
+COMANDO: python scripts/test/automatic_returns_i04_ach_static_check.py
+EXIT: 1
+PASS_STATIC | endpoints SPA cámara específica
+PASS_STATIC | casos xUnit incorporados
+PASS_STATIC | casos Angular incorporados
+RESULTADO 32/35
+
+COMANDO: python scripts/test/automatic_returns_i05_ach_static_check.py
+EXIT: 0
+PASS_STATIC | Prueba SPA de confirmación
+PASS_STATIC | Prueba contrato SPA
+PASS_STATIC | Sin cambios al esquema en I05
+RESULTADO 33/33
+
+COMANDO: python scripts/test/automatic_returns_i06_ach_static_check.py
+EXIT: 0
+PASS_STATIC | Pruebas de desactivación y CENIT
+PASS_STATIC | Pruebas de unicidad y recuperación
+PASS_STATIC | No se invoca transporte automático
+RESULTADO: 28/28 comprobaciones estáticas
+
+COMANDO: python scripts/test/automatic_returns_i07_ach_static_check.py
+EXIT: 0
+PASS_STATIC | test aislamiento CENIT
+PASS_STATIC | test positivo huella
+PASS_STATIC | fixture I06 ajustada a auditoría original
+RESULTADO: 24/24
+
+COMANDO: python scripts/test/automatic_returns_i08_ach_static_check.py
+EXIT: 0
+PASS_STATIC | habilitación permanece apagada
+PASS_STATIC | ejecutor no transmite
+PASS_STATIC | sin nuevas rutas de API en incremento
+RESULTADO: 25/25
+

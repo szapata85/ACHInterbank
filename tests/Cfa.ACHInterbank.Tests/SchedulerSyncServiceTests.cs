@@ -11,7 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Quartz;
-using Quartz.Impl.Matchers;
 
 public class SchedulerSyncServiceTests
 {
@@ -39,11 +38,11 @@ public class SchedulerSyncServiceTests
     }
 
     [Theory]
-    [InlineData(SchedulerMisfirePolicy.DoNothing, MisfireInstruction.CronTrigger.DoNothing)]
-    [InlineData(SchedulerMisfirePolicy.FireAndProceed, MisfireInstruction.CronTrigger.FireOnceNow)]
+    [InlineData(SchedulerMisfirePolicy.DoNothing, CronTriggerMisfireInstruction.DoNothing)]
+    [InlineData(SchedulerMisfirePolicy.FireAndProceed, CronTriggerMisfireInstruction.FireAndProceed)]
     public void SchedulerSyncService_ShouldApplyExplicitCronMisfirePolicy(
         SchedulerMisfirePolicy policy,
-        int expectedInstruction)
+        CronTriggerMisfireInstruction expectedInstruction)
     {
         var service = BuildService(nameof(SchedulerSyncService_ShouldApplyExplicitCronMisfirePolicy) + policy, Mock.Of<IScheduler>());
         var task = new TaskDefinition
@@ -59,7 +58,55 @@ public class SchedulerSyncServiceTests
 
         var trigger = (ITrigger)method.Invoke(service, new object[] { task, new TriggerKey("trg:91", "db-tasks") })!;
 
-        trigger.MisfireInstruction.Should().Be(expectedInstruction);
+        ((ICronTrigger)trigger).MisfireInstruction.Should().Be(expectedInstruction);
+    }
+
+    [Theory]
+    [InlineData(PeriodicityTypeEnum.HourlyAtMinute, "0 17 * * * ?")]
+    [InlineData(PeriodicityTypeEnum.DailyAtTime, "0 45 6 * * ?")]
+    [InlineData(PeriodicityTypeEnum.Weekly, "0 45 6 ? * MON")]
+    [InlineData(PeriodicityTypeEnum.Monthly, "0 45 6 12 * ?")]
+    [InlineData(PeriodicityTypeEnum.Cron, "0 30 9 ? * MON-FRI")]
+    public void SchedulerSyncService_Quartz4_ShouldPreserveCronSchedules(
+        PeriodicityTypeEnum periodicity, string expectedCron)
+    {
+        var service = BuildService($"Quartz4_{periodicity}", Mock.Of<IScheduler>());
+        var task = new TaskDefinition
+        {
+            Id = 99,
+            Code = "Quartz4",
+            TimeZoneId = "America/Bogota",
+            PeriodicityType = periodicity,
+            Minute = 17,
+            TimeOfDay = new TimeOnly(6, 45),
+            WeeklyDay = DayOfWeek.Monday,
+            MonthDay = 12,
+            CronExpression = "0 30 9 ? * MON-FRI"
+        };
+        var method = typeof(SchedulerSyncService).GetMethod("BuildTrigger", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        var trigger = (ICronTrigger)method.Invoke(service, new object[] { task, new TriggerKey("trg:99", "db-tasks") })!;
+
+        trigger.CronExpressionString.Should().Be(expectedCron);
+        trigger.TimeZone.Id.Should().Be("America/Bogota");
+    }
+
+    [Fact]
+    public void SchedulerSyncService_Quartz4_ShouldPreserveSimpleInterval()
+    {
+        var service = BuildService("Quartz4_SimpleInterval", Mock.Of<IScheduler>());
+        var task = new TaskDefinition
+        {
+            Id = 100,
+            Code = "Quartz4Interval",
+            PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+            N = 5
+        };
+        var method = typeof(SchedulerSyncService).GetMethod("BuildTrigger", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        var trigger = (ISimpleTrigger)method.Invoke(service, new object[] { task, new TriggerKey("trg:100", "db-tasks") })!;
+
+        trigger.RepeatInterval.Should().Be(TimeSpan.FromMinutes(5));
     }
 
     [Theory]
@@ -85,10 +132,10 @@ public class SchedulerSyncServiceTests
 
         IJobDetail? scheduledJob = null;
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()))
-            .Callback<IJobDetail, IReadOnlyCollection<ITrigger>, bool, CancellationToken>((job, _, _, _) => scheduledJob = job)
-            .Returns(Task.CompletedTask);
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new HashSet<JobKey>());
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>()))
+            .Callback<IJobDetail, IReadOnlyCollection<ITrigger>, ScheduleJobOptions, CancellationToken>((job, _, _, _) => scheduledJob = job)
+            .Returns(ValueTask.CompletedTask);
+        Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => new HashSet<JobKey>());
 
         var service = BuildService(dbName, scheduler.Object);
         var method = typeof(SchedulerSyncService).GetMethod("ReconcileAllTasksAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -110,14 +157,14 @@ public class SchedulerSyncServiceTests
         }
 
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new HashSet<JobKey>());
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>())).Returns(ValueTask.CompletedTask);
+        Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => new HashSet<JobKey>());
 
         var service = BuildService(dbName, scheduler.Object);
         var method = typeof(SchedulerSyncService).GetMethod("SyncOnceAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
         await (Task)method.Invoke(service, new object[] { scheduler.Object, CancellationToken.None })!;
 
-        scheduler.Verify(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        scheduler.Verify(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
@@ -125,7 +172,8 @@ public class SchedulerSyncServiceTests
     {
         var dbName = nameof(SchedulerSyncService_ShouldNotAdvanceWatermark_WhenSyncFailsCompletely);
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ThrowsAsync(new Exception("boom"));
+        scheduler.Setup(x => x.QueryJobs(It.IsAny<JobQuery>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.FromException<PagedResult<JobHeader>>(new Exception("boom")));
 
         var service = BuildService(dbName, scheduler.Object);
         var lastSyncField = typeof(SchedulerSyncService).GetField("_lastSync", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -149,14 +197,14 @@ public class SchedulerSyncServiceTests
         }
 
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new HashSet<JobKey>());
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>())).Returns(ValueTask.CompletedTask);
+        Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => new HashSet<JobKey>());
 
         var service = BuildService(dbName, scheduler.Object);
         var method = typeof(SchedulerSyncService).GetMethod("SyncOnceAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
         await (Task)method.Invoke(service, new object[] { scheduler.Object, CancellationToken.None })!;
 
-        scheduler.Verify(x => x.ScheduleJob(It.Is<IJobDetail>(j => j.Key.Name == "job:2"), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()), Times.Once);
+        scheduler.Verify(x => x.ScheduleJob(It.Is<IJobDetail>(j => j.Key.Name == "job:2"), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -170,7 +218,7 @@ public class SchedulerSyncServiceTests
         }
 
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new HashSet<JobKey> { new("job:3", "db-tasks") });
+        Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => new HashSet<JobKey> { new("job:3", "db-tasks") });
 
         var service = BuildService(dbName, scheduler.Object);
         var method = typeof(SchedulerSyncService).GetMethod("ReconcileAllTasksAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -190,7 +238,7 @@ public class SchedulerSyncServiceTests
         }
 
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new HashSet<JobKey> { new("job:4", "db-tasks") });
+        Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => new HashSet<JobKey> { new("job:4", "db-tasks") });
 
         var service = BuildService(dbName, scheduler.Object);
         var method = typeof(SchedulerSyncService).GetMethod("ReconcileAllTasksAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -210,8 +258,8 @@ public class SchedulerSyncServiceTests
         }
 
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new HashSet<JobKey> { new("job:5", "db-tasks"), new("job:6", "db-tasks") });
-        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => new HashSet<JobKey> { new("job:5", "db-tasks"), new("job:6", "db-tasks") });
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>())).Returns(ValueTask.CompletedTask);
 
         var service = BuildService(dbName, scheduler.Object);
         var method = typeof(SchedulerSyncService).GetMethod("ReconcileAllTasksAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -231,14 +279,14 @@ public class SchedulerSyncServiceTests
         }
 
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new HashSet<JobKey>());
-        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => new HashSet<JobKey>());
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>())).Returns(ValueTask.CompletedTask);
 
         var service = BuildService(dbName, scheduler.Object);
         var method = typeof(SchedulerSyncService).GetMethod("ReconcileAllTasksAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
         await (Task)method.Invoke(service, new object[] { scheduler.Object, CancellationToken.None })!;
 
-        scheduler.Verify(x => x.ScheduleJob(It.Is<IJobDetail>(j => j.Key.Name == "job:7"), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()), Times.Once);
+        scheduler.Verify(x => x.ScheduleJob(It.Is<IJobDetail>(j => j.Key.Name == "job:7"), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -262,12 +310,11 @@ public class SchedulerSyncServiceTests
 
         var quartzUnavailable = true;
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new HashSet<JobKey>());
-        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()))
+        Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => new HashSet<JobKey>());
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>()))
             .Returns(() => quartzUnavailable
-                ? Task.FromException(new SchedulerException("Quartz unavailable"))
-                : Task.CompletedTask);
+                ? ValueTask.FromException(new SchedulerException("Quartz unavailable"))
+                : ValueTask.CompletedTask);
 
         var service = BuildService(dbName, scheduler.Object);
         var reconcile = typeof(SchedulerSyncService).GetMethod("ReconcileAllTasksAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -289,7 +336,7 @@ public class SchedulerSyncServiceTests
             reconciled.SchedulerSynchronizationStatus.Should().Be("Synchronized");
             reconciled.LastSchedulerSynchronizationError.Should().BeNull();
         }
-        scheduler.Verify(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        scheduler.Verify(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
@@ -350,12 +397,11 @@ public class SchedulerSyncServiceTests
         var persistedTriggers = new Dictionary<TriggerKey, ITrigger>();
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(x => x.GetJobDetail(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync((IJobDetail?)null);
-        scheduler.Setup(x => x.AddJob(It.IsAny<IJobDetail>(), true, true, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        scheduler.Setup(x => x.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => persistedTriggers.Values.ToArray());
-        scheduler.Setup(x => x.CheckExists(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
-        scheduler.Setup(x => x.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
-            .Callback<ITrigger, CancellationToken>((trigger, _) => persistedTriggers[trigger.Key] = trigger)
+        scheduler.Setup(x => x.AddJob(It.IsAny<IJobDetail>(), AddJobOptions.ReplacingAndStoringNonDurable, It.IsAny<CancellationToken>())).Returns(ValueTask.CompletedTask);
+        Quartz4SchedulerMockHelpers.SetupTriggersForJob(scheduler, () => persistedTriggers.Values);
+        scheduler.Setup(x => x.Exists(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<ScheduleJobOptions>(), It.IsAny<CancellationToken>()))
+            .Callback<ITrigger, ScheduleJobOptions, CancellationToken>((trigger, _, _) => persistedTriggers[trigger.Key] = trigger)
             .ReturnsAsync(DateTimeOffset.UtcNow);
         scheduler.Setup(x => x.UnscheduleJob(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((TriggerKey key, CancellationToken _) => persistedTriggers.Remove(key));
@@ -370,6 +416,11 @@ public class SchedulerSyncServiceTests
         persistedTriggers.Values.Should().OnlyContain(trigger =>
             trigger.JobDataMap["CycleConfigId"] is string
             && trigger.JobDataMap["ClearingHouseId"] is string);
+        persistedTriggers.Values.Should().OnlyContain(trigger =>
+            trigger is IDailyTimeIntervalTrigger
+            && ((IDailyTimeIntervalTrigger)trigger).MisfireInstruction == DailyTimeIntervalTriggerMisfireInstruction.DoNothing
+            && ((IDailyTimeIntervalTrigger)trigger).RepeatInterval == 5
+            && ((IDailyTimeIntervalTrigger)trigger).RepeatIntervalUnit == IntervalUnit.Minute);
 
         scheduler.Invocations.Clear();
         await using (var db = new AchDbContext(BuildOptions(dbName)))
@@ -386,6 +437,6 @@ public class SchedulerSyncServiceTests
         scheduler.Verify(x => x.UnscheduleJob(
             It.Is<TriggerKey>(key => key.Name == "trg:20:cycle:102:part:1"),
             It.IsAny<CancellationToken>()), Times.Never);
-        scheduler.Verify(x => x.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Once);
+        scheduler.Verify(x => x.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<ScheduleJobOptions>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -1,0 +1,57 @@
+{
+  "incremento": "I08-ACH",
+  "fecha": "2026-11-02",
+  "base": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I07_ACHCOLOMBIA_2026-11-02.zip",
+  "baseSha256": "3c6293a0943ce134a7f300f0e86813bd9e3450b145ebb66171118b07ddacb3b4",
+  "entrega": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I08_ACHCOLOMBIA_2026-11-02.zip",
+  "camara": "ACH Colombia",
+  "modificacionesCenit": false,
+  "modificacionesAngular": false,
+  "transporteAutomaticoHabilitado": false,
+  "estadoProductivo": "NO-GO",
+  "entradasZIPAnterior": 4851,
+  "archivosModificados": [
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/ESTADO_INCREMENTAL.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE.md",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchColombiaReturnReviewService.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchColombiaAutomaticReturnI06Tests.cs"
+  ],
+  "archivosAnadidos": [
+    "ACHInterbank_ajustado/README_ENTREGA_DEVOLUCIONES_AUTOMATICAS_I08_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/EVIDENCIA_I08_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/INFORME_I08_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MANIFIESTO_I08_ACH.json",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MATRIZ_UAT_I08_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE_I08_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/PLAN_AJUSTE_I08_ACH.md",
+    "ACHInterbank_ajustado/scripts/test/automatic_returns_i08_ach_static_check.py",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchColombiaAutomaticReturnI08Tests.cs"
+  ],
+  "archivosAnterioresSinCambio": 4847,
+  "verificacionesEstaticas": {
+    "I08": "25/25",
+    "I07": "24/24",
+    "I06": "28/28",
+    "I05": "33/33",
+    "I03": "25/25",
+    "I02": "18/18",
+    "I04Historico": "32/35 (3 obsoletas)"
+  },
+  "pruebasNoEjecutadas": [
+    "dotnet build",
+    "xUnit",
+    "pruebas SQL Server y PostgreSQL",
+    "reversión SQL real",
+    "Golden NACHA-M",
+    "homologación ACH Colombia",
+    "Angular build (SPA no modificada)"
+  ],
+  "riesgos": [
+    "La generación autónoma se bloquea si el artefacto no es reconstruible byte a byte",
+    "El estado ReturnedByEpr en reportes no evidencia transmisión o liquidación",
+    "La reproducción futura puede fallar si mutan los datos fuente",
+    "Revisar esquema operativo cinco/siete ciclos ACH",
+    "Rollbacks SQL y concurrencia no certificados"
+  ],
+  "parada": "I08-ACH incorporado, NO-GO; siguiente I09-ACH: pruebas de ejecución/homologación o correctivos comprobados"
+}

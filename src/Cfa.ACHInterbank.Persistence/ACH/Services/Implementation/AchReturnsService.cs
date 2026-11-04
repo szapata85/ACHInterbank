@@ -41,7 +41,8 @@ public class AchReturnsService : IAchReturnsService
         IAchStateTransitionService? stateTransitionService = null,
         INachaFileBuilder? nachaFileBuilder = null,
         IAchReturnTraceSequenceService? returnTraceSequenceService = null,
-        ICenitIncomingReturnPolicy? cenitReturnPolicy = null)
+        ICenitIncomingReturnPolicy? cenitReturnPolicy = null,
+        IOperationalCalendarService? operationalCalendarService = null)
     {
         _context = context;
         _ = regulatoryCatalogService
@@ -59,7 +60,9 @@ public class AchReturnsService : IAchReturnsService
         var resolvedTraceSequenceService = returnTraceSequenceService ?? new AchReturnTraceSequenceService(context);
 
         _correlation = new AchReturnOriginalCorrelationComponent(context);
-        _eligibilityPolicy = new AchReturnEligibilityPolicyComponent(context, resolvedEligibilityService, cenitReturnPolicy);
+        _eligibilityPolicy = new AchReturnEligibilityPolicyComponent(
+            context, resolvedEligibilityService, cenitReturnPolicy,
+            operationalCalendarService ?? new OperationalCalendarService(context));
         _causePolicy = new AchReturnCausePolicyComponent(causeCodePolicy, resolvedLogger);
         _batchAssembly = new AchReturnBatchComposerComponent(resolvedTraceSequenceService);
         _artifactGeneration = new AchReturnArtifactGenerationComponent(context, nachaFileBuilder, externalFileNamePolicy, resolvedLogger);
@@ -98,13 +101,14 @@ public class AchReturnsService : IAchReturnsService
             await _causePolicy.ValidateAsync(transaction, scope, reasonCode, ct);
 
             var amount = transaction.IsPrenotification ? 0m : transaction.Amount;
-            _eligibilityPolicy.ValidateCenitOperationalPolicy(
+            await _eligibilityPolicy.ValidateCenitOperationalPolicyAsync(
                 transaction,
                 scope,
                 correlation,
                 item,
                 reasonCode,
-                amount);
+                amount,
+                ct);
 
             var cenitSource = scope.IsCenit ? correlation.CenitSources[transaction.Id] : null;
             prepared.Add(_batchAssembly.Prepare(

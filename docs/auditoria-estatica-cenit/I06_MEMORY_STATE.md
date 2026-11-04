@@ -1,0 +1,38 @@
+# Fotografía independiente I06 — 2026-11-01
+
+
+**LEER PRIMERO PARA CONTINUAR. Corte 2026-11-01.** Último ZIP completo: `ACHInterbank_PROYECTO_COMPLETO_AUDITORIA_CENIT_I06_2026-11-01.zip`, raíz `ACHInterbank_ajustado/`. **Base inmediata I07 = I06**; no reconstruir I01–I06 ni modificar ACH Colombia/productivo sin solicitud expresa.
+
+## Estado general, hitos y evidencias
+
+- **I01–I06 COMPLETADOS = 6/10 (60 % hitos)**, I07–I10 pendientes. Esto NO mide conformidad normativa ni certificación.
+- **I06 (C5 17:45–18:45; salida límite 19:15): 36 reglas**, **10 cumplen estáticamente en ruta delimitada, 17 parcial, 6 incumplimiento estático demostrado, 3 no demostrable**. I05 34 (7/18/5/4); I04 30 (5/18/4/3); I03 28 (3/18/3/4); I02 24 (2/14/3/5); I01 12 preliminares (0/8/0/4). Solapamientos de reglas entre ciclos; no calcular porcentaje de conformidad sumando filas.
+- **Hallazgos: I06 nuevos 1 (`HC-CENIT-007`), acumulados 7, abiertos 7, cerrados 0**. Por causa raíz IDs 001–007 en `REGISTRO_HALLAZGOS.md`. En I06 6 incumplimientos = HC-001/003/004/005/006/007. HC-002 permanece abierto solo en la ruta de C1, no atribuir por defecto a C5.
+- **Documentos principales:** `docs/normativa/md/CENIT-DSP-152-Anexo-2.md` (27-feb-2025 §§3.1–3.3, 4.2–4.8, 5, 12.1); circular DSP-152 reglamento (art.19); Anexo A 28-nov-2023; Anexo B solo STA; Manual Usuario CENIT 13-jun-2025; NACHA-M 07-may-2026 aportado (vigencia externa no confirmada). Diferencias DN-CEN-001…007 en `FUENTES_NORMATIVAS_Y_DIFERENCIAS.md`.
+- **Limitaciones:** únicamente inspección de código fuente, rutas, configuración, contratos y fuentes de pruebas. **NO** ejecutados .NET/test suite, SQL Server, PostgreSQL, Quartz, CUD, SEBRA, MFT/STA, integración ni certificación bancaria. **Ningún cambio productivo**.
+
+## Hallazgos pendientes y decisiones
+
+1. **HC-CENIT-001 Alta:** cola fuera de ventana `BatchResolver.cs:248-251` → `CenitCycleQueueService.cs:21-47` → `CenitCycleExecutionService.cs:71-85` consume sin reasignar la operación; `CenitNettingService.cs:50-53` filtra ciclo real. En C4→C5, validar además elegibilidad C5 antes de ejecución. No crear nuevo ID para cada ciclo.
+2. **HC-CENIT-002 Alta:** solo ROR originado en C1, falta `SourceReturnTransactionId` (`CenitReturnOfReturnService.cs:106-115`/`AchReturnOfReturnFileGenerationService.cs:391-462`). No generalizar a ROR C5 sin nueva evidencia.
+3. **HC-CENIT-003 Alta:** netting registra `IncludedInSettlement=true` para todos (`CenitNettingService.cs:84-105`) antes de optimización (`CenitCycleExecutionService.cs:84-90`). C4 y C5 rechazan pendientes sin recomposición; recomputar membresía neta antes de CUD.
+4. **HC-CENIT-004 Alta:** excepción R23 mismo día autorizada por política en C2–C5 (`CenitIncomingReturnPolicy.cs:234-266`), no corresponde literalmente con «devoluciones de días anteriores» §3.2. Contrastar cualquier interpretación oficial posterior; no reetiquetar como R06.
+5. **HC-CENIT-005 Alta:** optimización utiliza prioridad por `TransactionTypeEnum` (`TransactionPriorityPolicy.cs:18-26`, `AchRegulatoryCatalogService.cs:20-27`, `LiquidityOptimizationService.cs:111-117`), no tabla 1–10 PPD/CCD/CTX y retornos (§5.1); impacta C4 y C5.
+6. **HC-CENIT-006 Alta:** C4 y C5 rechazados por insuficiencia sobre `AvailableLiquidity` tipo **Simulated** (créditos internos) en `CenitNettingService.cs:63-80` y `LiquidityOptimizationService.cs:105-120,173-199`, no saldo confirmado CUD. No declarar asiento CUD real errado.
+7. **HC-CENIT-007 Alta, NUEVO I06:** la rama R06 del `CenitIncomingReturnPolicy` (`Evaluate:70-88`, `EvaluateR06:188-231`) es llamada por `AchReturnsService.cs:95-107`/`AchReturnEligibilityPolicyComponent.cs:95-120` y por `IncomingNachaPostParseProcessor.cs:581-598`; si origen C1–C3 y retorno C5, puede retornar Allowed con flags operativos positivos al omitir regla `EvaluateOrdinaryMonetaryReturn` de ciclo inmediato. §3.2 C5 restringe los retornos ordinarios al C4; corrección mínima: validación de sesión de origen en C5 manteniendo controles R06 y contrastando aclaraciones regulatorias en I07.
+
+## C5: controles confirmados, límites y documentación
+
+- Agenda `RegulatoryCycleScheduleCatalog.cs:172-176`: C5 17:45–18:45, output 19:15, `AllowsMonetaryCredit/Debit/CreditPrenotification/DebitPrenotification=false`. `CycleTransactionPolicy.cs:56-105`, `NachaTransactionValidationService.cs:52-73`, `ContrapartidaDispatchJobService.cs:1297-1312` consumen la política. No afirmar cierre externo ni todos los canales cubiertos.
+- `CenitIncomingReturnPolicy.cs:163-186` permite devolución ordinaria monetaria C4→C5 en fecha valor y exige ciclo inmediato; prenotes deben retornar antes de último ciclo. **DN-CEN-007**: tensión textual de §3.2 «devoluciones del ciclo anterior» vs §4.8 «máximo en último ciclo de Devoluciones» para prenotes C1–C3. No inventar respuesta ni nuevo hallazgo hasta criterio autorizado.
+- `CenitReturnOfReturnService.cs:226-269`: ROR del mismo día, devolución padre C2–C4 → C5; previos día hasta C2 del siguiente hábil. Revisar fecha `processedAtUtc.Date` en frontera de extensión C5 a 19:00 Bogotá (00:00 UTC siguiente): riesgo observado, aún **parcial** por falta de ruta/permiso de extensión.
+- `LiquidityOptimizationService.cs:173-199` rechaza en C5 los pendientes por insuficiencia, **no** los difiere por saldo a día posterior; fallos HC-003/005/006 invalidan declarar cumplimiento integral.
+- Distinción horaria: entrada antes de 18:45, entrega salida hasta 19:15 y ampliación excepcional autorizada §12.1 hasta 15 minutos para envío; **no** espera extra para fondos (suprimida 2025). Archivos fuera de ventana se reciben/encolan (HC-001), no se veta globalmente.
+- `DXX-LIQ` es marcador interno, no causal Rxx de retorno ni Dxx STA. La respuesta de operador real y aviso ADV no demostrados.
+- **Archivos examinados I06 (código):** `RegulatoryCycleScheduleCatalog.cs`, `CycleTransactionPolicy.cs`, `BatchResolver.cs`, `CenitIncomingReturnPolicy.cs`, `CenitReturnOfReturnService.cs`, `CenitCycleExecutionService.cs`, `CenitCycleQueueService.cs`, `CenitNettingService.cs`, `LiquidityOptimizationService.cs`, `CenitOperatingCalendarPolicy.cs`, `NachaTransactionValidationService.cs`, `IncomingNachaPostProcessingPipeline.cs`, `IncomingNachaDispatchEligibilityPolicy.cs`, `IncomingNachaPostParseProcessor.cs`, `AchReturnsService.cs`, `AchReturnEligibilityPolicyComponent.cs`, `AchReturnOriginalCorrelationComponent.cs`, `AchReturnOfReturnEligibilityService.cs`, `AchRegulatoryCatalogService.cs`, `CenitChamberResponseService.cs`, `CenitLocalGatewayPickupHostedService.cs`, `ContrapartidaDispatchJobService.cs`, `AchCauseCodePolicy.cs`, `AchCycleSchedulerHandler.cs`, `CycleCalendarGuard.cs`. **Tests leídos no ejecutados:** `CenitIncomingReturnPolicyTests.cs`, `CenitReturnOfReturn2026Tests.cs`, `CenitCycleCalendarCharacterizationTests.cs`, `CenitOperationalGovernanceTests.cs`.
+
+## Siguiente I07
+
+Auditar **devoluciones, devoluciones de devoluciones y causales**, Anexo A R01–R35 aplicables y R60–R74; R06/R23 límites, plazo, aplicación por servicio/fecha/estado, duplicidad, causal por operador y contrato STA separado. Priorizar HC-002/004/007, extender hallazgos previos sin duplicarlos. Crear `I07_REGLA_A_REGLA.md`, foto de memoria, manifiesto, hashes y ZIP completo. I08 NACHA-M+archivos/STA; I09 CUD+netting/conciliación; I10 dictamen final.
+
+**Integridad I06:** base I05 (4576 entradas). Verificar comparación SHA-256 contra I05 al generar I06. Cambios autorizados solo a 5 documentos de auditoría (`PLAN_INCREMENTAL`, `MEMORY_STATE`, `ESTADO_INCREMENTOS`, `REGISTRO_HALLAZGOS`, `FUENTES_NORMATIVAS_Y_DIFERENCIAS`), más cuatro documentos nuevos I06; todo código/ACH Colombia/normativa/códigos previos inalterados.

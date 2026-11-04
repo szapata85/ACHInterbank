@@ -347,8 +347,57 @@ public class IntegrationMappingEndToEndTests
         Assert.False(result.UsedFallback);
         Assert.Equal(fixture.Transaction.Reference, result.Contract.OFIDTX);
         Assert.Equal(fixture.Transaction.Amount, result.Contract.OFMONDEB);
+        Assert.Equal(0m, result.Contract.OFMONCRE);
         Assert.Equal("D", result.Contract.OFDD);
+        // Characterization only: these seed values are not yet bank-homologated.
+        Assert.Equal(fixture.Cycle.ClearingHouse.Code, result.Contract.OFEMP);
+        Assert.Equal(fixture.Transaction.AchBatchId, result.Contract.OFIDARCH);
+        Assert.Equal(fixture.Transaction.AchBatchId, result.Contract.OFIDLOT);
+        Assert.Equal("OO", result.Contract.OFST);
+        Assert.Equal("0.0.0.0", result.Contract.OFDIRECCIONIP);
         Assert.Equal(fixture.Transaction.Id, result.Contract.OFIDEBAPLI);
+    }
+
+    [Theory]
+    [InlineData(TransactionTypeEnum.Credit, false, 75.5)]
+    [InlineData(TransactionTypeEnum.Debit, true, 75.5)]
+    [InlineData(TransactionTypeEnum.Debit, false, 0.0)]
+    public async Task Resolver_RejectsNonMonetaryOrNonDebitTransactions(
+        TransactionTypeEnum transactionType, bool isPrenotification, double amount)
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        fixture.Transaction.Type = transactionType;
+        fixture.Transaction.IsPrenotification = isPrenotification;
+        fixture.Transaction.Amount = (decimal)amount;
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
+
+        Assert.Contains("PROC_CONTRAPARTIDAS_DEBIT_ONLY", error.Message);
+    }
+
+    [Theory]
+    [InlineData("OFDD", "C")]
+    [InlineData("OFMONDEB", "80.00")]
+    [InlineData("OFMONCRE", "10.00")]
+    public async Task Resolver_RejectsPublishedMappingWithInconsistentDebitSemantics(string field, string incorrectValue)
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var published = await fixture.CreateAndPublishResolverMappingAsync();
+        var parameter = fixture.Parameters.Single(p => p.ParameterPath == field);
+        var rule = await fixture.Context.IntegrationMappingRules.SingleAsync(r =>
+            r.MappingSetId == published.Id && r.ParameterId == parameter.Id);
+        // Simulate a corrupted/prematurely published rule without relying on external UAT.
+        rule.SourceKind = IntegrationSourceKindEnum.Constant;
+        rule.SourceFieldPath = string.Empty;
+        rule.FixedValue = incorrectValue;
+        rule.DefaultValue = null;
+        await fixture.Context.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
+
+        Assert.Contains("PROC_CONTRAPARTIDAS_MONETARY_MISMATCH", error.Message);
     }
 
     [Fact]
@@ -669,6 +718,9 @@ public class IntegrationMappingEndToEndTests
             {
                 var (kind, path, fixedVal) = parameter.ParameterPath switch
                 {
+                    "OFDD" => (IntegrationSourceKindEnum.Transaction, "transaction.debitCreditIndicator", (string?)null),
+                    "OFMONDEB" => (IntegrationSourceKindEnum.Transaction, "transaction.amount", (string?)null),
+                    "OFMONCRE" => (IntegrationSourceKindEnum.Constant, string.Empty, "0"),
                     "OFIDLOT" => (IntegrationSourceKindEnum.Batch, "batch.id", (string?)null),
                     "OFIDTX" => (IntegrationSourceKindEnum.Transaction, "transaction.transactionExternalId", (string?)null),
                     "CycleId" => (IntegrationSourceKindEnum.Cycle, "cycle.id", (string?)null),

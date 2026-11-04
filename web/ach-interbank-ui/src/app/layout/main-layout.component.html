@@ -118,56 +118,17 @@
       [attr.data-menu-node-id]="item.id"
     >
       <ng-container *ngIf="item.children?.length; else navigableMenuItem">
-        <ng-container *ngIf="isNavigableParent(item); else structuralParent">
-          <div class="nav-parent-actions">
-            <a
-              mat-list-item
-              class="nav-item nav-parent-link"
-              [routerLink]="item.route"
-              routerLinkActive="active"
-              [routerLinkActiveOptions]="exactRouteMatch"
-              ariaCurrentWhenActive="page"
-              [attr.data-menu-item-id]="item.id"
-              [matTooltip]="item.label"
-              [matTooltipDisabled]="!isDesktopCompact || isMobileViewport"
-              matTooltipPosition="after"
-              (click)="onNavItemSelected()"
-            >
-              <app-ui-icon
-                *ngIf="item.icon"
-                matListItemIcon
-                class="nav-icon"
-                [name]="item.icon"
-              ></app-ui-icon>
-              <span matListItemTitle class="nav-label">{{ item.label }}</span>
-            </a>
-
-            <button
-              type="button"
-              class="nav-expand-toggle"
-              [class.branch-active]="activeItemIds.has(item.id)"
-              [attr.data-menu-toggle-id]="item.id"
-              [attr.aria-label]="(isItemExpanded(item) ? 'Contraer ' : 'Expandir ') + item.label"
-              [attr.aria-expanded]="isItemExpanded(item)"
-              [attr.aria-controls]="'submenu-' + item.id"
-              (click)="toggleSubmenu(item)"
-            >
-              <span
-                class="expand-icon"
-                [class.expanded]="isItemExpanded(item)"
-                aria-hidden="true"
-              ></span>
-            </button>
-          </div>
-        </ng-container>
-
-        <ng-template #structuralParent>
+        <!-- Every branch uses the same whole-row disclosure button.
+             A functional parent has a separate, secondary navigation link. -->
+        <div class="nav-parent-actions">
           <button
             mat-list-item
             type="button"
             class="nav-item nav-parent"
             [class.active]="activeItemIds.has(item.id)"
             [attr.data-menu-item-id]="item.id"
+            [attr.data-menu-toggle-id]="item.id"
+            [attr.aria-label]="(isItemExpanded(item) ? 'Contraer ' : 'Expandir ') + item.label"
             [attr.aria-expanded]="isItemExpanded(item)"
             [attr.aria-controls]="'submenu-' + item.id"
             [matTooltip]="item.label"
@@ -189,10 +150,26 @@
               aria-hidden="true"
             ></span>
           </button>
-        </ng-template>
+
+          <a
+            *ngIf="isNavigableParent(item)"
+            class="nav-parent-destination"
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="exactRouteMatch"
+            ariaCurrentWhenActive="page"
+            [attr.data-menu-destination-id]="item.id"
+            [attr.aria-label]="'Abrir página de ' + item.label"
+            [matTooltip]="'Abrir página de ' + item.label"
+            matTooltipPosition="after"
+            (click)="onNavItemSelected()"
+          >
+            <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+          </a>
+        </div>
 
         <div
-          *ngIf="isItemExpanded(item) && (!isDesktopCompact || isMobileViewport)"
+          *ngIf="isItemExpanded(item)"
           class="nav-children"
           [id]="'submenu-' + item.id"
           role="group"

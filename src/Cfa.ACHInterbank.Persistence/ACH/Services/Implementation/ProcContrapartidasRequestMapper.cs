@@ -44,9 +44,9 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
         ArgumentNullException.ThrowIfNull(cycle);
         ArgumentNullException.ThrowIfNull(transactions);
 
-        if (transactions.Count == 0)
+        if (transactions.Count != 1)
         {
-            throw new InvalidOperationException("Proc_Contrapartidas requiere al menos una transacción.");
+            throw new InvalidOperationException("PROC_CONTRAPARTIDAS_CARDINALITY: cada request SOAP requiere exactamente una transacción.");
         }
 
         return _options.UseContractDrivenRequest
@@ -126,10 +126,16 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
             var resolved = request.ContractDrivenRequest
                 ?? throw new InvalidOperationException(
                     "PROC_CONTRAPARTIDAS_CONTRACT_REQUEST_MISSING: la solicitud no contiene el snapshot resuelto del motor genérico.");
-            return (_soapBodyWriter
+            var xml = (_soapBodyWriter
                 ?? throw new InvalidOperationException(
                     "PROC_CONTRAPARTIDAS_CONTRACT_ENGINE_NOT_CONFIGURED: ISoapRequestBodyWriter no está registrado."))
                 .Write(resolved);
+            CfaSoapOperationParityGuard.EnsureEquivalent(
+                "PROC_CONTRAPARTIDAS", "Proc_Contrapartidas",
+                "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
+                resolved.OperationName, resolved.TargetNamespace, resolved.SoapAction,
+                BuildLegacySoapBody(request), xml);
+            return xml;
         }
 
         return BuildLegacySoapBody(request);

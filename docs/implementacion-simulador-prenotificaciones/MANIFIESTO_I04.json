@@ -1,0 +1,27 @@
+{
+  "fecha": "2026-11-02",
+  "base": "ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I03_2026-11-02.zip",
+  "incremento": "I04",
+  "heredados": 4727,
+  "modificados": [
+    "ACHInterbank_ajustado/MEMORY_STATE.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/CHANGELOG_INCREMENTAL.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.json",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostParseProcessor.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/IncomingNachaPostParseProcessorTests.cs"
+  ],
+  "nuevos": [
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/CONTRATO_INTEGRACION_I04.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/EVIDENCIA_I04.txt",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/I04_CAMBIOS_CODIGO.patch",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/INFORME_I04.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/MEMORY_STATE_I04.md",
+    "ACHInterbank_ajustado/scripts/test/prenotification_simulator_i04_static_check.py",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingPrenotificationReturnGuard.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/IncomingPrenotificationReturnGuardI04Tests.cs"
+  ],
+  "eliminados": [],
+  "evidencia": "codigo Y tests adicionados; sin dotnet runtime",
+  "sha256_heredados_sin_cambios_verificados": 4721
+}

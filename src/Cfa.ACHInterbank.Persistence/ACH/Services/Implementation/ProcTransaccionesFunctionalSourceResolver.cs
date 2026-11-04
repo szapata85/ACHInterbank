@@ -149,6 +149,7 @@ public sealed class ProcTransaccionesFunctionalSourceResolver : IProcTransaccion
             ?? throw new InvalidOperationException("PROC_TRANSACCIONES_BATCH_MISSING: no se encontró el BatchHeader de la entrada clasificada.");
         var entry = nachaSource.EntryDetail
             ?? throw new InvalidOperationException("PROC_TRANSACCIONES_ENTRY_MISSING: no existe el registro tipo 6 clasificado.");
+        ValidateMonetaryEntryCorrelation(transaction, entry);
         var originatorCode = NormalizeParticipantCode(batch.OriginParticipantEntityCode, "BCOORIG");
         var receiverCode = NormalizeParticipantCode(entry.ReceivingParticipantEntityCode, "BCORECEP");
         ValidateNachaOriginatorEvidence(nachaSource.Header, batch, entry, nachaSource.BatchControl, clearingHouse.Code);
@@ -263,6 +264,37 @@ public sealed class ProcTransaccionesFunctionalSourceResolver : IProcTransaccion
                     && x.BatchNumber == batchHeader.BatchNumber.ToString("D7", CultureInfo.InvariantCulture), ct);
 
         return new NachaSourceContext(header, batchHeader, entryDetail, addendaRecord, batchControl);
+    }
+
+    // The origin account is NOT present in the receiving EntryDetail. This check
+    // validates only the transaction fields that have a verifiable NACHA source.
+    private static void ValidateMonetaryEntryCorrelation(AchTransaction transaction, EntryDetail entry)
+    {
+        if (transaction.Type != TransactionTypeEnum.Credit || transaction.Amount <= 0m
+            || !string.Equals((transaction.TransactionCode ?? string.Empty).Trim(),
+                (entry.TransactionCode ?? string.Empty).Trim(), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_CREDIT_ONLY: la transacción debe representar el crédito monetario NACHA recibido.");
+        }
+
+        if (entry.Amount != transaction.Amount)
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_AMOUNT_MISMATCH: MONTO difiere del valor de la entrada NACHA clasificada.");
+        }
+
+        if (!string.Equals((transaction.DestinationAccountNumber ?? string.Empty).Trim(),
+                (entry.AccountNumber ?? string.Empty).Trim(), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_RECEIVER_ACCOUNT_MISMATCH: NCTARECEP difiere de la cuenta del registro tipo 6.");
+        }
+
+        var trace = (entry.SequenceNumber ?? string.Empty).Trim();
+        if (trace.Length != 15 || !trace.All(char.IsDigit)
+            || !string.Equals(transaction.TraceSequenceNumber.ToString("D7", CultureInfo.InvariantCulture),
+                trace[8..], StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_TRACE_MISMATCH: IDTRAN no coincide con los siete dígitos de la secuencia NACHA.");
+        }
     }
 
     private static void ValidateNachaOriginatorEvidence(

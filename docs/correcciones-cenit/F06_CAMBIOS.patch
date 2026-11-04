@@ -1,0 +1,364 @@
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundValidation.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundValidation.cs
+@@ -31,8 +31,9 @@
+         Technical
+     }
+ 
+     private readonly IReadOnlyDictionary<string, AchFileRejectionCode> _rejectionCatalog;
++    private bool _isCenitNachaProfile;
+ 
+     internal NachaInboundValidator(IReadOnlyDictionary<string, AchFileRejectionCode> rejectionCatalog)
+     {
+         _rejectionCatalog = rejectionCatalog;
+@@ -52,10 +53,22 @@
+         var isCenitCtxInboundProfile = publishedAuthority is not null
+             ? publishedAuthority.HasT6AddendaCount
+             : CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode);
+ 
+-        return new NachaInboundValidationContext(publishedAuthority, isCenitInboundProfile, isCenitCtxInboundProfile);
+-    }
++        var isCenitNachaProfile = publishedAuthority?.IsCenit == true
++            || IsCenitNachaProfileCode(profileReader?.ProfileCode);
++        return new NachaInboundValidationContext(publishedAuthority, isCenitInboundProfile, isCenitCtxInboundProfile, isCenitNachaProfile);
++    }
++
++    // CENIT NACHA-M is not the STA file-transfer service. Keep the STA Dxx catalogue
++    // available to its own consumers, but never expose those causes for NACHA failures.
++    internal void SelectNachaErrorDomain(bool isCenitNachaProfile)
++        => _isCenitNachaProfile = isCenitNachaProfile;
++
++    internal static bool IsCenitNachaProfileCode(string? profileCode)
++        => CenitOrdinaryInbound2026Layout.IsProfile(profileCode)
++           || CenitReturnIn2026Layout.IsProfile(profileCode)
++           || CenitReturnOfReturn2026Layout.IsProfile(profileCode);
+ 
+     internal NachaTransactionCodeSemanticRule? ResolvePublishedTransactionRule(
+         NachaInboundPublishedAuthority? authority,
+         EntryDetail entry)
+@@ -743,8 +756,15 @@
+            && Regex.IsMatch(addenda.ReturnReasonCode.Trim(), @"^R\d{2}$", RegexOptions.IgnoreCase);
+ 
+     private string GetRegulatoryError(string dxxCode, string fallbackMessage)
+     {
++        if (_isCenitNachaProfile)
++        {
++            // Local fatal-format classification, NOT an invented operator response code.
++            // The original Dxx identifier is a legacy ACH/STA lookup key only.
++            return $"CENIT-NACHA-FATAL: {fallbackMessage}";
++        }
++
+         if (_rejectionCatalog.TryGetValue(dxxCode, out var catalog))
+         {
+             return $"{catalog.Code}: {catalog.Description}. {fallbackMessage}";
+         }
+@@ -1121,9 +1141,10 @@
+ 
+ internal sealed record NachaInboundValidationContext(
+     NachaInboundPublishedAuthority? PublishedAuthority,
+     bool IsCenitInboundProfile,
+-    bool IsCenitCtxInboundProfile);
++    bool IsCenitCtxInboundProfile,
++    bool IsCenitNachaProfile);
+ 
+ internal sealed record NachaEntryAddendaPreparation(bool OptionalAddenda, NachaAddendaBounds? PublishedBounds);
+ 
+ internal sealed record NachaInboundPublishedAuthority(
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaParserService.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaParserService.cs
+@@ -88,18 +88,19 @@
+             {
+                 throw new InvalidOperationException("NACHA_PROFILE_SNAPSHOT_MISMATCH: la identidad del perfil seleccionado cambió antes del parser.");
+             }
+             var inboundValidator = new NachaInboundValidator(_rejectionCatalog);
++            var validationContext = inboundValidator.CreateContext(selectedPublication, request, profileReader);
++            inboundValidator.SelectNachaErrorDomain(validationContext.IsCenitNachaProfile);
+             var databaseValidator = new NachaInboundDatabaseValidator(
+                 _context,
+                 inboundValidator,
+                 IsLocalLiveProcTransaccionesPreparationEnabled());
+-            var validationContext = inboundValidator.CreateContext(selectedPublication, request, profileReader);
+             var publishedAuthority = validationContext.PublishedAuthority;
+             var isCenitInboundProfile = validationContext.IsCenitInboundProfile;
+             var isCenitCtxInboundProfile = validationContext.IsCenitCtxInboundProfile;
+ 
+-            var physicalFile = await NachaPhysicalParser.ParseAsync(nachaStream, ct, profileReader);
++            var physicalFile = await NachaPhysicalParser.ParseAsync(nachaStream, ct, profileReader, validationContext.IsCenitNachaProfile);
+             var lines = physicalFile.Records.Select(record => record.Content).ToList();
+ 
+             var clearingHouseOrigins = await _context.ClearingHouses
+                 .AsNoTracking()
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaPhysicalParser.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaPhysicalParser.cs
+@@ -12,42 +12,48 @@
+ {
+     internal static async Task<NachaPhysicalFile> ParseAsync(
+         Stream nachaStream,
+         CancellationToken ct,
+-        NachaProfileRecordReader? profileReader = null)
++        NachaProfileRecordReader? profileReader = null,
++        bool isCenitNachaProfile = false)
+     {
+         ArgumentNullException.ThrowIfNull(nachaStream);
++        // Published CENIT profiles may have custom names; the caller supplies their authority.
++        // Known unpublished CENIT profiles can also be identified by their existing layout.
++        isCenitNachaProfile |= NachaInboundValidator.IsCenitNachaProfileCode(profileReader?.ProfileCode);
+ 
+         using var buffer = new MemoryStream();
+         await nachaStream.CopyToAsync(buffer, ct);
+         var bytes = buffer.ToArray();
+ 
+         if (bytes.Length == 0)
+         {
+-            ThrowTechnical("ACHCOL-PHYSICAL-FILE-NOT-EMPTY: el archivo está vacío.");
++            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-EMPTY: el archivo está vacío." : "ACHCOL-PHYSICAL-FILE-NOT-EMPTY: el archivo está vacío.");
+         }
+ 
+         if (bytes.AsSpan().StartsWith(Encoding.UTF8.Preamble)
+             || bytes.AsSpan().StartsWith(new byte[] { 0xFF, 0xFE })
+             || bytes.AsSpan().StartsWith(new byte[] { 0xFE, 0xFF }))
+         {
+-            ThrowTechnical("ACHCOL-PHYSICAL-NO-BOM: el archivo contiene BOM.");
++            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-BOM: el archivo contiene BOM." : "ACHCOL-PHYSICAL-NO-BOM: el archivo contiene BOM.");
+         }
+ 
+         if (bytes.Any(value => value is (byte)'\r' or (byte)'\n'))
+         {
+-            ThrowTechnical("ACHCOL-PHYSICAL-NO-LINE-ENDINGS: el archivo contiene CR/LF.");
++            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-LINE-ENDINGS: el archivo contiene CR/LF." : "ACHCOL-PHYSICAL-NO-LINE-ENDINGS: el archivo contiene CR/LF.");
+         }
+ 
+-        if (bytes.Any(value => !IsAcceptedByte(value)))
++        if (bytes.Any(value => !IsAcceptedByte(value, isCenitNachaProfile)))
+         {
+-            ThrowTechnical("ACHCOL-PHYSICAL-ASCII-REPERTOIRE: el archivo contiene bytes fuera de la tabla de caracteres aceptados por ACH Colombia V35.");
++            ThrowTechnical(isCenitNachaProfile
++                ? "CENIT-NACHA-FATAL ERR_INV_PATTERN: el archivo contiene caracteres fuera del repertorio NACHA-M CENIT 2026."
++                : "ACHCOL-PHYSICAL-ASCII-REPERTOIRE: el archivo contiene bytes fuera de la tabla de caracteres aceptados por ACH Colombia V35.");
+         }
+ 
+         var recordLength = profileReader?.RecordLength ?? AchColOfficialNachaLayout.RecordLength;
+         if (bytes.Length % recordLength != 0)
+         {
+-            ThrowTechnical("ACHCOL-PHYSICAL-RECORD-LENGTH: existen bytes residuales; cada registro debe tener 106 bytes.");
++            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-LENGTH: existen bytes residuales; cada registro debe tener 106 bytes." : "ACHCOL-PHYSICAL-RECORD-LENGTH: existen bytes residuales; cada registro debe tener 106 bytes.");
+         }
+ 
+         var content = Encoding.Latin1.GetString(bytes);
+         var records = Enumerable.Range(0, bytes.Length / recordLength)
+@@ -59,38 +65,38 @@
+             .ToArray();
+ 
+         if (records[0].RecordType != '1')
+         {
+-            ThrowTechnical("ACHCOL-T1-RECORD-TYPE: el primer registro debe ser tipo 1.");
++            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-T1: el primer registro debe ser tipo 1." : "ACHCOL-T1-RECORD-TYPE: el primer registro debe ser tipo 1.");
+         }
+ 
+         var declaredLength = ReadField(profileReader, records[0].Content, "1", "RECORDSIZE");
+         if (!int.TryParse(declaredLength, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedRecordLength)
+             || parsedRecordLength != recordLength)
+         {
+-            ThrowTechnical($"ACHCOL-T1-RECORD-SIZE: el tamaño declarado debe ser {recordLength}.");
++            ThrowTechnical(isCenitNachaProfile ? $"CENIT-NACHA-FATAL-T1-SIZE: el tamaño declarado debe ser {recordLength}." : $"ACHCOL-T1-RECORD-SIZE: el tamaño declarado debe ser {recordLength}.");
+         }
+ 
+         var declaredBlockingFactor = ReadField(profileReader, records[0].Content, "1", "BLOCKINGFACTOR");
+         if (!int.TryParse(declaredBlockingFactor, NumberStyles.None, CultureInfo.InvariantCulture, out var blockingFactor)
+             || blockingFactor <= 0
+             || records.Length % blockingFactor != 0)
+         {
+-            ThrowTechnical("ACHCOL-PHYSICAL-BLOCKING-FACTOR: el archivo no ocupa bloques exactos de 10 registros.");
++            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-BLOCKING: el archivo no ocupa bloques exactos de 10 registros." : "ACHCOL-PHYSICAL-BLOCKING-FACTOR: el archivo no ocupa bloques exactos de 10 registros.");
+         }
+ 
+         return new NachaPhysicalFile(recordLength, records);
+     }
+ 
+-    private static bool IsAcceptedByte(byte value)
++    private static bool IsAcceptedByte(byte value, bool isCenitNachaProfile)
+         => value == (byte)' '
+            || value is >= (byte)'0' and <= (byte)'9'
+            || value is >= (byte)'A' and <= (byte)'Z'
+            || value is >= (byte)'a' and <= (byte)'z'
+            || value is (byte)'.' or (byte)',' or (byte)';' or (byte)':' or (byte)'-'
+                or (byte)'*' or (byte)'/' or (byte)'&' or (byte)'#' or (byte)'$'
+                or (byte)'%' or (byte)'='
+-           || value is 0xD1 or 0xF1;
++           || (!isCenitNachaProfile && (value is 0xD1 or 0xF1));
+ 
+     private static string ReadField(
+         NachaProfileRecordReader? profileReader,
+         string record,
+--- a/tests/Cfa.ACHInterbank.Tests/NachaInboundValidationSeparationTests.cs
++++ b/tests/Cfa.ACHInterbank.Tests/NachaInboundValidationSeparationTests.cs
+@@ -88,5 +88,98 @@
+ 
+         valid.Should().ContainSingle().Which.Should().BeSameAs(entry);
+         failures.Should().BeEmpty();
+     }
++    [Theory]
++    [InlineData("D01")]
++    [InlineData("D02")]
++    [InlineData("D04")]
++    [InlineData("D05")]
++    [InlineData("D06")]
++    public void CenitNachaFatal_ShouldNotUseStaCodesOrStaDescriptions(string legacyStaCode)
++    {
++        var catalog = new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>
++        {
++            [legacyStaCode] = new() { Code = legacyStaCode, Description = "Descripción exclusiva STA", IsActive = true }
++        };
++        var sut = new NachaInboundValidator(catalog);
++        sut.SelectNachaErrorDomain(true);
++
++        var action = () => sut.ThrowRegulatory(legacyStaCode, "Control físico NACHA no válido.");
++
++        action.Should().Throw<InvalidOperationException>()
++            .WithMessage("*[Regulatory]*CENIT-NACHA-FATAL: Control físico NACHA no válido.*")
++            .Which.Message.Should().NotContain(legacyStaCode).And.NotContain("STA");
++    }
++
++    [Fact]
++    public void CenitDuplicateEntryRule_ShouldNotReportStaDuplicateFileCode()
++    {
++        var catalog = new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>
++        {
++            ["D04"] = new() { Code = "D04", Description = "Archivo duplicado STA", IsActive = true }
++        };
++        var sut = new NachaInboundValidator(catalog);
++        sut.SelectNachaErrorDomain(true);
++        var batch = new BatchHeader { BatchNumber = 1, OriginParticipantEntityCode = "12345678" };
++        var header = new NachaHeader { FileCreationDate = "260815" };
++        var entry = new EntryDetail { SequenceNumber = "123456780000001" };
++        var last = new Dictionary<int, int>();
++        var seen = new HashSet<string>(StringComparer.Ordinal);
++        sut.ValidateEntrySequenceStructure(entry, batch, header, last, seen, true);
++
++        var action = () => sut.ValidateEntrySequenceStructure(entry, batch, header, last, seen, true);
++
++        action.Should().Throw<InvalidOperationException>()
++            .WithMessage("*[Regulatory]*CENIT-NACHA-FATAL: Número de secuencia duplicado en el archivo.*")
++            .Which.Message.Should().NotContain("D04").And.NotContain("STA");
++    }
++
++    [Fact]
++    public void AchColombiaNacha_ShouldRetainLegacyCodeLookup()
++    {
++        var catalog = new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>
++        {
++            ["D04"] = new() { Code = "D04", Description = "Conteo inválido ACH", IsActive = true }
++        };
++        var sut = new NachaInboundValidator(catalog);
++        sut.SelectNachaErrorDomain(false);
++
++        var action = () => sut.ThrowRegulatory("D04", "Conteo divergente.");
++
++        action.Should().Throw<InvalidOperationException>()
++            .WithMessage("*[Regulatory]*D04: Conteo inválido ACH. Conteo divergente.*");
++    }
++
++    [Theory]
++    [InlineData(CenitOrdinaryInbound2026Layout.OriginalProfileCode)]
++    [InlineData(CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode)]
++    [InlineData(CenitReturnIn2026Layout.ProfileCode)]
++    [InlineData(CenitReturnOfReturn2026Layout.InProfileCode)]
++    public void KnownCenitInboundProfiles_ShouldSelectSeparatedPhysicalDomain(string profileCode)
++    {
++        NachaInboundValidator.IsCenitNachaProfileCode(profileCode).Should().BeTrue();
++    }
++
++    [Fact]
++    public void UnknownAndAchProfiles_ShouldNotBeClassifiedAsCenit()
++    {
++        NachaInboundValidator.IsCenitNachaProfileCode(null).Should().BeFalse();
++        NachaInboundValidator.IsCenitNachaProfileCode("ACH_COLOMBIA").Should().BeFalse();
++    }
++
++    [Fact]
++    public void CenitTransactionFormalFailure_ShouldRemainEntryScopedAndWithoutStaCodes()
++    {
++        var sut = new NachaInboundValidator(new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>());
++        sut.SelectNachaErrorDomain(true);
++        var entry = new EntryDetail { TransactionCode = "21", SequenceNumber = "123456780000001" };
++        var failures = new List<NachaValidationFailure>();
++
++        var valid = sut.EnforceAddendaRequirements([entry], [], failures, new HashSet<string>());
++
++        valid.Should().BeEmpty();
++        failures.Should().ContainSingle();
++        failures[0].Reason.Should().NotContain("D01").And.NotContain("D02")
++            .And.NotContain("D03").And.NotContain("D04");
++    }
+ }
+--- a/tests/Cfa.ACHInterbank.Tests/NachaPhysicalParserTests.cs
++++ b/tests/Cfa.ACHInterbank.Tests/NachaPhysicalParserTests.cs
+@@ -89,8 +89,69 @@
+ 
+         parsed.Records[2].Content[62].Should().Be(expected);
+     }
+ 
++    [Theory]
++    [InlineData(0xD1)]
++    [InlineData(0xF1)]
++    [InlineData(0xE1)]
++    [InlineData(0x09)]
++    public async Task ParseAsync_CenitPublishedProfile_ShouldRejectUnsupportedRepertoire(int encodedValue)
++    {
++        var bytes = Encoding.Latin1.GetBytes(BuildTenRecordFile('7', "05CENIT CHARACTERIZATION"));
++        bytes[(2 * 106) + 62] = (byte)encodedValue;
++        await using var stream = new MemoryStream(bytes);
++
++        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
++            NachaPhysicalParser.ParseAsync(stream, CancellationToken.None, isCenitNachaProfile: true));
++
++        error.Message.Should().Contain("[Technical]").And.Contain("CENIT-NACHA-FATAL")
++            .And.Contain("ERR_INV_PATTERN");
++        error.Message.Should().NotContain("ACHCOL-PHYSICAL").And.NotContain("D02");
++    }
++
++    [Theory]
++    [InlineData((byte)'a')]
++    [InlineData((byte)'Z')]
++    [InlineData((byte)'0')]
++    [InlineData((byte)'#')]
++    [InlineData((byte)'=')]
++    public async Task ParseAsync_CenitPublishedProfile_ShouldAcceptDocumentedCharacters(byte value)
++    {
++        var bytes = Encoding.Latin1.GetBytes(BuildTenRecordFile('7', "05CENIT CHARACTERIZATION"));
++        bytes[(2 * 106) + 62] = value;
++        await using var stream = new MemoryStream(bytes);
++
++        var parsed = await NachaPhysicalParser.ParseAsync(stream, CancellationToken.None,
++            isCenitNachaProfile: true);
++
++        parsed.Records.Should().HaveCount(10);
++        parsed.Records[2].Content[62].Should().Be((char)value);
++    }
++
++    [Theory]
++    [InlineData("LINE_ENDING", "CENIT-NACHA-FATAL-LINE-ENDINGS")]
++    [InlineData("BAD_FIRST_RECORD", "CENIT-NACHA-FATAL-T1")]
++    [InlineData("BAD_BLOCKING", "CENIT-NACHA-FATAL-BLOCKING")]
++    public async Task ParseAsync_CenitPhysicalFatal_ShouldNeverUseAchColombiaErrorCode(
++        string mutation, string expected)
++    {
++        var content = BuildTenRecordFile('7', "05CENIT PHYSICAL FATAL");
++        var bytes = mutation switch
++        {
++            "LINE_ENDING" => Encoding.Latin1.GetBytes(content + "\r\n"),
++            "BAD_FIRST_RECORD" => Encoding.Latin1.GetBytes("5" + content[1..]),
++            "BAD_BLOCKING" => Encoding.Latin1.GetBytes(Replace(content, 39, "09")),
++            _ => throw new InvalidOperationException(mutation)
++        };
++        await using var stream = new MemoryStream(bytes);
++
++        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
++            NachaPhysicalParser.ParseAsync(stream, CancellationToken.None, isCenitNachaProfile: true));
++
++        error.Message.Should().Contain(expected).And.NotContain("ACHCOL-");
++    }
++
+     private static string BuildTenRecordFile(char addendaRecordType, string addendaPayload)
+     {
+         var type1 = Record('1');
+         type1 = Replace(type1, 36, "106");

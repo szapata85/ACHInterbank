@@ -32,6 +32,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { AchCyclesApiService } from '../../../../core/services/ach-cycles-api.service';
 import { AchCycleSummary } from '../../../../core/models/ach-cycle.model';
 import { AchReturnsApiService } from '../../services/ach-returns-api.service';
+import { AchColombiaReturnReviewComponent } from '../ach-colombia-return-review/ach-colombia-return-review.component';
 import { ReturnReasonsApiService } from '../../services/return-reasons-api.service';
 import { ReturnEligibleTransaction, ReturnReason } from '../../transactions.models';
 
@@ -278,6 +279,7 @@ export class AchReturnDetailDialogComponent {
   standalone: true,
   imports: [
     SharedModule,
+    AchColombiaReturnReviewComponent,
     MatButtonModule,
     MatCardModule,
     MatChipsModule,

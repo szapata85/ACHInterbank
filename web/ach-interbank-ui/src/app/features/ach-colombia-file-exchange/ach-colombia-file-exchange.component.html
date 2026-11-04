@@ -50,7 +50,7 @@
     </dl>
     <p *ngIf="lastSuccessfulStep(selected) as step">Último paso correcto: {{ eventName(step) }} · {{ step.occurredAtUtc | date:'medium' }}</p>
     <p *ngIf="guidance(selected) as text" class="notice">{{ text }}</p>
-    <p><a routerLink="/administracion/mft-ach">Consultar Configuración del intercambio de archivos</a>. La configuración vigente puede diferir de la utilizada en intentos anteriores.</p>
+    <p><a routerLink="/administracion/mft-ach">Consultar administración de transferencias de archivos (MFT)</a>. La configuración vigente puede diferir de la utilizada en intentos anteriores.</p>
     <p *ngIf="selected.retirementReason">Razón de retiro: {{ selected.retirementReason }}</p>
     <p *ngIf="selected.correctedFromTransferId">Reemplaza la transferencia <button (click)="open({id: selected.correctedFromTransferId})">{{ selected.correctedFromTransferId }}</button></p>
     <p *ngIf="selected.incomingNachaFileIngestionId"><a [routerLink]="['/incoming-nacha-command-center/ingestions', selected.incomingNachaFileIngestionId]">Ver ingestión y transacciones: {{ selected.incomingNachaFileIngestionId }}</a></p>

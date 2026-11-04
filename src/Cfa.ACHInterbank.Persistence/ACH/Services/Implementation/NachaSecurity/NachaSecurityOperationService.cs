@@ -24,6 +24,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
 {
     private readonly AchDbContext _context;
     private readonly INachaFileBuilder _nachaBuilder;
+    private readonly IAchFileExportAuditService _fileExportAudit;
     private readonly IAchCycleAppService _cycleService;
     private readonly IClearingHouseService _clearingHouseService;
     private readonly INachaFileIdentifierMapService _identifierMapService;
@@ -43,10 +44,12 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
         ICryptoServiceScoped cryptoService,
         IOperationArtifactStore artifactStore,
         IOptions<OperationArtifactOptions> artifactOptions,
-        ILogger<NachaSecurityOperationService> logger)
+        ILogger<NachaSecurityOperationService> logger,
+        IAchFileExportAuditService fileExportAudit)
     {
         _context = context;
         _nachaBuilder = nachaBuilder;
+        _fileExportAudit = fileExportAudit;
         _cycleService = cycleService;
         _clearingHouseService = clearingHouseService;
         _identifierMapService = identifierMapService;
@@ -279,6 +282,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             var legacyFileName = BuildNachaFileName(clearingHouse, cycleNumber);
             var generatedFiles = new List<(string FileName, byte[] Content, string PlainHash, string? EnvelopeHash)>();
             var generatedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var exportMemberships = new List<(string Name, IReadOnlyList<int> Ids, int Records, string Hash)>();
             foreach (var item in buildResult.Files.Select((artifact, index) => (artifact, index)))
             {
                 if (string.IsNullOrWhiteSpace(item.artifact.Content))
@@ -318,6 +322,8 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
                     content,
                     ComputeSha256(plainBytes),
                     encrypted ? ComputeSha256(content) : null));
+                exportMemberships.Add((generatedFileName, item.artifact.AchTransactionIds,
+                    normalized.Length / 106, ComputeSha256(content)));
             }
 
             byte[] output;
@@ -343,6 +349,18 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             var envelopeHash = generatedFiles.Count == 1
                 ? generatedFiles[0].EnvelopeHash
                 : encrypted ? outputHash : null;
+
+            // I05: no hacer descargable un artefacto NACHA sin registrar primero
+            // su membresía verificada, incluso en la ruta alternativa de seguridad.
+            // Si la transacción cambió de ciclo durante el build, audit falla y
+            // ninguna salida se entrega al usuario. CENIT comparte el mismo guard.
+            foreach (var membership in exportMemberships)
+            {
+                await _fileExportAudit.RecordGeneratedFileAsync(
+                    cycle.Id, cycle.ClearingHouseId, "NACHA", membership.Name,
+                    membership.Records, membership.Ids.Count, encrypted,
+                    membership.Ids, membership.Hash, cancellationToken);
+            }
 
             var artifactExtension = generatedFiles.Count > 1 ? ".zip" : encrypted ? ".ENV" : ".txt";
             var artifactPath = await _artifactStore.SaveAsync(operation.OperationId, artifactExtension, output, cancellationToken);

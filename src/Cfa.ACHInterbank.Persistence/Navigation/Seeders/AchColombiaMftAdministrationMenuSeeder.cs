@@ -17,7 +17,7 @@ public sealed class AchColombiaMftAdministrationMenuSeeder(AchDbContext context)
         var parent = await context.MenuItems.SingleAsync(x => x.Route == "/transactions");
         var item = await context.MenuItems.SingleOrDefaultAsync(x => x.Route == Route) ?? new MenuItem();
         if (item.Id == 0) context.MenuItems.Add(item);
-        item.MenuId = MenuConfiguration.MainMenuId; item.ParentId = parent.Id; item.Label = "MFT ACH"; item.Route = Route;
+        item.MenuId = MenuConfiguration.MainMenuId; item.ParentId = parent.Id; item.Label = "Administración de transferencias de archivos (MFT)"; item.Route = Route;
         item.Icon = "admin_panel_settings"; item.Order = 9; item.Exact = true; item.IsActive = true;
         await context.SaveChangesAsync();
         if (!await context.MenuItemPermissions.AnyAsync(x => x.MenuItemId == item.Id && x.PermissionId == PermissionConfiguration.ReadAchPermissionId))

@@ -1,0 +1,83 @@
+{
+  "initiative": "DEV-AUTO-CENIT",
+  "increment": "I02-CENIT",
+  "dateDocumented": "2026-11-02",
+  "baseZip": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I01_CENIT_2026-11-02.zip",
+  "baseSha256": "4f07b408ce2938bc1c1bfe735673f9985c019ede43429fc74c4fd73b5ae3db09",
+  "outputZip": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I02_CENIT_2026-11-02.zip",
+  "scope": "Detección pasiva CENIT bajo consulta GET, sin preparación ni generación ni transmisión",
+  "originalFilesCount": 4873,
+  "inheritedUnchangedCount": 4872,
+  "inheritedModifiedCount": 1,
+  "inheritedDeletedCount": 0,
+  "inheritedModifiedFiles": [
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/DependencyInjectionService.cs",
+      "sha256Before": "fa4509a9c2d68287e364691421b0ee3a6aa7d0ab476307e1ab31a6d3d9e00c72",
+      "sha256After": "75e1b47931cd943bacd3d908e954524524afeed017ce39c16b14acd0181d45fc"
+    }
+  ],
+  "newFilesCountExcludingManifestAndInventory": 11,
+  "newFiles": [
+    {
+      "path": "docs/implementacion-devoluciones-automaticas/EJECUCION_CONTROLES_ESTATICOS_I02_CENIT.txt",
+      "sha256": "9d56a9f4299de868f30ed61201efc803d8bd5b88365e50b2a5a1b7eb961cbce6"
+    },
+    {
+      "path": "docs/implementacion-devoluciones-automaticas/EVIDENCIA_DEVOLUCIONES_AUTOMATICAS_I02_CENIT.md",
+      "sha256": "5dde9ee4e8f02ab48379f4974fb8d3e717ad9d680b288b50e5419c77d70eac22"
+    },
+    {
+      "path": "docs/implementacion-devoluciones-automaticas/INFORME_DEVOLUCIONES_AUTOMATICAS_I02_CENIT.md",
+      "sha256": "d13aae20f16f0784222b4c83c98f596150fff4d909b4afe15855ad4e4a923558"
+    },
+    {
+      "path": "docs/implementacion-devoluciones-automaticas/MEMORY_STATE_DEVOLUCIONES_AUTOMATICAS_I02_CENIT.md",
+      "sha256": "6ff516bfea00606d294fa8a8f5462d440e587342749a738fd5a49ceab5c4cded"
+    },
+    {
+      "path": "docs/implementacion-devoluciones-automaticas/PLAN_DEVOLUCIONES_AUTOMATICAS_CENIT_I02.md",
+      "sha256": "414c185b7ec0cbad75a465776a0e12cd9c44d2cbaaebfc6cf01f276b7f3140cc"
+    },
+    {
+      "path": "scripts/test/automatic_returns_i02_cenit_static_check.py",
+      "sha256": "8cf44ff00927906bc35785d6a9d9ec480af8f59575447c4f1572759a45a402ab"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Api/Controllers/CenitPassiveReturnDetectionController.cs",
+      "sha256": "b4ba58e661003ddc0b7a7021814472f4469975562f18f5170bbd3111073c47c2"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Application/ACH/Interfaces/ICenitPassiveReturnDetector.cs",
+      "sha256": "06670237d7eea2367fec0768a7c27c879d9344e2ede33ecab0e6f77a000902c5"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Application/ACH/Models/CenitPassiveReturnDetection.cs",
+      "sha256": "28e3d63062c9b7cffd79d54d1d76bed6e6ae6cee4bf7aa56a223e60e428493d4"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitPassiveReturnDetector.cs",
+      "sha256": "ced9e3896f66835218eae219de4c5ac84971ebca9f9a4b43d7117351172e6e72"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/CenitPassiveReturnDetectionI02Tests.cs",
+      "sha256": "ba8ba9edbce1b0642b762e42e1e7337065a1c88441a33d54286585f25e1e22c7"
+    }
+  ],
+  "addedPackagingEvidence": [
+    "docs/implementacion-devoluciones-automaticas/INVENTARIO_CONSERVADOS_I02_CENIT.tsv",
+    "docs/implementacion-devoluciones-automaticas/MANIFIESTO_DEVOLUCIONES_AUTOMATICAS_I02_CENIT.json"
+  ],
+  "validation": {
+    "inputZipIntegrity": "PASS",
+    "sourceI02Cenit": "50/50",
+    "sourceI01Cenit": "29/29",
+    "sourceI04Ach": "32/35; HISTORIC FAILURE",
+    "dotnetBuild": "NOT_RUN_NO_SDK",
+    "dotnetTest": "NOT_RUN_NO_SDK",
+    "database": "NOT_RUN",
+    "homologation": "PENDING"
+  },
+  "outputSHA256Location": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I02_CENIT_2026-11-02.zip.sha256",
+  "shaInsideArchive": false
+}

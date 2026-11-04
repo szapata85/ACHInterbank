@@ -71,7 +71,7 @@ public sealed class NavigationMenuNav34MMftAdministrationAuthorizationTests
         var parent = await context.MenuItems.AsNoTracking().SingleAsync(x => x.Route == "/integraciones");
         var item = await context.MenuItems.AsNoTracking().SingleAsync(x => x.Route == "/administracion/mft-ach");
         Assert.Equal("Conexiones", parent.Label);
-        Assert.Equal("Configuración del intercambio de archivos", item.Label);
+        Assert.Equal("Administración de transferencias de archivos (MFT)", item.Label);
         Assert.Equal(parent.Id, item.ParentId);
         Assert.Equal(40, item.Order);
         Assert.True(item.IsActive);

@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -22,19 +23,22 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
     private readonly IPaymentRailShadowCompareService? _shadowCompareService;
     private readonly ILogger<IncomingNachaCycleResolver> _logger;
+    private readonly IConfiguration? _configuration;
 
     public IncomingNachaCycleResolver(
         AchDbContext context,
         IPaymentRailContextService? paymentRailContextService = null,
         IPaymentRailOperationalStrategyResolver? strategyResolver = null,
         IPaymentRailShadowCompareService? shadowCompareService = null,
-        ILogger<IncomingNachaCycleResolver>? logger = null)
+        ILogger<IncomingNachaCycleResolver>? logger = null,
+        IConfiguration? configuration = null)
     {
         _context = context;
         _paymentRailContextService = paymentRailContextService;
         _strategyResolver = strategyResolver;
         _shadowCompareService = shadowCompareService;
         _logger = logger ?? NullLogger<IncomingNachaCycleResolver>.Instance;
+        _configuration = configuration;
     }
 
     public async Task<IncomingNachaCycleResolutionResult> ResolveAsync(IncomingNachaCycleResolutionRequest request, CancellationToken ct = default)
@@ -112,6 +116,47 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 parsedSuffix = fileNameParsed?.Suffix,
                 shadowCompare = shadowResult
             });
+        }
+
+        // F2.1: ACHCOL physical-file context is distinct from an internal AchCycle.
+        // This feature-gated branch resolves the clearing house and operational date
+        // without reading AchCycles. Admission (F2.2) and dispatch (F3-F5) retain
+        // their independent eligibility checks; this is NOT dispatch authorization.
+        if (string.Equals(clearingHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase)
+            && _configuration?.GetValue<bool>("AchCol:AllowCycleIndependentInboundDispatch") == true
+            && AchColInboundFileNameParser.TryParse(request.FileName, out var achColName, out _))
+        {
+            if (!fileCreationTime.HasValue)
+            {
+                errors.Add("ACHCOL_HEADER_FILE_CREATION_TIME_INVALID");
+                return Build(false, false, clearingHouse.Id, operationalDate, null, 0.25m,
+                    IncomingNachaCycleResolutionStatus.NoResuelto, "HoraHeaderInvalida", warnings, errors, new
+                    {
+                        request.FileName,
+                        immediateOrigin,
+                        headerDateRaw,
+                        headerTimeRaw,
+                        processingMode = "AchColFileBased"
+                    });
+            }
+
+            // A valid canonical .OUT name is required. RET and legacy naming
+            // continue through the original CycleBound resolution path.
+            // ZZZ and N are audit metadata, never an internal AchCycleId.
+            return Build(true, false, clearingHouse.Id, operationalDate, null, 0.95m,
+                IncomingNachaCycleResolutionStatus.ResueltoSinCiclo,
+                "AchColFileBased", warnings, errors, new
+                {
+                    request.FileName,
+                    immediateOrigin,
+                    headerDateRaw,
+                    headerTimeRaw,
+                    processingMode = "AchColFileBased",
+                    fileSequence = achColName!.FileSequence,
+                    externalCycleNumber = achColName!.ExternalCycleNumber,
+                    internalCycleId = (string?)null,
+                    cycleAssociationRequired = false
+                });
         }
 
         var candidatesQuery = _context.AchCycles.AsNoTracking()

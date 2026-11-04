@@ -1,0 +1,31 @@
+{
+  "gate": "PARENT_ZIP_LINEAGE_AND_FULL_SOURCE_PRESERVATION",
+  "parent_zip": "ACHInterbank_NAV_UX_MFT_2026-10-27_I05_PROYECTO_COMPLETO.zip",
+  "expected_parent_sha256": "ce27bd3b3e062211fb8d11964fde30246a7627a77931a7d556ebaf4cc20da512",
+  "actual_parent_sha256": "ce27bd3b3e062211fb8d11964fde30246a7627a77931a7d556ebaf4cc20da512",
+  "parent_hash_matches": true,
+  "parent_file_count": 4479,
+  "current_file_count": 4483,
+  "preserved_file_count": 4479,
+  "deleted": [],
+  "modified": [
+    "MEMORY.md",
+    "README_NAV_UX_MFT_2026-10-27.md",
+    "docs/ai/spa-navigation-unification/MEMORY_STATE.md",
+    "docs/ai/spa-navigation-unification/PACKAGE_MANIFEST.md",
+    "docs/architecture/SPA_NAVIGATION_MFT_ARCHITECTURE_2026-10-27.md",
+    "docs/architecture/SPA_NAVIGATION_MFT_UNIFICATION_EXECUTION_PLAN_2026-10-27.md",
+    "docs/testing/SPA_NAVIGATION_MFT_TEST_PLAN_2026-10-27.md",
+    "scripts/validate-spa-navigation-mft-unification.py",
+    "web/ach-interbank-ui/src/app/layout/main-layout.component.scss",
+    "web/ach-interbank-ui/src/styles/_components.scss"
+  ],
+  "added": [
+    "docs/ai/spa-navigation-unification/BASELINE_LINEAGE_I06.md",
+    "docs/ai/spa-navigation-unification/PROGRESS_REPORT_I06_2026-10-27.md",
+    "docs/ai/spa-navigation-unification/TEST_EVIDENCE_I06_2026-10-27.md",
+    "web/ach-interbank-ui/e2e/navigation-sidebar-hover-contrast.spec.ts"
+  ],
+  "invalid_parent_paths": [],
+  "pass": true
+}

@@ -85,7 +85,7 @@ public class IncomingNachaCommandCenterQueryService : IIncomingNachaCommandCente
             .ToList();
 
         var queueSnapshot = await queueQ
-            .Select(x => new { x.ClearingHouseId, x.AchCycleId, x.QueueStatus, x.LastErrorCode, x.LastAttemptAtUtc })
+            .Select(x => new { x.SourceKind, x.ClearingHouseId, x.AchCycleId, x.QueueStatus, x.LastErrorCode, x.LastAttemptAtUtc, x.AttemptCount })
             .ToListAsync(ct);
 
         var byClearingCycle = queueSnapshot
@@ -135,6 +135,23 @@ public class IncomingNachaCommandCenterQueryService : IIncomingNachaCommandCente
 
         var timeline = BuildTimelineWithEmptyBuckets(fromUtc, nowUtc, rawTimeline);
 
+        // F6.2: source-specific safety signals using the existing read-only snapshot.
+        // The time window is based on queue creation; older outstanding rows require
+        // an all-time read-only check during an operational go/no-go review.
+        var achColItems = queueSnapshot
+            .Where(x => x.SourceKind == IncomingNachaDispatchSourceKinds.AchColFileBased)
+            .ToList();
+        var achColKpis = new IncomingNachaAchColOperationalKpiDto(
+            achColItems.Count,
+            achColItems.Count(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Blocked
+                && x.LastErrorCode == IncomingNachaFileBasedPreparationStage.InitiallyBlockedCode),
+            achColItems.Count(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Blocked
+                && x.LastErrorCode == IncomingNachaFileBasedPreparationStage.MappingPendingCode),
+            achColItems.Count(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Blocked
+                && x.LastErrorCode == IncomingNachaFileBasedPreparationStage.RejectedCode),
+            achColItems.Count(x => x.QueueStatus != IncomingNachaDispatchQueueStatus.Blocked),
+            achColItems.Count(x => x.AttemptCount > 0));
+
         var pipelineHealth = new IncomingNachaPipelineHealthDto(
             totalIngestions,
             totalQueueItems,
@@ -155,7 +172,10 @@ public class IncomingNachaCommandCenterQueryService : IIncomingNachaCommandCente
             queueByStatus,
             byClearingCycle,
             topErrors,
-            timeline);
+            timeline)
+        {
+            AchColFileBased = achColKpis
+        };
     }
 
     public async Task<IncomingNachaPageResult<IncomingNachaIngestionListItemDto>> GetIngestionsAsync(IncomingNachaIngestionQuery query, CancellationToken ct = default)
@@ -427,7 +447,14 @@ public class IncomingNachaCommandCenterQueryService : IIncomingNachaCommandCente
             UploadedAtUtc = ingestion.UploadedAtUtc,
             ReceivedAtUtc = ingestion.ReceivedAtUtc,
             OverallResultText = FileOverallResultText(detailOutcomes, technicalFailures > 0, ingestion.Stage),
-            PendingTransactions = pendingTransactions
+            PendingTransactions = pendingTransactions,
+            CanonicalPlainFileName = ingestion.CanonicalPlainFileName,
+            FileIdModifier = ingestion.FileIdModifier,
+            FileSequence = ingestion.FileSequence,
+            ExternalCycleNumber = ingestion.ExternalCycleNumber,
+            FileProtectionKind = ingestion.FileProtectionKind,
+            FileNameDate = ingestion.FileNameDate,
+            ResolutionMode = ingestion.ResolutionMode
         };
     }
 
@@ -528,6 +555,7 @@ public class IncomingNachaCommandCenterQueryService : IIncomingNachaCommandCente
                 x.Classification.EntryDetailId,
                 x.AchTransactionId,
                 x.AchCycleId,
+                x.SourceKind,
                 x.ClearingHouseId,
                 x.QueueStatus,
                 x.Priority,
@@ -615,9 +643,10 @@ public class IncomingNachaCommandCenterQueryService : IIncomingNachaCommandCente
             queue.LastResponseCode,
             queue.ConfirmedAtUtc,
             queue.CreatedAt,
-            _stateMachineService.GetAllowedDispatchActions(queue.QueueStatus))
+            GetSafeDispatchActions(queue.QueueStatus, queue.SourceKind, queue.AttemptCount))
         {
-            EntryDetailId = queue.Classification.EntryDetailId,
+            EntryDetailId = queue.EntryDetailId ?? queue.Classification.EntryDetailId,
+            SourceKind = queue.SourceKind,
             QueueStatusText = IncomingNachaContractText.QueueStatus(queue.QueueStatus),
             ScheduledAtUtc = queue.CreatedAt.UtcDateTime,
             MaxAttempts = _resilienceOptions.MaxAttempts,
@@ -1200,6 +1229,21 @@ public class IncomingNachaCommandCenterQueryService : IIncomingNachaCommandCente
         }
     }
 
+    // F4.3: the UI must not suggest manual release for blocked NACHA file-based
+    // work. Enforcement also lives in OperationsService (never trust UI alone).
+    private IncomingNachaAllowedActionsDto GetSafeDispatchActions(
+        IncomingNachaDispatchQueueStatus status, string sourceKind, int attemptCount)
+    {
+        var stateActions = _stateMachineService.GetAllowedDispatchActions(status);
+        if (sourceKind != IncomingNachaDispatchSourceKinds.AchColFileBased)
+            return stateActions;
+
+        var canClose = attemptCount == 0 && stateActions.CanMarkFailedFinal;
+        return new IncomingNachaAllowedActionsDto(
+            status, false, false, false, canClose,
+            canClose ? new[] { "mark-failed-final" } : Array.Empty<string>());
+    }
+
     private IncomingNachaQueueListItemDto ToQueueListDto(QueueProjection x)
     {
         return new IncomingNachaQueueListItemDto(
@@ -1218,9 +1262,10 @@ public class IncomingNachaCommandCenterQueryService : IIncomingNachaCommandCente
             x.LastResponseCode,
             x.ConfirmedAtUtc,
             x.CreatedAt,
-            _stateMachineService.GetAllowedDispatchActions(x.QueueStatus))
+            GetSafeDispatchActions(x.QueueStatus, x.SourceKind, x.AttemptCount))
         {
             EntryDetailId = x.EntryDetailId,
+            SourceKind = x.SourceKind,
             QueueStatusText = IncomingNachaContractText.QueueStatus(x.QueueStatus),
             ScheduledAtUtc = x.CreatedAt.UtcDateTime,
             MaxAttempts = _resilienceOptions.MaxAttempts,
@@ -1272,8 +1317,9 @@ public class IncomingNachaCommandCenterQueryService : IIncomingNachaCommandCente
         Guid Id,
         Guid IncomingNachaFileIngestionId,
         int EntryDetailId,
-        int AchTransactionId,
-        string AchCycleId,
+        int? AchTransactionId,
+        string? AchCycleId,
+        string SourceKind,
         int ClearingHouseId,
         IncomingNachaDispatchQueueStatus QueueStatus,
         int Priority,

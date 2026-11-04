@@ -244,7 +244,9 @@ export class MainLayoutComponent implements OnInit {
   }
 
   isItemExpanded(item: MenuItem): boolean {
-    return this.expandedItems.has(item.id);
+    // Compact desktop hides the subtree, even when its expansion is retained
+    // for restoration. Accessibility state must describe the visible UI.
+    return this.expandedItems.has(item.id) && (this.isMobileViewport || !this.isDesktopCompact);
   }
 
   isNavigableParent(item: MenuItem): boolean {

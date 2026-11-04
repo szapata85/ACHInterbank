@@ -21,6 +21,13 @@ public class IncomingNachaFileIngestion : AuditableEntity
     public int? ResolvedClearingHouseId { get; set; }
     public DateTime? OperationalDate { get; set; }
     public DateTime? FileNameDate { get; set; }
+    // F2.3: physical ACH Colombia OUT[.env] context. FileName retains the original
+    // physical name, including .env. These fields are null on legacy/CENIT ingestions.
+    public string? CanonicalPlainFileName { get; set; }
+    public string? FileIdModifier { get; set; }
+    public int? FileSequence { get; set; }
+    public int? ExternalCycleNumber { get; set; }
+    public string? FileProtectionKind { get; set; }
     public DateTime? HeaderDate { get; set; }
     public DateTime? EffectiveDate { get; set; }
     public int? DetectedCycleNumber { get; set; }
@@ -132,7 +139,9 @@ public enum IncomingNachaCycleResolutionStatus
     ResueltoConfirmado = 3,
     ResueltoManual = 4,
     Ambiguo = 5,
-    NoResuelto = 6
+    NoResuelto = 6,
+    // ACHCOL: clearing house and date resolved; no internal AchCycle assigned.
+    ResueltoSinCiclo = 7
 }
 
 public enum IncomingNachaParsingStatus

@@ -80,7 +80,9 @@ public sealed class ClearingHouseValidationPolicyService : IClearingHouseValidat
                 .ThenInclude(x => x.ClearingHouseConfig)
             .FirstOrDefaultAsync(x => x.Id == sourceCycleId && x.ClearingHouseId == rule.ClearingHouseId, ct);
 
-        if (sourceCycle is null)
+        // APN-I11: a cancelled source session is not evidence of a valid outgoing
+        // prenotification. Never derive an acceptance deadline from that calendar.
+        if (sourceCycle is null || sourceCycle.OperationalStatus == AchCycleOperationalStatus.Cancelled)
         {
             return null;
         }
@@ -96,30 +98,53 @@ public sealed class ClearingHouseValidationPolicyService : IClearingHouseValidat
                     return null;
                 }
 
-                deadlineCycle = (await _context.AchCycles
-                        .AsNoTracking()
-                        .Where(x => x.ClearingHouseId == rule.ClearingHouseId
-                                    && (x.ProcessingDate.Date > sourceCycle.ProcessingDate.Date
-                                        || (x.ProcessingDate.Date == sourceCycle.ProcessingDate.Date
-                                            && (x.CutoffTime > sourceCycle.CutoffTime
-                                                || (x.CutoffTime == sourceCycle.CutoffTime && x.Id != sourceCycle.Id)))))
-                        .OrderBy(x => x.ProcessingDate)
-                        .ThenBy(x => x.CutoffTime)
-                        .ThenBy(x => x.Id)
-                        .Take(window)
-                        .ToListAsync(ct))
-                    .LastOrDefault();
+                var futureCycles = await _context.AchCycles
+                    .AsNoTracking()
+                    .Where(x => x.ClearingHouseId == rule.ClearingHouseId
+                                // APN-I11: cancelled sessions cannot count as a later
+                                // response opportunity in ACH Colombia's four-cycle SLA.
+                                && x.OperationalStatus != AchCycleOperationalStatus.Cancelled
+                                && (x.ProcessingDate.Date > sourceCycle.ProcessingDate.Date
+                                    || (x.ProcessingDate.Date == sourceCycle.ProcessingDate.Date
+                                        && (x.CutoffTime > sourceCycle.CutoffTime
+                                            || (x.CutoffTime == sourceCycle.CutoffTime && x.Id != sourceCycle.Id)))))
+                    .OrderBy(x => x.ProcessingDate)
+                    .ThenBy(x => x.CutoffTime)
+                    .ThenBy(x => x.Id)
+                    .Take(window)
+                    .ToListAsync(ct);
+
+                // APN-I08: an incomplete future calendar is not an elapsed response window.
+                // A missing cycle must never shorten the four-cycle ACH Colombia deadline.
+                if (futureCycles.Count != window)
+                {
+                    return null; // No deadline => no tacit approval; route to technical review.
+                }
+
+                deadlineCycle = futureCycles[^1];
                 break;
             }
             case PrenotificationResponseDeadlineMode.OperationalDayEnd:
-                deadlineCycle = await _context.AchCycles
+            {
+                var operationalDayCycles = await _context.AchCycles
                     .AsNoTracking()
                     .Where(x => x.ClearingHouseId == rule.ClearingHouseId
-                                && x.ProcessingDate.Date == sourceCycle.ProcessingDate.Date)
-                    .OrderByDescending(x => x.CutoffTime)
-                    .ThenByDescending(x => x.Id)
-                    .FirstOrDefaultAsync(ct);
+                                && x.ProcessingDate.Date == sourceCycle.ProcessingDate.Date
+                                && x.OperationalStatus != AchCycleOperationalStatus.Cancelled)
+                    .OrderBy(x => x.CutoffTime)
+                    .ThenBy(x => x.Id)
+                    .ToListAsync(ct);
+
+                // APN-I09: CENIT is an exact five-session operating day. A partially
+                // generated calendar must not cause acceptance at session 3 or 4.
+                if (string.Equals(sourceCycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
+                    && operationalDayCycles.Count != 5)
+                {
+                    return null;
+                }
+                deadlineCycle = operationalDayCycles.LastOrDefault();
                 break;
+            }
             default:
                 return null;
         }
@@ -129,8 +154,18 @@ public sealed class ClearingHouseValidationPolicyService : IClearingHouseValidat
             return null;
         }
 
+        // APN-I08: the response window cannot end at cycle cutoff while the clearing
+        // house may still be releasing its output files. Prefer the configured end of
+        // release, falling back to the legacy single release timestamp only if later
+        // than cutoff. Missing/invalid release metadata fails closed.
+        var releaseDeadline = deadlineCycle.OutputReleaseEndTime ?? deadlineCycle.OutputReleaseTime;
+        if (releaseDeadline <= deadlineCycle.CutoffTime)
+        {
+            return null;
+        }
+
         var localDeadline = DateTime.SpecifyKind(
-            deadlineCycle.ProcessingDate.Date.Add(deadlineCycle.CutoffTime),
+            deadlineCycle.ProcessingDate.Date.Add(releaseDeadline),
             DateTimeKind.Unspecified);
         return _cycleWindowResolver.ConvertLocalToInstant(
             localDeadline,

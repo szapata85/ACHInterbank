@@ -153,6 +153,43 @@
   min-width: 0;
 }
 
+/* Parent action has the same hit target and disclosure behavior at every depth. */
+.nav-parent-destination {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--shell-nav-text-secondary);
+  text-decoration: none;
+}
+
+.nav-parent-destination mat-icon {
+  width: 19px;
+  height: 19px;
+  font-size: 19px;
+}
+
+.nav-parent-destination:hover,
+.nav-parent-destination:focus-visible {
+  background: var(--shell-nav-hover-bg);
+  color: var(--shell-nav-text);
+}
+
+.nav-parent-destination:focus-visible {
+  outline: 3px solid var(--shell-nav-focus-ring);
+  outline-offset: 2px;
+}
+
+.nav-parent-destination.active {
+  color: var(--shell-nav-text);
+  background: var(--shell-nav-active-bg);
+  border-color: var(--shell-nav-active-border);
+}
+
+
 .nav-item {
   position: relative;
   width: 100%;
@@ -178,8 +215,23 @@ button.nav-item {
   background: transparent;
 }
 
+/* Explicitly keep the label/icon and the hover surface on the sidebar palette.
+   Brand button colors must never leak into the navigation, including Material
+   list-item state changes on hover/focus. */
 .nav-item:hover {
   background: var(--shell-nav-hover-bg);
+  color: var(--shell-nav-text);
+  --mdc-list-list-item-label-text-color: var(--shell-nav-text);
+  --mdc-list-list-item-leading-icon-color: var(--shell-nav-text);
+  --mdc-list-list-item-trailing-icon-color: var(--shell-nav-text);
+}
+
+.nav-item:focus-visible {
+  background: var(--shell-nav-hover-bg);
+  color: var(--shell-nav-text);
+  --mdc-list-list-item-label-text-color: var(--shell-nav-text);
+  --mdc-list-list-item-leading-icon-color: var(--shell-nav-text);
+  --mdc-list-list-item-trailing-icon-color: var(--shell-nav-text);
 }
 
 .nav-item:focus-visible {
@@ -187,15 +239,11 @@ button.nav-item {
   outline-offset: 2px;
 }
 
-.nav-parent[aria-expanded='true'],
-.nav-expand-toggle[aria-expanded='true'] {
+.nav-parent[aria-expanded='true'] {
   background: var(--shell-nav-expanded-bg);
 }
 
-.nav-node.branch-active > .nav-parent-actions .nav-parent-link:not(.active) {
-  background: var(--shell-nav-expanded-bg);
-  color: var(--shell-nav-text);
-}
+
 
 .nav-item.active,
 .nav-parent.active {
@@ -250,38 +298,7 @@ button.nav-item {
   transform: rotate(225deg);
 }
 
-.nav-expand-toggle {
-  display: grid;
-  flex: 0 0 42px;
-  min-width: 42px;
-  min-height: 44px;
-  padding: 0;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--shell-nav-text-secondary);
-  cursor: pointer;
-}
 
-.nav-expand-toggle:hover {
-  background: var(--shell-nav-hover-bg);
-  color: var(--shell-nav-text);
-}
-
-.nav-expand-toggle:focus-visible {
-  outline: 3px solid var(--shell-nav-focus-ring);
-  outline-offset: 2px;
-}
-
-.nav-expand-toggle.branch-active {
-  border-color: var(--shell-nav-active-border);
-  color: var(--shell-nav-text);
-}
-
-.nav-expand-toggle .expand-icon {
-  margin: 0;
-}
 
 .nav-item:hover .nav-label,
 .nav-item:hover .nav-icon,
@@ -295,9 +312,7 @@ button.nav-item {
 .nav-parent.active .nav-label,
 .nav-parent.active .nav-icon,
 .nav-parent.active .expand-icon,
-.nav-expand-toggle:hover .expand-icon,
-.nav-expand-toggle:focus-visible .expand-icon,
-.nav-expand-toggle.branch-active .expand-icon {
+.nav-parent-destination.active mat-icon {
   color: var(--shell-nav-text);
 }
 
@@ -352,19 +367,8 @@ button.nav-item {
   gap: 0;
 }
 
-.primary-sidenav.compact .nav-parent-actions .nav-item {
-  flex: 1 1 36px;
-}
-
-.primary-sidenav.compact .nav-expand-toggle {
-  flex: 0 0 22px;
-  min-width: 22px;
-}
-
-.primary-sidenav.compact .nav-expand-toggle .expand-icon {
-  display: block;
-  width: 0.42rem;
-  height: 0.42rem;
+.primary-sidenav.compact .nav-parent-destination {
+  display: none;
 }
 
 .primary-sidenav.compact .navigation-status {

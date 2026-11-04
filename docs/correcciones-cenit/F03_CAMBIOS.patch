@@ -1,0 +1,312 @@
+--- a/src/Cfa.ACHInterbank.Application/ACH/Interfaces/ICenitCycleQueueService.cs
++++ b/src/Cfa.ACHInterbank.Application/ACH/Interfaces/ICenitCycleQueueService.cs
+@@ -4,5 +4,6 @@
+ 
+ public interface ICenitCycleQueueService
+ {
+     Task<CenitCycleQueue> EnqueueAsync(AchTransaction transaction, DateTime receivedAtUtc, string reason, CancellationToken ct);
++    Task<int> IncorporateForCycleAsync(string targetAchCycleId, CancellationToken ct);
+ }
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitCycleQueueService.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitCycleQueueService.cs
+@@ -1,5 +1,9 @@
++using System.Data;
++using System.Text.Json;
++using Cfa.ACHInterbank.Application.ACH.Services;
+ using Cfa.ACHInterbank.Application.ACH.Interfaces;
++using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+ using Cfa.ACHInterbank.Domain.Models.Configurations;
+ using Cfa.ACHInterbank.Domain.Models.ACH;
+ using Cfa.ACHInterbank.Persistence.DataBase;
+ using Microsoft.EntityFrameworkCore;
+@@ -25,11 +29,16 @@
+             .Select(x => x.ClearingHouseId)
+             .FirstAsync(ct);
+         var targetCycle = await _calendarPolicy.ResolveTargetCycleAsync(clearingHouseId, receivedAtUtc, ct);
+         var existing = await _context.CenitCycleQueues
+-            .FirstOrDefaultAsync(x => x.AchTransactionId == transaction.Id && x.Status == "Queued", ct);
++            .Where(x => x.AchTransactionId == transaction.Id)
++            .OrderByDescending(x => x.Id)
++            .FirstOrDefaultAsync(ct);
+         if (existing is not null)
+         {
++            if (existing.Status == "Consumed") return existing; // Reintento tras incorporación.
++            if (existing.Status != "Queued" || existing.TargetAchCycleId != targetCycle.Id)
++                throw new InvalidOperationException("CENIT_QUEUE_DUPLICATE_TARGET_CONFLICT");
+             return existing;
+         }
+ 
+         var queue = new CenitCycleQueue
+@@ -45,5 +54,173 @@
+         _context.CenitCycleQueues.Add(queue);
+         await _context.SaveChangesAsync(ct);
+         return queue;
+     }
++
++    // F03: se invoca antes de leer los lotes del archivo NACHA-M CENIT.
++    // La cola solo se consume cuando transacción, lote, evento y totales quedan
++    // confirmados dentro de una misma transacción relacional.
++    public async Task<int> IncorporateForCycleAsync(string targetAchCycleId, CancellationToken ct)
++    {
++        if (string.IsNullOrWhiteSpace(targetAchCycleId))
++            throw new ArgumentException("Se requiere ciclo destino CENIT.", nameof(targetAchCycleId));
++
++        if (_context.ChangeTracker.HasChanges())
++            throw new InvalidOperationException("CENIT_QUEUE_CONTEXT_DIRTY: no incorporar con mutaciones pendientes.");
++
++        var strategy = _context.Database.CreateExecutionStrategy();
++        return await strategy.ExecuteAsync(async () =>
++        {
++            try
++            {
++                if (!_context.Database.IsRelational())
++                    return await IncorporateCoreAsync(targetAchCycleId, ct);
++
++                await using var dbTransaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
++                var moved = await IncorporateCoreAsync(targetAchCycleId, ct);
++                await dbTransaction.CommitAsync(ct);
++                return moved;
++            }
++            catch
++            {
++                _context.ChangeTracker.Clear();
++                throw;
++            }
++        });
++    }
++
++    private async Task<int> IncorporateCoreAsync(string targetAchCycleId, CancellationToken ct)
++    {
++        var target = await _context.AchCycles.AsNoTracking()
++            .Include(x => x.ClearingHouse)
++            .SingleOrDefaultAsync(x => x.Id == targetAchCycleId, ct)
++            ?? throw new InvalidOperationException("CENIT_QUEUE_TARGET_NOT_FOUND");
++        if (!string.Equals(target.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
++            throw new InvalidOperationException("CENIT_QUEUE_WRONG_CHAMBER");
++        if (target.OperationalStatus == AchCycleOperationalStatus.Cancelled)
++            throw new InvalidOperationException("CENIT_QUEUE_TARGET_CANCELLED");
++
++        var queued = await _context.CenitCycleQueues
++            .Include(x => x.AchTransaction).ThenInclude(x => x.AchBatch)
++            .Where(x => x.TargetAchCycleId == targetAchCycleId && x.Status == "Queued")
++            .OrderBy(x => x.Id)
++            .ToListAsync(ct);
++        if (queued.Count == 0) return 0;
++
++        // No añadir transacciones a un archivo ya exportado: podría retransmitirse
++        // una versión distinta bajo el mismo identificador de archivo.
++        if (await _context.AchFileExports.AsNoTracking().AnyAsync(x =>
++            x.AchCycleId == targetAchCycleId, ct))
++            throw new InvalidOperationException("CENIT_QUEUE_TARGET_ALREADY_EXPORTED");
++
++        var touchedBatchIds = new HashSet<int>();
++        var occurred = DateTime.UtcNow;
++        foreach (var item in queued)
++        {
++            var tx = item.AchTransaction;
++            var sourceBatch = tx?.AchBatch;
++            if (tx is null || sourceBatch is null
++                || tx.State != AchTransferStateEnum.Pending
++                || tx.AchCycleId != item.OriginalAchCycleId
++                || sourceBatch.AchCycleId != item.OriginalAchCycleId)
++                throw new InvalidOperationException($"CENIT_QUEUE_SOURCE_CHANGED:{item.Id}");
++
++            var source = await _context.AchCycles.AsNoTracking()
++                .SingleOrDefaultAsync(x => x.Id == item.OriginalAchCycleId, ct);
++            if (source is null || source.ClearingHouseId != target.ClearingHouseId)
++                throw new InvalidOperationException($"CENIT_QUEUE_CROSS_CHAMBER:{item.Id}");
++
++            // La fecha valor se revisa en F04: jamás cambiarla silenciosamente.
++            if (tx.EffectiveEntryDate.Date != target.ProcessingDate.Date
++                || sourceBatch.EffectiveEntryDate.Date != tx.EffectiveEntryDate.Date)
++                throw new InvalidOperationException($"CENIT_QUEUE_VALUE_DATE_REVIEW_REQUIRED:{item.Id}");
++
++            if (await _context.AchFileExportTransactions.AsNoTracking()
++                .AnyAsync(x => x.AchTransactionId == tx.Id, ct)
++                || await _context.ContrapartidaDispatchItems.AsNoTracking()
++                    .AnyAsync(x => x.AchTransactionId == tx.Id, ct))
++                throw new InvalidOperationException($"CENIT_QUEUE_ALREADY_PRESENTED:{item.Id}");
++
++            // La misma llave de lote que BatchResolver evita la pérdida del detalle
++            // NACHA-M al cambiar el ciclo de la transacción.
++            var targetBatch = item.OriginalAchCycleId == targetAchCycleId
++                ? sourceBatch
++                : await _context.AchBatches.FirstOrDefaultAsync(x =>
++                x.AchCycleId == targetAchCycleId
++                && x.CompanyName == sourceBatch.CompanyName
++                && x.CompanyIdentification == sourceBatch.CompanyIdentification
++                && x.CompanyEntryDescription == sourceBatch.CompanyEntryDescription
++                && x.EffectiveEntryDate == sourceBatch.EffectiveEntryDate, ct);
++            if (targetBatch is not null && (
++                targetBatch.OriginOrOdfi != sourceBatch.OriginOrOdfi
++                || targetBatch.CompanyEntryDescriptionId != sourceBatch.CompanyEntryDescriptionId))
++                throw new InvalidOperationException($"CENIT_QUEUE_BATCH_INCOMPATIBLE:{item.Id}");
++            if (targetBatch is null)
++            {
++                targetBatch = new AchBatch
++                {
++                    AchCycleId = targetAchCycleId,
++                    CompanyName = sourceBatch.CompanyName,
++                    CompanyIdentification = sourceBatch.CompanyIdentification,
++                    CompanyEntryDescription = sourceBatch.CompanyEntryDescription,
++                    CompanyEntryDescriptionId = sourceBatch.CompanyEntryDescriptionId,
++                    OriginOrOdfi = sourceBatch.OriginOrOdfi,
++                    EffectiveEntryDate = sourceBatch.EffectiveEntryDate,
++                    ServiceClassCode = sourceBatch.ServiceClassCode,
++                    BatchSequenceNumber = 0
++                };
++                _context.AchBatches.Add(targetBatch);
++                await _context.SaveChangesAsync(ct); // Dentro del mismo commit serializable.
++            }
++
++            var oldBatchId = sourceBatch.Id;
++            tx.AchBatchId = targetBatch.Id;
++            tx.AchBatch = targetBatch;
++            tx.AchCycleId = targetAchCycleId;
++            // Sin tocar State, StateChangedAtUtc, fecha valor o compensación.
++            item.Status = "Consumed";
++            item.DequeuedAtUtc = occurred;
++            var execution = await _context.CenitCycleExecutions
++                .FirstOrDefaultAsync(x => x.AchCycleId == targetAchCycleId, ct);
++            if (execution is not null) item.CenitCycleExecutionId = execution.Id;
++
++            _context.AchTransactionStateEvents.Add(new AchTransactionStateEvent
++            {
++                AchTransactionId = tx.Id,
++                FromState = AchTransferStateEnum.Pending,
++                ToState = AchTransferStateEnum.Pending,
++                Source = AchStateEventSourceEnum.System,
++                ReasonCode = "CENIT_QUEUE_ATTACHED",
++                IdempotencyKey = $"CENIT-Q:{item.Id}:{tx.Id}:{targetAchCycleId}",
++                ClearingHouseId = target.ClearingHouseId,
++                OccurredAtUtc = occurred,
++                PayloadJson = JsonSerializer.Serialize(new
++                {
++                    queueId = item.Id, fromCycleId = source.Id, targetCycleId = targetAchCycleId,
++                    fromBatchId = oldBatchId, toBatchId = targetBatch.Id
++                })
++            });
++            touchedBatchIds.Add(oldBatchId);
++            touchedBatchIds.Add(targetBatch.Id);
++        }
++
++        await _context.SaveChangesAsync(ct);
++        foreach (var batchId in touchedBatchIds)
++        {
++            var batch = await _context.AchBatches.SingleAsync(x => x.Id == batchId, ct);
++            var details = await _context.AchTransactions.AsNoTracking()
++                .Where(x => x.AchBatchId == batchId)
++                .Select(x => new { x.Type, x.Amount })
++                .ToListAsync(ct);
++            batch.TotalDebitAmount = details.Where(x => x.Type is
++                TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
++                .Sum(x => x.Amount);
++            batch.TotalCreditAmount = details.Where(x => x.Type is
++                TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification)
++                .Sum(x => x.Amount);
++            if (details.Count > 0)
++                batch.ServiceClassCode = AchBatchServiceClassPolicy.Resolve(details.Select(x => x.Type));
++        }
++        await _context.SaveChangesAsync(ct);
++        return queued.Count;
++    }
+ }
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaFileBuilder.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaFileBuilder.cs
+@@ -36,9 +36,10 @@
+         ILogger<NachaFileBuilder>? logger = null,
+         IBatchNumberGenerator? batchNumberGenerator = null,
+         INachaControlTotalsCalculator? controlTotalsCalculator = null,
+         IOperationalTimeSnapshotProvider? operationalTimeProvider = null,
+-        ICycleCalendarGuard? calendarGuard = null)
++        ICycleCalendarGuard? calendarGuard = null,
++        ICenitCycleQueueService? cenitCycleQueueService = null)
+     {
+         _ = holidayService;
+ 
+         var resolvedBatchNumberGenerator = batchNumberGenerator
+@@ -65,9 +66,10 @@
+             logger,
+             resolvedBatchNumberGenerator,
+             resolvedControlTotalsCalculator,
+             resolvedOperationalTimeProvider,
+-            resolvedCalendarGuard);
++            resolvedCalendarGuard,
++            cenitCycleQueueService);
+     }
+ 
+     public Task<NachaReturnOutBuildResult> BuildReturnOutAsync(
+         NachaReturnOutBuildRequest request,
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaFileGenerationCoordinator.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaFileGenerationCoordinator.cs
+@@ -43,8 +43,9 @@
+     private readonly ILogger<NachaFileBuilder>? _logger;
+     private readonly INachaControlTotalsCalculator _controlTotalsCalculator;
+     private readonly IOperationalTimeSnapshotProvider _operationalTimeProvider;
+     private readonly ICycleCalendarGuard _calendarGuard;
++    private readonly ICenitCycleQueueService? _cenitCycleQueueService;
+ 
+     public NachaFileGenerationCoordinator(
+         AchDbContext context,
+         INachaDataLoader dataLoader,
+@@ -63,9 +64,10 @@
+         ILogger<NachaFileBuilder>? logger,
+         IBatchNumberGenerator batchNumberGenerator,
+         INachaControlTotalsCalculator controlTotalsCalculator,
+         IOperationalTimeSnapshotProvider operationalTimeProvider,
+-        ICycleCalendarGuard calendarGuard)
++        ICycleCalendarGuard calendarGuard,
++        ICenitCycleQueueService? cenitCycleQueueService = null)
+     {
+         _context = context;
+         _dataLoader = dataLoader;
+         _transactionValidationService = transactionValidationService;
+@@ -84,8 +86,9 @@
+         _logger = logger;
+         _controlTotalsCalculator = controlTotalsCalculator;
+         _operationalTimeProvider = operationalTimeProvider;
+         _calendarGuard = calendarGuard;
++        _cenitCycleQueueService = cenitCycleQueueService;
+     }
+ 
+     public async Task<NachaReturnOutBuildResult> BuildReturnOutAsync(
+         NachaReturnOutBuildRequest request,
+@@ -392,25 +395,30 @@
+     public async Task<NachaFileBuildResult> BuildNachaFilesByCycleAsync(string cycleId, CancellationToken ct = default)
+     {
+         var context = await _dataLoader.LoadByCycleAsync(cycleId, ct);
+         var cycle = context.Cycle;
++        var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
++        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
++        if (!calendarDecision.CanExecute)
++            throw new CycleDeferredByCalendarException(cycle.Id, calendarDecision);
++
++        // F03: en el punto productivo de exportación, incorporar colas CENIT antes
++        // de capturar la selección de registros 5/6/7. Si falla, NO construir archivo parcial.
++        if (string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
++            && _cenitCycleQueueService is not null)
++        {
++            await _cenitCycleQueueService.IncorporateForCycleAsync(cycleId, ct);
++            context = await _dataLoader.LoadByCycleAsync(cycleId, ct);
++        }
+         var transactions = context.Transactions;
+         var batches = context.Batches;
+-
+         if (transactions.Count == 0)
+             return NachaFileBuildResult.Empty;
+-
+         if (batches.Count == 0)
+             throw new InvalidOperationException($"El ciclo {cycleId} no tiene lotes asociados para exportar.");
+ 
+         var nachaHeader = await _dataLoader.LoadHeaderAsync(cycle.Id, ct);
+-        var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
+         var chamberPolicy = NachaChamberFlowPolicyResolver.Resolve(clearingHouseCode);
+-        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
+-        if (!calendarDecision.CanExecute)
+-        {
+-            throw new CycleDeferredByCalendarException(cycle.Id, calendarDecision);
+-        }
+         chamberPolicy.EnforcePreResolutionGenerationGate(
+             _generationOptions,
+             IsOfficialTableDrivenMode(),
+             clearingHouseCode);

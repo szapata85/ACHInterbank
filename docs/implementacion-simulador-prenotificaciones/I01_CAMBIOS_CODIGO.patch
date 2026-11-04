@@ -1,0 +1,171 @@
+--- I00/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs
++++ I01/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs
+@@ -1,5 +1,6 @@
+ using Cfa.ACHInterbank.Application.ACH.Interfaces;
+ using Cfa.ACHInterbank.Application.ACH.Models;
++using Cfa.ACHInterbank.Application.ACH.Services;
+ using Cfa.ACHInterbank.Application.Security;
+ using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
+ using Microsoft.AspNetCore.Authorization;
+@@ -23,8 +24,23 @@
+         _authorizationService = authorizationService;
+     }
+ 
++    [HttpGet("prenotifications/contract")]
++    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
++    [EndpointDescription("I01: contrato versionado de resultados de prenotificaciones originadas. Ambos resultados siguen inhabilitados operacionalmente.")]
++    [ProducesResponseType(typeof(PrenotificationSimulationContractCapabilitiesResponse), StatusCodes.Status200OK)]
++    public ActionResult<PrenotificationSimulationContractCapabilitiesResponse> PrenotificationContract()
++        => Ok(PrenotificationSimulationContract.Describe());
++
++    [HttpPost("prenotifications/validate-contract")]
++    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
++    [EndpointDescription("I01: valida solo la forma del contrato. ShapeValid NO significa elegible; no consulta BD, no genera archivos ni cambia estados.")]
++    [ProducesResponseType(typeof(PrenotificationSimulationContractValidationResponse), StatusCodes.Status200OK)]
++    public ActionResult<PrenotificationSimulationContractValidationResponse> ValidatePrenotificationContract(
++        [FromBody] PrenotificationSimulationContractRequest request)
++        => Ok(PrenotificationSimulationContract.Validate(request));
++
+     [HttpPost("generate")]
+-    [EndpointDescription("Genera un archivo NACHA-M de entrada simulado para UAT/local. El simulador solo genera y permite descargar el archivo: no llama NachaUpload, no importa automaticamente, no crea transacciones de entrada, no cambia estados y no transmite a camaras externas. El usuario debe cargar manualmente el archivo generado por la SPA mediante el flujo real NachaUpload. Ejemplos: ACH Colombia IncomingCredit, CENIT IncomingPrenotificationResponse, ACH Colombia IncomingCreditReturn. Errores esperados: 400 request invalido; 401/403 autenticacion/autorizacion; 422 simulador deshabilitado, regla no configurada, referencia inexistente o causal requerida; 500 error no controlado.")]
++    [EndpointDescription("Genera un archivo NACHA-M de entrada simulado para UAT/local. El simulador solo genera y permite descargar el archivo: no llama NachaUpload, no importa automaticamente, no crea transacciones de entrada, no cambia estados y no transmite a camaras externas. El usuario debe cargar manualmente el archivo generado por la SPA mediante el flujo real NachaUpload. Ejemplos vigentes: ACH Colombia IncomingCredit, CENIT IncomingDebit, ACH Colombia IncomingCreditReturn. La respuesta de prenotificacion legado y el nuevo IncomingPrenotificationReturn no estan habilitados en I01. Errores esperados: 400 request invalido; 401/403 autenticacion/autorizacion; 422 simulador deshabilitado, regla no configurada, referencia inexistente o causal requerida; 500 error no controlado.")]
+     [ProducesResponseType(typeof(GenerateNachaInboundSimulationResponse), StatusCodes.Status201Created)]
+     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+--- I00/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs
++++ I01/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs
+@@ -118,6 +118,54 @@
+     public IReadOnlyList<string> OriginalTraceNumbers { get; init; } = [];
+ }
+ 
++/// <summary>
++/// I01: contrato independiente para simular el resultado de prenotificaciones
++/// realmente originadas por ACH Interbank. Solo se valida su estructura en I01;
++/// no habilita generacion, transiciones ni simulacion del reloj.
++/// </summary>
++public sealed class PrenotificationSimulationContractRequest
++{
++    [JsonConverter(typeof(JsonStringEnumConverter))]
++    public PrenotificationSimulationOutcome Outcome { get; set; }
++    public string ClearingHouseCode { get; set; } = string.Empty;
++    public IReadOnlyList<int> OriginalPrenotificationIds { get; set; } = [];
++    public string OriginalCycleId { get; set; } = string.Empty;
++    // Obligatorio solo para Returned. NoReturnByDeadline no representa un ciclo de recepcion.
++    public string? ResponseCycleId { get; set; }
++    public DateOnly BusinessDate { get; set; }
++    public int RespondingFinancialInstitutionId { get; set; }
++    // Obligatorio solo para Returned. NoReturnByDeadline no tiene causal.
++    public string? ReasonCode { get; set; }
++    // Requerido para devoluciones. I02 implementara su reserva/concurrencia.
++    public string? IdempotencyKey { get; set; }
++}
++
++public sealed record PrenotificationSimulationContractViolation(string Code, string Field, string Message);
++
++/// <summary>ShapeValid no significa elegibilidad operativa; ExecutionEnabled es false en I01.</summary>
++public sealed record PrenotificationSimulationContractValidationResponse(
++    bool ShapeValid,
++    bool ExecutionEnabled,
++    string ContractVersion,
++    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
++
++public sealed record PrenotificationSimulationOutcomeCapability(
++    [property: JsonConverter(typeof(JsonStringEnumConverter))] PrenotificationSimulationOutcome Outcome,
++    bool CreatesNachaFile,
++    bool RequiresManualNachaUpload,
++    bool ExecutionEnabled,
++    string Workflow);
++
++public sealed record PrenotificationSimulationContractCapabilitiesResponse(
++    string ContractVersion,
++    string FileReturnScenario,
++    string LegacyScenario,
++    IReadOnlyList<string> SupportedClearingHouses,
++    bool GeneratedOnly,
++    bool AutoImported,
++    bool ExternalTransmission,
++    IReadOnlyList<PrenotificationSimulationOutcomeCapability> Outcomes);
++
+ public sealed class InboundSimulationEligibilityPreviewRequest : GenerateNachaInboundSimulationRequest;
+ 
+ public sealed record InboundSimulationEligibilityPreviewResponse(
+--- I00/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Domain/Models/ACH/Enums/NachaInboundSimulationEnums.cs
++++ I01/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Domain/Models/ACH/Enums/NachaInboundSimulationEnums.cs
+@@ -16,7 +16,20 @@
+     IncomingCreditReturn = 6,
+     IncomingDebitConfirmation = 7,
+     IncomingDebitRejection = 8,
+-    IncomingDebitReturn = 9
++    IncomingDebitReturn = 9,
++    // I01: nuevo escenario explicito para una devolucion de prenotificacion.
++    // El valor 3 (IncomingPrenotificationResponse) es legado y no debe reasignarse.
++    // No habilitar generacion hasta homologacion I02/I03.
++    IncomingPrenotificationReturn = 10
++}
++
++/// <summary>
++/// El resultado de una prenotificacion saliente NO implica siempre un archivo recibido.
++/// </summary>
++public enum PrenotificationSimulationOutcome
++{
++    Returned = 1,
++    NoReturnByDeadline = 2
+ }
+ 
+ public enum NachaInboundSimulationStatus
+--- I00/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
++++ I01/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
+@@ -257,6 +257,15 @@
+         if (_options.AllowAutoImport || _options.AllowExternalTransmission)
+         {
+             return Blocked("SIMULATOR_GUARDRAIL_FAILED", "El simulador no puede autoimportar ni transmitir externamente.", request.SimulationMode);
++        }
++
++        // I01: la nueva operacion explicita existe solo como contrato. No permitir
++        // que la ruta legacy de construccion genere un archivo de pago por error.
++        if (request.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn)
++        {
++            return Blocked("PRENOTIFICATION_RETURN_NOT_IMPLEMENTED",
++                "Contrato I01 disponible; faltan elegibilidad I02 y devolucion normativa I03. No se genera archivo ni se cambian estados.",
++                request.SimulationMode);
+         }
+ 
+         if (request.SimulationMode == NachaSimulationMode.IncomingTransactions
+--- I00/ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaInboundSimulatorTests.cs
++++ I01/ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaInboundSimulatorTests.cs
+@@ -18,6 +18,35 @@
+ 
+ public class NachaInboundSimulatorTests
+ {
++    [Fact]
++    public async Task I01_NewPrenotificationReturnMustFailClosedWithoutCreatingFileOrState()
++    {
++        await using var context = CreateContext();
++        Seed(context);
++        var output = CreateTempOutput();
++        var service = CreateService(context, output);
++        var request = new InboundSimulationEligibilityPreviewRequest
++        {
++            SimulationMode = NachaSimulationMode.DifferentialResponses,
++            ClearingHouseCode = "ACHCOL",
++            ScenarioType = NachaInboundSimulationType.IncomingPrenotificationReturn,
++            OriginFinancialInstitutionId = 2,
++            BusinessDate = new DateOnly(2026, 11, 2),
++            CycleCode = "ACH-CYCLE",
++            ResponseMode = InboundResponseMode.Returned,
++            ReasonCode = "R04"
++        };
++        var preview = await service.PreviewAsync(request);
++        Assert.False(preview.Eligible);
++        Assert.Equal("PRENOTIFICATION_RETURN_NOT_IMPLEMENTED", preview.FunctionalCode);
++
++        var rejected = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateAsync(request, "qa"));
++        Assert.Contains("PRENOTIFICATION_RETURN_NOT_IMPLEMENTED", rejected.Message, StringComparison.Ordinal);
++        Assert.Equal(0, await context.NachaInboundSimulations.CountAsync());
++        Assert.Equal(0, await context.IncomingNachaFileIngestions.CountAsync());
++        Assert.Empty(Directory.GetFiles(output, "*", SearchOption.AllDirectories));
++    }
++
+     [Theory]
+     [InlineData("ACHCOL", NachaInboundSimulationType.IncomingCredit)]
+     [InlineData("CENIT", NachaInboundSimulationType.IncomingCredit)]

@@ -239,7 +239,7 @@ export const APP_ROUTES: Routes = [
       },
       {
         path: 'administracion/mft-ach', canActivate: [permissionGuard],
-        data: { permissions: ['Config.Read', 'CanReadAch'], breadcrumb: 'Configuración del intercambio de archivos', title: 'Configuración del intercambio de archivos' },
+        data: { permissions: ['Config.Read', 'CanReadAch'], breadcrumb: 'Administración de transferencias de archivos (MFT)', title: 'Administración de transferencias de archivos (MFT)' },
         loadComponent: () => import('./features/ach-colombia-mft-administration/ach-colombia-mft-administration.component').then((m) => m.AchColombiaMftAdministrationComponent)
       },
       {

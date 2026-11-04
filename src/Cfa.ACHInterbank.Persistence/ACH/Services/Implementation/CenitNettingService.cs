@@ -35,6 +35,16 @@ public class CenitNettingService : ICenitNettingService
 
     public async Task<CenitNettingExecution> CalculateAsync(CenitCycleExecution execution, CancellationToken ct)
     {
+        // Una proyección interna puede consultarse, nunca certifica liquidación oficial.
+        var existing = await _context.CenitNettingExecutions
+            .Include(x => x.NetPositions)
+            .Include(x => x.Details)
+            .FirstOrDefaultAsync(x => x.CenitCycleExecutionId == execution.Id, ct);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .Include(x => x.ClearingHouse)
@@ -92,8 +102,8 @@ public class CenitNettingService : ICenitNettingService
             ClearingHouseCode = cycle.ClearingHouse?.Code ?? string.Empty,
             SourceFileReference = sourceFileReference,
             Amount = tx.Amount,
-            IncludedInSettlement = true,
-            DecisionReason = "IncludedInMultilateralNetting"
+            IncludedInSettlement = false,
+            DecisionReason = "SimulatedNettingOnly_AwaitingOfficialResult"
         }).ToList();
 
         netting.NetPositions = grouped;

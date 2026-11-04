@@ -1,0 +1,38 @@
+{
+  "from": "ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I01_2026-11-02.zip",
+  "to": "ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I02_2026-11-02.zip",
+  "original_files": 4709,
+  "original_identical_files": 4698,
+  "modified_existing_files": [
+    "ACHInterbank_ajustado/MEMORY_STATE.md",
+    "ACHInterbank_ajustado/README_ENTREGA_SIMULADOR_PRENOTIFICACIONES.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/CHANGELOG_INCREMENTAL.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.json",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationContract.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaInboundSimulatorTests.cs"
+  ],
+  "new_files": [
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/CONTRATO_ELEGIBILIDAD_I02.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/EVIDENCIA_I02.txt",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/I02_CAMBIOS_CODIGO.patch",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/INFORME_I02.md",
+    "ACHInterbank_ajustado/scripts/test/prenotification_simulator_i02_static_check.py",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationEligibilityPolicy.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.Prenotifications.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorEligibilityI02Tests.cs"
+  ],
+  "missing_files": [],
+  "verification": {
+    "solution_graph": "PASS",
+    "i01_static": "20/20 PASS_STATIC",
+    "i02_static": "26/26 PASS_STATIC",
+    "dotnet_build": "NO_EJECUTADA_POR_AMBIENTE",
+    "dotnet_tests": "NO_EJECUTADA_POR_AMBIENTE"
+  },
+  "next_increment": "I03"
+}

@@ -119,7 +119,15 @@ public sealed class SchedulerRuntimeService : BackgroundService
         state.LastHeartbeatUtc = now;
         state.StoppedAtUtc = stopped ? now : null;
         state.Status = status;
-        state.CurrentlyExecutingJobs = (await scheduler.GetCurrentlyExecutingJobs(cancellationToken)).Count;
+        // Quartz 4 consulta las ejecuciones en el almacén; filtrar por la instancia
+        // preserva el significado previo (ejecuciones locales de este nodo).
+        var runningJobs = await scheduler.QueryFireInstances(new FireInstanceQuery
+        {
+            SchedulerInstanceId = scheduler.SchedulerInstanceId,
+            Take = 0,
+            IncludeTotalCount = true
+        }, cancellationToken);
+        state.CurrentlyExecutingJobs = runningJobs.TotalCount ?? 0;
         state.Version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
 
         try

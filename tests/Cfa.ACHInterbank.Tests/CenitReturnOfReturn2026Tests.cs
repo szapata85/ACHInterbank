@@ -216,6 +216,103 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
         flows.Should().OnlyContain(x => x.OriginalTransactionId == original.Id);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task F05_Cycle1_CorrelatesPersistedSourceReturnBeforeCreatingFlow(bool sourceExists)
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "NEXT-C1", CycleName = "Ciclo 1", ProcessingDate = new DateTime(2026, 8, 17),
+            ClearingHouseId = 7001, CutoffTime = TimeSpan.FromHours(10)
+        });
+        if (sourceExists)
+            context.AchTransactions.Add(new AchTransaction
+            {
+                Id = 101, AchCycleId = "C2", AchBatchId = original.AchBatchId,
+                Type = TransactionTypeEnum.Return, State = AchTransferStateEnum.ReturnedByEpr,
+                Amount = 100m, TraceNumber = "765432100000222", TransactionCode = "21",
+                Reference = "RETURN-C1", TransactionExternalId = "RETURN-C1",
+                SourceAccountNumber = "1", DestinationAccountNumber = "2"
+            });
+        await context.SaveChangesAsync();
+        var policy = new Mock<IAchRegulatoryCatalogService>();
+        policy.Setup(x => x.ValidateReturnOfReturnAsync(
+            It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, null, true));
+        var sequence = new Mock<IAchTransactionRepository>();
+        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(It.IsAny<DateOnly>(), It.IsAny<string>(),
+            It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        var calendar = new Mock<IOperationalCalendarService>();
+        calendar.Setup(x => x.GetNextBusinessDayAsync(It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DateOnly(2026, 8, 17));
+        var sut = new CenitReturnOfReturnService(context, policy.Object, sequence.Object,
+            new AchReturnGenerationLockService(), calendar.Object);
+        var result = await sut.CreateOutgoingAsync(new(1001, "R60", "NEXT-C1", new DateTime(2026, 8, 17, 8, 0, 0)));
+        result.IsSuccessful.Should().BeTrue(result.Message);
+        var flow = await context.ReturnOfReturnFlows.SingleAsync();
+        flow.SourceReturnTransactionId.Should().Be(sourceExists ? 101 : (int?)null);
+        flow.OriginalTransactionId.Should().Be(original.Id);
+        flow.ParentIncomingReturnStateEventId.Should().Be(1001);
+    }
+
+    [Fact]
+    public async Task F05_R74_MustHaveR32Parent()
+    {
+        await using var context = BuildContext();
+        SeedDomain(context);
+        var policy = new Mock<IAchRegulatoryCatalogService>();
+        policy.Setup(x => x.ValidateReturnOfReturnAsync(
+            It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, null, true));
+        var sut = new CenitReturnOfReturnService(context, policy.Object, Mock.Of<IAchTransactionRepository>(),
+            new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
+        var result = await sut.CreateOutgoingAsync(new(1001, "R74", "C4", new DateTime(2026, 8, 16, 10, 0, 0)));
+        result.IsSuccessful.Should().BeFalse();
+        result.Code.Should().Be("CENIT_R74_R32_PARENT_REQUIRED");
+        (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task F05_R74_RequiresMonetaryCreditAndOriginalPaymentInformation(bool hasInformation, bool shouldAccept)
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        (await context.AchTransactionStateEvents.SingleAsync(x => x.Id == 1001)).ReasonCode = "R32";
+        (await context.AddendaRecords.SingleAsync(x => x.AddendaID == 40)).ReturnReasonCode = "R32";
+        if (hasInformation)
+            context.AchTransactionAddendas.Add(new AchTransactionAddenda
+            {
+                AchTransactionId = original.Id, AddendaType = "05", Information = "INV-123"
+            });
+        await context.SaveChangesAsync();
+        var policy = new Mock<IAchRegulatoryCatalogService>();
+        policy.Setup(x => x.ValidateReturnOfReturnAsync(
+            It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, null, true));
+        var sequence = new Mock<IAchTransactionRepository>();
+        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(It.IsAny<DateOnly>(), It.IsAny<string>(),
+            It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        var sut = new CenitReturnOfReturnService(context, policy.Object, sequence.Object,
+            new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
+        var result = await sut.CreateOutgoingAsync(new(1001, "R74", "C4", new DateTime(2026, 8, 16, 10, 0, 0)));
+        result.IsSuccessful.Should().Be(shouldAccept, result.Message);
+        if (!hasInformation)
+            result.Code.Should().Be("CENIT_R74_R32_CREDIT_ADDENDA_REQUIRED");
+        else
+        {
+            var replay = await sut.CreateOutgoingAsync(new(1001, "R74", "C4", new DateTime(2026, 8, 16, 10, 1, 0)));
+            replay.WasDuplicate.Should().BeTrue();
+        }
+    }
+
     [Fact]
     public async Task ApplicationPipeline_ShouldIngestCorrelatePersistAndReplayRorInIdempotently()
     {

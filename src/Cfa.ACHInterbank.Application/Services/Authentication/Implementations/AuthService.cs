@@ -1,6 +1,6 @@
 using Cfa.ACHInterbank.Application.DataBase.Repositories.Security;
 using Cfa.ACHInterbank.Application.DataBase;
-using Cfa.ACHInterbank.Application.Helpers.Hash;
+using Cfa.ACHInterbank.Application.Security.PasswordHashing;
 using Cfa.ACHInterbank.Application.Services.Authentication.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Authentication.Models;
 using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
@@ -86,8 +86,10 @@ public class AuthService : IAuthService
             stateResetPending = true;
         }
 
-        var incomingHash = HashHelper.GenerateHashSha256(request.Password);
-        if (!string.Equals(user.PasswordHash, incomingHash, StringComparison.OrdinalIgnoreCase))
+        // Permite SHA-256 legado (incluido el seed existente) y PBKDF2 versionado.
+        // La migración de credenciales heredadas NO se realiza automáticamente aquí.
+        var verification = CredentialPasswordHasher.Verify(request.Password, user.PasswordHash);
+        if (verification == CredentialVerificationResult.Failed)
         {
             var failedAttempts = user.FailedLoginAttempts + 1;
             DateTimeOffset? lockoutEnd = null;
@@ -166,7 +168,7 @@ public class AuthService : IAuthService
             return new OperationResult { Success = false, Message = "Token inválido o expirado" };
         }
 
-        var newHash = HashHelper.GenerateHashSha256(request.NewPassword);
+        var newHash = CredentialPasswordHasher.HashPassword(request.NewPassword);
         await _userRepository.UpdatePasswordHashAsync(tokenEntity.User, newHash, cancellationToken);
         await _passwordResetTokenRepository.MarkAsUsedAsync(tokenEntity, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);

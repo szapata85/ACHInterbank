@@ -1,0 +1,65 @@
+{
+  "incremento": "I05-CENIT",
+  "fecha": "2026-11-03",
+  "zip_base": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I04_CENIT_2026-11-03.zip",
+  "sha256_zip_base": "6b6bfeb57ede872f8c0dcde8aa2cd02fd038331123c5653c17fe9fbeb2b6e23b",
+  "proyecto_raiz": "ACHInterbank_ajustado/",
+  "conteo_original": 4918,
+  "originales_identicos": 4912,
+  "originales_modificados": 6,
+  "originales_eliminados": 0,
+  "modificados": [
+    {
+      "path": "src/Cfa.ACHInterbank.Domain/Models/ACH/CenitReturnPreparation.cs",
+      "sha256_base": "bd7dbaf77ea0b6529d090121a68edbbd54777276653f725387c60a0867b51d3a",
+      "sha256_i05": "8a0f4b4c173898917bc1ee28d71f566d0c1ad18de7cd86ac1449d8b8854ced9c"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/AchDbContextModelSnapshot.cs",
+      "sha256_base": "81e1606330d86cf35eb0825193cb1cdf3a017b8d11da93576941e1979e8c2baf",
+      "sha256_i05": "94b036a95d201ae3de51b0df68f2e378d0b6fd039551529bcc589650bfa5db76"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitReturnReviewService.cs",
+      "sha256_base": "6c73e8931097257230edc3681337fc66083a7cbb780112c8fa3ff8bbbfdf696e",
+      "sha256_i05": "7064cd484d88e956f7ce7b483669dd2404130ac2333427a8926555b3e492af3c"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/Configuration/CenitReturnPreparationConfiguration.cs",
+      "sha256_base": "dd4b4c4fef0446d5c6fde9f292448cd0d6a1b0fc6ed422b4bbc42de54d78f215",
+      "sha256_i05": "e383356e3f5e91b80ce1ba43753834c120a6b254824ef5ff972c678e76da29f7"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/AchDbContextModelSnapshot.cs",
+      "sha256_base": "8a5dd0523a299f174ee45f1469388802178a7b67c61f92c91c7d21988942e616",
+      "sha256_i05": "4cc51e3c1813ed63d081b1bc02e5d54429e4e0761455a6a3d6ed6ac3bb367cf9"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/DependencyInjectionService.cs",
+      "sha256_base": "bbd785973e13999dfaf9cfdb76bb88899be4c08f07e14402949eafd5ed60ec7b",
+      "sha256_i05": "2f96c73f199eb6a4638c61b6371b3e752440591ce2d1f329b8fd12cbc687cb01"
+    }
+  ],
+  "eliminados": [],
+  "nota": "Se reutilizan el generador físico y la auditoría comunes; sin cambios funcionales ACH Colombia. La generación local CENIT I05 no transmite.",
+  "archivos_agregados": 16,
+  "archivos_agregados_lista": [
+    "docs/implementacion-devoluciones-automaticas/EJECUCION_CONTROLES_ESTATICOS_I05_CENIT.txt",
+    "docs/implementacion-devoluciones-automaticas/EVIDENCIA_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.md",
+    "docs/implementacion-devoluciones-automaticas/INFORME_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.md",
+    "docs/implementacion-devoluciones-automaticas/INVENTARIO_CONSERVADOS_I05_CENIT.tsv",
+    "docs/implementacion-devoluciones-automaticas/MANIFIESTO_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.json",
+    "docs/implementacion-devoluciones-automaticas/MEMORY_STATE_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.md",
+    "docs/implementacion-devoluciones-automaticas/PLAN_DEVOLUCIONES_AUTOMATICAS_CENIT_I05.md",
+    "docs/implementacion-devoluciones-automaticas/VERIFICACION_INTEGRIDAD_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.json",
+    "scripts/test/automatic_returns_i05_cenit_static_check.py",
+    "src/Cfa.ACHInterbank.Api/Controllers/CenitReturnArtifactController.cs",
+    "src/Cfa.ACHInterbank.Application/ACH/Interfaces/ICenitReturnArtifactService.cs",
+    "src/Cfa.ACHInterbank.Application/ACH/Models/CenitReturnArtifactModels.cs",
+    "src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/20261103190000_CenitReturnArtifact2026.cs",
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitReturnArtifactService.cs",
+    "src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/20261103190000_CenitReturnArtifact2026.cs",
+    "tests/Cfa.ACHInterbank.Tests/CenitReturnArtifactI05Tests.cs"
+  ],
+  "archivos_finales": 4934
+}

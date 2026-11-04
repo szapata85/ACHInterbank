@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -73,6 +74,25 @@ public class AchStateTransitionService : IAchStateTransitionService
 
         var fromState = transaction.State;
         ValidateTransition(fromState, request.ToState);
+        // APN-I10: terminal prenotification evidence cannot be silently rewritten.
+        // A late/conflicting result is a manual-review case, not an automatic
+        // reversal of the transaction while its immutable validation stays accepted.
+        if (transaction.IsPrenotification && fromState != AchTransferStateEnum.Pending)
+        {
+            throw new InvalidOperationException("PRENOTE_TERMINAL_CHANGE_REQUIRES_MANUAL_REVIEW");
+        }
+        if (transaction.IsPrenotification && await _context.PrenotificationValidationAttempts
+                .AsNoTracking()
+                .AnyAsync(x => x.AchTransactionId == transaction.Id
+                               && (x.Status == PrenotificationValidationAttemptStatus.Accepted
+                                   || x.Status == PrenotificationValidationAttemptStatus.TacitlyAccepted
+                                   || x.Status == PrenotificationValidationAttemptStatus.Rejected
+                                   || x.Resolution == PrenotificationValidationResolution.Accepted
+                                   || x.Resolution == PrenotificationValidationResolution.TacitlyAccepted
+                                   || x.Resolution == PrenotificationValidationResolution.Rejected), ct))
+        {
+            throw new InvalidOperationException("PRENOTE_ATTEMPT_ALREADY_TERMINAL_REQUIRES_MANUAL_REVIEW");
+        }
         ValidateSourceForTargetState(request.ToState, request.Source);
 
         var normalizedReasonCode = NormalizeReasonCode(request.ReasonCode);

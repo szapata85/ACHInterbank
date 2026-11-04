@@ -156,7 +156,7 @@ public class CertificateRuntimeWithoutSecretBackendCharacterizationTests
         var serviceCount = text.Split("\n  ", StringSplitOptions.None)
             .Count(line => line.StartsWith("  ") && line.TrimEnd().EndsWith(":"));
 
-        serviceCount.Should().BeGreaterOrEqualTo(3);
+        serviceCount.Should().BeGreaterThanOrEqualTo(3);
     }
 
     private static string ResolveRepositoryRoot()

@@ -116,6 +116,17 @@ internal static class SchedulerTaskCatalog
             false,
             3),
         new(
+            "ACH_PENDING_CYCLE_REASSIGNMENT",
+            "AchPendingCycleReassignment",
+            "Reasignar transacciones pendientes entre ciclos",
+            "Traslada instrucciones no presentadas al siguiente ciclo elegible, deshabilitado por defecto.",
+            "Operación ACH",
+            "Reasignación de ciclos",
+            null,
+            false,
+            false,
+            5),
+        new(
             "SCHEDULER_CLUSTER_PROBE",
             "SCHEDULER_CLUSTER_PROBE",
             "Verificar disponibilidad del programador",

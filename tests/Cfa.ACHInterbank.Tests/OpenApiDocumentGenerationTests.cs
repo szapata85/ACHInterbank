@@ -604,7 +604,7 @@ public sealed class OpenApiDocumentGenerationTests
             ],
             ResponseSchemaDocumentation: new(
                 "IncomingNachaObservabilitySummaryDto",
-                ["generatedAtUtc", "windowHours", "pipelineHealth", "ingestionsByStatus", "queueByStatus", "byClearingHouseCycle", "topErrors", "timeline"])),
+                ["generatedAtUtc", "windowHours", "pipelineHealth", "ingestionsByStatus", "queueByStatus", "byClearingHouseCycle", "topErrors", "timeline", "achColFileBased"])),
         new(
             "GET",
             "/incoming-nacha-command-center/ingestions",

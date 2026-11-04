@@ -18,6 +18,13 @@ public sealed class IncomingNachaIngestionResponse
 {
     public Guid IngestionId { get; init; }
     public string OriginalFileName { get; init; } = string.Empty;
+    // F2.3: nullable for pre-existing or non-ACHCOL ingestions.
+    public string? CanonicalPlainFileName { get; init; }
+    public string? FileIdModifier { get; init; }
+    public int? FileSequence { get; init; }
+    public int? ExternalCycleNumber { get; init; }
+    public string? FileProtectionKind { get; init; }
+    public DateTime? FileNameDate { get; init; }
     public string FileHash { get; init; } = string.Empty;
     public string CorrelationId { get; init; } = string.Empty;
     public IncomingNachaIngestionStatus IngestionStatus { get; init; }

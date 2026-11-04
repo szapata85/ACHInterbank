@@ -1,0 +1,79 @@
+{
+  "fecha_corte": "2026-11-02",
+  "entrega_actual": "I06",
+  "estado_nueva_funcionalidad": "SPA_CODE_IMPLEMENTED_STATIC_PASS_RUNTIME_PENDING",
+  "incrementos": [
+    {
+      "id": "I00",
+      "nombre": "Empaquetado documental",
+      "estado": "COMPLETADO",
+      "tipo": "documentacion",
+      "pendiente": "ninguno para I00"
+    },
+    {
+      "id": "I01",
+      "nombre": "Contrato y casos de uso",
+      "estado": "EN_PROGRESO",
+      "pendiente": "codigo y documentacion completados; faltan compilacion y ejecucion Xunit sin SDK .NET",
+      "pruebas_estaticas": "20/20 PASS_STATIC",
+      "pruebas_runtime": "NO_EJECUTADA_POR_AMBIENTE"
+    },
+    {
+      "id": "I02",
+      "nombre": "Consulta y elegibilidad",
+      "estado": "EN_PROGRESO",
+      "pendiente": "codigo y pruebas C# incorporados; falta dotnet runtime; reserva idempotente y revalidacion atomica I03",
+      "pruebas_estaticas": "26/26 PASS_STATIC",
+      "pruebas_runtime": "NO_EJECUTADA_POR_AMBIENTE"
+    },
+    {
+      "id": "I03",
+      "nombre": "Generacion NACHA-M de devoluciones",
+      "estado": "EN_PROGRESO",
+      "pendiente": "ruta oficial e idempotencia implementadas; compilar, Xunit, fixtures ACHCOL/CENIT, concurrencia y NachaUpload",
+      "pruebas_estaticas": "31/31 PASS_STATIC",
+      "pruebas_runtime": "NO_EJECUTADA_POR_AMBIENTE"
+    },
+    {
+      "id": "I04",
+      "nombre": "NachaUpload y reconciliacion",
+      "estado": "EN_PROGRESO",
+      "pendiente": "codigo, guarda y pruebas agregadas; compilar Xunit, NachaUpload E2E, pruebas multiBD y SHA sobre archivo transformado",
+      "pruebas_estaticas": "31/31 PASS_STATIC",
+      "pruebas_runtime": "NO_EJECUTADA_POR_AMBIENTE"
+    },
+    {
+      "id": "I05",
+      "nombre": "Vencimiento y aceptacion tacita",
+      "estado": "EN_PROGRESO",
+      "pendiente": "preview virtual y apply-due reales implementados; compilar, Xunit, feriados, concurrency Quartz, E2E BD",
+      "pruebas_estaticas": "36/36 PASS_STATIC",
+      "pruebas_runtime": "NO_EJECUTADA_POR_AMBIENTE"
+    },
+    {
+      "id": "I06",
+      "nombre": "SPA interfaz completa",
+      "estado": "EN_PROGRESO",
+      "pendiente": "codigo SPA y cinco tests incorporados; faltan npm ci, build Angular, Karma, Playwright, descargas con JWT y UAT por camara",
+      "pruebas_estaticas": "32/32 PASS_STATIC",
+      "pruebas_runtime": "NO_EJECUTADA_POR_AMBIENTE"
+    },
+    {
+      "id": "I07",
+      "nombre": "Regresion y cierre UAT",
+      "estado": "PENDIENTE",
+      "pendiente": "PRE 01 a 14 runtime y controles"
+    }
+  ],
+  "pre_pruebas_ejecutadas": 0,
+  "hallazgos_auditoria_previos_abiertos": 12,
+  "nota": "Nunca equiparar comprobaciones estaticas con PASS runtime.",
+  "proximo_incremento": "I07",
+  "verificacion_grafo_solution": "PASS",
+  "verificacion_estatica_i01": "20/20 PASS_STATIC",
+  "verificacion_estatica_i02": "26/26 PASS_STATIC",
+  "verificacion_estatica_i03": "31/31 PASS_STATIC",
+  "verificacion_estatica_i04": "31/31 PASS_STATIC",
+  "verificacion_estatica_i06": "32/32 PASS_STATIC",
+  "verificacion_estatica_i01_i05": "144/144 PASS_STATIC"
+}

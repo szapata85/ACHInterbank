@@ -1,0 +1,92 @@
+{
+  "increment": "I06",
+  "base_archive": "ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I05_2026-11-02.zip",
+  "base_entries": 4746,
+  "changed_count": 10,
+  "added_count_including_manifest": 6,
+  "removed_count": 0,
+  "modified": [
+    {
+      "file": "ACHInterbank_ajustado/MEMORY_STATE.md",
+      "before_sha256": "0b4de93fc113031bb6d26796c50edeca065444b6de1b66f7f40b12263c96fe47",
+      "after_sha256": "e30f4a4be6f621a711c9b0c3a249a2c2635b7df3863435cfb0d9771594f8949f"
+    },
+    {
+      "file": "ACHInterbank_ajustado/README_ENTREGA_SIMULADOR_PRENOTIFICACIONES.md",
+      "before_sha256": "e4f95d02cc74600eb83c24ceb6840f20cffaf7ea9ba3a384f40cb2a179753aef",
+      "after_sha256": "51567ff123bd9ce3001d09e40efe843ed1029bc390c95436551d8ed21057fcb5"
+    },
+    {
+      "file": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/CHANGELOG_INCREMENTAL.md",
+      "before_sha256": "418e09f6e1622a07bae37f0a05b10a74321386309a1e9f42d9f7cabcdf9d506d",
+      "after_sha256": "8e8a81d87819c742dcb9d4ffd9e14b1b20abbf2e33125b74cfc0cd27ba77c377"
+    },
+    {
+      "file": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.json",
+      "before_sha256": "1548066676895a78bd3760f264ccab93a0f399d77b6a309a950417e9be30dd4d",
+      "after_sha256": "f33ef52d59778b2c061d805f4b894990da7bdb8eafc75711b10e4ce8bb394dab"
+    },
+    {
+      "file": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md",
+      "before_sha256": "321b05670556aaed64621ec9dd2ac20156fadcd39384267971ad2569d6904338",
+      "after_sha256": "2dbb5e280338700f313a86592ea55ff0322da8e4125c80d6f663c8ab92ec3ace"
+    },
+    {
+      "file": "ACHInterbank_ajustado/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.html",
+      "before_sha256": "f79fa5d03e8e8de8858cea079c4d5fd4ad9874ae413fd32354b73fb507229b92",
+      "after_sha256": "351fd80dacf604e9270f9149f038b5559530c4c0f6bc08c7b0d72cff4a2e112f"
+    },
+    {
+      "file": "ACHInterbank_ajustado/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.scss",
+      "before_sha256": "10e0f1dc0ba5b94224c0b8e9f7321b28fdddfe3cf5094bfc6509b4e17f04ab1d",
+      "after_sha256": "b18b7d3cf36453566e94cac006e37f517c5ea54ba23143505a2f0ba2ed00bd26"
+    },
+    {
+      "file": "ACHInterbank_ajustado/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.spec.ts",
+      "before_sha256": "c7a0bd5707fa77341c851333cad96dfaa8a4a39a57408f108176c5ea4b73fcaf",
+      "after_sha256": "3f682fa72a25ac4afd1710c978caa75663e4c31e505018628d286db8291ecc56"
+    },
+    {
+      "file": "ACHInterbank_ajustado/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts",
+      "before_sha256": "95713dc367a879c359b14e6845b1b5c71df7e6c6f7c0d0b60e611d967db6f340",
+      "after_sha256": "221f3d32077bae34b2ea21b9db38ab165e4dca7f494819da85cb0cab3ffcc675"
+    },
+    {
+      "file": "ACHInterbank_ajustado/web/ach-interbank-ui/src/app/features/uat/services/nacha-inbound-simulator.service.ts",
+      "before_sha256": "23ae8ee4ea47a3aa0ba3fe2baa678484d8a1306d259302f372dd7391a1b5d09c",
+      "after_sha256": "976472267b3096321d20a16649da3344f7ee96f640f38d45f8f60b27731ed43b"
+    }
+  ],
+  "added": [
+    {
+      "file": "ACHInterbank_ajustado/scripts/test/prenotification_simulator_i06_static_check.py",
+      "sha256": "c2a8cf74b81eaa4d41eede269c2b126427ee6abb395b6ff6596d6fd2b67ad560"
+    },
+    {
+      "file": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/EVIDENCIA_I06.txt",
+      "sha256": "11740d20c285e404b9a1eacd2e46d677d6885c82e4160fbf3760237655562b07"
+    },
+    {
+      "file": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/UX_DECISIONES_I06.md",
+      "sha256": "5d681545e6a95e3caa9214ac3ae46ab66e07bb9ec4aecb660b01eae4266574d4"
+    },
+    {
+      "file": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/INFORME_I06.md",
+      "sha256": "42177aa027125802880d8a27cd02b0e6cd3d5e86da2538ce8a753b30f1f38fb6"
+    },
+    {
+      "file": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/I06_CAMBIOS_CODIGO.patch",
+      "sha256": "32f1f0fd8754a51ac7accdcbb582bc813210894a69e8d74a02e2196db82cbea1"
+    },
+    {
+      "file": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/MANIFIESTO_I06.json",
+      "sha256": "(self)"
+    }
+  ],
+  "validation": {
+    "i06_static": "32/32 PASS_STATIC",
+    "i01_i05_static": "144/144 PASS_STATIC",
+    "angular_build": "NOT_RUN_ENVIRONMENT_BLOCKED",
+    "dotnet_runtime": "NOT_RUN_ENVIRONMENT_BLOCKED"
+  }
+}

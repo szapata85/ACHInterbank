@@ -221,6 +221,11 @@ public class ContrapartidaDispatchJobServiceTests
         Assert.Equal(ContrapartidaDispatchBatchStatusEnum.Completed, batch.Status);
         Assert.Equal(1, batch.TotalSucceeded);
         Assert.Equal(0, batch.TotalFailed);
+
+        var replayError = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RetryBatchAsync(
+            new ContrapartidaDispatchRetryRequest(batch.Id, ContrapartidaDispatchRetryScope.Full, "qa-replay", AllowReplaySucceeded: true)));
+        Assert.Contains("No existen items elegibles", replayError.Message);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -476,89 +481,156 @@ public class ContrapartidaDispatchJobServiceTests
     }
 
     [Fact]
-    public async Task ProcessCycleAsync_DebeMarcarParcial_CuandoItemsTienenResultadoMixto()
+    public async Task ProcessCycleAsync_DebeEnviarRequestIndependientePorTransaccion_YNoCruzarRespuestas()
     {
         using var connection = new SqliteConnection("DataSource=:memory:");
         await connection.OpenAsync();
-
-        var options = new DbContextOptionsBuilder<AchDbContext>()
-            .UseSqlite(connection)
-            .Options;
-
-        await using var context = new AchDbContext(options);
+        await using var context = new AchDbContext(
+            new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options);
         await context.Database.EnsureCreatedAsync();
 
         var cycleId = await SembrarEstructuraBaseAsync(context);
         var transactionIds = await SembrarVariasTransaccionesEItemsPendientesAsync(context, cycleId, 2);
+        var firstTx = await context.AchTransactions.SingleAsync(x => x.Id == transactionIds[0]);
+        var secondTx = await context.AchTransactions.SingleAsync(x => x.Id == transactionIds[1]);
+        secondTx.SourceAccountNumber = "000000000022";
+        await context.SaveChangesAsync();
 
-        var mapper = new Mock<IProcContrapartidasRequestMapper>();
-        mapper
-            .Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ProcContrapartidasRequestResolution
+        var mapper = new Mock<IProcContrapartidasRequestMapper>(MockBehavior.Strict);
+        mapper.Setup(x => x.ResolveAsync(
+                It.IsAny<AchCycle>(),
+                It.IsAny<IReadOnlyCollection<AchTransaction>>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((AchCycle cycle, IReadOnlyCollection<AchTransaction> selected, DateTime now, CancellationToken ct) =>
             {
-                Contract = ContratoValido(),
-                MappingSnapshotHash = "hash-parcial",
-                UsedFallback = false
-            });
-        mapper
-            .Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
-            .Returns("<request-parcial/>");
-
-        var soap = new Mock<IWscfaachSoapClient>();
-        soap
-            .Setup(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<Envelope><Body><ok/></Body></Envelope>");
-
-        var parser = new Mock<IProcContrapartidasResponseParser>();
-        parser
-            .Setup(x => x.Parse(It.IsAny<string>()))
-            .Returns(new ProcContrapartidasParsedResponse(
-                IsSuccess: false,
-                IsSoapFault: false,
-                IsRetryable: false,
-                IsFunctionalRejection: true,
-                ErrorCode: "R10",
-                ErrorMessage: "Mixto",
-                RawResponse: "<mixed/>",
-                ResponseCode: "R10",
-                ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>
+                var tx = Assert.Single(selected);
+                return Task.FromResult(new ProcContrapartidasRequestResolution
                 {
-                    [transactionIds[0]] = new(transactionIds[0], true, false, "R96", "Aplicado"),
-                    [transactionIds[1]] = new(transactionIds[1], false, false, "R10", "Rechazo funcional")
-                }));
+                    Contract = ContratoValido() with { OFIDTX = tx.Reference, OFCTA = tx.SourceAccountNumber },
+                    MappingSnapshotHash = $"mapping-{tx.Id}",
+                    UsedFallback = false
+                });
+            });
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns((ProcContrapartidasRequestContract contract) =>
+                $"<request id='{contract.OFIDTX}' account='{contract.OFCTA}'/>");
+
+        var sentRequests = new List<string>();
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        soap.Setup(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns((string body, CancellationToken ct) =>
+            {
+                sentRequests.Add(body);
+                var code = body.Contains(firstTx.Reference, StringComparison.Ordinal) ? "R96" : "R10";
+                return Task.FromResult($"<Envelope><Body><Proc_ContrapartidasResponse><ANSST>{code}</ANSST><ANCLC>{code}</ANCLC></Proc_ContrapartidasResponse></Body></Envelope>");
+            });
 
         var sut = new ContrapartidaDispatchJobService(
             context,
             soap.Object,
             mapper.Object,
-            parser.Object,
+            new ProcContrapartidasResponseParser(),
             NullLogger<ContrapartidaDispatchJobService>.Instance,
             LiveDispatchOptions(),
             responseCatalogResolver: Catalog(
-                Success("R96", "Débito aplicado correctamente"),
+                Success("R96", "Aplicado"),
                 Rejected("R10", "Rechazo funcional")),
             timeProvider: TestClock.Create());
 
-        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-correlacion", 100, CancellationToken.None);
 
         Assert.Equal(2, result.Processed);
         Assert.Equal(1, result.Succeeded);
         Assert.Equal(1, result.Failed);
-        Assert.Equal(1, result.Partial);
+        Assert.Equal(0, result.Partial);
+        Assert.Equal(2, result.Chunks);
+        Assert.Equal(2, sentRequests.Count);
+        Assert.Contains(sentRequests, x => x.Contains(firstTx.Reference) && x.Contains(firstTx.SourceAccountNumber));
+        Assert.Contains(sentRequests, x => x.Contains(secondTx.Reference) && x.Contains(secondTx.SourceAccountNumber));
+        Assert.DoesNotContain(sentRequests, x => x.Contains(firstTx.Reference) && x.Contains(secondTx.SourceAccountNumber));
+        mapper.Verify(x => x.ResolveAsync(
+            It.IsAny<AchCycle>(),
+            It.Is<IReadOnlyCollection<AchTransaction>>(txs => txs.Count == 1),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
 
-        var items = await context.ContrapartidaDispatchItems.OrderBy(x => x.Id).ToListAsync();
-        Assert.Equal(ContrapartidaDispatchItemStateEnum.ReportedToContrapartida, items[0].State);
-        Assert.Equal(ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed, items[1].State);
+        var attempts = await context.ContrapartidaDispatchAttempts.ToListAsync();
+        var dispatchItems = await context.ContrapartidaDispatchItems.ToListAsync();
+        var firstItemId = dispatchItems.Single(x => x.AchTransactionId == transactionIds[0]).Id;
+        var secondItemId = dispatchItems.Single(x => x.AchTransactionId == transactionIds[1]).Id;
+        Assert.Equal(2, attempts.Count);
+        Assert.Equal(2, attempts.Select(x => x.DispatchBatchId).Distinct().Count());
+        var firstAttempt = Assert.Single(attempts.Where(x => x.DispatchItemId == firstItemId));
+        var secondAttempt = Assert.Single(attempts.Where(x => x.DispatchItemId == secondItemId));
+        Assert.Equal("R96", firstAttempt.ExternalResponseCode);
+        Assert.True(firstAttempt.IsSuccessful);
+        Assert.Contains(firstTx.Reference, firstAttempt.RequestPayloadXml);
+        Assert.Equal("R10", secondAttempt.ExternalResponseCode);
+        Assert.False(secondAttempt.IsSuccessful);
+        Assert.Contains(secondTx.Reference, secondAttempt.RequestPayloadXml);
+        Assert.DoesNotContain(firstTx.Reference, secondAttempt.RequestPayloadXml);
 
-        var attempts = await context.ContrapartidaDispatchAttempts.OrderBy(x => x.Id).ToListAsync();
-        Assert.Contains(attempts, x => x.Result == ContrapartidaDispatchAttemptResultEnum.Success);
-        Assert.Contains(attempts, x => x.Result == ContrapartidaDispatchAttemptResultEnum.Partial);
+        var batches = await context.ContrapartidaDispatchBatches.ToListAsync();
+        Assert.Equal(2, batches.Count);
+        Assert.All(batches, batch => Assert.Equal(1, batch.TotalItems));
 
+        var repeat = await sut.ProcessCycleAsync(cycleId, 1, "qa-no-duplicar", 100, CancellationToken.None);
+        Assert.Equal(0, repeat.Processed);
+        Assert.Equal(2, sentRequests.Count);
+    }
+
+    [Fact]
+    public async Task ProcessCycleAsync_TimeoutIncierto_NoReintentaYRequiereConciliacion()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = new AchDbContext(
+            new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options);
+        await context.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper.Setup(x => x.ResolveAsync(
+                It.IsAny<AchCycle>(),
+                It.IsAny<IReadOnlyCollection<AchTransaction>>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(), MappingSnapshotHash = "timeout", UsedFallback = false
+            });
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns("<request-timeout/>");
+
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap.Setup(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TimeoutException("Timeout de prueba, resultado desconocido"));
+        var sut = new ContrapartidaDispatchJobService(
+            context, soap.Object, mapper.Object, Mock.Of<IProcContrapartidasResponseParser>(),
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions(), timeProvider: TestClock.Create());
+
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-timeout", 100);
+        Assert.Equal(1, result.Processed);
+        Assert.Equal(1, result.Failed);
+        var attempt = await context.ContrapartidaDispatchAttempts.SingleAsync();
+        Assert.Equal(IntegrationTransportStatus.TimedOut, attempt.TransportStatus);
+        Assert.True(attempt.RequiresManualReview);
+        Assert.False(attempt.RetryEligible);
+        var item = await context.ContrapartidaDispatchItems.SingleAsync();
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed, item.State);
+        Assert.Null(item.NextAttemptAtUtc);
+
+        var repeat = await sut.ProcessCycleAsync(cycleId, 1, "qa-timeout-replay", 100);
+        Assert.Equal(0, repeat.Processed);
         var batch = await context.ContrapartidaDispatchBatches.SingleAsync();
-        Assert.Equal(ContrapartidaDispatchBatchStatusEnum.CompletedWithErrors, batch.Status);
-        Assert.Equal(1, batch.TotalSucceeded);
-        Assert.Equal(1, batch.TotalFailed);
-        Assert.Equal(1, batch.TotalPartial);
+        var retryError = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RetryBatchAsync(
+            new ContrapartidaDispatchRetryRequest(batch.Id, ContrapartidaDispatchRetryScope.Full, "qa-manual", AllowReplaySucceeded: true)));
+        Assert.Contains("No existen items elegibles", retryError.Message);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

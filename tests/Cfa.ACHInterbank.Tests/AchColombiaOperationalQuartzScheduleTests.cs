@@ -12,7 +12,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Quartz;
-using Quartz.Impl.Matchers;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -41,7 +40,7 @@ public sealed class AchColombiaOperationalQuartzScheduleTests
         var legacyTrigger = TriggerBuilder.Create()
             .WithIdentity($"trg:{TaskId}", "db-tasks")
             .ForJob(legacyKey)
-            .WithSimpleSchedule(x => x.WithIntervalInMinutes(5).RepeatForever())
+            .WithSimpleSchedule(x => x.WithInterval(TimeSpan.FromMinutes(5)).RepeatForever())
             .Build();
         fixture.Triggers[legacyTrigger.Key] = legacyTrigger;
         var sut = BuildService(dbName, fixture.Scheduler.Object);
@@ -59,7 +58,7 @@ public sealed class AchColombiaOperationalQuartzScheduleTests
         var trigger = fixture.Triggers.Single().Value;
         trigger.Key.Should().Be(new TriggerKey($"trg:{TaskId}:achcol:{HouseId}:cycle:{C1ConfigId}:outbound", "db-tasks"));
         trigger.JobKey.Should().Be(job.Key);
-        trigger.MisfireInstruction.Should().Be(MisfireInstruction.CronTrigger.DoNothing);
+        ((ICronTrigger)trigger).MisfireInstruction.Should().Be(CronTriggerMisfireInstruction.DoNothing);
         trigger.JobDataMap.GetString("Flow").Should().Be("outbound");
         trigger.Should().BeAssignableTo<ICronTrigger>();
         ((ICronTrigger)trigger).CronExpressionString.Should().Be("0 30 6 * * ?");
@@ -267,18 +266,15 @@ public sealed class AchColombiaOperationalQuartzScheduleTests
             var triggers = new Dictionary<TriggerKey, ITrigger>();
             var scheduler = new Mock<IScheduler>();
 
-            scheduler.Setup(x => x.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            scheduler.Setup(x => x.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((JobKey key, CancellationToken _) => jobs.ContainsKey(key));
             scheduler.Setup(x => x.GetJobDetail(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((JobKey key, CancellationToken _) => jobs.TryGetValue(key, out var job) ? job : null);
-            scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(() => jobs.Keys.ToHashSet());
+            Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => jobs.Keys.ToHashSet());
             scheduler.Setup(x => x.ScheduleJob(
                     It.IsAny<IJobDetail>(),
-                    It.IsAny<IReadOnlyCollection<ITrigger>>(),
-                    true,
-                    It.IsAny<CancellationToken>()))
-                .Callback<IJobDetail, IReadOnlyCollection<ITrigger>, bool, CancellationToken>((job, newTriggers, _, _) =>
+                    It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>()))
+                .Callback<IJobDetail, IReadOnlyCollection<ITrigger>, ScheduleJobOptions, CancellationToken>((job, newTriggers, _, _) =>
                 {
                     jobs[job.Key] = job;
                     foreach (var trigger in triggers.Values.Where(x => x.JobKey == job.Key).ToArray())
@@ -290,7 +286,7 @@ public sealed class AchColombiaOperationalQuartzScheduleTests
                         triggers[trigger.Key] = trigger;
                     }
                 })
-                .Returns(Task.CompletedTask);
+                .Returns(ValueTask.CompletedTask);
             scheduler.Setup(x => x.DeleteJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((JobKey key, CancellationToken _) =>
                 {
@@ -300,7 +296,7 @@ public sealed class AchColombiaOperationalQuartzScheduleTests
                     }
                     return jobs.Remove(key);
                 });
-            scheduler.Setup(x => x.PauseJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+            scheduler.Setup(x => x.PauseJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).Returns(ValueTask.FromResult(true));
 
             return new QuartzFixture(scheduler, jobs, triggers);
         }

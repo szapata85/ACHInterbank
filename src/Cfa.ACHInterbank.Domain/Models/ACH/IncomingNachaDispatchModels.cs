@@ -23,14 +23,27 @@ public enum IncomingNachaDispatchEvent
     ManualMarkFailedFinal = 4
 }
 
+/// <summary>
+/// Distinct origins share one audited dispatch queue. Do not infer the origin from a cycle number.
+/// </summary>
+public static class IncomingNachaDispatchSourceKinds
+{
+    public const string CycleBound = "CycleBound";
+    public const string AchColFileBased = "AchColFileBased";
+}
+
 public class IncomingNachaDispatchQueue : AuditableEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid IncomingNachaFileIngestionId { get; set; }
     public Guid IncomingNachaEntryClassificationId { get; set; }
-    public Guid IncomingNachaTransactionLinkId { get; set; }
-    public int AchTransactionId { get; set; }
-    public string AchCycleId { get; set; } = string.Empty;
+    public Guid? IncomingNachaTransactionLinkId { get; set; }
+    /// <summary>Queue origin; legacy rows default to CycleBound.</summary>
+    public string SourceKind { get; set; } = IncomingNachaDispatchSourceKinds.CycleBound;
+    /// <summary>Mandatory NACHA entry for AchColFileBased, absent on legacy CycleBound rows.</summary>
+    public int? EntryDetailId { get; set; }
+    public int? AchTransactionId { get; set; }
+    public string? AchCycleId { get; set; }
     public int ClearingHouseId { get; set; }
     public DateTime OperationalDate { get; set; }
     public IncomingNachaDispatchQueueStatus QueueStatus { get; set; } = IncomingNachaDispatchQueueStatus.Queued;
@@ -46,8 +59,9 @@ public class IncomingNachaDispatchQueue : AuditableEntity
 
     public IncomingNachaFileIngestion Ingestion { get; set; } = null!;
     public IncomingNachaEntryClassification Classification { get; set; } = null!;
-    public IncomingNachaTransactionLink TransactionLink { get; set; } = null!;
-    public AchTransaction AchTransaction { get; set; } = null!;
+    public IncomingNachaTransactionLink? TransactionLink { get; set; }
+    public AchTransaction? AchTransaction { get; set; }
+    public EntryDetail? EntryDetail { get; set; }
     public ICollection<IncomingNachaIntegrationExecution> Executions { get; set; } = new List<IncomingNachaIntegrationExecution>();
 }
 

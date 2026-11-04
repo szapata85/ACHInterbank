@@ -8,6 +8,16 @@ public class ClearingHouseConfigConfiguration : IEntityTypeConfiguration<Clearin
 {
     public void Configure(EntityTypeBuilder<ClearingHouseConfig> builder)
     {
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_ClearingHouseConfigs_AutomaticReturnMode",
+            "\"AutomaticReturnMode\" IN ('DESACTIVADO', 'CON_APROBACION', 'AUTOMATICO')"));
+
+        builder.Property(config => config.AutomaticReturnMode)
+            .HasMaxLength(20)
+            .IsRequired()
+            .HasDefaultValue("DESACTIVADO")
+            .IsConcurrencyToken();
+
         builder.Property(config => config.HolidayStrategy)
             .HasMaxLength(100);
 

@@ -1,0 +1,35 @@
+{
+  "increment": "APN-I10",
+  "base_zip": "ACHInterbank_COMPLETO_CORRECCION_PRENOTIFICACIONES_APN_I09_2026-11-03.zip",
+  "base_entries": 4998,
+  "retained_original_entries": 4992,
+  "modified_entries": 6,
+  "new_entries": 14,
+  "missing_original_entries": 0,
+  "modified": [
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchStateTransitionService.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitChamberResponseService.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingPrenotificationReturnGuard.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/CenitChamberResponseLifecycleTests.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/IncomingPrenotificationReturnGuardI04Tests.cs"
+  ],
+  "added": [
+    "ACHInterbank_ajustado/MEMORY_STATE_APN_I10.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/HALLAZGOS_I10.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/MEMORY_STATE_I10.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/README_APN_I10_SOURCES.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/STATUS_IMPLEMENTACIONES_I10.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I10_EJECUCIONES.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I10_INTEGRIDAD.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I10_TEST_DOTNET.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I10_TEST_ESTATICAS.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I10_TEST_REGRESION_I08.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I10_TEST_REGRESION_I09.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/incrementos/APN-I10_RECEPCION_Y_DEVOLUCIONES_TARDIAS.md",
+    "ACHInterbank_ajustado/scripts/audit/prenotificaciones/test_apn_i10_cross_channel.py",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/PrenotificationI10TerminalStateTests.cs"
+  ],
+  "original_hashes_preserved": 4992,
+  "note": "Manifest itself is excluded from the comparison."
+}

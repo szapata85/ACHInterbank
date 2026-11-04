@@ -5,4 +5,5 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 public interface ICenitCycleQueueService
 {
     Task<CenitCycleQueue> EnqueueAsync(AchTransaction transaction, DateTime receivedAtUtc, string reason, CancellationToken ct);
+    Task<int> IncorporateForCycleAsync(string targetAchCycleId, CancellationToken ct);
 }

@@ -11,7 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Quartz;
-using Quartz.Impl.Matchers;
 
 public class QuartzConcurrencyPolicyTests
 {
@@ -55,15 +54,15 @@ public class QuartzConcurrencyPolicyTests
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(x => x.GetJobDetail(It.Is<JobKey>(k => k.Name == "job:10"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(JobBuilder.Create<NonConcurrentDynamicJob>().WithIdentity("job:10", "db-tasks").Build());
-        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new HashSet<JobKey>{ new("job:10","db-tasks") });
-                scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        Quartz4SchedulerMockHelpers.SetupJobKeys(scheduler, () => new HashSet<JobKey>{ new("job:10","db-tasks") });
+                scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>())).Returns(ValueTask.CompletedTask);
 
         var service = BuildService(dbName, scheduler);
         var method = typeof(SchedulerSyncService).GetMethod("ReconcileAllTasksAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
         await (Task)method.Invoke(service, new object[] { scheduler.Object, CancellationToken.None })!;
 
         scheduler.Verify(x => x.DeleteJob(It.Is<JobKey>(k => k.Name == "job:10"), It.IsAny<CancellationToken>()), Times.Once);
-        scheduler.Verify(x => x.ScheduleJob(It.Is<IJobDetail>(j => j.JobType == typeof(DynamicJob)), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()), Times.Once);
+        scheduler.Verify(x => x.ScheduleJob(It.Is<IJobDetail>(j => j.JobType == typeof(DynamicJob)), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

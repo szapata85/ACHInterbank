@@ -123,7 +123,7 @@ public class CenitOperationalGovernanceTests
     }
 
     [Fact]
-    public async Task LiquidityOptimization_DeferredInCycle2_MovesTransactionToNextCycle()
+    public async Task LiquidityOptimization_SimulatedShortfall_NeverMovesTransactionOrQueue()
     {
         using var connection = new SqliteConnection("DataSource=:memory:");
         await connection.OpenAsync();
@@ -135,15 +135,17 @@ public class CenitOperationalGovernanceTests
 
         var decisions = await sut.OptimizeCycleAsync(setup.Execution, CancellationToken.None);
 
-        Assert.Contains(decisions, x => x.DecisionType == "Deferred");
+        Assert.Contains(decisions, x => x.DecisionType == "SimulatedInsufficientLiquidity"
+            && x.LiquidityModelUsed == "Simulated" && x.ToCycleId == null);
         var tx = await context.AchTransactions.FirstAsync();
-        Assert.Equal(setup.NextCycleId, tx.AchCycleId);
-        Assert.NotEqual(77, tx.AchBatchId);
-        Assert.Equal(setup.NextCycleId, (await context.AchBatches.SingleAsync(x => x.Id == tx.AchBatchId)).AchCycleId);
+        Assert.Equal("c1", tx.AchCycleId);
+        Assert.Equal(77, tx.AchBatchId);
+        Assert.Equal(AchTransferStateEnum.Pending, tx.State);
         var dispatch = await context.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == tx.Id);
-        Assert.Equal(setup.NextCycleId, dispatch.AchCycleId);
-        Assert.Equal(tx.AchBatchId, dispatch.AchBatchId);
-        Assert.True(await context.CenitCycleQueues.AnyAsync(x => x.QueueReason == "LiquidityDeferredByRule123"));
+        Assert.Equal("c1", dispatch.AchCycleId);
+        Assert.Equal(77, dispatch.AchBatchId);
+        Assert.False(await context.CenitCycleQueues.AnyAsync());
+        Assert.False(await context.AchTransactionStateEvents.AnyAsync());
 
         var repeated = await sut.OptimizeCycleAsync(setup.Execution, CancellationToken.None);
         Assert.Equal(decisions.Count, repeated.Count);
@@ -175,23 +177,134 @@ public class CenitOperationalGovernanceTests
         Assert.Empty(await verification.AchTransactionStateEvents.ToListAsync());
     }
 
-    [Fact]
-    public async Task LiquidityOptimization_RejectsInCycle4_UpdatesState()
+    [Theory]
+    [InlineData("Ciclo 4")]
+    [InlineData("Ciclo 5")]
+    public async Task LiquidityOptimization_Cycle4And5SimulatedShortfall_DoesNotReturnByOperator(string cycleName)
     {
         using var connection = new SqliteConnection("DataSource=:memory:");
         await connection.OpenAsync();
         await using var context = CreateContext(connection);
 
-        var setup = await SeedCycleExecutionScenarioAsync(context, "Ciclo 4", availableLiquidity: 0m);
+        var setup = await SeedCycleExecutionScenarioAsync(context, cycleName, availableLiquidity: 0m);
         var catalog = new AchRegulatoryCatalogService(context);
         var sut = new LiquidityOptimizationService(context, new TransactionPriorityPolicy(catalog));
 
         var decisions = await sut.OptimizeCycleAsync(setup.Execution, CancellationToken.None);
 
-        Assert.Contains(decisions, x => x.DecisionType == "Rejected");
+        Assert.Contains(decisions, x => x.DecisionType == "SimulatedInsufficientLiquidity");
         var tx = await context.AchTransactions.FirstAsync();
-        Assert.Equal(AchTransferStateEnum.ReturnedByOperator, tx.State);
-        Assert.Equal("DXX-LIQ", tx.ReturnReasonCode);
+        Assert.Equal(AchTransferStateEnum.Pending, tx.State);
+        Assert.Empty(tx.ReturnReasonCode);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CenitCycleExecution_QuartzPath_WaitsForOfficialResultWithoutConsumingQueue()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = CreateContext(connection);
+        var setup = await SeedCycleExecutionScenarioAsync(context, "Ciclo 4", 0m);
+        context.CenitCycleQueues.Add(new CenitCycleQueue
+        {
+            AchTransactionId = 100, OriginalAchCycleId = "c2", TargetAchCycleId = "c1",
+            Status = "Queued", QueueReason = "OutsideOperatingWindow",
+            EnqueuedAtUtc = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+        var cycle = await context.AchCycles.FirstAsync(x => x.Id == "c1");
+        var sut = new CenitCycleExecutionService(context);
+
+        var first = await sut.StartExecutionAsync(cycle, CancellationToken.None);
+        var second = await sut.StartExecutionAsync(cycle, CancellationToken.None);
+
+        Assert.Equal(first.Id, second.Id);
+        Assert.Equal("AwaitingOfficialResult", second.Status);
+        Assert.Null(second.CompletedAtUtc);
+        Assert.Empty(await context.LiquidityOptimizationDecisions.ToListAsync());
+        Assert.Empty(await context.CenitNettingDetails.ToListAsync());
+        Assert.Equal("Queued", (await context.CenitCycleQueues.SingleAsync()).Status);
+        var tx = await context.AchTransactions.SingleAsync();
+        Assert.Equal(AchTransferStateEnum.Pending, tx.State);
+        Assert.Empty(tx.ReturnReasonCode);
+    }
+
+    [Fact]
+    public async Task CenitCycleExecution_RefusesAchColombiaCycle()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = CreateContext(connection);
+        await SeedCycleExecutionScenarioAsync(context, "Ciclo 4", 0m);
+        (await context.ClearingHouses.SingleAsync()).Code = "ACH";
+        await context.SaveChangesAsync();
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == "c1");
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => new CenitCycleExecutionService(context).StartExecutionAsync(cycle, CancellationToken.None));
+        Assert.Equal("Running", (await context.CenitCycleExecutions.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task CenitNetting_IsOnlyProvisionalAndIdempotent()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = CreateContext(connection);
+        var setup = await SeedCycleExecutionScenarioAsync(context, "Ciclo 4", 0m);
+        // La prueba base incluye una ejecución de neteo previa. Usar una ejecución nueva.
+        var another = new CenitCycleExecution { AchCycleId = "c2", Status = "Running" };
+        context.CenitCycleExecutions.Add(another);
+        await context.SaveChangesAsync();
+        var transaction = await context.AchTransactions.SingleAsync();
+        transaction.AchCycleId = "c2";
+        await context.SaveChangesAsync();
+        var service = new CenitNettingService(context);
+        var first = await service.CalculateAsync(another, CancellationToken.None);
+        var second = await service.CalculateAsync(another, CancellationToken.None);
+        Assert.Equal(first.Id, second.Id);
+        Assert.Single(first.Details);
+        Assert.All(first.Details, detail =>
+        {
+            Assert.False(detail.IncludedInSettlement);
+            Assert.Contains("Simulated", detail.DecisionReason);
+        });
+        Assert.Single(await context.CenitNettingExecutions.Where(x => x.CenitCycleExecutionId == another.Id).ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("PPD", TransactionTypeEnum.Credit, "22", 2)]
+    [InlineData("CCD", TransactionTypeEnum.Credit, "22", 3)]
+    [InlineData("CTX", TransactionTypeEnum.Credit, "22", 1)]
+    [InlineData("PPD", TransactionTypeEnum.Debit, "27", 4)]
+    [InlineData("CCD", TransactionTypeEnum.Debit, "27", 5)]
+    [InlineData("PPD", TransactionTypeEnum.Return, "27", 7)]
+    [InlineData("CCD", TransactionTypeEnum.Return, "27", 8)]
+    [InlineData("CTX", TransactionTypeEnum.Return, "27", 6)]
+    [InlineData("PPD", TransactionTypeEnum.Return, "22", 9)]
+    [InlineData("CCD", TransactionTypeEnum.Return, "22", 10)]
+    [InlineData("CTX", TransactionTypeEnum.Debit, "27", 0)]
+    [InlineData("PPD", TransactionTypeEnum.Return, "", 0)]
+    [InlineData("XYZ", TransactionTypeEnum.Credit, "22", 0)]
+    public async Task PrioritySimulation_UsesSecAndReturnDirection(
+        string sec, TransactionTypeEnum type, string code, int expected)
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = CreateContext(connection);
+        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+        {
+            Id = TestCompanyEntryDescriptionId, Term = "PRIORIDAD", Description = "Test",
+            IsActive = true, StandardEntryClassCode = sec
+        });
+        await context.SaveChangesAsync();
+        var policy = new TransactionPriorityPolicy(new AchRegulatoryCatalogService(context), context);
+        var result = await policy.ResolvePriorityAsync(new AchTransaction
+        {
+            Type = type, TransactionCode = code,
+            CompanyEntryDescriptionId = TestCompanyEntryDescriptionId
+        }, CancellationToken.None);
+        Assert.Equal(expected, result);
     }
 
     [Theory]

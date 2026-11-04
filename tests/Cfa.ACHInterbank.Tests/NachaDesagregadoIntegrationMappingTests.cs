@@ -144,6 +144,30 @@ public sealed class NachaDesagregadoIntegrationMappingTests
     }
 
     [Theory]
+    [InlineData("amount", "PROC_TRANSACCIONES_AMOUNT_MISMATCH")]
+    [InlineData("receiver", "PROC_TRANSACCIONES_RECEIVER_ACCOUNT_MISMATCH")]
+    [InlineData("trace", "PROC_TRANSACCIONES_TRACE_MISMATCH")]
+    [InlineData("code", "PROC_TRANSACCIONES_CREDIT_ONLY")]
+    public async Task ProcTransacciones_RejectsIncoherentTransactionBeforeBuildingSoap(string field, string errorCode)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishProcTransaccionesMappingAsync();
+        switch (field)
+        {
+            case "amount": fixture.Transaction.Amount += 1m; break;
+            case "receiver": fixture.Transaction.DestinationAccountNumber = "UNRELATED-ACCOUNT"; break;
+            case "trace": fixture.Transaction.TraceSequenceNumber = 7654321; break;
+            case "code": fixture.Transaction.TransactionCode = "27"; break;
+        }
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ProcTransaccionesRequestMapper(fixture.Context).ResolveAsync(
+                fixture.Queue, fixture.Ingestion, fixture.Classification,
+                fixture.Transaction, fixture.Cycle, DateTime.UtcNow));
+        Assert.Contains(errorCode, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("0000001", "000001")]
     [InlineData("0000000", "000000")]
     public void FunctionalBatchId_ValidSevenDigitBatch_FormatsD6(string input, string expected)

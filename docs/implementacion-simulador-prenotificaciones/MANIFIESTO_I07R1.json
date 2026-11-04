@@ -1,0 +1,19 @@
+{
+  "increment": "I07-R1",
+  "base": "ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I07_2026-11-02.zip",
+  "type": "Cumulative full project, no feature expansion",
+  "source_changes": [
+    "src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs",
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs",
+    "web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts"
+  ],
+  "test_changes": [
+    "web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.spec.ts",
+    "tests/Cfa.ACHInterbank.Tests/NachaInboundSimulatorTests.I07R.cs",
+    "scripts/test/prenotification_simulator_i07r_static_check.py"
+  ],
+  "runtime_homologation": "NOT_EXECUTED",
+  "PRE_homologated": 0,
+  "PRE_total": 14,
+  "external_sha256_manifest": "ACHInterbank_SIMULADOR_PRENOTIFICACIONES_I07R1_SHA256.txt"
+}

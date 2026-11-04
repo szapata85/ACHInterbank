@@ -1,0 +1,35 @@
+{
+  "gate": "PARENT_ZIP_LINEAGE_AND_FULL_SOURCE_PRESERVATION",
+  "parent_zip": "ACHInterbank_NAV_UX_MFT_2026-10-27_I04A_PROYECTO_COMPLETO.zip",
+  "expected_parent_sha256": "94e6d0c03576b26a9ff34cd32a070679b6e49261f7facb2efe007aca8d2aabd0",
+  "actual_parent_sha256": "94e6d0c03576b26a9ff34cd32a070679b6e49261f7facb2efe007aca8d2aabd0",
+  "parent_hash_matches": true,
+  "parent_file_count": 4472,
+  "current_file_count": 4478,
+  "preserved_file_count": 4472,
+  "deleted": [],
+  "modified": [
+    "MEMORY.md",
+    "README_NAV_UX_MFT_2026-10-27.md",
+    "docs/ai/spa-navigation-unification/CHATGPT_CHAT_EXECUTION.md",
+    "docs/ai/spa-navigation-unification/DELIVERY_PROTOCOL.md",
+    "docs/ai/spa-navigation-unification/MEMORY_STATE.md",
+    "docs/architecture/SPA_NAVIGATION_MFT_ARCHITECTURE_2026-10-27.md",
+    "docs/architecture/SPA_NAVIGATION_MFT_UNIFICATION_EXECUTION_PLAN_2026-10-27.md",
+    "docs/testing/SPA_NAVIGATION_MFT_TEST_PLAN_2026-10-27.md",
+    "scripts/validate-spa-navigation-mft-unification.py",
+    "web/ach-interbank-ui/src/app/layout/main-layout.component.html",
+    "web/ach-interbank-ui/src/app/layout/main-layout.component.spec.ts",
+    "web/ach-interbank-ui/src/app/layout/main-layout.component.ts"
+  ],
+  "added": [
+    "docs/ai/spa-navigation-unification/BASELINE_LINEAGE_I05.md",
+    "docs/ai/spa-navigation-unification/PACKAGE_MANIFEST_I05.md",
+    "docs/ai/spa-navigation-unification/PROGRESS_REPORT_I05_2026-10-27.md",
+    "docs/ai/spa-navigation-unification/TEST_EVIDENCE_I05_2026-10-27.md",
+    "scripts/test/test_incremental_source_lineage.py",
+    "scripts/verify-incremental-source-lineage.py"
+  ],
+  "invalid_parent_paths": [],
+  "pass": true
+}

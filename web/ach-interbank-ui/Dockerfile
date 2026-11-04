@@ -1,16 +1,16 @@
-FROM node:24.21.0-alpine AS build
+FROM node:24.22.1-alpine AS build
 ARG NPM_VERSION=12.1.0
 WORKDIR /app
 COPY package*.json ./
 RUN apk add --no-cache curl \
     && npm install -g npm@"${NPM_VERSION}"
-# Compensa el package-lock de NAV6 previo a npm ci (reparar y versionar el lock del proyecto a futuro).
-RUN npm install --package-lock-only --ignore-scripts --no-audit --no-fund --loglevel=error \
-    && npm ci --no-audit --no-fund --loglevel=error
+# El lockfile se versiona en fuente: npm ci debe fallar si necesita repararse.
+# Optional deps necesarias para el builder; no instalar scripts de reparacion dentro de la imagen.
+RUN npm ci --include=optional --no-audit --no-fund --loglevel=error
 COPY . .
 RUN npm run build -- --configuration production
 
-FROM nginx:1.30.5-alpine
+FROM nginx:1.30.6-alpine
 RUN apk add --no-cache curl
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -rf /usr/share/nginx/html/*

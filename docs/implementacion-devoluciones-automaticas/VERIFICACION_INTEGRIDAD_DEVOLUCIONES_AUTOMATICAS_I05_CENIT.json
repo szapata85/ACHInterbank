@@ -1,0 +1,56 @@
+{
+  "incremento": "I05-CENIT",
+  "fecha": "2026-11-03",
+  "origen": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I04_CENIT_2026-11-03.zip",
+  "origen_sha256": "6b6bfeb57ede872f8c0dcde8aa2cd02fd038331123c5653c17fe9fbeb2b6e23b",
+  "comparacion_originales": {
+    "total": 4918,
+    "identicos": 4912,
+    "modificados": 6,
+    "eliminados": 0
+  },
+  "controles_estaticos_ejecutados": {
+    "I01_CENIT": "29/29",
+    "I02_CENIT": "50/50",
+    "I03_CENIT": "57/57",
+    "I04_CENIT": "71/71",
+    "I05_CENIT": "84/84",
+    "I04_ACH": "32/35 NO APROBADO"
+  },
+  "compilacion_dotnet": "NO EJECUTADA — SDK .NET no disponible",
+  "pruebas_xunit": "NO EJECUTADAS",
+  "bases_datos": "NO EJECUTADAS",
+  "homologacion": "NO EJECUTADA",
+  "estado_produccion": "NO-GO",
+  "proceso_de_control": [
+    "comparación SHA-256 del contenido de todas las entradas heredadas",
+    "test CRC ZIP I05",
+    "verificación exacta de los hashes heredados en ZIP generado",
+    "SHA-256 externo del ZIP final"
+  ],
+  "zip_final_contenidos_verificados_en_preliminar": true,
+  "zip_final_crc_comparacion_repetida_tras_generar": true,
+  "archivos_i05_totales": 4934,
+  "archivos_agregados": 16,
+  "archivos_agregados_lista": [
+    "docs/implementacion-devoluciones-automaticas/EJECUCION_CONTROLES_ESTATICOS_I05_CENIT.txt",
+    "docs/implementacion-devoluciones-automaticas/EVIDENCIA_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.md",
+    "docs/implementacion-devoluciones-automaticas/INFORME_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.md",
+    "docs/implementacion-devoluciones-automaticas/INVENTARIO_CONSERVADOS_I05_CENIT.tsv",
+    "docs/implementacion-devoluciones-automaticas/MANIFIESTO_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.json",
+    "docs/implementacion-devoluciones-automaticas/MEMORY_STATE_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.md",
+    "docs/implementacion-devoluciones-automaticas/PLAN_DEVOLUCIONES_AUTOMATICAS_CENIT_I05.md",
+    "docs/implementacion-devoluciones-automaticas/VERIFICACION_INTEGRIDAD_DEVOLUCIONES_AUTOMATICAS_I05_CENIT.json",
+    "scripts/test/automatic_returns_i05_cenit_static_check.py",
+    "src/Cfa.ACHInterbank.Api/Controllers/CenitReturnArtifactController.cs",
+    "src/Cfa.ACHInterbank.Application/ACH/Interfaces/ICenitReturnArtifactService.cs",
+    "src/Cfa.ACHInterbank.Application/ACH/Models/CenitReturnArtifactModels.cs",
+    "src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/20261103190000_CenitReturnArtifact2026.cs",
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitReturnArtifactService.cs",
+    "src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/20261103190000_CenitReturnArtifact2026.cs",
+    "tests/Cfa.ACHInterbank.Tests/CenitReturnArtifactI05Tests.cs"
+  ],
+  "archivos_originales_identicos": 4912,
+  "archivos_originales_modificados": 6,
+  "archivos_originales_eliminados": 0
+}

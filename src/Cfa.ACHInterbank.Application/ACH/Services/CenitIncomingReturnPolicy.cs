@@ -75,6 +75,15 @@ public sealed class CenitIncomingReturnPolicy : ICenitIncomingReturnPolicy
 
         if (code == R06)
         {
+            // The fifth CENIT session receives returns of fourth-session entries;
+            // operational evidence does not override the session's source restriction.
+            if (request.ReturnCycleNumber == 5
+                && (request.OriginalCycleNumber != 4
+                    || request.ReturnValueDate.Date != request.OriginalValueDate.Date))
+            {
+                return Reject("CENIT_CYCLE5_R06_ORIGIN_C4_REQUIRED", "R06 del ciclo 5 exige una entrada original del ciclo 4 del mismo dia operacional.");
+            }
+
             return EvaluateR06(request);
         }
 
@@ -238,11 +247,9 @@ public sealed class CenitIncomingReturnPolicy : ICenitIncomingReturnPolicy
             return Reject("CENIT_R23_PARTIAL_OR_AMOUNT_MISMATCH", "R23 solo permite devolver el valor original completo.");
         }
 
+        // OriginalValueDate is not the original receipt date: the 15-day limit
+        // is evaluated below against the persisted original processing date.
         var elapsedDays = (request.ReturnValueDate.Date - request.OriginalValueDate.Date).Days;
-        if (elapsedDays > 15)
-        {
-            return Reject("CENIT_R23_MAX_CALENDAR_DAYS_EXCEEDED", "R23 excede quince dias calendario desde la entrada al Participante Receptor.");
-        }
 
         if (!request.ReturnRequestDate.HasValue || !request.ImmediateReturnCycleConfirmed.HasValue)
         {
@@ -262,17 +269,51 @@ public sealed class CenitIncomingReturnPolicy : ICenitIncomingReturnPolicy
 
         if (elapsedDays == 0)
         {
-            return Allow("CENIT_R23_SAME_DAY_ALLOWED", "R23 del mismo dia conserva Fecha Valor y acredita el ciclo de devoluciones mas inmediato.");
+            // Same-day R23 must follow the ordinary next-cycle rule; it is NOT the
+            // prior-day R23 exception allowed in all sessions.
+            return IsImmediateFollowingCycle(request.OriginalCycleNumber!.Value, request.ReturnCycleNumber!.Value)
+                ? Allow("CENIT_R23_SAME_DAY_NEXT_CYCLE_ALLOWED", "R23 del mismo dia cumple el ciclo inmediatamente siguiente.")
+                : Reject("CENIT_R23_SAME_DAY_NOT_NEXT_CYCLE", "R23 del mismo dia no pertenece a la excepcion de devoluciones de dias anteriores.");
         }
 
-        if (!request.ReceiverRejectionDeadlineDate.HasValue)
+        if (!request.OriginalReceivedDate.HasValue)
         {
-            return Manual("CENIT_R23_NOTIFICATION_DEADLINE_REQUIRED", "R23 posterior requiere la fecha limite calculada desde la notificacion del Receptor.");
+            return Manual("CENIT_R23_ORIGINAL_RECEIPT_REQUIRED", "R23 posterior requiere fecha verificable de recepcion original, distinta de la Fecha Valor.");
         }
 
-        return request.ReturnValueDate.Date <= request.ReceiverRejectionDeadlineDate.Value.Date
-            ? Allow("CENIT_R23_LATER_ALLOWED", "R23 posterior cumple el maximo de quince dias y el plazo desde la notificacion del Receptor.")
-            : Reject("CENIT_R23_NOTIFICATION_DEADLINE_EXCEEDED", "R23 no fue tramitada dentro del Dia Habil Bancario siguiente a la notificacion del Receptor.");
+        var receipt = request.OriginalReceivedDate.Value.Date;
+        if (receipt < request.OriginalValueDate.Date || receipt > request.ReturnValueDate.Date)
+        {
+            return Reject("CENIT_R23_ORIGINAL_RECEIPT_INVALID", "La fecha de entrada al participante receptor no es consistente con la operacion.");
+        }
+
+        if ((request.ReturnValueDate.Date - receipt).Days > 15)
+        {
+            return Reject("CENIT_R23_MAX_CALENDAR_DAYS_EXCEEDED", "R23 excede quince dias calendario desde la entrada al Participante Receptor.");
+        }
+
+        if (!request.ReceiverNotificationReceivedDate.HasValue)
+        {
+            return Manual("CENIT_R23_NOTIFICATION_RECEIPT_REQUIRED", "R23 posterior requiere fecha de recepcion de la notificacion del Receptor.");
+        }
+
+        var notificationDate = request.ReceiverNotificationReceivedDate.Value.Date;
+        if (notificationDate < receipt || notificationDate > request.ReturnValueDate.Date)
+        {
+            return Reject("CENIT_R23_NOTIFICATION_DATE_INVALID", "La fecha de notificacion R23 no es consistente con la entrada y la devolucion.");
+        }
+
+        // This value must be calculated by the existing bank-holiday calendar in
+        // the production caller. Never trust ReceiverRejectionDeadlineDate supplied
+        // as operational evidence to grant eligibility.
+        if (!request.CalculatedNextBusinessDayDeadline.HasValue)
+        {
+            return Manual("CENIT_R23_CALENDAR_VALIDATION_REQUIRED", "No se ha calculado el siguiente Dia Habil Bancario desde la notificacion.");
+        }
+
+        return request.ReturnValueDate.Date <= request.CalculatedNextBusinessDayDeadline.Value.Date
+            ? Allow("CENIT_R23_LATER_ALLOWED", "R23 posterior cumple el plazo calculado desde la notificacion y los quince dias calendario.")
+            : Reject("CENIT_R23_NOTIFICATION_DEADLINE_EXCEEDED", "R23 excede el Dia Habil Bancario siguiente a la notificacion del Receptor.");
     }
 
     private static bool IsImmediateFollowingCycle(int originalCycle, int returnCycle)

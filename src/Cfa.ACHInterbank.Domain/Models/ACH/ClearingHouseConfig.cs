@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
@@ -10,6 +10,9 @@ public class ClearingHouseConfig
  
     public int Id { get; set; }
     public int ClearingHouseId { get; set; }
+
+    // Configuración por cámara; sin conexión al procesamiento automático hasta una fase posterior.
+    public string AutomaticReturnMode { get; set; } = "DESACTIVADO";
     public string? HolidayStrategy { get; set; } // e.g., "Colombian", "US", etc.
     public string TimeZoneId { get; set; } = "America/Bogota";
     public string? PaymentRailCode { get; set; }

@@ -15,7 +15,8 @@
     "test:e2e:cycle-configs:headed": "playwright test e2e/cycle-configs-postgres.spec.ts --project=chromium --headed",
     "e2e:report": "playwright show-report",
     "test:e2e:cfa": "playwright test e2e/cfa-integrations-ux.spec.ts e2e/cfa-integrations-responsive-a11y.spec.ts --project=chromium --workers=1",
-    "security:refresh-lock": "node scripts/refresh-security-lock.mjs"
+    "security:refresh-lock": "node scripts/refresh-security-lock.mjs",
+    "security:verify-lock": "node scripts/verify-security-lock.mjs"
   },
   "private": true,
   "dependencies": {

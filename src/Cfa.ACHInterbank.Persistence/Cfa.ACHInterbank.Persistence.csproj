@@ -32,19 +32,16 @@
   <ItemGroup>
     <PackageReference Include="AdoNetCore.AseClient" Version="0.19.2" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
     <!-- Security pin: Microsoft.Data.SqlClient 6.1.7 can resolve PKCS 9.0.11 on net10 via its net9 dependency group; pin patched .NET 10 servicing version. -->
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.13" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.13" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.13" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.14" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="QuestPDF" Version="2026.9.1" />
-    <PackageReference Include="Quartz" Version="3.21.0" />
-    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.21.0" />
-    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.21.0" />
-    <PackageReference Include="Quartz.Serialization.Json" Version="3.21.0" />
+    <PackageReference Include="Quartz" Version="4.7.1" />
   </ItemGroup>
 
 </Project>

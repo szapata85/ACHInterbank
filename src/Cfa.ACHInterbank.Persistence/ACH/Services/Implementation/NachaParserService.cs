@@ -89,16 +89,17 @@ public class NachaParserService : INachaParserService
                 throw new InvalidOperationException("NACHA_PROFILE_SNAPSHOT_MISMATCH: la identidad del perfil seleccionado cambió antes del parser.");
             }
             var inboundValidator = new NachaInboundValidator(_rejectionCatalog);
+            var validationContext = inboundValidator.CreateContext(selectedPublication, request, profileReader);
+            inboundValidator.SelectNachaErrorDomain(validationContext.IsCenitNachaProfile);
             var databaseValidator = new NachaInboundDatabaseValidator(
                 _context,
                 inboundValidator,
                 IsLocalLiveProcTransaccionesPreparationEnabled());
-            var validationContext = inboundValidator.CreateContext(selectedPublication, request, profileReader);
             var publishedAuthority = validationContext.PublishedAuthority;
             var isCenitInboundProfile = validationContext.IsCenitInboundProfile;
             var isCenitCtxInboundProfile = validationContext.IsCenitCtxInboundProfile;
 
-            var physicalFile = await NachaPhysicalParser.ParseAsync(nachaStream, ct, profileReader);
+            var physicalFile = await NachaPhysicalParser.ParseAsync(nachaStream, ct, profileReader, validationContext.IsCenitNachaProfile);
             var lines = physicalFile.Records.Select(record => record.Content).ToList();
 
             var clearingHouseOrigins = await _context.ClearingHouses

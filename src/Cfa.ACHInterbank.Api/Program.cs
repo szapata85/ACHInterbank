@@ -12,10 +12,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 
 builder.Host.UseNLog();
-//builder.WebHost.ConfigureKestrel(option =>
-//{
-//    option.AddServerHeader = false;
-//});
+// Evitar divulgar la versión del servidor Kestrel en respuestas directas.
+builder.WebHost.ConfigureKestrel(option => option.AddServerHeader = false);
 builder.Services.Configure<DigitalEnvelopeOptions>(builder.Configuration.GetSection("DigitalEnvelope"));
 builder.Services.Configure<DigitalEnvelopeCertificateOptions>(builder.Configuration.GetSection("DigitalEnvelope:CertificateResolver"));
 builder.Services.Configure<DigitalEnvelopeSignatureValidationOptions>(builder.Configuration.GetSection("DigitalEnvelope:SignatureValidation"));

@@ -26,6 +26,18 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
         DateTime executionDateTime,
         CancellationToken ct = default)
     {
+        if (transactions.Count != 1)
+        {
+            throw new InvalidOperationException("PROC_CONTRAPARTIDAS_CARDINALITY: el resolver requiere exactamente una transacción.");
+        }
+
+        var debit = transactions.Single();
+        if (debit.Type != TransactionTypeEnum.Debit || debit.IsPrenotification || debit.Amount <= 0m)
+        {
+            throw new InvalidOperationException(
+                "PROC_CONTRAPARTIDAS_DEBIT_ONLY: se requiere un debito monetario positivo.");
+        }
+
         await new IntegrationMappingBootstrapper(_context).EnsureAsync(ct);
 
         var method = await _context.Set<IntegrationMethod>()
@@ -80,7 +92,7 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             .Where(x => x.MethodId == method.Id && x.IsActive)
             .ToDictionaryAsync(x => x.Id, ct);
 
-        var tx = transactions.OrderBy(x => x.Id).FirstOrDefault();
+        var tx = transactions.Single();
         if (cycle.ClearingHouse is null)
         {
             cycle.ClearingHouse = await _context.Set<ClearingHouse>()
@@ -153,6 +165,16 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             ANSIDTX = ResolveString("ANSIDTX"),
             ANSIDREVER = ResolveInt("ANSIDREVER")
         };
+
+        // Proc_Contrapartidas reports a debit from CFA. A published mapping cannot
+        // silently turn it into a credit, send both amounts, or change its value.
+        if (!string.Equals(contract.OFDD, "D", StringComparison.Ordinal)
+            || contract.OFMONDEB != debit.Amount
+            || contract.OFMONCRE != 0m)
+        {
+            throw new InvalidOperationException(
+                "PROC_CONTRAPARTIDAS_MONETARY_MISMATCH: OFDD/OFMONDEB/OFMONCRE no corresponden al debito de origen.");
+        }
 
         var snapshotHash = await _context.Set<IntegrationMappingSetHistory>()
             .AsNoTracking()

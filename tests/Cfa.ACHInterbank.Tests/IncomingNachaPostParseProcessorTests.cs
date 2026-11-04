@@ -1,4 +1,4 @@
-using Cfa.ACHInterbank.Application.ACH.Interfaces;
+﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -376,6 +376,91 @@ public class IncomingNachaPostParseProcessorTests
 
         state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(e => e.EventType == "TransicionBloqueada"));
+    }
+
+    [Fact]
+    public async Task I04_PrenoteReturnWithWrongOriginalTrace_DoesNotApplyAnyState()
+    {
+        using var context = BuildContext();
+        SeedMinimalParsed(context, out var ingestionId, out _, out _);
+        var original = context.AchTransactions.Single(x => x.Id == 100);
+        original.IsPrenotification = true;
+        original.Amount = 0;
+        var entry = context.EntryDetails.Single();
+        entry.Amount = 0;
+        entry.SequenceNumber = "876543210000001";
+        var addenda = context.AddendaRecords.Single();
+        addenda.OriginalTraceNumber = "999999990000001";
+        addenda.EntryDetailSequenceNumber = "0000001";
+        context.SaveChanges();
+        var classifier = new Mock<IIncomingNachaFunctionalClassifier>();
+        classifier.Setup(x => x.Classify(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>()))
+            .Returns(new IncomingNachaClassificationResult
+            {
+                FunctionalClass = IncomingNachaFunctionalClass.Devolucion,
+                EligibilityStatus = IncomingNachaEligibilityStatus.PendienteResolucion,
+                RequiresLink = true, OriginalTraceRef = "999999990000001", ReturnReasonCode = "R03"
+            });
+        var linker = new Mock<IIncomingNachaTransactionLinker>();
+        linker.Setup(x => x.LinkAsync(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>(),
+            It.IsAny<IncomingNachaLinkingContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaLinkingResult
+            {
+                AchTransactionId = 100, LinkType = IncomingNachaLinkType.ExactOriginalTraceRef,
+                IsFinal = true
+            });
+        var state = new Mock<IAchStateTransitionService>();
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object,
+            Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(),
+            Mock.Of<IAchRegulatoryCatalogService>(), state.Object);
+        await sut.ProcessAsync(ingestionId, "uat-i04");
+        state.Verify(x => x.TransitionAsync(It.IsAny<AchStateTransitionRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(e => e.EventType == "PrenotificacionReturnBloqueada"));
+        Assert.Equal(IncomingNachaEligibilityStatus.RevisionManual,
+            (await context.IncomingNachaEntryClassifications.SingleAsync()).EligibilityStatus);
+    }
+
+    [Fact]
+    public async Task I04_ValidPrenoteLink_PassesCorrelationGuardBeforeCatalogResolution()
+    {
+        using var context = BuildContext();
+        SeedMinimalParsed(context, out var ingestionId, out _, out _);
+        var original = context.AchTransactions.Single(x => x.Id == 100);
+        original.IsPrenotification = true;
+        original.Amount = 0;
+        var entry = context.EntryDetails.Single();
+        entry.Amount = 0;
+        entry.SequenceNumber = "876543210000001";
+        var addenda = context.AddendaRecords.Single();
+        addenda.OriginalTraceNumber = original.TraceNumber;
+        addenda.EntryDetailSequenceNumber = "0000001";
+        context.SaveChanges();
+        var classifier = new Mock<IIncomingNachaFunctionalClassifier>();
+        classifier.Setup(x => x.Classify(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>()))
+            .Returns(new IncomingNachaClassificationResult
+            {
+                FunctionalClass = IncomingNachaFunctionalClass.Devolucion,
+                EligibilityStatus = IncomingNachaEligibilityStatus.PendienteResolucion,
+                RequiresLink = true, OriginalTraceRef = original.TraceNumber, ReturnReasonCode = "R03"
+            });
+        var linker = new Mock<IIncomingNachaTransactionLinker>();
+        linker.Setup(x => x.LinkAsync(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>(),
+            It.IsAny<IncomingNachaLinkingContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaLinkingResult
+            {
+                AchTransactionId = 100, LinkType = IncomingNachaLinkType.ExactOriginalTraceRef,
+                IsFinal = true
+            });
+        var resultResolver = new Mock<IIncomingNachaAchResultResolver>();
+        resultResolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaAchResultRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaAchResultResolution(false, null, "R03", string.Empty,
+                IncomingNachaBusinessOutcome.PendingResponse, "PROFILE_MISSING"));
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object,
+            Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(),
+            Mock.Of<IAchRegulatoryCatalogService>(), Mock.Of<IAchStateTransitionService>(),
+            null, resultResolver.Object);
+        await sut.ProcessAsync(ingestionId, "uat-i04");
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(e => e.EventType == "PrenotificacionReturnCorrelacionada"));
     }
 
     private static AchDbContext BuildContext()

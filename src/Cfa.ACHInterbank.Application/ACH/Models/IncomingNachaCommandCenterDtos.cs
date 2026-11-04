@@ -206,6 +206,15 @@ public sealed record IncomingNachaIngestionDetailDto(
 
     /// <summary>Cantidad de ítems de cola que no están Confirmed ni FailedFinal.</summary>
     public int PendingTransactions { get; init; }
+
+    // ACHCOL physical-file metadata; nullable for legacy or non-ACHCOL ingestions.
+    public string? CanonicalPlainFileName { get; init; }
+    public string? FileIdModifier { get; init; }
+    public int? FileSequence { get; init; }
+    public int? ExternalCycleNumber { get; init; }
+    public string? FileProtectionKind { get; init; }
+    public DateTime? FileNameDate { get; init; }
+    public string? ResolutionMode { get; init; }
 }
 
 /// <summary>Resumen agregado del contenido y resultados de una ingesta.</summary>
@@ -299,8 +308,8 @@ public sealed class IncomingNachaQueueQuery
 public sealed record IncomingNachaQueueListItemDto(
     Guid Id,
     Guid IngestionId,
-    int AchTransactionId,
-    string AchCycleId,
+    int? AchTransactionId,
+    string? AchCycleId,
     int ClearingHouseId,
     IncomingNachaDispatchQueueStatus QueueStatus,
     int Priority,
@@ -316,6 +325,9 @@ public sealed record IncomingNachaQueueListItemDto(
 {
     /// <summary>Identificador del detalle de transacción clasificado, cuando existe.</summary>
     public int? EntryDetailId { get; init; }
+
+    /// <summary>Origen tipado de cola: CycleBound o AchColFileBased.</summary>
+    public string SourceKind { get; init; } = IncomingNachaDispatchSourceKinds.CycleBound;
 
     /// <summary>Descripción operativa del estado actual de cola.</summary>
     public string QueueStatusText { get; init; } = string.Empty;
@@ -803,7 +815,20 @@ public sealed record IncomingNachaObservabilitySummaryDto(
     IReadOnlyList<IncomingNachaKpiCountDto> QueueByStatus,
     IReadOnlyList<IncomingNachaClearingCycleKpiDto> ByClearingHouseCycle,
     IReadOnlyList<IncomingNachaTopErrorDto> TopErrors,
-    IReadOnlyList<IncomingNachaTimelinePointDto> Timeline);
+    IReadOnlyList<IncomingNachaTimelinePointDto> Timeline)
+{
+    /// <summary>Contadores agregados ACHCOL file-based en la misma ventana; nunca datos bancarios.</summary>
+    public IncomingNachaAchColOperationalKpiDto AchColFileBased { get; init; } = new(0, 0, 0, 0, 0, 0);
+}
+
+/// <summary>Solo conteos de seguridad ACHCOL; no habilita ninguna transicion de cola ni envio CFA.</summary>
+public sealed record IncomingNachaAchColOperationalKpiDto(
+    int TotalItems,
+    int PendingPreflight,
+    int PendingContractHomologation,
+    int PreflightRejected,
+    int UnexpectedNonBlocked,
+    int WithAttempts);
 
 /// <summary>Indicadores agregados de salud del pipeline inbound.</summary>
 /// <param name="TotalIngestions">Cantidad de ingestas dentro de la ventana.</param>

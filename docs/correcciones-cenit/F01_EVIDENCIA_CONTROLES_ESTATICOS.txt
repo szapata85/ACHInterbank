@@ -1,0 +1,13 @@
+PASS: Scheduler sigue invocando la ruta CENIT
+PASS: Ruta productiva espera respuesta oficial
+PASS: Ruta productiva NO ejecuta simulador
+PASS: Ruta F01 NO consume cola antes de F03
+PASS: Neteo simulado NO implica liquidación
+PASS: Simulador NO modifica estado ni causal
+PASS: Simulador NO reubica transacción/lote
+PASS: Simulador NO produce eventos ni colas
+PASS: Simulador etiqueta todas las decisiones
+PASS: Simulación no es evidencia operativa de procesamiento
+PASS: Prioridades SEC y de devolución explícitas
+PASS: Suite C# cubre límites, espera oficial y ACH
+RESULTADO: 12/12 controles estáticos correctos. PRUEBAS .NET: NO EJECUTADAS.

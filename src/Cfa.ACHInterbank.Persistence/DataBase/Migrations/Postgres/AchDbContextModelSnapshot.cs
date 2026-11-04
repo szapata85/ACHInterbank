@@ -4516,6 +4516,107 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("AchReturnCodes", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CenitReturnPreparation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("OriginalTransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SourceExecutionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SourceQueueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OriginalCycleId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("SuggestedReturnCycleId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ReasonCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateTime>("OriginalValueDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("SuggestedValueDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("PreparedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .IsConcurrencyToken()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ReviewedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecisionJustification")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("DecisionEvidenceReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ProtectedArtifactContent")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ArtifactSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ArtifactFileName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ArtifactTraceNumber")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
+
+                    b.Property<string>("ArtifactProfileCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("ArtifactRecordCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("GeneratedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GeneratedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OriginalTransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CenitReturnPreparation_Original");
+
+                    b.HasIndex("SourceExecutionId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CenitReturnPreparation_Execution");
+
+                    b.ToTable("CenitReturnPreparations", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnGenerated", b =>
                 {
                     b.Property<int>("Id")
@@ -6507,6 +6608,13 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", b =>
                 {
+                    b.Property<string>("AutomaticReturnMode")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("DESACTIVADO");
+
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
@@ -6542,7 +6650,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.HasIndex("NachaProfileId");
 
-                    b.ToTable("ClearingHouseConfigs");
+                    b.ToTable("ClearingHouseConfigs", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClearingHouseConfigs_AutomaticReturnMode", "\"AutomaticReturnMode\" IN ('DESACTIVADO', 'CON_APROBACION', 'AUTOMATICO')");
+                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseCycleConfig", b =>
@@ -10135,10 +10246,12 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasColumnType("uuid");
 
                     b.Property<string>("AchCycleId")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("AchTransactionId")
+                    b.Property<int?>("AchTransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EntryDetailId")
                         .HasColumnType("integer");
 
                     b.Property<int>("AttemptCount")
@@ -10164,7 +10277,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<Guid>("IncomingNachaFileIngestionId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("IncomingNachaTransactionLinkId")
+                    b.Property<Guid?>("IncomingNachaTransactionLinkId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("LastAttemptAtUtc")
@@ -10197,12 +10310,21 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<int>("QueueStatus")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SourceKind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("CycleBound");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
                     b.HasIndex("AchTransactionId");
+
+                    b.HasIndex("EntryDetailId");
 
                     b.HasIndex("IdempotencyDispatchKey")
                         .IsUnique();
@@ -10215,7 +10337,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.HasIndex("QueueStatus", "NextAttemptAtUtc", "Priority");
 
-                    b.ToTable("IncomingNachaDispatchQueue", (string)null);
+                    b.ToTable("IncomingNachaDispatchQueue", (string)null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IncomingNachaDispatchQueue_SourceShape", "(\"SourceKind\" = 'CycleBound' AND \"AchTransactionId\" IS NOT NULL AND \"AchCycleId\" IS NOT NULL AND \"EntryDetailId\" IS NULL AND \"IncomingNachaTransactionLinkId\" IS NOT NULL) OR (\"SourceKind\" = 'AchColFileBased' AND \"EntryDetailId\" IS NOT NULL AND \"AchTransactionId\" IS NULL AND \"AchCycleId\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.IncomingNachaEntryClassification", b =>
@@ -10302,6 +10427,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CanonicalPlainFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -10329,6 +10458,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<DateTime?>("EffectiveDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("ExternalCycleNumber")
+                        .HasColumnType("integer");
+
                     b.Property<string>("FileExtension")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -10344,8 +10476,19 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
 
+                    b.Property<string>("FileIdModifier")
+                        .HasMaxLength(1)
+                        .HasColumnType("character varying(1)");
+
                     b.Property<DateTime?>("FileNameDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileProtectionKind")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int?>("FileSequence")
+                        .HasColumnType("integer");
 
                     b.Property<long>("FileSize")
                         .HasColumnType("bigint");
@@ -13802,6 +13945,25 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("ClearingHouse");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CenitReturnPreparation", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "OriginalTransaction")
+                        .WithMany()
+                        .HasForeignKey("OriginalTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.IncomingNachaIntegrationExecution", "SourceExecution")
+                        .WithMany()
+                        .HasForeignKey("SourceExecutionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OriginalTransaction");
+
+                    b.Navigation("SourceExecution");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnGenerated", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "OriginalTransaction")
@@ -14860,8 +15022,12 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "AchTransaction")
                         .WithMany()
                         .HasForeignKey("AchTransactionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", "EntryDetail")
+                        .WithMany()
+                        .HasForeignKey("EntryDetailId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.IncomingNachaEntryClassification", "Classification")
                         .WithMany()
@@ -14878,10 +15044,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.IncomingNachaTransactionLink", "TransactionLink")
                         .WithMany()
                         .HasForeignKey("IncomingNachaTransactionLinkId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("AchTransaction");
+
+                    b.Navigation("EntryDetail");
 
                     b.Navigation("Classification");
 

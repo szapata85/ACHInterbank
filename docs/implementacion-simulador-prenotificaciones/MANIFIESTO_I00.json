@@ -1,0 +1,162 @@
+{
+  "version": "I00",
+  "fecha": "2026-11-02",
+  "tipo": "paquete_documental_sin_cambios_funcionales",
+  "estado": "I00_COMPLETADO_DOCUMENTAL",
+  "base_zip": "ACHInterbank_PROYECTO_COMPLETO_CORRECCIONES_CENIT_F08_2026-11-02.zip",
+  "base_zip_sha256": "14ecbcc8d9639920fbc5ff86ce13f752797e195ef507e1ec6b5014a550628c4b",
+  "base_entries": 4671,
+  "added_entries": 28,
+  "total_entries": 4699,
+  "source_code_modified": false,
+  "functional_increments_finished": [],
+  "functional_increments_pending": [
+    "I01",
+    "I02",
+    "I03",
+    "I04",
+    "I05",
+    "I06",
+    "I07"
+  ],
+  "tests_executed_for_new_feature": 0,
+  "new_entries": [
+    {
+      "path": "ACHInterbank_ajustado/MEMORY_STATE.md",
+      "bytes": 6646,
+      "sha256": "d2e443a5394cd441bdf9475c8507f91773ae4094d2cbc4f9e52e9e3ccebb87c3"
+    },
+    {
+      "path": "ACHInterbank_ajustado/README_ENTREGA_SIMULADOR_PRENOTIFICACIONES.md",
+      "bytes": 3103,
+      "sha256": "19ebdf9c9b89f39bd3c50af810a04b96e64df4c3fed0fde0389b45a35b01ee11"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/AUDITORIA_BASE_SPA_2026-11-02.md",
+      "bytes": 17632,
+      "sha256": "5b2084b74e05628a1fa1238661da56aa28f79d98225e6cf9f491edf089334b97"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/CHANGELOG_INCREMENTAL.md",
+      "bytes": 1013,
+      "sha256": "11d8e3768c97f9314ae9b9326b327cf5dd1857634563518c0a4962591a9e29ca"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.json",
+      "bytes": 1622,
+      "sha256": "58014f894a5729f6a879f09fc6857943391e5392fd365008c9075dc09ec788f0"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md",
+      "bytes": 3728,
+      "sha256": "a89b03fde2cf948123711494a339e1a57b1411c4099b2de9bae9bcd4d78b616f"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/GUIA_CHATGPT_MODO_CHAT.md",
+      "bytes": 4154,
+      "sha256": "9e9e19ca2b27e578e4c9379e0c49756767547e54622e4ed063122153b19e2a62"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/INDICE_REFERENCIAS.md",
+      "bytes": 1552,
+      "sha256": "0f334dbeb221cb90ee38590488a94116f6b11929568e1e8018b7f17089564aee"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/INFORME_I00.md",
+      "bytes": 1751,
+      "sha256": "2bcb2ca1c52f3782f5059422a97ffcf9b005ec8e31d0a054cf8e96ca2e93dad1"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/MATRIZ_ACEPTACION.md",
+      "bytes": 2146,
+      "sha256": "8ba8480ae7444101019ed3f546deb33e29d8f87a63bc3146e9d97d66e18a7461"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/PLAN_IMPLEMENTACION_2026-11-02.md",
+      "bytes": 16938,
+      "sha256": "45b7596b8822c62ceb34f85102c017142fcc4f38310ccad1fad4a079b63ffc60"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/evidencias/auditoria_spa_simulador_checks_2026-11-02.json",
+      "bytes": 1001,
+      "sha256": "71487963e47110e9931bde92c407409ea9658e065756c6b36e4ad44abf9e68e6"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/evidencias/verificaciones_estaticas_spa_simulador.py",
+      "bytes": 4241,
+      "sha256": "fc4c6a45fdf666e799910811404c03c4ddf00b87e04544221773c6909f447369"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/ACH-Colombia-V35.md",
+      "bytes": 728479,
+      "sha256": "dcac71b23bb047bfa280c4351c62415574961ca5c254d478e3b0ad8b86e59083"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/ACH-Colombia-V35.pdf",
+      "bytes": 7007293,
+      "sha256": "73523776024ce9c3bfb9df96b90170733c13fd35e469ac797768ec18762a17c8"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/ACHInterbank_Future_IAM_Security_UX_Implementation_Design.md",
+      "bytes": 51355,
+      "sha256": "df56b5dc5b8565a77fe8ef7f82af511a496ca0d55e70b690b633b1d1e4828363"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/CENIT-Anexo-A-Causales-Devolucion.md",
+      "bytes": 18716,
+      "sha256": "437340a160fd84bf40669656140b4cefc867074e17821c7b7f9a7ac944a2ecfb"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/CENIT-Anexo-B-Causales-Rechazo.md",
+      "bytes": 4174,
+      "sha256": "e150b86378d6ed0a2a31a08336985f1b3490f551e80982f709c3256b486adbfd"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/CENIT-DSP-152-Anexo-2.md",
+      "bytes": 52694,
+      "sha256": "abf9862df69b2b62d9e43e8b9b0d1a5c9d864a759733eab763760e383ba15f5a"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/Manual de Especificaciones Formato NACHA-M CENIT.md",
+      "bytes": 208810,
+      "sha256": "617e7f089a7544a1838a2cf7cf6f07df5e3517fedfbc2679c9e8c79b56cd735b"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/Manual de Especificaciones Formato NACHA-M CENIT.pdf",
+      "bytes": 1686137,
+      "sha256": "96831e54e4a3ae0ae1247bf3ea27885fbc38405c7432e3189b54343e7d76cb94"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/Manual de Usuario CENIT.md",
+      "bytes": 80818,
+      "sha256": "6c975042120d731588c7b92b2cb2ddcaa53f3bb97d6dcc10ad676d1ca808dc6c"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/Manual de Usuario CENIT.pdf",
+      "bytes": 6922744,
+      "sha256": "33c72717ae1c1f98c0b82648bc333c34b4f237e40871cb90cc36cdcd46829865"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/Nuevos Ciclos de Proceso y Horarios.pdf",
+      "bytes": 189836,
+      "sha256": "3f60bb2b596786c278055cd84fcb06712b81d93486f52bfae675556860a44f25"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/WSAxonRespuestaTransacciones.wsdl (1).xml",
+      "bytes": 3226,
+      "sha256": "7c6a8b15ea18b32b0becc3f7a93115c0212a0ec600fc1cf7c7c31569461e96cb"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/WSCFAACH.wsdl (1).xml",
+      "bytes": 4379,
+      "sha256": "39496a9dbb149f00d2329e854fd6df7bc9272f27c57e8b4146405bfd4bdc66a2"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/referencias/ceos_dsp_152_MAY_27_2022.md",
+      "bytes": 165916,
+      "sha256": "96d10a84d8946fedbed371205cadb9f2b0771d4f42699133accf9ffcfe869d07"
+    }
+  ],
+  "base_entries_preserved": true,
+  "validation_note": "Comprobaciones de auditoria previas son patrones estaticos, no pruebas runtime."
+}

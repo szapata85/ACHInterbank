@@ -1,0 +1,110 @@
+===== F01 rc=0 =====
+PASS: Scheduler sigue invocando la ruta CENIT
+PASS: Ruta productiva espera respuesta oficial
+PASS: Ruta productiva NO ejecuta simulador
+PASS: Ruta F01 NO consume cola antes de F03
+PASS: Neteo simulado NO implica liquidación
+PASS: Simulador NO modifica estado ni causal
+PASS: Simulador NO reubica transacción/lote
+PASS: Simulador NO produce eventos ni colas
+PASS: Simulador etiqueta todas las decisiones
+PASS: Simulación no es evidencia operativa de procesamiento
+PASS: Prioridades SEC y de devolución explícitas
+PASS: Suite C# cubre límites, espera oficial y ACH
+RESULTADO: 12/12 controles estáticos correctos. PRUEBAS .NET: NO EJECUTADAS.
+
+
+===== F02 rc=0 =====
+PASS F02-S01 operator rejection has a branch before file transitions
+PASS F02-S02 NACK updates only matched transaction state
+PASS F02-S03 NACK creates operator event
+PASS F02-S04 ACK/whole file NACK retains separate file transition
+PASS F02-S05 item NACK cannot override official trace by caller
+PASS F02-S06 duplicate preflight remains before mutations
+PASS F02-S07 all row effects are saved in one ImportAsync SaveChanges
+PASS F02-S08 ADV validates profile, control and totals
+PASS F02-S09 ADV codes 81-88 and cycle correlation
+PASS F02-S10 ADV does not apply transaction event or file state
+PASS F02-S11 multiple-item and item-only tests present
+PASS F02-S12 negative and replay tests present
+PASS F02-S13 gateway continues to invoke official response service
+13/13 static checks PASS (no C# compilation performed).
+
+
+===== F03 rc=0 =====
+PASS F03 Service method is a public interface contract
+PASS F03 Export calls incorporation before materializing NACHA details
+PASS F03 Only CENIT invokes incorporation
+PASS F03 Builder forwards dependency to coordinator
+PASS F03 Loader filters transactions by actual cycle id
+PASS F03 Serializable transaction and retry strategy
+PASS F03 Queue is consumed only after assignment
+PASS F03 Transaction, batch and event share SaveChanges
+PASS F03 No CUD and no financial-state transition
+PASS F03 Idempotence avoids repeated consumption
+PASS F03 Exported target blocked
+PASS F03 Previously presented source blocked
+PASS F03 Cross-business-day value date not silently modified
+PASS F03 Old and new batch control totals updated
+PASS F03 F03 tests include success and idempotence
+PASS F03 F03 tests include fault and rollback
+PASS F03 F03 tests include ACH and value-date boundaries
+RESULTADO 17/17 controles estáticos; dotnet/xUnit NO ejecutados por ausencia de SDK.
+
+
+===== F04 rc=0 =====
+PASS R06 C5 origin C4 enforced before R06 evaluation
+PASS R06 C5 same operational day
+PASS R23 same-day next-cycle enforced
+PASS R23 prior-day exception still C1-only
+PASS R23 max calendar days from receipt
+PASS R23 missing receipt fails closed
+PASS R23 missing receiver notification fails closed
+PASS R23 missing computed deadline fails closed
+PASS R23 calendar deadline used instead of supplied
+PASS R23 fifteen day inclusive
+PASS R23 original received and notification separate from value date
+PASS Outbound caller awaits calendar from notification+1
+PASS Inbound caller awaits calendar from notification+1
+PASS Outbound original receipt sourced from persisted cycle
+PASS Inbound original receipt sourced from persisted cycle
+PASS Outbound only evaluates CENIT
+PASS Inbound excludes non-CENIT
+PASS No CUD integration introduced
+PASS R23 and R06 targeted xUnit cases
+PASS Calendar route xUnit checks supplied deadline ignored
+PASS No new Dxx STA codes
+TOTAL 21/21
+
+
+===== F05 rc=0 =====
+PASS C1 source Return id recorded on flow
+PASS C1 source Return resolved by raw trace
+PASS C1 source Return amount checked
+PASS C1 source Return cycle checked
+PASS C1 no ambiguous duplicates
+PASS C1 registration preserves raw-only correlation
+PASS C1 no Original fallback
+PASS C1 generator validates original raw without synthetic Return
+PASS C1 generator verifies parent link
+PASS C1 generator validates raw trace
+PASS C1 generator validates raw amount
+PASS C1 calendar rule maintained
+PASS R74 catalog only on R32
+PASS R74 parent validation outgoing/incoming
+PASS R74 monetary credit validation
+PASS R74 adenda return code 99 never counted
+PASS R74 requires field3 information
+PASS R74 zero-only fields do not qualify
+PASS R74 rerun on productive file generator
+PASS R74 parent and addenda tests
+PASS C1 persisted source test
+PASS C1 generator raw fallback/negative tests
+PASS C1 seeded test fixture has original/source distinct
+PASS Catalog tests revised
+PASS ACH Colombia policy unchanged
+PASS CUD remains out of scope
+TOTAL 26/26
+
+
+.NET SDK/dotnet test: no disponible; no se ejecutaron xUnit.

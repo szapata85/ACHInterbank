@@ -1,0 +1,34 @@
+{
+  "base_zip": "ACHInterbank_COMPLETO_CORRECCION_PRENOTIFICACIONES_APN_I08_2026-11-03.zip",
+  "increment": "APN-I09",
+  "date": "2026-11-03",
+  "original_files": 4989,
+  "untouched_original_files": 4981,
+  "modified_original_files": 8,
+  "new_files_excluding_manifest": 8,
+  "missing_original_files": 0,
+  "modified_files": [
+    "ACHInterbank_ajustado/MEMORY_STATE_APN.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/HALLAZGOS.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/MEMORY_STATE.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/STATUS_IMPLEMENTACIONES.md",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationTacitAcceptanceDecision.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ClearingHouseValidationPolicyService.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/ThirdPartyAccountValidationLifecycleTests.cs"
+  ],
+  "new_files": [
+    "ACHInterbank_ajustado/MEMORY_STATE_APN_I09.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I09_EJECUCIONES.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I09_TEST_DOTNET.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I09_TEST_ESTATICAS.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I09_TEST_I08.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/incrementos/APN-I09_GUARDAS_ACEPTACION_TACITA.md",
+    "ACHInterbank_ajustado/scripts/audit/prenotificaciones/test_apn_i09_safety.py",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/PrenotificationTacitAcceptanceI09SafetyTests.cs"
+  ],
+  "runtime_dotnet": "NO_EJECUTADO",
+  "static_i08": "PASS 6/6",
+  "static_i09": "PASS 8/8",
+  "current_status": "IMPLEMENTADO_EN_FUENTE_NO_HOMOLOGADO"
+}

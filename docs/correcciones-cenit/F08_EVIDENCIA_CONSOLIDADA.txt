@@ -1,0 +1,42 @@
+F08 EVIDENCIA CONSOLIDADA — 2026-11-02
+Línea base F07 ZIP SHA-256 86e4ea5ccf30b1155fbc3a9477889bc611b499d326210b2f042fe5bd99b2c5f0
+Entradas F07: 4660; CRC testzip=None; duplicados=0; extracción comparada: 4660/4660 bytes/hash iguales
+global.json SDK=10.0.403; command -v dotnet: sin resultado (SDK ausente)
+
+=== CONTROLES ESTÁTICOS REALMENTE EJECUTADOS ===
+F01 rc=0; RESULTADO: 12/12 controles estáticos correctos. PRUEBAS .NET: NO EJECUTADAS.
+F02 rc=0; 13/13 static checks PASS (no C# compilation performed).
+F03 rc=0; RESULTADO 17/17 controles estáticos; dotnet/xUnit NO ejecutados por ausencia de SDK.
+F04 rc=0; TOTAL 21/21
+F05 rc=0; TOTAL 26/26
+F06 rc=0; RESULT: 24/24 PASS
+F07 rc=0; RESULT: 24/24 PASS; C# xUnit, relational DB and operator gateway NOT EXECUTED
+F01–F07: 137/137 PASS (verificaciones estáticas/fixtures; NO .NET)
+
+=== F08 VERIFICACIÓN DOCUMENTAL ===
+PASS F08 original I10 HC set is exactly 001-013
+PASS F08 F08 closing matrix HC set exactly 001-013
+PASS F08 F08 closing matrix contains 13 open rows
+PASS F08 original I10 posterior PT set exactly 01-22
+PASS F08 F08 plan PT set exactly 01-22
+PASS F08 F08 plan has 22 explicitly pending rows
+PASS F08 F08 verdict explicitly denies homologation
+PASS F08 F08 official accounting excluded
+PASS F08 F08 checklist blocks four technical gates
+PASS F08 SDK requirement transcribed from actual global.json
+PASS F08 historical 7 phase memories preserved
+PASS F08 historical seven phase reports preserved
+PASS F08 historical original audit closing criteria preserved
+PASS F08 F07 suite remains available and not silently replaced
+PASS F08 all F07 product/test/audit files identical bytes in F08
+PASS F08 all F07 entries exist after F08
+PASS F08 F08 changes confined to correction documentation
+F08 RESULT: 17/17 documentary/static checks pass; runtime tests NOT EXECUTED; 0 HC closed.
+F08 17/17 PASS; total 154/154 fuente/documento/fixtures
+
+=== RUNTIME NO EJECUTADO ===
+F07 .NET runner rc=2; F07 NOT EXECUTED: .NET SDK absent; no runtime test result may be claimed.
+xUnit ejecutadas 0, aprobadas 0, fallidas ejecutadas 0; 22 PT pendientes no ejecutadas
+No se efectuó compilación, SQL/Quartz, gateway CENIT, Tesorería, certificación ni regresión funcional ACH Colombia.
+13/13 HC implementados PENDIENTES DE VERIFICACIÓN; 0 cerrados.
+100% avance de ENTREGABLES, NO-GO para homologación y producción.

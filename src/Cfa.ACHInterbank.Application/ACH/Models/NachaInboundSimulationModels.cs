@@ -118,6 +118,135 @@ public sealed record NachaInboundSimulationMetadataDto(
     public IReadOnlyList<string> OriginalTraceNumbers { get; init; } = [];
 }
 
+/// <summary>
+/// I01: contrato independiente para simular el resultado de prenotificaciones
+/// realmente originadas por ACH Interbank. Solo se valida su estructura en I01;
+/// no habilita generacion, transiciones ni simulacion del reloj.
+/// </summary>
+public sealed class PrenotificationSimulationContractRequest
+{
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public PrenotificationSimulationOutcome Outcome { get; set; }
+    public string ClearingHouseCode { get; set; } = string.Empty;
+    public IReadOnlyList<int> OriginalPrenotificationIds { get; set; } = [];
+    public string OriginalCycleId { get; set; } = string.Empty;
+    // Obligatorio solo para Returned. NoReturnByDeadline no representa un ciclo de recepcion.
+    public string? ResponseCycleId { get; set; }
+    public DateOnly BusinessDate { get; set; }
+    public int RespondingFinancialInstitutionId { get; set; }
+    // Obligatorio solo para Returned. NoReturnByDeadline no tiene causal.
+    public string? ReasonCode { get; set; }
+    // Requerido para devoluciones. I02 implementara su reserva/concurrencia.
+    public string? IdempotencyKey { get; set; }
+}
+
+public sealed record PrenotificationSimulationContractViolation(string Code, string Field, string Message);
+
+/// <summary>ShapeValid no significa elegibilidad operativa; ExecutionEnabled es false en I01.</summary>
+public sealed record PrenotificationSimulationContractValidationResponse(
+    bool ShapeValid,
+    bool ExecutionEnabled,
+    string ContractVersion,
+    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
+
+public sealed record PrenotificationSimulationOutcomeCapability(
+    [property: JsonConverter(typeof(JsonStringEnumConverter))] PrenotificationSimulationOutcome Outcome,
+    bool CreatesNachaFile,
+    bool RequiresManualNachaUpload,
+    bool ExecutionEnabled,
+    string Workflow);
+
+public sealed record PrenotificationSimulationContractCapabilitiesResponse(
+    string ContractVersion,
+    string FileReturnScenario,
+    string LegacyScenario,
+    IReadOnlyList<string> SupportedClearingHouses,
+    bool GeneratedOnly,
+    bool AutoImported,
+    bool ExternalTransmission,
+    IReadOnlyList<PrenotificationSimulationOutcomeCapability> Outcomes);
+
+/// <summary>I02: consulta de prenotificaciones realmente originadas. Solo lectura, incluye no elegibles con motivo.</summary>
+public sealed class PrenotificationCandidateQuery
+{
+    public string ClearingHouseCode { get; set; } = string.Empty;
+    public int? RespondingFinancialInstitutionId { get; set; }
+    public DateOnly? FromDate { get; set; }
+    public DateOnly? ToDate { get; set; }
+    public string? Search { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+public sealed record PrenotificationCandidateDto(
+    int OriginalPrenotificationId,
+    string OriginalCycleId,
+    string ClearingHouseCode,
+    int RespondingFinancialInstitutionId,
+    string RespondingFinancialInstitution,
+    string TraceNumber,
+    string TransactionExternalId,
+    string DestinationAccountMasked,
+    DateOnly OriginalBusinessDate,
+    string TransactionStatus,
+    long? ValidationAttemptId,
+    string? ValidationAttemptStatus,
+    DateTimeOffset? ResponseDeadlineAtUtc,
+    bool TransmittedOrAcknowledged,
+    bool HasPriorResponse,
+    bool EligibleForReturn,
+    bool EligibleForNoReturnByDeadline,
+    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
+
+public sealed record PrenotificationCandidatePage(
+    IReadOnlyList<PrenotificationCandidateDto> Items,
+    int Page,
+    int PageSize,
+    int Total,
+    bool ExecutionEnabled);
+
+/// <summary>BusinessEligible solo expresa elegibilidad de consulta; NO autoriza generar ni modificar transacciones.</summary>
+public sealed record PrenotificationBusinessEligibilityPreviewResponse(
+    bool ShapeValid,
+    bool BusinessEligible,
+    bool ExecutionEnabled,
+    string ContractVersion,
+    IReadOnlyList<PrenotificationSimulationContractViolation> Violations,
+    IReadOnlyList<PrenotificationCandidateDto> Candidates);
+
+/// <summary>I05: reloj virtual limitado a la previsualizacion; jamas se escribe como hora de una transaccion.</summary>
+public sealed class PrenotificationTacitAcceptancePreviewRequest
+{
+    public PrenotificationSimulationContractRequest Contract { get; set; } = new();
+    public DateTimeOffset? EvaluationTimeUtc { get; set; }
+}
+
+public sealed record PrenotificationTacitAcceptanceItem(
+    int OriginalPrenotificationId,
+    DateTimeOffset? DeadlineAtUtc,
+    bool WouldApplyAtEvaluationTime,
+    bool EligibleAtRealTime,
+    string Decision,
+    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
+
+public sealed record PrenotificationTacitAcceptancePreviewResponse(
+    DateTimeOffset EvaluationTimeUtc,
+    DateTimeOffset RealTimeUtc,
+    bool IsVirtualTime,
+    bool ReadOnly,
+    bool ExecutionEnabled,
+    IReadOnlyList<PrenotificationTacitAcceptanceItem> Items,
+    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
+
+/// <summary>I05: solo permite confirmar vencimientos REALES en UAT, sin adelantar relojes.</summary>
+public sealed record PrenotificationTacitAcceptanceApplyResponse(
+    DateTimeOffset RealTimeUtc,
+    int Applied,
+    int AlreadyApplied,
+    IReadOnlyList<PrenotificationTacitAcceptanceItem> Items,
+    bool CreatesNachaFile,
+    bool ExternalTransmission);
+
 public sealed class InboundSimulationEligibilityPreviewRequest : GenerateNachaInboundSimulationRequest;
 
 public sealed record InboundSimulationEligibilityPreviewResponse(

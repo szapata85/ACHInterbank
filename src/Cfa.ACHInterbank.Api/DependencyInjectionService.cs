@@ -1,4 +1,3 @@
-using Cfa.ACHInterbank.Api.Helpers.AddressIp;
 using Cfa.ACHInterbank.Api.Filters;
 using Cfa.ACHInterbank.Api.Logging;
 using Cfa.ACHInterbank.Api.Middleware;
@@ -117,7 +116,7 @@ public static class DependencyInjectionService
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
                 return RateLimitPartition.GetFixedWindowLimiter(
-                    AddressIp.GetAddressIp(context.Request),
+                    RateLimitClientIdentity.GetClientKey(context),
                     _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = inboundRateLimit.PermitLimit,
@@ -172,17 +171,22 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
-        // Keep the OpenAPI endpoint deliberately simple. Scalar consumes this exact route.
-        // Caching/compression at this layer can make a generated document failure look like
-        // a Scalar UI problem, so the documentation endpoint is served directly.
-        app.MapOpenApi("/openapi/{documentName}.json")
-            .AllowAnonymous();
-        app.MapScalarApiReference(options => options
-                .WithOpenApiRoutePattern("/openapi/{documentName}.json")
-                .DisableAgent()
-                .DisableMcp()
-                .HideDeveloperTools())
-            .AllowAnonymous();
+        // SECURITY SEC-I05: en entornos no Development, la documentación no se publica
+        // salvo habilitación explícita del operador y control perimetral adicional.
+        // No confundir esta opción con una autenticación para Scalar/OpenAPI.
+        var documentationEnabled = app.Environment.IsDevelopment()
+            || app.Configuration.GetValue<bool>("Documentation:EnableInNonDevelopment");
+        if (documentationEnabled)
+        {
+            app.MapOpenApi("/openapi/{documentName}.json")
+                .AllowAnonymous();
+            app.MapScalarApiReference(options => options
+                    .WithOpenApiRoutePattern("/openapi/{documentName}.json")
+                    .DisableAgent()
+                    .DisableMcp()
+                    .HideDeveloperTools())
+                .AllowAnonymous();
+        }
 
         if (app.Environment.IsDevelopment())
         {
@@ -247,13 +251,13 @@ public static class DependencyInjectionService
 
         app.MapGet("/", context =>
         {
-            context.Response.Redirect("/scalar");
+            context.Response.Redirect(documentationEnabled ? "/scalar" : "/health/live");
             return Task.CompletedTask;
         }).AllowAnonymous();
 
         app.MapGet("/index.html", context =>
         {
-            context.Response.Redirect("/scalar");
+            context.Response.Redirect(documentationEnabled ? "/scalar" : "/health/live");
             return Task.CompletedTask;
         }).AllowAnonymous();
 
@@ -351,9 +355,9 @@ public static class DependencyInjectionService
                         if (schedulerFactory is not null)
                         {
                             var quartzScheduler = await schedulerFactory.GetScheduler(timeoutCts.Token);
-                            var metadata = await quartzScheduler.GetMetaData(timeoutCts.Token);
-                            scheduler = quartzScheduler.IsStarted && !quartzScheduler.IsShutdown ? "Healthy" : "Unhealthy";
-                            persistentStore = metadata.JobStoreSupportsPersistence ? "Healthy" : "Unhealthy";
+                            var metadata = await quartzScheduler.GetMetadata(timeoutCts.Token);
+                            scheduler = quartzScheduler.Status == SchedulerStatus.Running ? "Healthy" : "Unhealthy";
+                            persistentStore = metadata.JobStorePersistent ? "Healthy" : "Unhealthy";
                             clusterInstance = await dbContext.SchedulerInstanceStates.AsNoTracking().AnyAsync(
                                 x => x.SchedulerName == quartzScheduler.SchedulerName
                                      && x.InstanceId == quartzScheduler.SchedulerInstanceId,

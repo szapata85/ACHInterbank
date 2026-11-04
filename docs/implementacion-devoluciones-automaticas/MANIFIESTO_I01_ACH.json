@@ -1,0 +1,45 @@
+{
+  "initiative": "DEV-AUTO-2026-11-02",
+  "increment": "I01-ACH",
+  "chamber_implemented": "ACH Colombia",
+  "chamber_deferred": "CENIT",
+  "status": "IMPLEMENTADO_EN_FUENTE_PENDIENTE_EJECUCION_DOTNET_SQLSERVER",
+  "base_zip": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I00_PLAN_MEMORIA_2026-11-02.zip",
+  "base_zip_sha256": "efeb2d3b4046f6ab01d71fcf6e14133aecb4112cb2ddf28299d7b3131a52d05f",
+  "base_entries_total": 4778,
+  "changed_existing_files": [
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Domain/Models/ACH/ClearingHouseConfig.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/AchDbContextModelSnapshot.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/Configuration/ClearingHouseConfigConfiguration.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/DependencyInjectionService.cs",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/00_LEEME.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/ESTADO_INCREMENTAL.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE.md"
+  ],
+  "new_files": [
+    "ACHInterbank_ajustado/README_ENTREGA_DEVOLUCIONES_AUTOMATICAS_I01_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/EVIDENCIA_I01_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/INFORME_I01_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/PLAN_POR_CAMARA_I01_ACH.md",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/AchColombiaAutomaticReturnSettingsController.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Interfaces/IAchColombiaAutomaticReturnSettingsService.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/AchColombiaAutomaticReturnSettings.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/20261102210000_AchColombiaAutomaticReturnConfigurationI01.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchColombiaAutomaticReturnSettingsService.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchColombiaAutomaticReturnSettingsI01Tests.cs",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MANIFIESTO_I01_ACH.json"
+  ],
+  "original_files_without_changes": 4771,
+  "checks": {
+    "solution_graph": "PASS_EJECUTADO",
+    "static_contract_checks": "PASS_EJECUTADO_13_DE_13",
+    "dotnet_build": "NO_EJECUTADA_POR_AMBIENTE",
+    "xunit": "NO_EJECUTADA_POR_AMBIENTE",
+    "sql_server_migration": "NO_APLICADA_POR_AMBIENTE",
+    "zip_integrity": "VERIFICAR_AL_EMPAQUETAR",
+    "production_go": "NO_GO"
+  },
+  "next_increment": "I02-ACH: detectar fallas de aplicacion en ACH Colombia, sin generar devolucion",
+  "full_zip_sha256": "Se comunica en archivo externo SHA256 para evitar autorreferencia",
+  "preserve_original_root": "ACHInterbank_ajustado/"
+}

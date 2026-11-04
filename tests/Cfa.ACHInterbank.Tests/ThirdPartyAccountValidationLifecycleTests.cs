@@ -594,8 +594,14 @@ public sealed class ThirdPartyAccountValidationLifecycleTests
         {
             ("CENIT-1", new TimeSpan(10, 30, 0)),
             ("CENIT-2", new TimeSpan(13, 0, 0)),
+            ("CENIT-3", new TimeSpan(15, 0, 0)),
+            ("CENIT-4", new TimeSpan(17, 15, 0)),
             ("CENIT-5", new TimeSpan(18, 45, 0))
         });
+        // The response deadline must cover release of the final output file, not cutoff.
+        context.AchCycles.Local.Single(x => x.Id == "ACH-5").OutputReleaseEndTime = new TimeSpan(15, 30, 0);
+        context.AchCycles.Local.Single(x => x.Id == "CENIT-5").OutputReleaseEndTime = new TimeSpan(19, 15, 0);
+
         var achRule = SeedRule(context, 1, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, 3,
             PrenotificationResponseDeadlineMode.CycleCount, 4, true, null, "ACH-DEBIT");
         var cenitRule = SeedRule(context, 2, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, null,
@@ -606,8 +612,210 @@ public sealed class ThirdPartyAccountValidationLifecycleTests
         var achDeadline = await service.ResolvePrenotificationResponseDeadlineAsync(achRule, "ACH-1");
         var cenitDeadline = await service.ResolvePrenotificationResponseDeadlineAsync(cenitRule, "CENIT-1");
 
-        Assert.Equal(new DateTimeOffset(2026, 1, 15, 20, 0, 0, TimeSpan.Zero), achDeadline); // 15:00 America/Bogota
-        Assert.Equal(new DateTimeOffset(2026, 1, 15, 23, 45, 0, TimeSpan.Zero), cenitDeadline); // 18:45 America/Bogota
+        Assert.Equal(new DateTimeOffset(2026, 1, 15, 20, 30, 0, TimeSpan.Zero), achDeadline); // 15:30 America/Bogota
+        Assert.Equal(new DateTimeOffset(2026, 1, 16, 0, 15, 0, TimeSpan.Zero), cenitDeadline); // 19:15 America/Bogota
+    }
+
+    [Fact]
+    public async Task I09_CenitIncompleteDayCalendar_DoesNotAuthorizeEarlyTacitAcceptance()
+    {
+        await using var context = CreateContext();
+        SeedClearingHouseWithCycles(context, 2, "CENIT", new[]
+        {
+            ("CENIT-1", new TimeSpan(10, 30, 0)),
+            ("CENIT-2", new TimeSpan(13, 0, 0)),
+            ("CENIT-4", new TimeSpan(17, 15, 0)),
+            ("CENIT-5", new TimeSpan(18, 45, 0))
+        });
+        context.AchCycles.Local.Single(x => x.Id == "CENIT-5").OutputReleaseEndTime = new TimeSpan(19, 15, 0);
+        var rule = SeedRule(context, 2, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, null,
+            PrenotificationResponseDeadlineMode.OperationalDayEnd, null, true, 13, "CENIT-DEBIT");
+        await context.SaveChangesAsync();
+
+        Assert.Null(await CreatePolicyService(context)
+            .ResolvePrenotificationResponseDeadlineAsync(rule, "CENIT-1"));
+    }
+
+    [Fact]
+    public async Task ResponseDeadline_AchColombiaSevenCycles_WaitsForFourthLaterCycleOutput()
+    {
+        await using var context = CreateContext();
+        var cutoffs = new[] { 7, 9, 11, 12, 14, 16, 18 };
+        SeedClearingHouseWithCycles(context, 1, "ACH", cutoffs.Select((hour, index) =>
+            ($"ACH7-{index + 1}", new TimeSpan(hour, index == 3 ? 30 : index == 4 ? 30 : 0, 0))));
+        context.AchCycles.Local.Single(x => x.Id == "ACH7-5").OutputReleaseEndTime = new TimeSpan(15, 30, 0);
+        foreach (var cycle in context.AchCycles.Local)
+        {
+            cycle.ProcessingDate = new DateTime(2026, 11, 3);
+        }
+        var rule = SeedRule(context, 1, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, 3,
+            PrenotificationResponseDeadlineMode.CycleCount, 4, true, null, "ACHCOL-7C-20261014");
+        await context.SaveChangesAsync();
+
+        var deadline = await CreatePolicyService(context).ResolvePrenotificationResponseDeadlineAsync(rule, "ACH7-1");
+
+        Assert.Equal(new DateTimeOffset(2026, 11, 3, 20, 30, 0, TimeSpan.Zero), deadline);
+        Assert.False(Cfa.ACHInterbank.Application.ACH.Services.PrenotificationTacitAcceptanceDecision.IsDue(
+            deadline, new DateTimeOffset(2026, 11, 3, 19, 30, 0, TimeSpan.Zero), true, true, false));
+    }
+
+    [Fact]
+    public async Task ResponseDeadline_AchColombiaMissingFutureCycles_FailsClosed()
+    {
+        await using var context = CreateContext();
+        SeedClearingHouseWithCycles(context, 1, "ACH", new[]
+        {
+            ("ACH-1", new TimeSpan(7, 0, 0)),
+            ("ACH-2", new TimeSpan(9, 0, 0)),
+            ("ACH-3", new TimeSpan(11, 0, 0)),
+            ("ACH-4", new TimeSpan(12, 30, 0))
+        });
+        context.AchCycles.Local.Single(x => x.Id == "ACH-4").OutputReleaseEndTime = new TimeSpan(13, 30, 0);
+        foreach (var cycle in context.AchCycles.Local)
+        {
+            cycle.ProcessingDate = new DateTime(2026, 11, 3);
+        }
+        var rule = SeedRule(context, 1, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, 3,
+            PrenotificationResponseDeadlineMode.CycleCount, 4, true, null, "ACHCOL-7C-20261014");
+        await context.SaveChangesAsync();
+
+        var deadline = await CreatePolicyService(context).ResolvePrenotificationResponseDeadlineAsync(rule, "ACH-1");
+
+        Assert.Null(deadline); // Three successors are not four, even if the last one has released output.
+    }
+
+    [Fact]
+    public async Task I11_AchColombiaCancelledCycle_IsNotCountedAsNextReturnOpportunity()
+    {
+        await using var context = CreateContext();
+        SeedClearingHouseWithCycles(context, 1, "ACH", new[]
+        {
+            ("ACH7-1", new TimeSpan(7, 0, 0)),
+            ("ACH7-2", new TimeSpan(9, 0, 0)),
+            ("ACH7-3", new TimeSpan(11, 0, 0)),
+            ("ACH7-4", new TimeSpan(12, 30, 0)),
+            ("ACH7-5", new TimeSpan(14, 30, 0)),
+            ("ACH7-6", new TimeSpan(16, 0, 0)),
+            ("ACH7-7", new TimeSpan(18, 0, 0))
+        });
+        foreach (var cycle in context.AchCycles.Local)
+            cycle.ProcessingDate = new DateTime(2026, 11, 3);
+        context.AchCycles.Local.Single(x => x.Id == "ACH7-3").OperationalStatus = AchCycleOperationalStatus.Cancelled;
+        context.AchCycles.Local.Single(x => x.Id == "ACH7-5").OutputReleaseEndTime = new TimeSpan(15, 30, 0);
+        context.AchCycles.Local.Single(x => x.Id == "ACH7-6").OutputReleaseEndTime = new TimeSpan(17, 0, 0);
+        var rule = SeedRule(context, 1, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, 3,
+            PrenotificationResponseDeadlineMode.CycleCount, 4, true, null, "ACHCOL-7C-20261014");
+        await context.SaveChangesAsync();
+
+        // Cycles 2, 4, 5, 6 are four real future opportunities; cancelled cycle 3 is not.
+        var deadline = await CreatePolicyService(context).ResolvePrenotificationResponseDeadlineAsync(rule, "ACH7-1");
+        Assert.Equal(new DateTimeOffset(2026, 11, 3, 22, 0, 0, TimeSpan.Zero), deadline);
+    }
+
+    [Fact]
+    public async Task I11_CancelledSourceCycle_NeverProducesTacitDeadline()
+    {
+        await using var context = CreateContext();
+        SeedClearingHouseWithCycles(context, 1, "ACH", new[]
+        {
+            ("ACH-1", new TimeSpan(7, 0, 0)),
+            ("ACH-2", new TimeSpan(9, 0, 0)),
+            ("ACH-3", new TimeSpan(11, 0, 0)),
+            ("ACH-4", new TimeSpan(12, 30, 0)),
+            ("ACH-5", new TimeSpan(14, 30, 0))
+        });
+        context.AchCycles.Local.Single(x => x.Id == "ACH-1").OperationalStatus = AchCycleOperationalStatus.Cancelled;
+        context.AchCycles.Local.Single(x => x.Id == "ACH-5").OutputReleaseEndTime = new TimeSpan(15, 30, 0);
+        var rule = SeedRule(context, 1, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, 3,
+            PrenotificationResponseDeadlineMode.CycleCount, 4, true, null, "ACHCOL-7C-20261014");
+        await context.SaveChangesAsync();
+
+        Assert.Null(await CreatePolicyService(context).ResolvePrenotificationResponseDeadlineAsync(rule, "ACH-1"));
+    }
+
+    [Fact]
+    public async Task I11_CenitCancelledSession_DoesNotMeetFiveActiveCycleRequirement()
+    {
+        await using var context = CreateContext();
+        SeedClearingHouseWithCycles(context, 2, "CENIT", new[]
+        {
+            ("CENIT-1", new TimeSpan(10, 30, 0)),
+            ("CENIT-2", new TimeSpan(13, 0, 0)),
+            ("CENIT-3", new TimeSpan(15, 0, 0)),
+            ("CENIT-4", new TimeSpan(17, 15, 0)),
+            ("CENIT-5", new TimeSpan(18, 45, 0))
+        });
+        context.AchCycles.Local.Single(x => x.Id == "CENIT-3").OperationalStatus = AchCycleOperationalStatus.Cancelled;
+        context.AchCycles.Local.Single(x => x.Id == "CENIT-5").OutputReleaseEndTime = new TimeSpan(19, 15, 0);
+        var rule = SeedRule(context, 2, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, null,
+            PrenotificationResponseDeadlineMode.OperationalDayEnd, null, true, 13, "CENIT-DEBIT");
+        await context.SaveChangesAsync();
+
+        Assert.Null(await CreatePolicyService(context).ResolvePrenotificationResponseDeadlineAsync(rule, "CENIT-1"));
+    }
+
+    [Fact]
+    public async Task ResponseDeadline_AchColombiaLaterCycleMissingReleaseMetadata_FailsClosed()
+    {
+        await using var context = CreateContext();
+        SeedClearingHouseWithCycles(context, 1, "ACH", new[]
+        {
+            ("ACH-1", new TimeSpan(7, 0, 0)),
+            ("ACH-2", new TimeSpan(9, 0, 0)),
+            ("ACH-3", new TimeSpan(11, 0, 0)),
+            ("ACH-4", new TimeSpan(12, 30, 0)),
+            ("ACH-5", new TimeSpan(14, 30, 0))
+        });
+        foreach (var cycle in context.AchCycles.Local)
+        {
+            cycle.ProcessingDate = new DateTime(2026, 11, 3);
+        }
+        var rule = SeedRule(context, 1, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, 3,
+            PrenotificationResponseDeadlineMode.CycleCount, 4, true, null, "ACHCOL-7C-20261014");
+        await context.SaveChangesAsync();
+
+        var deadline = await CreatePolicyService(context).ResolvePrenotificationResponseDeadlineAsync(rule, "ACH-1");
+
+        Assert.Null(deadline);
+    }
+
+    [Fact]
+    public async Task ResponseDeadline_AchColombiaLateCycle_ContinuesCountingAcrossOperationalDays()
+    {
+        await using var context = CreateContext();
+        SeedClearingHouseWithCycles(context, 1, "ACH", new[]
+        {
+            ("ACH-1", new TimeSpan(7, 0, 0)),
+            ("ACH-2", new TimeSpan(9, 0, 0)),
+            ("ACH-3", new TimeSpan(11, 0, 0)),
+            ("ACH-4", new TimeSpan(12, 30, 0)),
+            ("ACH-5", new TimeSpan(14, 30, 0)),
+            ("ACH-6", new TimeSpan(16, 0, 0)),
+            ("ACH-7", new TimeSpan(18, 0, 0))
+        });
+        for (var cycleNumber = 1; cycleNumber <= 3; cycleNumber++)
+        {
+            context.AchCycles.Add(new AchCycle
+            {
+                Id = $"NEXT-{cycleNumber}",
+                ClearingHouseId = 1,
+                CycleName = $"Ciclo {cycleNumber}",
+                ProcessingDate = new DateTime(2026, 11, 4),
+                CutoffTime = new TimeSpan(cycleNumber == 1 ? 7 : cycleNumber == 2 ? 9 : 11, 0, 0),
+                OutputReleaseEndTime = new TimeSpan(cycleNumber == 1 ? 8 : cycleNumber == 2 ? 10 : 12, 0, 0)
+            });
+        }
+        foreach (var cycle in context.AchCycles.Local.Where(x => x.Id.StartsWith("ACH-", StringComparison.Ordinal)))
+        {
+            cycle.ProcessingDate = new DateTime(2026, 11, 3);
+        }
+        var rule = SeedRule(context, 1, TransactionNature.Debit, PrenotificationRequirementMode.Mandatory, 3,
+            PrenotificationResponseDeadlineMode.CycleCount, 4, true, null, "ACHCOL-7C-20261014");
+        await context.SaveChangesAsync();
+
+        var deadline = await CreatePolicyService(context).ResolvePrenotificationResponseDeadlineAsync(rule, "ACH-6");
+
+        Assert.Equal(new DateTimeOffset(2026, 11, 4, 17, 0, 0, TimeSpan.Zero), deadline); // Next day 12:00 Bogota.
     }
 
     [Fact]

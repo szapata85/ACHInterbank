@@ -1,6 +1,72 @@
+## NAV-UX-MFT-20261027 — I05 accesibilidad compacto + linaje verificado — 2026-10-27
+
+- **Avance funcional nuevo:** corregido el `aria-expanded` del botón de grupos al contraer el menú en escritorio: el estado accesible ahora corresponde al submenú realmente visible; la expansión previa queda retenida para restaurarse al abrir el lateral. Test de regresión escrito (sin ejecución Angular por entorno).
+- **Sin regresión de línea base:** I04A fue documentación solamente; I05 parte específicamente de `ACHInterbank_NAV_UX_MFT_2026-10-27_I04A_PROYECTO_COMPLETO.zip`, SHA-256 `94e6d0c03576b26a9ff34cd32a070679b6e49261f7facb2efe007aca8d2aabd0`; comparación de archivos fuente padre 4472/4472 conservados. No se cambian permisos, rutas MFT ni lógica financiera.
+- Pruebas actuales: **19/19 estáticas PASS**, **4/4 TS transpile/sintaxis PASS**, **3/3 tests offline del validador de linaje PASS**, linaje SHA/PRESERVACIÓN PASS. Angular, .NET, E2E y prueba desplegada MFT siguen `NOT_RUN_ENVIRONMENT`/`PENDING_DEPLOYMENT`; no certificar producción.
+- **Último ZIP de ESTE programa:** `ACHInterbank_NAV_UX_MFT_2026-10-27_I05_PROYECTO_COMPLETO.zip`; SHA-256 solo en lateral externo. El estado de seguridad SEC-I06A conservado abajo no es la línea base NAV-UX-MFT ni se altera.
+- Continuidad obligatoria: leer `docs/ai/spa-navigation-unification/MEMORY_STATE.md` y `PROGRESS_REPORT_I05_2026-10-27.md`. No repetir I01/I02; partir exclusivamente del último ZIP full comprobado, o reportar que falta.
+
+## SEC-2026-10 — SEC-I06A pruebas preparadas, SEC-I06B pendiente — 2026-10-27
+
+- ZIP completo actual: `ACHInterbank_ACH_CR_I06_FIX01_SEC_I06A_TESTS_PREPARATION_COMPLETO.zip`, padre SEC-I05 SHA-256 `b3e43b46eb24efbf3523f915481dd6ac2115a81dffff9c8b1df76f9af978424a`.
+- Se añadieron dos clases xUnit de regresión sintética (HTTP y límites de hashing), 23 casos vinculados a pruebas existentes/nuevas en `SEC-I06A_MATRIZ_PRUEBAS.json`, verificador offline y runbook SEC-I06B. **xUnit no ejecutado** (sin .NET), regresión financiera no certificada.
+- El seed administrativo sigue idéntico byte a byte: `PRESERVE_ADMIN_SEED_CREDENTIAL=TRUE`. No cambia código monetario ni Quartz.
+- `SEC-I06B=NOT_RUN_ENVIRONMENT`; próximo `SEC-I07-A_PREP_HOMOLOGACION_SIN_AMBIENTE`. `GO_INCREMENT=YES`, `GO_DEPLOY=NO`, `GO_LIVE_MONETARY=NO`. No bloquear SEC-I07 por falta de ambiente.
+- Fuente de verdad: `docs/security/SEC-2026-10-BROTLI-HARDENING/MEMORY_STATE.md`.
+
+## SEC-2026-10 — SEC-I05 Hardening API, Nginx y proxy — 2026-10-27
+
+- ZIP principal: `ACHInterbank_ACH_CR_I06_FIX01_SEC_I05_HARDENING_COMPLETO.zip` (padre SEC-I04). Documentación y gates en `docs/security/SEC-2026-10-BROTLI-HARDENING/MEMORY_STATE.md`.
+- Implementación: OpenAPI/Scalar apagado por defecto fuera de Development, identidad para rate-limit confiando en XFF solo desde IPs autorizadas en producción, XFF saneado en Nginx, cabeceras corregidas, Kestrel sin banner, protección de dotfiles SPA.
+- Tests xUnit escritos y 12 validaciones offline; nginx host 1.26.3 comprobó únicamente sintaxis adaptada, no nginx 1.30.6 final. dotnet/Docker/BD/UAT siguen NOT_RUN_ENVIRONMENT.
+- DECISIÓN DEL USUARIO: seed administrativo **conservado byte a byte** (SEC-DEC-009). Lógica financiera, Quartz y docker-compose sin cambios. Configuración proxy/TLS y otros hardenings no validados permanecen como pendientes.
+- `GO_INCREMENT=YES`, `GO_DEPLOY=NO`, `GO_LIVE_MONETARY=NO`; siguiente `SEC-I06-A_TESTS_SECURITY_REGRESSION`. Sin bloqueo por ausencia de ambiente.
+
 # Project Memory — ACHInterbank
 
 This file records current durable decisions and verified project state. It is not a normative, source-code, runtime, or CI oracle. Current evidence can supersede an entry. Detailed human-facing documentation remains in `docs/`; historical versions remain in Git.
+
+## SEC-2026-10 — SEC-I04 IAM/compatibilidad sin cambio de seed — 2026-10-27
+
+- ZIP completo actual: `ACHInterbank_ACH_CR_I06_FIX01_SEC_I04_IAM_COMPLETO.zip`, padre SEC-I03 (checksum en `docs/security/SEC-2026-10-BROTLI-HARDENING/MEMORY_STATE.md`).
+- **DECISIÓN DEL USUARIO:** no eliminar ni cambiar la clave o usuario definidos en `UserConfiguration.cs`; archivo del seed conservado byte a byte. Flag: `PRESERVE_ADMIN_SEED_CREDENTIAL=TRUE`. Riesgo residual de credencial fija, exige controles compensatorios y aceptación de riesgo previa a producción.
+- `CredentialPasswordHasher.cs`: nuevos hashes versionados PBKDF2-HMAC-SHA256 (600k, salt aleatorio); verificación constante; acepta SHA-256 legado solo para login. `AuthService` y `UsersService`: altas, cambios y reset generan PBKDF2. No hay rehash automático ni modificación DB/seed.
+- Se añadieron tests xUnit (`WRITTEN_NOT_EXECUTED` por ausencia de SDK). Validaciones estáticas y conservación exacta del seed registradas en `SEC-I04_EVIDENCIA_ESTATICA.md`.
+- `GO_INCREMENT=YES`, `GO_DEPLOY=NO`, `GO_LIVE_MONETARY=NO`; Quartz deshabilitado, ACH/CENIT sin cambios. **Siguiente:** `SEC-I05-A_HARDENING_INVENTORY`; no bloquear por falta de ambiente. Fuente de verdad de continuidad `docs/security/SEC-2026-10-BROTLI-HARDENING/MEMORY_STATE.md`.
+
+## SEC-2026-10 — SEC-I03 SBOM fuente e inventario — 2026-10-27
+
+- ZIP actual: `ACHInterbank_ACH_CR_I06_FIX01_SEC_I03_SBOM_INVENTORY_COMPLETO.zip`; padre SEC-I02 SHA-256 `c88f3116fffc77e330be2866c08f77e9ce206e22564bb55a9d3bef5b3382223c`.
+- Nuevos `scripts/security/generate_sec_i03_inventory.py` y tests offline (3/3). En `docs/security/SEC-2026-10-BROTLI-HARDENING/`: inventario JSON, 2 SBOM CycloneDX 1.6 parciales, hashes, evidencia y runbook SCA.
+- Inventario estático: npm 1.130 paquetes del lock, 36 sin `integrity`; NuGet 8 proyectos, 56 PackageReference, 51 pares nombre/versión; 6 imágenes externas `FROM` sin digests. `project.assets.json` heredados excluidos del SBOM NuGet por posible obsolescencia.
+- SBOM fuente **incompleto**: no se verifican CVE, licencias, NuGet transitivo, registros externos, imagen SO ni SHA remotos. Pendientes EV-04/10/11 `NOT_RUN_ENVIRONMENT` para `GO_DEPLOY`.
+- `GO_INCREMENT=YES`, `GO_DEPLOY=NO`, `GO_LIVE_MONETARY=NO`; Quartz deshabilitado. **Siguiente** `SEC-I04-A_CREDENTIALS_SEED_INVENTORY`, no bloquear por falta de ambiente. Fuente de verdad `docs/security/SEC-2026-10-BROTLI-HARDENING/MEMORY_STATE.md`.
+
+## SEC-2026-10 — SEC-I02 Node/Nginx y verificación lock estática — 2026-10-27
+
+- Paquete actual: `ACHInterbank_ACH_CR_I06_FIX01_SEC_I02_NODE_NGINX_COMPLETO.zip`, derivado de `ACHInterbank_ACH_CR_I06_FIX01_SEC_I01_DOTNET_COMPLETO.zip` (checksum padre en `docs/security/SEC-2026-10-BROTLI-HARDENING/MEMORY_STATE.md`).
+- `web/ach-interbank-ui/Dockerfile`: builder Node `24.22.1-alpine`, runtime `nginx:1.30.6-alpine`; retirado `npm install --package-lock-only` (mutación del lock durante la construcción); `npm ci --include=optional` obliga a usar el lock versionado.
+- Se añadió `npm run security:verify-lock` (solo lectura). `package-lock.json` quedó idéntico; JSON/directos/overrides sincronizados en revisión estática. **36 entradas de registry sin `integrity`**: completar/verificar con registry en SEC-I03, no inventar hashes. `npm ci --dry-run --offline` solo verificado en Node 22/npm10; **no** certifica Node24/npm12, build Angular ni Docker/Nginx.
+- GATES: `GO_INCREMENT=YES`, `GO_DEPLOY=NO`, `GO_LIVE_MONETARY=NO`; no bloquear el próximo incremento por ausencia de herramientas/red. Quartz sigue deshabilitado; ACH-CR-001 continúa NO_GO.
+- Próximo: `SEC-I03-A_SBOM_INVENTORY`, arrastrar EV-01...09 de entorno; evidencia SEC-I02 en `docs/security/SEC-2026-10-BROTLI-HARDENING/SEC-I02_EVIDENCIA_ESTATICA.md`.
+
+## SEC-2026-10 — SEC-I01 aplicado en fuente (.NET), sin ambiente — 2026-10-26
+
+- ZIP principal: `ACHInterbank_ACH_CR_I06_FIX01_SEC_I01_DOTNET_COMPLETO.zip`. Iniciativa CR-SEC-001; documentos en `docs/security/SEC-2026-10-BROTLI-HARDENING/`.
+- Cambios reales: Docker ASP.NET 10.0.14, Docker SDK 10.0.403, global SDK 10.0.403, runtime API 10.0.14 y 20 versiones directas NuGet 10.0.14 (6 proyectos). **No** se tocó ningún archivo `.cs` ni reglas ACH/CENIT.
+- Validaciones JSON/XML/diff `PASS_STATIC`; SDK/Docker inaccesibles, `dotnet restore/build/test`, imagen ejecutable y SCA en backlog (`NOT_RUN_ENVIRONMENT`). Archivos generados `obj/bin` heredados **no equivalen a compilación parcheada**.
+- Secuencia de trabajo: SEC-I01 `IMPLEMENTED_UNVERIFIED_ENVIRONMENT`; siguiente `SEC-I02-A_PATCH_NODE_NGINX_DOCKERFILE`. No bloquear incrementos por ambiente.
+- GATES: `GO_INCREMENT=YES`, `GO_DEPLOY=NO`, `GO_LIVE_MONETARY=NO`. ACH-CR-001 I06-FIX01 y Quartz siguen NO_GO / disabled.
+
+## SEC-2026-10 — plan de parchado Brotli/.NET/Node/Nginx e IAM — 2026-10-26
+
+- Iniciativa de seguridad **separada** de ACH-CR-001; documentación canónica: `docs/security/SEC-2026-10-BROTLI-HARDENING/PLAN_IMPLEMENTACION.md` y estado de continuación `docs/security/SEC-2026-10-BROTLI-HARDENING/MEMORY_STATE.md`.
+- Paquete base: `ACHInterbank_ACH_CR_I06_FIX01_COMPLETO.zip` (`sha256:f52c0a95617e239b29c92b35ca7149a348a81cb0dec8eafa760d6c313f0d1199`); esta entrega `SEC-I00` es **SOLO plan + memory state**, sin parches ni cambios de código productivo.
+- **Regla del solicitante:** no bloquear implementación ni siguiente incremento por indisponibilidad de .NET/Node/Docker/BD/UAT/CFA/MFT. Registrar `IMPLEMENTED_UNVERIFIED_ENVIRONMENT`/`NOT_RUN_ENVIRONMENT` y seguir. Esto da `GO_INCREMENT`, **nunca** `GO_DEPLOY` ni `GO_LIVE_MONETARY`.
+- Vulnerabilidades a atender: Node 24.21.0 build -> >=24.22.1; ASP.NET 10.0.13 -> >=10.0.14 y SDK 10.0.402 -> 10.0.403; Nginx 1.30.5 -> >=1.30.6; NuGet/npm transitivos sujetos a inventario; hashes SHA-256/seed de credencial administrativa necesitan iniciativa IAM separada. No se ha confirmado exposición productiva a Brotli ni parches aplicados.
+- `SEC-I00=PLAN_DOCUMENTED`, `SEC-I01...SEC-I07=NOT_STARTED`; `next_microtask=SEC-I01-A_PATCH_DOTNET_DOCKER_GLOBAL_JSON`; `GO_INCREMENT=YES`, `GO_DEPLOY=NO`, `GO_LIVE_MONETARY=NO`. El estado previo ACH-CR-001 (I06-FIX01, Quartz deshabilitado y NO_GO) permanece intacto.
+
+
 
 ## ACHCOL seven-cycle decision confirmed — 2026-10-20 (implementation unverified)
 
@@ -1063,3 +1129,66 @@ STATUS: IMPLEMENTED_UNVERIFIED_ENVIRONMENT (R10 RECERTIFICATION EXECUTED; CLOSUR
 - NAV4 final copy drift is zero. Historical validators with intermediate snapshot locks are replayed on reconstructed approved snapshots rather than falsely marked PASS on NAV5; current security/coverage validators remain PASS. NAV3 security hashes/semantics, backfill Order 119, legacy migration Order 120, guards, grants and fallbacks remain intact.
 - NAV3.5C remains `BLOCKED / NO EJECUTAR` and was not executed. No post-NAV6 work is executed.
 - Angular is `NOT_RUN_ENVIRONMENT` because `node_modules` is absent; .NET is `NOT_RUN_ENVIRONMENT` because `dotnet` is unavailable. No dependencies/tools are installed. Therefore NAV6 and NAV-MENU-IA-001 remain `IMPLEMENTED_UNVERIFIED_ENVIRONMENT`: implementation is complete, runtime recertification is pending, and the exact conclusion is `COMPLETO PENDIENTE RUNTIME`.
+
+## NAV-UX-MFT-20261027 — 2026-10-27 (nuevo incremento)
+
+- Estado: `IMPLEMENTED_RUNTIME_PENDING` (no `CLOSED`). ZIP de entrada SHA-256 `b0760a839498f1acaaa4c3465a79087e61d6ac804660d75d3da0f58c675eb897`.
+- SPA: todas las ramas usan botón de fila completa para expandir; los padres funcionales exponen enlace secundario hacia la página, independiente del botón. Navegación móvil/compacta, jerarquía y nombres de destino no se reemplazan por rutas hardcodeadas.
+- MFT: la **ruta existente** `/administracion/mft-ach` se expone en `Administración de parámetros > Conexiones` con etiqueta `Administración de transferencias de archivos (MFT)`; no se duplica ni se conceden permisos. Visibilidad continúa por `Config.Read OR CanReadAch` y las políticas backend vigentes.
+- Evidencia: `scripts/validate-spa-navigation-mft-unification.py` PASS 16/16; Angular/.NET/E2E sin evidencia runtime en este entorno en la fecha del registro.
+- Continuidad: `docs/ai/spa-navigation-unification/MEMORY_STATE.md`; ejecución por chat: `docs/ai/spa-navigation-unification/CHATGPT_CHAT_EXECUTION.md`; plan/arquitectura/pruebas en `docs/architecture/` y `docs/testing/`.
+- Preservar decisión histórica `NAV3.5C = BLOCKED`; no ejecutar retiros IAM o grants de acceso como parte de UX.
+
+## NAV-UX-MFT-20261027 — I06 contraste hover de navegación — 2026-10-27
+
+- EVID-NAV-UX-I06: fuente I05 tenía selector global `button:not(.mat-mdc-button-base):hover` aplicable a `[mat-list-item]`, en conflicto con el fondo/color del sidebar. I06 excluye `[mat-list-item]` de botones genéricos y refuerza estilos hover/focus sobre tokens sidebar. SPA MFT, IAM, API y reglas bancarias sin cambios.
+- Estado `SOURCE_IMPLEMENTED_STATIC_PASS_RUNTIME_PENDING`: invariantes 23/23 y sintaxis TS 4/4; nuevo E2E Playwright de contraste AA sin ejecución, al igual que Angular/.NET. Fuente de continuidad: `docs/ai/spa-navigation-unification/MEMORY_STATE.md` y ZIP I06 completo. No afirmar estabilización certificada.
+
+## SOAP-MAP-SAFE-001 — Integrated full-project handoff — 2026-11-01
+
+- DEC-SOAP-MAP-I01-HANDOFF: I01 (1:1 dispatch, request cardinality guard, ambiguous-transport manual reconciliation, focused tests) is integrated into the **full baseline project**, not delivered as a patch-only working tree. No I02 code is included.
+- EVID-SOAP-MAP-I01-HANDOFF: Complete baseline 4,484 files retained, 7 solution projects present; `scripts/validate-solution-projects.py` PASS; .NET build/tests `NOT_RUN_ENVIRONMENT`; UAT and monetary Live not executed or authorized.
+- NEXT-SOAP-MAP-I01-HANDOFF: Read `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/MEMORY_STATE.md` and `PLAN_INCREMENTAL.md` and execute only I02; deliver the **full integrated repository ZIP** on every subsequent increment.
+
+## SOAP-MAP-SAFE-001 — I02 integrated full-project handoff — 2026-11-01
+
+- DEC-SOAP-MAP-I02: `ProcContrapartidasFunctionalMappingResolver` rejects non-positive, non-debit or prenotification entries and mismatched `OFDD`/`OFMONDEB`/`OFMONCRE` before SOAP. The original seed and source catalog are preserved.
+- GAP-SOAP-MAP-I02: `OFEMP`, `OFIDARCH`, `OFIDLOT`, `OFST`, `OFDIRECCIONIP` lack bank-approved equivalence; do not invent replacement values, publish a new mapping, or activate Live. See `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/DECISIONES_I02_CONTRAPARTIDAS.md`.
+- EVID-SOAP-MAP-I02: Regression and rejection tests added; solution graph 7/7 PASS; .NET SDK missing (`NOT_RUN_ENVIRONMENT`), no UAT/Live. Full I01+I02 repository distributed, not a patch.
+- NEXT-SOAP-MAP-I02: execute only I03; `MEMORY_STATE.md` is continuity authority.
+
+## SOAP-MAP-SAFE-001 — I03 integrated full-project handoff — 2026-11-01
+
+- DEC-SOAP-MAP-I03: `ProcTransaccionesFunctionalSourceResolver` checks credit and exact NACHA type-6 correlation for transaction code, positive amount, receiving account, and trace suffix before SOAP mapping. No new NACHA interpretation.
+- GAP-SOAP-MAP-I03: seed `NCTAORIG=entrydetails.accountnumber` points to receiver account. Local incoming preparation also copies that value to `SourceAccountNumber` and does NOT prove origin account. Effective Live `Proc_Transacciones` send now fails closed on any nonempty `NCTAORIG` pending bank-approved independent provenance; DryRun diagnostics unchanged. Do not activate Live or bypass this veto.
+- GAP-SOAP-MAP-I03-B: `IDORIG` and `INFPAG` semantic equivalence still requires bank confirmation. Existing mapping readiness can report technical readiness without bank homologation.
+- EVID-SOAP-MAP-I03: 8 focused cases added, solution graph 7/7 PASS, .NET tests/build `NOT_RUN_ENVIRONMENT` (SDK absent). Full integrated ZIP includes I01–I03 and markdown, no UAT or Live.
+- NEXT-SOAP-MAP-I03: `next_increment=I04`; follow `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/MEMORY_STATE.md`.
+
+## SOAP-MAP-SAFE-001 — I04 integrated full-project handoff — 2026-11-01
+
+- DEC-SOAP-MAP-I04: `NotificarRespuestaAchUseCase` validates the persisted seven-field attempt using existing `RegistrarRespuestaAchCommandValidator` before gateway entry. No new queue/contract/seed; physical mapper remains unchanged.
+- INV-SOAP-MAP-I04: After invoking gateway, **any exception** is an uncertain external effect and requires manual reconciliation; no automatic replay of the same attempt. Confirmed `existeError=false` is success, `true` functional rejection. Pre-gateway trace failures remain technical/retryable. Caller cancellation behavior unchanged, and restart/concurrency proof is pending.
+- EVID-SOAP-MAP-I04: Focused tests written; solution graph 7/7 PASS; .NET SDK missing, build/tests `NOT_RUN_ENVIRONMENT`; full integrated ZIP contains I01–I04 and markdown. No UAT or Live.
+- NEXT-SOAP-MAP-I04: `next_increment=I05`. See `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/MEMORY_STATE.md`.
+
+## SOAP-MAP-SAFE-001 — I05 integrated full-project handoff — 2026-11-01
+
+- DEC-SOAP-MAP-I05: Opt-in `Proc_Transacciones` and `Proc_Contrapartidas` now compare serialized contract-driven SOAP against the existing typed legacy baseline before returning it for transport. Check operation, namespace, SOAPAction, element names/order/values, null/nil semantics and SOAP 1.1 envelope. Small internal shared guard, no new architecture or seed changes. WSAXON v1 seven-field parity policy retained untouched.
+- EVID-SOAP-MAP-I05: negative xUnit tests written (not run); solution graph static 7/7 PASS. .NET SDK absent, build/tests `NOT_RUN_ENVIRONMENT`. No feature-flag activation, no UAT, no Live. Semantic bank homologations from I02/I03 remain open.
+- NEXT-SOAP-MAP-I05: `next_increment=I06` for technical test/backlog closure only. See `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/MEMORY_STATE.md` and `DECISIONES_I05_PARIDAD_SOAP.md`.
+
+## SOAP-MAP-SAFE-001 — I06 technical handoff — 2026-11-01
+
+- EVID-SOAP-MAP-I06: Full I05 source retained; no new productive code. `scripts/validate-solution-projects.py` PASS (7/7) and `validate-cfa-p8-1-static.py` PASS_STATIC_ONLY. P8.3 validation did not finish within container time limit; not PASS. .NET SDK missing, build/xUnit remain `NOT_RUN_ENVIRONMENT`; no UAT/Live/DB.
+- GAP-SOAP-MAP-I06: I02 bank field equivalences and I03 origin account still unhomologated; I04 concurrency/commit recovery and I05 parity runtime pending, P8.4 external execution pending. Avoid false release claims.
+- TRAP-SOAP-MAP-I06-CONFIG: appsettings.json uses DryRun for monetary SOAP; appsettings.Development.json overrides them to Live and uses local SOAP endpoints. Effective configuration must be checked explicitly before any future run; I06 performed no SOAP calls or changes to config.
+- NEXT-SOAP-MAP-I06: `last_completed_increment=I06`, `next_increment=I07` **gated** by technical build/tests, bank homologation and authorized UAT environment. Read `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/CIERRE_TECNICO_I06.md`, `INVENTARIO_CAMPOS_SOAP_I06.md`, `MEMORY_STATE.md`. Preserve integrated full-ZIP delivery; do not enable contract-driven or Live automatically.
+
+## SOAP-MAP-SAFE-001 — I07-A prep-only handoff — 2026-11-01
+
+- Base: integrated full-project I06 ZIP; I01–I05 code unchanged; I06 technical documents preserved.
+- I07-A created a focused 18-case official UAT preparation matrix, entry/gate and evidence runbook, and a read-only/static CMD preflight. No monetary code, config, seed, migrations, WSDL, NACHA or SPA modifications.
+- `last_completed_increment=I07-A` **preparation only**; `next_increment=I07-B` **blocked by prerequisites**. Do not infer `VERIFIED_LOCAL`, `UAT_READY`, `UAT_APPROVED`, `GAUNTLET_PASSED` or Live authorization.
+- Open gates: .NET/xUnit/build, P8.3 incomplete, P8.4 dual-provider/parity/gauntlet, functional bank mapping for I02/I03, execution environment authorization and configuration effective-mode review (`Development` overrides `DryRun` with `Live` for monetary services).
+- Canonical scope/evidence: `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/I07A_PREPARACION_UAT_SOAP.md`, `I07A_MATRIZ_CASOS_SOAP.md`, `I07A_EVIDENCIA_Y_BLOQUEOS.md`, `MEMORY_STATE.md`. Historical UAT evidence does not certify this artifact.

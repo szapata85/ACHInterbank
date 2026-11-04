@@ -170,7 +170,7 @@ describe('NavigationService', () => {
       'Herramientas de prueba',
       'Conexiones',
       'Conexión entidad participante',
-      'Configuración del intercambio de archivos'
+      'Administración de transferencias de archivos (MFT)'
     ];
     const { service } = createService(labels.map((label, index) => ({
       id: index + 1,
@@ -196,7 +196,7 @@ describe('NavigationService', () => {
         children: [
           { id: 102, label: 'Conexión entidad participante', route: '/integraciones/conexion', order: 30 },
           { id: 100, label: 'Contrato del servicio', route: '/integraciones/contrato', order: 10 },
-          { id: 103, label: 'Configuración del intercambio de archivos', route: '/administracion/mft-ach', order: 40 },
+          { id: 103, label: 'Administración de transferencias de archivos (MFT)', route: '/administracion/mft-ach', order: 40 },
           { id: 101, label: 'Relación de información', route: '/integraciones/relacion-informacion', order: 20 }
         ]
       }
@@ -216,7 +216,7 @@ describe('NavigationService', () => {
         'Contrato del servicio',
         'Relación de información',
         'Conexión entidad participante',
-        'Configuración del intercambio de archivos'
+        'Administración de transferencias de archivos (MFT)'
       ]);
       expect(menu[0].children?.map((item) => item.route)).toEqual([
         '/integraciones/contrato',

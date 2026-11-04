@@ -1,0 +1,49 @@
+<mat-card appearance="outlined" class="review-card" aria-label="Candidatas de devolución de ACH Colombia">
+  <mat-card-header>
+    <mat-icon mat-card-avatar aria-hidden="true">fact_check</mat-icon>
+    <mat-card-title>Candidatas de ACH Colombia</mat-card-title>
+    <mat-card-subtitle>Revisa, aprueba y genera archivos solo cuando sea necesario</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <div class="review-intro">
+      <p>Solo se muestran candidatas de ACH Colombia. Aprobar no genera el archivo. Después, puedes generarlo con una confirmación adicional; nunca se envía automáticamente a la cámara.</p>
+      <button mat-stroked-button type="button" (click)="load()" [disabled]="loading || busyId !== null">
+        <mat-icon aria-hidden="true">refresh</mat-icon> Actualizar
+      </button>
+    </div>
+    <p *ngIf="loading" role="status">Consultando candidatas…</p>
+    <p *ngIf="error" class="review-error" role="alert">{{ error }}</p>
+    <p *ngIf="!loading && !error && candidates.length === 0" class="review-empty">No hay candidatas registradas.</p>
+    <div *ngIf="candidates.length > 0" class="review-list">
+      <article *ngFor="let item of candidates; trackBy: trackById" class="review-item">
+        <div class="review-summary">
+          <strong>Transacción {{ item.originalTransactionId }} · {{ item.reasonCode }}</strong>
+          <span>Referencia {{ item.reference || 'Sin referencia' }} · {{ transactionTypeLabel(item.transactionType) }}</span>
+          <span>{{ item.amount | currency:'COP':'symbol':'1.0-2' }} · Ciclo original {{ item.originalCycleId }}</span>
+          <span>Estado: {{ statusLabel(item.status) }}</span>
+          <small *ngIf="item.blockingReason">{{ item.blockingReason }}</small>
+        </div>
+        <div *ngIf="canManage && (item.status === 'PREPARADA_SIN_ENVIO' || item.status === 'REVISION_TARDIA_CREDITO' || item.status === 'APROBADA_SIN_ENVIO')" class="review-actions">
+          <ng-container *ngIf="item.status !== 'APROBADA_SIN_ENVIO'; else approvedActions">
+            <button mat-flat-button color="primary" type="button" (click)="confirm(item, 'APROBAR')"
+              [disabled]="!item.canApprove || loading || busyId !== null">Aprobar</button>
+            <button mat-stroked-button type="button" (click)="confirm(item, 'DESCARTAR')"
+              [disabled]="loading || busyId !== null">Descartar</button>
+          </ng-container>
+          <ng-template #approvedActions>
+            <button mat-flat-button color="primary" type="button" (click)="confirm(item, 'GENERAR')"
+              [disabled]="!item.canGenerateFile || loading || busyId !== null">
+              <mat-icon aria-hidden="true">download</mat-icon> Generar archivo
+            </button>
+          </ng-template>
+        </div>
+        <div *ngIf="canManage && item.status === 'ARCHIVO_GENERADO_SIN_ENVIO'" class="review-actions">
+          <button mat-stroked-button type="button" (click)="recover(item)"
+            [disabled]="loading || busyId !== null">
+            <mat-icon aria-hidden="true">download</mat-icon> Descargar archivo existente
+          </button>
+        </div>
+      </article>
+    </div>
+  </mat-card-content>
+</mat-card>

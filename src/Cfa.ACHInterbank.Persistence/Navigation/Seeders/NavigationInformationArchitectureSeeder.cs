@@ -892,7 +892,7 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
         // relocate and humanize the menu item inside the canonical connections group.
         await ReconcileExistingAsync(
             FileExchangeConfigurationRoute,
-            "Configuración del intercambio de archivos",
+            "Administración de transferencias de archivos (MFT)",
             connections.Id,
             order: 40);
 

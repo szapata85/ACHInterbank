@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Models;
+using Cfa.ACHInterbank.Application.ACH.Responses.Validation;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
@@ -75,6 +76,23 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
         }
 
         var cmd = _mapper.Map(response, attempt);
+        var validationErrors = new RegistrarRespuestaAchCommandValidator().Validate(cmd);
+        if (validationErrors.Count > 0)
+        {
+            attempt.ExisteError = true;
+            attempt.CodigoError = "REGISTRAR_RESPUESTA_COMMAND_INVALID";
+            attempt.DescripcionError = string.Join("; ", validationErrors);
+            attempt.EstadoNotificacion = AchResponseNotificationStatus.ErrorFuncional;
+            response.EstadoProcesamiento = AchResponseProcessingStatus.ErrorFuncional;
+            response.FechaActualizacion = DateTime.UtcNow;
+            await _attemptRepository.UpdateAsync(attempt, cancellationToken);
+            await _responseRepository.UpdateAsync(response, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return new(true, true, false, true, false, attempt.EstadoNotificacion,
+                response.EstadoProcesamiento, attempt.CodigoError, attempt.DescripcionError, null, null);
+        }
+
         attempt.RequestPayload = JsonSerializer.Serialize(new
         {
             idCanal = cmd.IdCanal,
@@ -86,6 +104,9 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
             descripcionCausal = cmd.DescripcionCausal
         });
 
+        // Once the gateway is entered, a failure cannot prove that the bank did not apply the notification.
+        // Do not automatically replay an uncertain external effect.
+        var gatewayInvoked = false;
         try
         {
             var traceError = await WriteDifferentialResponseTraceAsync(cmd, response.IdTransaccion, command.CorrelationId ?? response.CorrelationId, cancellationToken);
@@ -105,6 +126,7 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
                 return new(true, true, false, true, false, attempt.EstadoNotificacion, response.EstadoProcesamiento, traceError.Value.Code, traceError.Value.Message, null, null);
             }
 
+            gatewayInvoked = true;
             var result = await _gateway.RegistrarRespuestaAsync(cmd, cancellationToken);
             attempt.ResponsePayload = JsonSerializer.Serialize(new
             {
@@ -141,7 +163,7 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
         }
         catch (Exception ex)
         {
-            var deliveryOutcomeUnknown = ex is TimeoutException or TaskCanceledException;
+            var deliveryOutcomeUnknown = gatewayInvoked || ex is TimeoutException or TaskCanceledException;
             attempt.ResponsePayload = JsonSerializer.Serialize(new
             {
                 technicalStatus = deliveryOutcomeUnknown ? "ResultadoDesconocido" : "ErrorTecnico",

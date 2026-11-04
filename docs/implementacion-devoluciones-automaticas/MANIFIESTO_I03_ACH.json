@@ -1,0 +1,105 @@
+{
+  "initiative": "DEV-AUTO-2026-11-02",
+  "increment": "I03-ACH",
+  "date": "2026-11-02",
+  "clearingHouse": "ACH Colombia (ACHCOL)",
+  "base_zip": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I02_ACHCOLOMBIA_2026-11-02.zip",
+  "base_sha256": "b686c106bafba348231c95a95f2c9523e0dbb70253863d6adbc8f6ee20a7aa28",
+  "original_entries": 4796,
+  "changed_existing": [
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/AchDbContextModelSnapshot.cs",
+      "sha256_before": "3c90c7500c3234214d32ad0b6ab2d9a02e496c4063db4ed63119a5c08e101fb1",
+      "sha256_after": "64767100b7c3c2f7ca8811483916d8ec5f9a791412d2c3f51c6defeee943dc8a"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostProcessingPipeline.cs",
+      "sha256_before": "3ff709cbbbfa6260027c35d76dc62f0bf2bace15a342ade709c76701bb8eaffe",
+      "sha256_after": "750e07bc25b64e987a6ea645bd83ca6c78f348f3f456f7a8f77a003bc0a29b60"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs",
+      "sha256_before": "86add985a09862a5c1238da7373dbed0bad25530e9f84b70aca7d4ff36502c53",
+      "sha256_after": "294d57cddd0fb24536b7936e94790a61563f088a65029d5c86bfe0a8120172c8"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/00_LEEME.md",
+      "sha256_before": "b84051d9be29e180e432b5eb83d0c5eb1b27d1b62eaa41031b099df58b5b5e28",
+      "sha256_after": "3dbda11c7b7e735a8fb8a7211b9fbf521b0416819b62a6cb0bf429fef2993a34"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/ESTADO_INCREMENTAL.md",
+      "sha256_before": "241bb454e7ce9c89dd5f3aea43668d9ba1536f94c0402cf3b309976b095469ec",
+      "sha256_after": "67c604b5c47fdec9bded981d6d10a00618449ac49f3792492a05ccdd6f761fca"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE.md",
+      "sha256_before": "1f62c570b7d492e6eb796a252e77fd3a0dc1b266d668861a04cbbab21fc097a8",
+      "sha256_after": "457a3f6a18f3471fe9d4395d2cc9f5c2b64d372556b6351bb09fb0f6c6139d86"
+    }
+  ],
+  "added_entries": [
+    {
+      "path": "ACHInterbank_ajustado/README_ENTREGA_DEVOLUCIONES_AUTOMATICAS_I03_ACH.md",
+      "sha256": "b7ef428fe63a0947718897d621d60103fbdf9477266dc267d23655c6256cb550"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/EVIDENCIA_I03_ACH.md",
+      "sha256": "a409e1128a8e00e468a2164457485f0dae9c4a3ab648150d9be1f89d2ab09b18"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/INFORME_I03_ACH.md",
+      "sha256": "0b98eb36b24a18ad3cad7b3ca91206c205b117c921b62a9166985d5ded7baec3"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE_I01_ACH_HISTORICO.md",
+      "sha256": "1f62c570b7d492e6eb796a252e77fd3a0dc1b266d668861a04cbbab21fc097a8"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE_I03_ACH.md",
+      "sha256": "457a3f6a18f3471fe9d4395d2cc9f5c2b64d372556b6351bb09fb0f6c6139d86"
+    },
+    {
+      "path": "ACHInterbank_ajustado/scripts/test/automatic_returns_i03_ach_static_check.py",
+      "sha256": "75f76f96058335f1cf04a4407f4b105945041ff61ce58161d7fc82df46762b35"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Domain/Models/ACH/AchColombiaReturnPreparation.cs",
+      "sha256": "52d8dc33d276558addaf50554f2569ca15cdac85afcc2582cf8c5578de25f7f0"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/20261102230000_AchColombiaReturnPreparationI03.cs",
+      "sha256": "112829fcb91e28e847e57c68b1341fc6f0d0b13e0dc29fd7517cce4a62e0bfbb"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchColombiaReturnPreparationService.cs",
+      "sha256": "3b941368aee4395e2f4661f931940cbeb2f850ef2b707ca45cc63c330b8ab825"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/Configuration/AchColombiaReturnPreparationConfiguration.cs",
+      "sha256": "489639393c49ea05f4474c6e14834107a19c179db11eb4ad8ac0157a8773e09b"
+    },
+    {
+      "path": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchColombiaReturnPreparationI03Tests.cs",
+      "sha256": "df15911e308d7ceefe876c18969f10c1c77f4fcbc7a945ce250438fe4f0ed2aa"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MANIFIESTO_I03_ACH.json",
+      "sha256": null
+    }
+  ],
+  "tests": {
+    "solution_graph": "PASS 7 projects",
+    "i02_static": "PASS_STATIC 18/18",
+    "i03_static": "PASS_STATIC 25/25",
+    "dotnet_build": "NOT_EXECUTED_NO_SDK",
+    "xunit": "NOT_EXECUTED_NO_SDK",
+    "sqlserver_migration": "NOT_EXECUTED",
+    "uat": "NOT_EXECUTED"
+  },
+  "cenit_business_changed": false,
+  "spa_changed": false,
+  "automatic_nacha_generation_connected": false,
+  "automatic_dispatch_connected": false,
+  "prod": "NO_GO"
+}

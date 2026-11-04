@@ -17,7 +17,7 @@ using Microsoft.Extensions.Options;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public sealed class NachaInboundSimulationService : INachaInboundSimulationService
+public sealed partial class NachaInboundSimulationService : INachaInboundSimulationService
 {
     private const string UploadFlow = "NachaUpload";
     private readonly AchDbContext _context;
@@ -28,6 +28,8 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
     private readonly IAchReturnTraceSequenceService _returnTraceSequenceService;
     private readonly ITransactionValidator _transactionValidator;
     private readonly TimeProvider _timeProvider;
+    private readonly IAchStateTransitionService? _stateTransitionService;
+    private readonly Microsoft.Extensions.Hosting.IHostEnvironment? _hostEnvironment;
 
     public NachaInboundSimulationService(
         AchDbContext context,
@@ -37,7 +39,9 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         IAchRegulatoryCatalogService? regulatoryCatalogService = null,
         IAchReturnTraceSequenceService? returnTraceSequenceService = null,
         ITransactionValidator? transactionValidator = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IAchStateTransitionService? stateTransitionService = null,
+        Microsoft.Extensions.Hosting.IHostEnvironment? hostEnvironment = null)
     {
         _context = context;
         _options = options.Value;
@@ -47,6 +51,8 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         _returnTraceSequenceService = returnTraceSequenceService ?? new AchReturnTraceSequenceService(context);
         _transactionValidator = transactionValidator ?? new TransactionValidator(context);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _stateTransitionService = stateTransitionService;
+        _hostEnvironment = hostEnvironment;
     }
 
     public async Task<GenerateNachaInboundSimulationResponse> GenerateAsync(GenerateNachaInboundSimulationRequest request, string userName, CancellationToken ct = default)
@@ -206,13 +212,20 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
     {
         var entity = await _context.NachaInboundSimulations.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (entity is null || string.IsNullOrWhiteSpace(entity.FilePath) || !File.Exists(entity.FilePath))
-        {
             return null;
-        }
+
+        // Nunca entregar un archivo modificado y marcarlo como descargado.
+        // El hash se conserva en la reserva idempotente y en la evidencia UAT.
+        var content = await File.ReadAllBytesAsync(entity.FilePath, ct);
+        var actualHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content));
+        if (entity.FileSizeBytes != content.LongLength
+            || string.IsNullOrWhiteSpace(entity.Sha256)
+            || !string.Equals(entity.Sha256, actualHash, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("SIMULATOR_FILE_INTEGRITY_FAILED: La evidencia del archivo no coincide con su contenido; descarga bloqueada.");
 
         entity.Status = NachaInboundSimulationStatus.Downloaded;
         await _context.SaveChangesAsync(ct);
-        return (entity.FileName, "text/plain", await File.ReadAllBytesAsync(entity.FilePath, ct));
+        return (entity.FileName, "text/plain", content);
     }
 
     public async Task<NachaInboundSimulationMetadataDto?> GetEvidenceAsync(int id, CancellationToken ct = default)
@@ -257,6 +270,15 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         if (_options.AllowAutoImport || _options.AllowExternalTransmission)
         {
             return Blocked("SIMULATOR_GUARDRAIL_FAILED", "El simulador no puede autoimportar ni transmitir externamente.", request.SimulationMode);
+        }
+
+        // I01: la nueva operacion explicita existe solo como contrato. No permitir
+        // que la ruta legacy de construccion genere un archivo de pago por error.
+        if (request.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn)
+        {
+            return Blocked("PRENOTIFICATION_RETURN_NOT_IMPLEMENTED",
+                "Usar POST prenotifications/generate-return con el contrato I03; la ruta generica permanece bloqueada para evitar saltarse la revalidacion transaccional.",
+                request.SimulationMode);
         }
 
         if (request.SimulationMode == NachaSimulationMode.IncomingTransactions
@@ -590,11 +612,13 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                 ClearingHouseName = x.ClearingHouse.Name,
                 x.ProcessingDate,
                 x.StartTime,
-                TransactionCount = x.Transactions.Count(t =>
-                    NachaExportEligibility.ExportableStates.Contains(t.State)
-                    && (t.Type == transactionType
-                        || (t.Type == TransactionTypeEnum.Prenotification
-                            && prenotificationCodes.Contains(t.TransactionCode))))
+                TransactionCount = request.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn
+                    ? 0 // Ciclo habilitado para respuestas, aun sin transacciones de retorno.
+                    : x.Transactions.Count(t =>
+                        NachaExportEligibility.ExportableStates.Contains(t.State)
+                        && (t.Type == transactionType
+                            || (t.Type == TransactionTypeEnum.Prenotification
+                                && prenotificationCodes.Contains(t.TransactionCode))))
             })
             .ToListAsync(ct);
 
@@ -642,11 +666,17 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                 && x.ClearingHouseCycleConfig.StartTime == x.StartTime
                 && x.ClearingHouseCycleConfig.EndTime == x.EndTime
                 && x.ClearingHouseCycleConfig.CutoffTime == x.CutoffTime
-                && x.Transactions.Any(t =>
-                    NachaExportEligibility.ExportableStates.Contains(t.State)
-                    && (t.Type == transactionType
-                        || (t.Type == TransactionTypeEnum.Prenotification
-                            && prenotificationCodes.Contains(t.TransactionCode)))));
+                // I07: un ciclo de retorno de prenotificación puede no contener todavía
+                // transacciones salientes. El fichero de respuesta se generará en I03;
+                // exigir una transacción previa oculta ciclos configurados y válidos.
+                // La validación de ciclo posterior, fecha y plazo sigue en el preflight I02.
+                && (scenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn
+                    ? x.OperationalStatus != AchCycleOperationalStatus.Cancelled
+                    : x.Transactions.Any(t =>
+                        NachaExportEligibility.ExportableStates.Contains(t.State)
+                        && (t.Type == transactionType
+                            || (t.Type == TransactionTypeEnum.Prenotification
+                                && prenotificationCodes.Contains(t.TransactionCode))))));
     }
 
     private async Task EnsureCycleAvailableAsync(
@@ -1400,7 +1430,9 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
     private string ResolveOutputDirectory(string clearingHouseCode, NachaInboundSimulationType scenario)
     {
         var chamber = clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase) ? "cenit" : "ach-colombia";
-        var bucket = scenario == NachaInboundSimulationType.IncomingPrenotificationResponse
+        var bucket = scenario == NachaInboundSimulationType.IncomingPrenotificationReturn
+            ? $"prenotification-returns/{chamber}"
+            : scenario == NachaInboundSimulationType.IncomingPrenotificationResponse
             ? $"prenotification-responses/{chamber}"
             : (RequiresTransactionReferences(scenario) ? $"transaction-responses/{chamber}" : chamber);
         return Path.GetFullPath(Path.Combine(_options.OutputDirectory, bucket));
@@ -1458,7 +1490,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             or NachaInboundSimulationType.IncomingCreditReturn or NachaInboundSimulationType.IncomingDebitConfirmation
             or NachaInboundSimulationType.IncomingDebitRejection or NachaInboundSimulationType.IncomingDebitReturn;
     private static NachaSimulationMode InferSimulationMode(NachaInboundSimulationType scenario)
-        => RequiresTransactionReferences(scenario) || scenario == NachaInboundSimulationType.IncomingPrenotificationResponse
+        => RequiresTransactionReferences(scenario) || scenario is NachaInboundSimulationType.IncomingPrenotificationResponse or NachaInboundSimulationType.IncomingPrenotificationReturn
             ? NachaSimulationMode.DifferentialResponses
             : NachaSimulationMode.IncomingTransactions;
     private static bool IsDebitScenario(NachaInboundSimulationType scenario) => scenario.ToString().Contains("Debit", StringComparison.OrdinalIgnoreCase);

@@ -1,0 +1,91 @@
+# EJECUCIÓN DE CONTROLES ESTÁTICOS — I04-CENIT
+Fecha 2026-11-03. Controles de fuente; no son compilación, xUnit ni homologación.
+
+## automatic_returns_i01_cenit_static_check.log
+PASS: snapshot Postgres refleja columna
+PASS: pruebas incluyen auditoría
+PASS: pruebas incluyen doble escritura
+PASS: pruebas incluyen ACH y CENIT
+PASS: pruebas incluyen conservación de permisos
+I01-CENIT: 29/29 controles estáticos
+
+## automatic_returns_i02_ach_static_check.log
+PASS_STATIC: Detector conectado tras respuesta confirmada
+PASS_STATIC: Fallo de observación aislado
+PASS_STATIC: Sin llamadas a generador/transporte en detector
+PASS_STATIC: Escenarios de cámara, modo e incidencias
+PASS_STATIC: Pruebas sin efectos monetarios
+RESULTADO: 18/18 comprobaciones estáticas
+
+## automatic_returns_i02_cenit_static_check.log
+PASS: prueba prenotificaciones y duplicado
+PASS: prueba aislamiento de cola ACH
+PASS: prueba aislamiento catalogo
+PASS: prueba de permisos
+PASS: conserva API I01
+I02-CENIT: 50/50 controles estáticos
+
+## automatic_returns_i03_ach_static_check.log
+PASS_STATIC: Procesador después de persistencia
+PASS_STATIC: Procesador no interrumpe core
+PASS_STATIC: Pruebas tres tipos
+PASS_STATIC: Pruebas no envío / CENIT
+PASS_STATIC: Pruebas de ventana y unicidad
+RESULTADO: 25/25
+
+## automatic_returns_i03_cenit_static_check.log
+OK - test R06 y ejecución obsoleta
+OK - test resultado posterior
+OK - test cámara y Fecha Valor
+OK - test festivo y retorno existente
+OK - test permisos
+RESULTADO ESTATICO I03-CENIT: 57/57
+
+## automatic_returns_i04_ach_static_check.log
+FAIL | SPA no invoca creación archivo
+PASS_STATIC | integración pantalla existente
+PASS_STATIC | endpoints SPA cámara específica
+PASS_STATIC | casos xUnit incorporados
+PASS_STATIC | casos Angular incorporados
+RESULTADO 32/35
+
+## automatic_returns_i04_cenit_static_check.log
+OK - prueba sin claims
+OK - prueba excepciones sin escritura
+OK - prueba token concurrency
+OK - sin cambios ACH Colombia en persistencia I04
+OK - sin escritura de políticas ACH Colombia
+I04-CENIT: 71/71 controles estáticos
+
+## automatic_returns_i05_ach_static_check.log
+PASS_STATIC | Pruebas bloqueo/no envío/estado
+PASS_STATIC | Pruebas de fallo de generador
+PASS_STATIC | Prueba SPA de confirmación
+PASS_STATIC | Prueba contrato SPA
+PASS_STATIC | Sin cambios al esquema en I05
+RESULTADO 33/33
+
+## automatic_returns_i06_ach_static_check.log
+PASS_STATIC | API protegida reutiliza permiso
+PASS_STATIC | SPA conserva material y vista existente
+PASS_STATIC | Pruebas de desactivación y CENIT
+PASS_STATIC | Pruebas de unicidad y recuperación
+PASS_STATIC | No se invoca transporte automático
+RESULTADO: 28/28 comprobaciones estáticas
+
+## automatic_returns_i07_ach_static_check.log
+PASS_STATIC | test ausencia auditoría
+PASS_STATIC | test metadatos
+PASS_STATIC | test aislamiento CENIT
+PASS_STATIC | test positivo huella
+PASS_STATIC | fixture I06 ajustada a auditoría original
+RESULTADO: 24/24
+
+## automatic_returns_i08_ach_static_check.log
+PASS_STATIC | xUnit aislamiento CENIT
+PASS_STATIC | fixtures I06 tienen bytes coherentes
+PASS_STATIC | habilitación permanece apagada
+PASS_STATIC | ejecutor no transmite
+PASS_STATIC | sin nuevas rutas de API en incremento
+RESULTADO: 25/25
+

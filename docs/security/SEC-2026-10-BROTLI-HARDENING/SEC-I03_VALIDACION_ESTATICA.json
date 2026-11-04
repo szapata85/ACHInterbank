@@ -1,0 +1,19 @@
+{
+  "artifacts": {
+    "SEC-I03_INVENTARIO_FUENTE.json": "38a50a31eab412e31dc3a1aa50b1a5213a3b638acc8673d8a15ac42f941dfc79",
+    "SEC-I03_NPM_LOCK.cdx.json": "8e2dc343790602f3762da45e02c2c2e43373bd994270c13d5b98896874df438d",
+    "SEC-I03_NUGET_DECLARADO.cdx.json": "fee21d7f38bd697aea94a4edc318ceaed834a4f94a6133168db3394e2e5786d3"
+  },
+  "docker_declared_images": 6,
+  "docker_images_unpinned": 6,
+  "docker_layer_scan": "NOT_RUN_ENVIRONMENT",
+  "npm_direct_unresolved": [],
+  "npm_missing_integrity": 36,
+  "npm_packages": 1130,
+  "npm_remote_audit": "NOT_RUN_ENVIRONMENT",
+  "nuget_direct_references": 56,
+  "nuget_projects": 8,
+  "nuget_transitive_graph": "NOT_RUN_ENVIRONMENT",
+  "nuget_unique_declared_packages": 51,
+  "status": "PASS_STATIC"
+}

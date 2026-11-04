@@ -22,7 +22,7 @@ describe('NavigationNamingService', () => {
             { id: 581, label: 'Contrato del servicio', route: '/integraciones/contrato', exact: true },
             { id: 582, label: 'Relación de información', route: '/integraciones/relacion-informacion', exact: true },
             { id: 583, label: 'Conexión entidad participante', route: '/integraciones/conexion', exact: true },
-            { id: 584, label: 'Configuración del intercambio de archivos', route: '/administracion/mft-ach', exact: true }
+            { id: 584, label: 'Administración de transferencias de archivos (MFT)', route: '/administracion/mft-ach', exact: true }
           ]
         }
       ]
@@ -151,11 +151,11 @@ describe('NavigationNamingService', () => {
       route('/administracion/mft-ach', 'MFT ACH', 'Administración MFT ACH')
     ]);
 
-    expect(naming.pageTitle).toBe('Configuración del intercambio de archivos');
+    expect(naming.pageTitle).toBe('Administración de transferencias de archivos (MFT)');
     expect(naming.breadcrumbs.map((crumb) => crumb.label)).toEqual([
       'Administración de parámetros',
       'Conexiones',
-      'Configuración del intercambio de archivos'
+      'Administración de transferencias de archivos (MFT)'
     ]);
   });
 

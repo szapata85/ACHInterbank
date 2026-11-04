@@ -1,0 +1,97 @@
+--- a/docs/correcciones-cenit/MEMORY_STATE.md
++++ b/docs/correcciones-cenit/MEMORY_STATE.md
+@@ -1,11 +1,12 @@
+-# MEMORY_STATE — Correcciones CENIT F07
++# MEMORY_STATE — Correcciones CENIT F08 (cierre documental condicionado)
+ 
+-**Fecha 2026-11-02**. ZIP base inmediata F06: `ACHInterbank_PROYECTO_COMPLETO_CORRECCIONES_CENIT_F06_2026-11-02.zip` SHA-256 `a43539f83b8b6cdc5e36cbadf5d9334dc578bd88ddf2d22cd5acf088ffc8b76d` (4.651 entradas y CRC OK). Auditoría I01–I10, F01–F06 preservadas. Raíz `ACHInterbank_ajustado/`.
++**Fecha:** 2026-11-02. **ZIP base inmediata F07:** `ACHInterbank_PROYECTO_COMPLETO_CORRECCIONES_CENIT_F07_2026-11-02.zip`, SHA-256 `86e4ea5ccf30b1155fbc3a9477889bc611b499d326210b2f042fe5bd99b2c5f0`, 4.660 entradas, ZIP CRC y cotejo SHA/árbol íntegros. Raíz `ACHInterbank_ajustado/`. Auditoría I01–I10 y F01–F07 conservadas.
+ 
+-- **F07 ejecutada como regresión ESTÁTICA**, 7/8 entregas (87,5 %), sin homologación. **Siguiente F08** dictamen documental final con bloqueos y plan para ejecución de pruebas.
+-- **Estado 13 HC**: 13 implementados pendientes de verificación dinámica/integración, 0 sin implementar, 0 cerrados formalmente. Invariante de nombres HC-CENIT-001..013.
+-- **Cambios de F07**: cero productivos; nueva clase de pruebas `tests/Cfa.ACHInterbank.Tests/CenitF07CrossPhaseRegressionTests.cs`; ampliación de `CenitChamberResponseLifecycleTests.cs`; scripts `scripts/test/cenit_f07_regression_check.py`, `scripts/test/run_cenit_f07_dotnet_regression.sh`; documentación F07, matriz, estado, plan, pruebas y registro.
+-- **Pruebas ejecutadas de verdad:** F07 24/24 PASS; F01–F06 113/113 PASS. Checks de fuente y fixtures, NO ejecución C#; comparación de golden ACH Colombia/CENIT con 1060 bytes cada uno, ROR sintético 10x106. `run_cenit_f07_dotnet_regression.sh` intentado: salida 2, falta SDK. **xUnit ejecutadas=0, aprobadas=0, fallidas ejecutadas=0**. **11 casos xUnit fuente añadidos y NO ejecutados.**
+-- **ACH Colombia:** códigos/rutas exclusivos y golden no modificados; el aislamiento de Ñ/ñ y Dxx está cubierto por casos fuente, no ejecución funcional. **CUD** no integrado. No cambios a DB/WSDL/migraciones.
+-- **F08 debe** conservar historial, manifiesto, SHA-256 y evidencias de F01–F07, declarar bloqueos .NET/DB/Quartz/gateway/operador/Tesorería y no cerrar 13 HC sin pruebas certificadas. PT-01–PT-22 pendientes.
+-- **Entrega:** `F07_INFORME_REGRESION.md`, `F07_EVIDENCIA_REGRESION_ESTATICA.txt`, `F07_CAMBIOS.patch`, `F07_COMPARACION_SHA256.tsv`, `MANIFIESTO_F07.md`, `F07_MEMORY_STATE.md`; estado general `MEMORY_STATE.md` actualizado. Salida: `ACHInterbank_PROYECTO_COMPLETO_CORRECCIONES_CENIT_F07_2026-11-02.zip`; hash ZIP solo en `.zip.sha256` lateral para evitar circularidad.
++- **F08 entregada: 8/8 incrementos (100 % de entregables, 0 % de homologación declarada).** **Dictamen CONDICIONADO / NO-GO** para producción, habilitación financiera u homologación CENIT.
++- **13 HC originales (001–013):** 13 implementados en código de F01–F06, 13 **ABIERTOS — PENDIENTES DE VERIFICACIÓN**, 0 sin implementación y **0 cerrados formalmente**. IDs/prioridades de I10 preservados.
++- **Pruebas ejecutadas de verdad:** F01–F06 113/113, F07 24/24 y F08 17/17 verificaciones **estáticas/documentales**; total **154/154**. F07 runner xUnit intentado con **exit 2** por ausencia SDK .NET. **C# xUnit ejecutadas=0, aprobadas=0, fallidas ejecutadas=0**. 22 PT I10 todas sin ejecutar. No certificación de comportamiento.
++- **SDK real del proyecto:** `global.json` indica **10.0.403**, `latestPatch`; la referencia previa F07 a 10.0.402 se considera discrepancia histórica aclarada, sin alterar historial.
++- **Alcance F08:** 0 modificaciones de código productivo, C# tests, golden ACH Colombia, WSDL, DB/migraciones o CUD; solo documentación de cierre y un script de consistencia estática.
++- **Archivos de cierre:** `F08_DICTAMEN_FINAL_CONDICIONADO.md`, `F08_MATRIZ_CIERRE_HALLAZGOS.md`, `F08_PLAN_PRUEBAS_Y_APROBACIONES.md`, `F08_CHECKLIST_GO_NO_GO.md`, `F08_INFORME_ENTREGA.md`, `F08_EVIDENCIA_CONSOLIDADA.txt`, `F08_COMPARACION_SHA256.tsv`, `F08_CAMBIOS.patch`, `MANIFIESTO_F08.md`, `F08_MEMORY_STATE.md`, `scripts/test/cenit_f08_closure_audit.py`.
++- **Para cambiar dictamen:** preparar SDK/SQL/Quartz/operador/gateway/Tesorería, ejecutar `run_cenit_f07_dotnet_regression.sh` y PT-01–PT-22, conservar TRX/logs/raw/hash/actas, reauditar por HC, confirmar vigencia documental. No crear API CUD; reconciliación manual de Tesorería.
++- **Entrega F08 prevista:** `ACHInterbank_PROYECTO_COMPLETO_CORRECCIONES_CENIT_F08_2026-11-02.zip` con SHA final en `.zip.sha256` lateral para no introducir autorreferencia. `F08_VERIFICACION_INTEGRIDAD.txt` externo. Restauración conservadora: ZIP F07.
+--- a/docs/correcciones-cenit/PLAN_INCREMENTAL_CORRECCIONES.md
++++ b/docs/correcciones-cenit/PLAN_INCREMENTAL_CORRECCIONES.md
+@@ -11,6 +11,8 @@
+ | F05 | 002, 008 | Correlación ROR C1 con raw/evento; R74 exclusiva R32 crédito monetario con adenda | IMPLEMENTADA ESTÁTICAMENTE; xUnit/DB/gateway pendientes |
+ | F06 | 010, 011 | NACHA-M físico CENIT por perfil y errores STA separados | IMPLEMENTADA ESTÁTICAMENTE; .NET/DB/gateway pendientes |
+ | F07 | Todos | Regresión transversal ACH Colombia/CENIT y conciliación | EJECUTADA ESTÁTICAMENTE: 24/24 + 113/113; .NET/SQL/Quartz/operador PENDIENTES |
+-| F08 | Todos | Matriz cierre y entregable completo, sin homologación inferida | PENDIENTE |
++| F08 | Todos | Matriz final, dictamen condicionado, plan PT-01–PT-22, evidencias y ZIP íntegro | ENTREGADA DOCUMENTALMENTE; NO-GO, 0 HC cerrados |
+ 
+ **Límites obligatorios:** CUD fuera de alcance; su revisión permanece manual en Tesorería. No replicar optimización ni liquidación del Banco. No modificar códigos/rutas ACH Colombia por conveniencia. **Criterio de cierre HC:** causa corregida, pruebas ejecutadas, rutas/estados documentados y ausencia de regresiones en alcance probado. F01 y F02 completadas como entregas incrementales, no como certificación ni cierre de HC.
++
++**Cierre F08 (2026-11-02):** 8/8 entregas documentadas; 13 HC implementados pendientes de verificación y 22 PT sin ejecutar. Ver `F08_DICTAMEN_FINAL_CONDICIONADO.md`; no es homologación.
+--- a/docs/correcciones-cenit/ESTADO_FASES.md
++++ b/docs/correcciones-cenit/ESTADO_FASES.md
+@@ -1,4 +1,4 @@
+-# Estado de fases CENIT — 2026-11-02 / F07
++# Estado de fases CENIT — 2026-11-02 / F08
+ 
+ | Fase | Avance de entregables | Cobertura técnica pendiente |
+ |---|---|---|
+@@ -9,6 +9,8 @@
+ | F05 | IMPLEMENTADA ESTÁTICAMENTE (5/8; 62,5 %) | HC-002/008: .NET, DB, archivos ROR oficiales, duplicados concurrentes y ACH Colombia funcional |
+ | F06 | IMPLEMENTADA ESTÁTICAMENTE (6/8; 75 %) | HC-010/011: .NET, parser E2E/STA y regresión ACH Colombia pendientes |
+ | F07 | EJECUTADA ESTÁTICAMENTE (7/8; 87,5 %) | 24/24 controles de fuente/fixtures y 113/113 regresión histórica; 11 casos xUnit nuevos sin ejecutar, suite completa .NET/SQL/Quartz/operador pendiente |
+-| F08 | No iniciada | Dictamen y cierre final |
++| F08 | ENTREGADA DOCUMENTALMENTE (8/8; 100 % de entregables) | Dictamen CONDICIONADO/NO-GO; 13 HC abiertos y 22 PT sin ejecutar; .NET/SQL/Quartz/operador/Tesorería pendientes |
+ 
+ El porcentaje representa únicamente hitos de **entrega**, no cumplimiento/homologación. El cierre de HC requiere pruebas realmente ejecutadas.
++
++**Verificación F08:** 17/17 controles documentales y de integridad, más 137/137 estáticos heredados. El SDK exigido por `global.json` es 10.0.403; no hubo ejecución xUnit. Ningún HC cerrado.
+--- a/docs/correcciones-cenit/MATRIZ_HALLAZGOS_CORRECCIONES.md
++++ b/docs/correcciones-cenit/MATRIZ_HALLAZGOS_CORRECCIONES.md
+@@ -1,4 +1,4 @@
+-# Matriz inmutable de los 13 hallazgos — después de F07
++# Matriz inmutable de los 13 hallazgos — después de F08
+ 
+ **Ningún HC cerrado:** no hay resultados `dotnet test` ni integración oficial ejecutados en este entorno. Ver `REGISTRO_CORRECCIONES.md` y evidencias originales I10.
+ 
+@@ -21,3 +21,7 @@
+ **Resumen:** 13 implementados pendientes de verificación, 0 abiertos sin implementación, 0 cerrados. 13 sin cierre.
+ 
+ **F07:** evidencia adicional de rutas, 6 fixtures golden de 1.060 bytes y ROR sintético, 24/24 controles de integración estática, 113/113 previos; 11 casos de xUnit incorporados pero **0 ejecutados**. Los trece estados permanecen implementados/pendientes de verificación; no hay cierre por pasar controles de fuente.
++
++## Dictamen de cierre F08
++
++Los 13 IDs conservan estado **IMPLEMENTADO — PENDIENTE DE VERIFICACIÓN / ABIERTO**. No hay TRX, DB/Quartz, gateway de operador, pruebas de ACH Colombia funcionales ni actas certificadas; por ello **0 cerrados formalmente**. La matriz de decisiones y 22 PT pendientes se registran en `F08_MATRIZ_CIERRE_HALLAZGOS.md` y `F08_PLAN_PRUEBAS_Y_APROBACIONES.md`. F08 no modifica código de las fases previas.
+--- a/docs/correcciones-cenit/REGISTRO_PRUEBAS.md
++++ b/docs/correcciones-cenit/REGISTRO_PRUEBAS.md
+@@ -114,3 +114,11 @@
+ - **Comprobación real de requisito previo**: `bash scripts/test/run_cenit_f07_dotnet_regression.sh` devuelve **exit 2, SDK ausente**. **xUnit ejecutadas=0, aprobadas=0, fallidas ejecutadas=0.** El runner exige .NET y ejecuta primero las pruebas transversales, luego la suite xUnit completa incluyendo ACH Colombia; guarda TRX solo si se ejecuta.
+ - **No ejecutado**: compilación, prueba SQLite/SQL Server/PostgreSQL, Quartz en concurrencia, gateway con archivos oficiales, STA real, conciliación Tesorería y regresión funcional ACH Colombia. No declarar cierre ni aprobación de homologación. No hay habilitación de CUD.
+ - **Para CI/ambiente preparado**: `bash scripts/test/run_cenit_f07_dotnet_regression.sh` (.NET SDK 10.0.402, dependencias disponibles, variables de entorno adecuadas), recopilar TRX, logs DB e identificadores de operador y ejecutar matriz PT-01 a PT-22 de `docs/auditoria-estatica-cenit/MATRIZ_PRUEBAS_POSTERIORES_CENIT.md`. La mera presencia de las pruebas no certifica su resultado.
++
++
++## Registro F08 — 2026-11-02
++
++- **Ejecutado realmente:** todas las suites estáticas F01–F07: 12+13+17+21+26+24+24 = **137/137 PASS**; F08 `python scripts/test/cenit_f08_closure_audit.py --baseline-zip ...F07...zip` **17/17 PASS** (documentos I10, 13 HC, 22 PT y conservación productiva). Total **154/154** verificaciones estáticas/documentales, NO equivalente a pruebas C# compiladas.
++- **Intento de runner:** `bash scripts/test/run_cenit_f07_dotnet_regression.sh` **exit 2** / SDK .NET ausente. `global.json`: **10.0.403**. **xUnit ejecutadas=0; aprobadas=0; fallidas ejecutadas=0**.
++- **PT-01–PT-22:** **22 PENDIENTES — NO EJECUTADAS**, incluyendo E2E, SQL, Quartz, operador, ACH Colombia funcional, conciliación Tesorería y vigencia normativa.
++- **No hay homologación ni cierre:** 13 HC implementados con falta de evidencia de eficacia, 0 formalmente cerrados. Revisar `F08_PLAN_PRUEBAS_Y_APROBACIONES.md` y `F08_DICTAMEN_FINAL_CONDICIONADO.md`.
+--- a/docs/correcciones-cenit/REGISTRO_CORRECCIONES.md
++++ b/docs/correcciones-cenit/REGISTRO_CORRECCIONES.md
+@@ -68,3 +68,10 @@
+ ## F07 — 2026-11-02 (base ZIP F06)
+ 
+ **Objetivo transversal:** comprobar conjuntamente correcciones HC-CENIT-001–013 y aislar ACH Colombia, sin confundir pruebas de fuente con homologación. **No se modifican servicios productivos** por no identificar un defecto nuevo reproducido con la infraestructura disponible. Se incorpora `tests/Cfa.ACHInterbank.Tests/CenitF07CrossPhaseRegressionTests.cs` y se amplía `CenitChamberResponseLifecycleTests.cs` para cubrir ACK/NACK/ADV en ambos órdenes. Las comprobaciones F07 y el runner xUnit están en `scripts/test/`. 24/24 fuente/fixtures y 113/113 estáticos anteriores aprobados. 11 casos xUnit agregados sin ejecutar. **13 hallazgos implementados pendientes de verificación; 0 cerrados.** Referencias de entrega: `F07_INFORME_REGRESION.md`, `F07_EVIDENCIA_REGRESION_ESTATICA.txt`, `F07_CAMBIOS.patch`, `MANIFIESTO_F07.md`. Sin cambios en ACH Colombia, CUD, WSDL, base ni migraciones.
++
++
++## F08 — 2026-11-02 (base ZIP F07, SHA-256 `86e4ea5ccf30b1155fbc3a9477889bc611b499d326210b2f042fe5bd99b2c5f0`)
++
++**Cierre documental condicionado:** se consolidó la implementación de HC-CENIT-001–013 sin añadir ni alterar código productivo, WSDL, migraciones, pruebas C#, golden ACH Colombia ni procesos CUD. Se añadieron la matriz de decisiones F08, los 22 PT pendientes con responsables/evidencia, checklist GO/NO-GO y dictamen final condicionado. Se corrigió solo a nivel documental la discrepancia entre mención previa SDK 10.0.402 y el valor real de `global.json` **10.0.403**. Ver `F08_INFORME_ENTREGA.md`, `F08_DICTAMEN_FINAL_CONDICIONADO.md`, `F08_MATRIZ_CIERRE_HALLAZGOS.md`, `F08_PLAN_PRUEBAS_Y_APROBACIONES.md` y `F08_CAMBIOS.patch`.
++
++**Evidencias ejecutadas**: 137/137 estáticas históricas + 17/17 F08 documentales (no son pruebas .NET). Runner .NET no ejecuta por ausencia SDK, exit 2. **13 HC ABIERTOS PENDIENTES DE VERIFICACIÓN, 0 cerrados; 22 PT NO EJECUTADOS.** Producción/homologación NO-GO; revalidar con suite, SQL/Quartz/operador/Tesorería y actas posteriores.

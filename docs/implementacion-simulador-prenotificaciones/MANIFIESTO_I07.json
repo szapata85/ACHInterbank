@@ -1,0 +1,86 @@
+{
+  "increment": "I07",
+  "date": "2026-11-02",
+  "base_zip": "ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I06_2026-11-02.zip",
+  "base_entries": 4752,
+  "new_entries_excluding_manifest": 4759,
+  "unchanged": 4743,
+  "modified": [
+    {
+      "path": "ACHInterbank_ajustado/MEMORY_STATE.md",
+      "sha256": "4b0d1acfc1ca6af1283b90a12b4bc930d0a22875b617b7a7117bc5eeeef9e937"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/CHANGELOG_INCREMENTAL.md",
+      "sha256": "9555408a87d7e243510d9aac47b7ddfd925661e2c7cfcd010be6d45fe2bb4289"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md",
+      "sha256": "38250a7cd919b032ce5872639e6fa6dc31f079faa53e359ea93a761b408b7638"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/MATRIZ_ACEPTACION.md",
+      "sha256": "f3fe07267439b7faed709e45fd4d418ba9359321ee4d3769c5c7c842dc91fa5f"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.TacitAcceptance.cs",
+      "sha256": "e791b3826bd96b32b8b1829b0014b65b14b95f2f4188dd53a676b19b20f0322f"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs",
+      "sha256": "494eaf35332905bc4ebac1886a398e4d95de7fd33f5478f456b288603c81ee9b"
+    },
+    {
+      "path": "ACHInterbank_ajustado/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.html",
+      "sha256": "e1e0c2efedbe5cbd257f1313e0db88c39b95f686f568590b28fb591a919b45cf"
+    },
+    {
+      "path": "ACHInterbank_ajustado/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.spec.ts",
+      "sha256": "9182edc02f1144df28f61df982e6ac93e0564099375449dba1636144183a894d"
+    },
+    {
+      "path": "ACHInterbank_ajustado/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts",
+      "sha256": "5a6df362a5f25f487e37f5e5951535a302c4466a14f0c29d232f994887157deb"
+    }
+  ],
+  "new": [
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/EVIDENCIA_I07.txt",
+      "sha256": "cd1fa01b0be59e6f68764ac40cce23bf05feb99bdc72f059c0179fc77691817e"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/I07_CAMBIOS_CODIGO.patch",
+      "sha256": "2e8f5a40d574f3c3ba3968ba472a6482f4d430ed6ccbd6a6ca0276e1fa6024a4"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/INFORME_I07.md",
+      "sha256": "7c9bdd594e047443ae770bc73e119d97589da94e82c65efcd9fa87820b7be768"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/PLAN_EJECUCION_UAT_I07.md",
+      "sha256": "e6f8b0a4cf7e5a8040bb42197a886c2c1acb34266e4f69b53820306e783e89ba"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/npm-ci-i07.log",
+      "sha256": "3082a8cb87c4b8cd01002bc36cac45c638fe9cc18f2bcbca6a88a824f1729748"
+    },
+    {
+      "path": "ACHInterbank_ajustado/scripts/test/prenotification_simulator_i07_static_check.py",
+      "sha256": "8886528473da12bf1f332505d3a6b5bcd84ca78986a95a3393396c9fbcf48299"
+    },
+    {
+      "path": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaInboundSimulatorTests.I07.cs",
+      "sha256": "e3bc3206ba203581744d10dfd9cd3e433ff02846e6d046c38bb67e1f0e164cca"
+    }
+  ],
+  "removed": [],
+  "checks": {
+    "i01_i06_static": "176/176 PASS_STATIC",
+    "i07_static": "24/24 PASS_STATIC",
+    "solution_graph": "7/7 PASS",
+    "runtime_dotnet": "NOT_EXECUTED_NO_SDK",
+    "runtime_angular": "NOT_EXECUTED_NPM_OFFLINE_CACHE_MISS",
+    "uat_pre_01_14": "0/14 EXECUTED"
+  },
+  "notes": "Manifest checksum excludes itself; SHA-256 of final ZIP is published separately. All I06 paths retained without deletion."
+}

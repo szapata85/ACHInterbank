@@ -1,0 +1,27 @@
+# Evidencia I06 — verificaciones de la SPA
+
+Corte: 2026-11-02
+
+```
+$ python scripts/test/prenotification_simulator_i06_static_check.py
+SUMMARY 32 / 32 (PASS_STATIC)
+$ python scripts/validate-solution-projects.py
+SOLUTION GRAPH: OK — 7/7 proyectos
+$ python scripts/test/prenotification_simulator_i01_static_check.py
+SUMMARY 20/20 PASS_STATIC
+$ python scripts/test/prenotification_simulator_i02_static_check.py
+26/26 PASS_STATIC
+$ python scripts/test/prenotification_simulator_i03_static_check.py
+31/31 PASS_STATIC
+$ python scripts/test/prenotification_simulator_i04_static_check.py
+31/31 PASS_STATIC
+$ python scripts/test/prenotification_simulator_i05_static_check.py
+36/36 PASS_STATIC
+$ cd web/ach-interbank-ui && npm ci --offline --ignore-scripts --no-audit --no-fund
+npm error code ENOTCACHED
+npm error request to https://registry.npmjs.org/zone.js/-/zone.js-0.16.3.tgz failed
+```
+
+- El parser TypeScript global confirmó sintaxis de tres archivos TS modificados. No hace type-check Angular.
+- Las pruebas unitarias I06 están escritas pero no ejecutadas (sin dependencias).
+- Sin Playwright ni captura de navegador; sin prueba de backend, base de datos o API.

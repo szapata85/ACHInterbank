@@ -16,8 +16,37 @@ using Moq;
 
 namespace Cfa.ACHInterbank.Tests;
 
-public class NachaInboundSimulatorTests
+public partial class NachaInboundSimulatorTests
 {
+    [Fact]
+    public async Task I01_NewPrenotificationReturnMustFailClosedWithoutCreatingFileOrState()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var output = CreateTempOutput();
+        var service = CreateService(context, output);
+        var request = new InboundSimulationEligibilityPreviewRequest
+        {
+            SimulationMode = NachaSimulationMode.DifferentialResponses,
+            ClearingHouseCode = "ACHCOL",
+            ScenarioType = NachaInboundSimulationType.IncomingPrenotificationReturn,
+            OriginFinancialInstitutionId = 2,
+            BusinessDate = new DateOnly(2026, 11, 2),
+            CycleCode = "ACH-CYCLE",
+            ResponseMode = InboundResponseMode.Returned,
+            ReasonCode = "R04"
+        };
+        var preview = await service.PreviewAsync(request);
+        Assert.False(preview.Eligible);
+        Assert.Equal("PRENOTIFICATION_RETURN_NOT_IMPLEMENTED", preview.FunctionalCode);
+
+        var rejected = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateAsync(request, "qa"));
+        Assert.Contains("PRENOTIFICATION_RETURN_NOT_IMPLEMENTED", rejected.Message, StringComparison.Ordinal);
+        Assert.Equal(0, await context.NachaInboundSimulations.CountAsync());
+        Assert.Equal(0, await context.IncomingNachaFileIngestions.CountAsync());
+        Assert.Empty(Directory.GetFiles(output, "*", SearchOption.AllDirectories));
+    }
+
     [Theory]
     [InlineData("ACHCOL", NachaInboundSimulationType.IncomingCredit)]
     [InlineData("CENIT", NachaInboundSimulationType.IncomingCredit)]

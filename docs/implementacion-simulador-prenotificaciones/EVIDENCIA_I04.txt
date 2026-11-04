@@ -1,0 +1,38 @@
+PASS_STATIC guard-is-pure-no-sql
+PASS_STATIC original-trace-exact
+PASS_STATIC addenda-type-99
+PASS_STATIC zero-value
+PASS_STATIC new-trace
+PASS_STATIC same-clearing-house
+PASS_STATIC final-exact-link
+PASS_STATIC current-attempt
+PASS_STATIC already-resolved
+PASS_STATIC same-return-replay
+PASS_STATIC simulation-hash-ambiguous
+PASS_STATIC simulation-bank-match
+PASS_STATIC simulation-source-match
+PASS_STATIC simulation-cause-match
+PASS_STATIC simulation-membership
+PASS_STATIC simulation-attempt-required
+PASS_STATIC non-prenote-unmodified
+PASS_STATIC pre-transition
+PASS_STATIC blocked-manual-review
+PASS_STATIC audit-correlated
+PASS_STATIC sha-upper-normalized
+PASS_STATIC sha-lower-ingested
+PASS_STATIC no-filename-trust
+PASS_STATIC prenote-type-flag
+PASS_STATIC cenit-prenote-type
+PASS_STATIC existing-state-sync
+PASS_STATIC no-parallel-state-writer
+PASS_STATIC original-tests-two-chambers
+PASS_STATIC duplicate-tests
+PASS_STATIC integration-block-test
+PASS_STATIC integration-good-trace
+{"checks_total": 31, "passed": 31, "failed": [], "classification": "STATIC_ONLY_NOT_DOTNET_BUILD_OR_NACHAUPLOAD_E2E"}
+SOLUTION GRAPH: OK
+  solution projects: 7
+  disk projects:     7
+  project references: all targets exist and are loaded by the solution
+
+NO_EJECUTADA_POR_AMBIENTE: dotnet build, dotnet test, E2E NACHA-M ACHCOL/CENIT y BD concurrente; dotnet no instalado.

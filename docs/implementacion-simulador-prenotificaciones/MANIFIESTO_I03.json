@@ -1,0 +1,26 @@
+{
+  "base": "I02",
+  "increment": "I03",
+  "original_entries": 4718,
+  "modified": [
+    "MEMORY_STATE.md",
+    "docs/implementacion-simulador-prenotificaciones/CHANGELOG_INCREMENTAL.md",
+    "docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.json",
+    "docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md",
+    "src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs",
+    "src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs",
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs"
+  ],
+  "new_before_manifest": [
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.PrenotificationReturns.cs",
+    "src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationIdentity.cs",
+    "scripts/test/prenotification_simulator_i03_static_check.py",
+    "tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorI03ContractTests.cs",
+    "docs/implementacion-simulador-prenotificaciones/INFORME_I03.md",
+    "docs/implementacion-simulador-prenotificaciones/EVIDENCIA_I03.txt",
+    "docs/implementacion-simulador-prenotificaciones/CONTRATO_GENERACION_I03.md"
+  ],
+  "deleted": [],
+  "classification": "original_zip_preserved_except_listed_changes",
+  "runtime_tests": "NO_EJECUTADA_POR_AMBIENTE"
+}

@@ -29,6 +29,9 @@ El helper escribe la cadena seleccionada directamente en `appsettings.Developmen
 
 ## Estado actual
 
+**Entrega completa SOAP-MAP-SAFE-001 (I01–I06):** proyecto integrado sin parches. Leer `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/ENTREGA_PROYECTO_COMPLETO_I06.md`, `CIERRE_TECNICO_I06.md`, `INVENTARIO_CAMPOS_SOAP_I06.md`, `PLAN_INCREMENTAL.md` y `MEMORY_STATE.md`. I06 no cambia código: consolida verificaciones y deuda. Grafo de solución 7/7 y P8.1 estáticos PASS; .NET no disponible, P8.3 no terminó por timeout. **`next_increment=I07` sujeto a prerrequisitos**, sin UAT/Live ni cutover. Atención: `appsettings.Development.json` contiene `Live` para los dos SOAP monetarios aunque `appsettings.json` contiene `DryRun`; verificar entorno efectivo antes de cualquier ejecución.
+
+
 Para el frente ACH Colombia FASE 1–8, el estado del paquete actual es **IMPLEMENTACIÓN COMPLETADA / VALIDACIÓN EJECUTABLE FINAL PENDIENTE**. El harness integral controlado de FASE 8 está preparado, pero en el host de preparación no pudieron ejecutarse build/tests .NET, Docker E2E ni la validación frontend completa. Esto **no** significa producción lista, homologación con ACH Colombia, UAT aprobada, aceptación de usuario ni salida a producción.
 
 El resumen para continuar sin reconstruir toda la historia está en `docs/ACH_COLOMBIA_INTERNAL_CLOSURE.md`. El estado general se consolida en `docs/CURRENT_PROJECT_STATUS.md` y `MEMORY.md`; la clasificación de pendientes propios, externos y UAT está en `docs/PENDING_WORK_CLASSIFICATION.md`.
@@ -149,3 +152,7 @@ La implementación del rediseño de administración CFA y del mapping SOAP versi
 `docs/CFA_SOAP_UX_MAPPING_IMPLEMENTATION_PACKAGE_2026-10-12/`
 
 Para una conversación nueva de ChatGPT use el prompt mínimo de `CHATGPT_MICRO_START.md`. El estado canónico `MEMORY_STATE.md` indica el único `next_micro_prompt` permitido, de modo que cada conversación ejecute un cambio pequeño y verificable.
+
+## SOAP-MAP-SAFE-001 — I07-A (preparación de UAT)
+
+El proyecto integral contiene I01–I06 y la preparación **I07-A**, sin ejecución en banco ni habilitación Live. Inicio para la etapa oficial: `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/I07A_PREPARACION_UAT_SOAP.md`; casos y riesgos en `I07A_MATRIZ_CASOS_SOAP.md` e `I07A_EVIDENCIA_Y_BLOQUEOS.md`. Un preflight **exclusivamente estático** está disponible en `scripts/uat/i07a-soap-safe-preflight.cmd` para Windows CMD. El siguiente paso condicional es I07-B (UAT oficial); **no** se considera UAT_READY.

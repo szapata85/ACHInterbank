@@ -263,12 +263,12 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
 
         var scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
         var jobKey = new JobKey($"job:{task.Id}", DynamicGroup);
-        if (!await scheduler.CheckExists(jobKey, cancellationToken))
+        if (!await scheduler.Exists(jobKey, cancellationToken))
         {
             await _syncService.SynchronizeTaskAsync(task.Id, cancellationToken);
         }
 
-        if (!await scheduler.CheckExists(jobKey, cancellationToken))
+        if (!await scheduler.Exists(jobKey, cancellationToken))
         {
             return await RecordRejectedAsync(task, catalog.TaskCode, command, "La tarea no está disponible en Quartz.", cancellationToken);
         }
@@ -604,7 +604,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
         CancellationToken cancellationToken)
     {
         var triggers = await scheduler.GetTriggersOfJob(new JobKey($"job:{taskId}", DynamicGroup), cancellationToken) ?? [];
-        return triggers.Select(x => x.GetNextFireTimeUtc()).Where(x => x.HasValue).Min();
+        return triggers.Select(x => x.NextFireTimeUtc).Where(x => x.HasValue).Min();
     }
 
     private sealed record WindowCandidate(OperationalCycleWindow Window);
@@ -695,7 +695,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
 
         var periodicity = (PeriodicityTypeEnum)request.PeriodicityType;
         if (periodicity == PeriodicityTypeEnum.Cron
-            && (string.IsNullOrWhiteSpace(request.CronExpression) || !CronExpression.IsValidExpression(request.CronExpression)))
+            && (string.IsNullOrWhiteSpace(request.CronExpression) || !CronExpression.TryParse(request.CronExpression, out _)))
             throw new ArgumentException("La expresión cron no es válida.");
         if (periodicity == PeriodicityTypeEnum.EveryNMinutes && request.N is not (> 0 and <= 1440))
             throw new ArgumentException("El intervalo debe estar entre 1 y 1440 minutos.");
@@ -791,7 +791,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
             PeriodicityTypeEnum.Yearly => BuildYearlyCron(request.StartAt!.Value, request.TimeZoneId),
             _ => request.CronExpression!
         };
-        var expression = new CronExpression(expressionText) { TimeZone = TimeZoneInfo.FindSystemTimeZoneById(request.TimeZoneId) };
+        var expression = new CronExpression(expressionText, TimeZoneInfo.FindSystemTimeZoneById(request.TimeZoneId));
         var next = new List<DateTimeOffset>();
         var cursor = start;
         while (next.Count < count)

@@ -49,7 +49,7 @@ public class DynamicJobExecutor
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public async Task ExecuteAsync(IJobExecutionContext context)
+    public async Task ExecuteAsync(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
         var taskId = Convert.ToInt32(context.MergedJobDataMap["TaskId"], CultureInfo.InvariantCulture);
         using var scope = _sp.CreateScope();
@@ -57,7 +57,7 @@ public class DynamicJobExecutor
 
         var task = await db.TaskDefinitions
             .Include(t => t.Parameters)
-            .FirstOrDefaultAsync(t => t.Id == taskId, context.CancellationToken);
+            .FirstOrDefaultAsync(t => t.Id == taskId, cancellationToken);
         if (task is null)
         {
             _logger.LogWarning("No se encontró la tarea con Id {TaskId}", taskId);
@@ -77,9 +77,9 @@ public class DynamicJobExecutor
                     && x.FinishedAt == null
                     && (x.Status == SchedulerExecutionStatus.Pending || x.Status == SchedulerExecutionStatus.Running))
                 .OrderByDescending(x => x.StartedAt)
-                .FirstOrDefaultAsync(context.CancellationToken)
+                .FirstOrDefaultAsync(cancellationToken)
             : await db.TaskExecutionLogs
-                .SingleOrDefaultAsync(x => x.ExecutionId == executionId, context.CancellationToken);
+                .SingleOrDefaultAsync(x => x.ExecutionId == executionId, cancellationToken);
 
         if (context.Recovering && existingLog?.ExecutionId is Guid recoveredExecutionId)
         {
@@ -111,7 +111,30 @@ public class DynamicJobExecutor
         log.RecoveryStartedAtUtc = context.Recovering ? now : null;
         log.MisfireDetected = log.MisfireDetected || IsMisfire(context, now);
 
-        await db.SaveChangesAsync(context.CancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (existingLog is null
+            && ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx
+            && (sqlEx.Number == 2601 || sqlEx.Number == 2627))
+        {
+            // La comprobación previa no es atómica: otra instancia puede haber
+            // registrado esta ejecución entre la consulta y el INSERT.
+            // Solo se omite si el ExecutionId ya existe; otros conflictos se propagan.
+            var alreadyRegistered = await db.TaskExecutionLogs
+                .AsNoTracking()
+                .AnyAsync(x => x.ExecutionId == executionId, cancellationToken);
+            if (!alreadyRegistered)
+            {
+                throw;
+            }
+
+            _logger.LogWarning(ex,
+                "Se omitió ejecución duplicada de {TaskCode}; ExecutionId={ExecutionId}; FireInstanceId={FireInstanceId}",
+                functionalCode, executionId, fireInstanceId);
+            return;
+        }
 
         Exception? unhandled = null;
         try
@@ -147,8 +170,8 @@ public class DynamicJobExecutor
                 log.MisfireDetected);
 
             var result = handler is ISchedulerContextAwareTaskHandler contextAware
-                ? await ExecuteContextAwareHandlerWithRetryAsync(contextAware, task, executionContext, context.CancellationToken)
-                : await ExecuteHandlerWithRetryAsync(handler, task, context.CancellationToken);
+                ? await ExecuteContextAwareHandlerWithRetryAsync(contextAware, task, executionContext, cancellationToken)
+                : await ExecuteHandlerWithRetryAsync(handler, task, cancellationToken);
 
             log.Success = result.Success;
             log.Output = Truncate(result.Output, 2000);
@@ -202,7 +225,7 @@ public class DynamicJobExecutor
 
         if (unhandled is not null)
         {
-            throw new JobExecutionException(unhandled, refireImmediately: false);
+            throw new JobExecutionException(unhandled);
         }
     }
 

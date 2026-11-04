@@ -59,7 +59,7 @@ public sealed class NavigationMenuNav34NConnectionsNavigationTests
                 ("/integraciones/contrato", "Contrato del servicio", 10),
                 ("/integraciones/relacion-informacion", "Relación de información", 20),
                 ("/integraciones/conexion", "Conexión entidad participante", 30),
-                ("/administracion/mft-ach", "Configuración del intercambio de archivos", 40)
+                ("/administracion/mft-ach", "Administración de transferencias de archivos (MFT)", 40)
             ],
             children.Select(item => (item.Route, item.Label, item.Order)).ToArray());
 
@@ -175,7 +175,7 @@ public sealed class NavigationMenuNav34NConnectionsNavigationTests
         Assert.Equal("Conexiones", connections.Label);
         Assert.Equal("/integraciones", connections.Route);
         var child = Assert.Single(connections.Children);
-        Assert.Equal("Configuración del intercambio de archivos", child.Label);
+        Assert.Equal("Administración de transferencias de archivos (MFT)", child.Label);
         Assert.Equal("/administracion/mft-ach", child.Route);
         Assert.DoesNotContain(menu, item => item.Route == "/administracion/mft-ach");
     }

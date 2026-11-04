@@ -1,0 +1,51 @@
+--- a/tests/Cfa.ACHInterbank.Tests/CenitChamberResponseLifecycleTests.cs
++++ b/tests/Cfa.ACHInterbank.Tests/CenitChamberResponseLifecycleTests.cs
+@@ -460,8 +460,48 @@
+             new CenitChamberResponseImportCommand("ADV-NOCYCLE", "adv.ach", "ADV",
+                 AdvContent("88"), Utc()));
+         Assert.Equal("CENIT_SESSION_IDENTIFIER_REQUIRED", response.ProblemCode);
+         Assert.False(response.IsApplied);
++    }
++
++    [Theory]
++    [InlineData(true)]
++    [InlineData(false)]
++    public async Task F07_OfficialAckIndividualNackAndAdv_KeepFileTransactionAndReconciliationIndependent(bool ackFirst)
++    {
++        await using var connection = await OpenAsync();
++        await using var context = await CreateSeededContextAsync(connection);
++        var service = CreateService(context);
++        if (ackFirst)
++        {
++            Assert.True((await service.ImportAsync(Command("ACK"))).IsApplied);
++        }
++
++        var individual = await service.ImportAsync(Command("OPERATOR"));
++        Assert.True(individual.IsApplied);
++        Assert.Equal(AchTransferStateEnum.ReturnedByOperator,
++            (await context.AchTransactions.SingleAsync()).State);
++        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
++        if (!ackFirst)
++        {
++            Assert.True((await service.ImportAsync(Command("ACK"))).IsApplied);
++        }
++
++        var advance = new CenitChamberResponseImportCommand(
++            "F07-ADV", "adv-f07.ach", "ADV", AdvContent("81", "82"),
++            Utc(), AchCycleId: "CENIT-CYCLE-1");
++        var reconciliation = await service.ImportAsync(advance);
++        Assert.True(reconciliation.IsApplied);
++        Assert.Equal(2, reconciliation.ItemCount);
++        Assert.Equal(CenitChamberResponseState.Accepted,
++            (await context.AchFileExports.SingleAsync()).ChamberResponseState);
++        Assert.Equal(AchTransferStateEnum.ReturnedByOperator,
++            (await context.AchTransactions.SingleAsync()).State);
++        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
++        Assert.True((await service.ImportAsync(advance)).IsDuplicate);
++        Assert.True((await service.ImportAsync(Command("OPERATOR"))).IsDuplicate);
++        Assert.Equal(4, await context.CenitChamberResponses.CountAsync());
++        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+     }
+ 
+     // 106-character records; CENIT §7.3.3; no CUD integration or synthetic posting.
+     private static string AdvContent(params string[] codes)

@@ -1,0 +1,36 @@
+{
+  "increment": "APN-I11",
+  "base_zip": "ACHInterbank_COMPLETO_CORRECCION_PRENOTIFICACIONES_APN_I10_2026-11-03.zip",
+  "base_entries": 5013,
+  "base_entries_preserved_unchanged": 5010,
+  "modified_existing_entries": 3,
+  "new_entries_excluding_manifest": 19,
+  "missing_base_entries": 0,
+  "modified": [
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ClearingHouseValidationPolicyService.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/ThirdPartyAccountValidationLifecycleTests.cs"
+  ],
+  "added": [
+    "ACHInterbank_ajustado/MEMORY_STATE_APN_I11.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/HALLAZGOS_I11.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/MEMORY_STATE_I11.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/README_APN_I11_SOURCES.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/STATUS_IMPLEMENTACIONES_I11.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I11_EJECUCIONES.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I11_INTEGRIDAD_INTERNA.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I11_TEST_DOTNET.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I11_TEST_I08.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I11_TEST_I09.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I11_TEST_I10.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I11_TEST_I11.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I11_TEST_SCHEDULE.log",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/incrementos/APN-I11_CONTRATO_CIERRE_RECEPCION.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/incrementos/APN-I11_FECHAS_OPERATIVAS_Y_HOMOLOGACION.md",
+    "ACHInterbank_ajustado/scripts/audit/prenotificaciones/run_apn_i11_dotnet.sh",
+    "ACHInterbank_ajustado/scripts/audit/prenotificaciones/test_apn_i11_windows.py",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationReceiptWindow.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/PrenotificationReceiptWindowI11Tests.cs"
+  ],
+  "note": "This manifest deliberately excludes itself (no circular hash). All paths include the ACHInterbank_ajustado/ prefix."
+}

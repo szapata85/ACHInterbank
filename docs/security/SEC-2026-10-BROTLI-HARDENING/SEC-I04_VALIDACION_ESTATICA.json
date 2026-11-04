@@ -1,0 +1,36 @@
+{
+  "increment": "SEC-I04",
+  "parent_artifact": "ACHInterbank_ACH_CR_I06_FIX01_SEC_I03_SBOM_INVENTORY_COMPLETO.zip",
+  "parent_sha256": "ff73b19d6c481fde1ac7f7baddc50207996277a84ec2731f6352c6cd7d3f67a5",
+  "status": "IMPLEMENTED_UNVERIFIED_ENVIRONMENT",
+  "seed_unchanged_bytes": true,
+  "preserve_admin_seed_credential": true,
+  "seed_legacy_risk": "ACCEPTANCE_PENDING",
+  "new_password_hasher": "PBKDF2-HMAC-SHA256/v1/600000",
+  "legacy_verification": "READ_ONLY_SHA256",
+  "legacy_automatic_migration": false,
+  "source_code_modified_count": 2,
+  "source_code_added_count": 1,
+  "xunit_test_file_created": true,
+  "xunit_tests_executed": "NOT_RUN_ENVIRONMENT",
+  "dotnet_restore_build_test": "NOT_RUN_ENVIRONMENT",
+  "database_auth_tests": "NOT_RUN_ENVIRONMENT",
+  "GO_INCREMENT": "YES",
+  "GO_DEPLOY": "NO",
+  "GO_LIVE_MONETARY": "NO",
+  "next_microtask": "SEC-I05-A_HARDENING_INVENTORY",
+  "changed_files": [
+    "MEMORY.md",
+    "docs/security/SEC-2026-10-BROTLI-HARDENING/MEMORY_STATE.md",
+    "docs/security/SEC-2026-10-BROTLI-HARDENING/PLAN_IMPLEMENTACION.md",
+    "src/Cfa.ACHInterbank.Application/Services/Authentication/Implementations/AuthService.cs",
+    "src/Cfa.ACHInterbank.Persistence/Security/Services/UsersService.cs"
+  ],
+  "new_files": [
+    "docs/security/SEC-2026-10-BROTLI-HARDENING/SEC-I04_DIFF_RESUMEN.md",
+    "docs/security/SEC-2026-10-BROTLI-HARDENING/SEC-I04_EVIDENCIA_ESTATICA.md",
+    "scripts/security/test_sec_i04_auth_static.py",
+    "src/Cfa.ACHInterbank.Application/Security/PasswordHashing/CredentialPasswordHasher.cs",
+    "tests/Cfa.ACHInterbank.Tests/Security/CredentialPasswordHasherTests.cs"
+  ]
+}

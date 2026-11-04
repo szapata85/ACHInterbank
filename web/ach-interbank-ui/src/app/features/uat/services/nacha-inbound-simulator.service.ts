@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { ApiService } from '../../../core/services/api.service';
 
 export type NachaSimulationMode = 'IncomingTransactions' | 'DifferentialResponses';
@@ -7,6 +8,7 @@ export type NachaInboundSimulationType =
   | 'IncomingCredit'
   | 'IncomingDebit'
   | 'IncomingPrenotificationResponse'
+  | 'IncomingPrenotificationReturn'
   | 'IncomingCreditConfirmation'
   | 'IncomingCreditRejection'
   | 'IncomingCreditReturn'
@@ -130,9 +132,94 @@ export interface NachaInboundSimulationItem {
   createdAt: string;
 }
 
+export type PrenotificationOutcome = 'Returned' | 'NoReturnByDeadline';
+
+export interface PrenotificationViolation {
+  code: string;
+  field: string;
+  message: string;
+}
+
+export interface PrenotificationCandidate {
+  originalPrenotificationId: number;
+  originalCycleId: string;
+  clearingHouseCode: string;
+  respondingFinancialInstitutionId: number;
+  respondingFinancialInstitution: string;
+  traceNumber: string;
+  transactionExternalId: string;
+  destinationAccountMasked: string;
+  originalBusinessDate: string;
+  transactionStatus: string;
+  validationAttemptId: number | null;
+  validationAttemptStatus: string | null;
+  responseDeadlineAtUtc: string | null;
+  transmittedOrAcknowledged: boolean;
+  hasPriorResponse: boolean;
+  eligibleForReturn: boolean;
+  eligibleForNoReturnByDeadline: boolean;
+  violations: PrenotificationViolation[];
+}
+
+export interface PrenotificationCandidatePage {
+  items: PrenotificationCandidate[];
+  page: number;
+  pageSize: number;
+  total: number;
+  executionEnabled: boolean;
+}
+
+export interface PrenotificationContractRequest {
+  outcome: PrenotificationOutcome;
+  clearingHouseCode: string;
+  originalPrenotificationIds: number[];
+  originalCycleId: string;
+  responseCycleId: string | null;
+  businessDate: string;
+  respondingFinancialInstitutionId: number;
+  reasonCode: string | null;
+  idempotencyKey: string | null;
+}
+
+export interface PrenotificationEligibilityPreview {
+  shapeValid: boolean;
+  businessEligible: boolean;
+  executionEnabled: boolean;
+  contractVersion: string;
+  violations: PrenotificationViolation[];
+  candidates: PrenotificationCandidate[];
+}
+
+export interface PrenotificationTacitPreview {
+  evaluationTimeUtc: string;
+  realTimeUtc: string;
+  isVirtualTime: boolean;
+  readOnly: boolean;
+  executionEnabled: boolean;
+  items: Array<{
+    originalPrenotificationId: number;
+    deadlineAtUtc: string | null;
+    wouldApplyAtEvaluationTime: boolean;
+    eligibleAtRealTime: boolean;
+    decision: string;
+    violations: PrenotificationViolation[];
+  }>;
+  violations: PrenotificationViolation[];
+}
+
+export interface PrenotificationTacitApplyResult {
+  realTimeUtc: string;
+  applied: number;
+  alreadyApplied: number;
+  items: PrenotificationTacitPreview['items'];
+  createsNachaFile: boolean;
+  externalTransmission: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class NachaInboundSimulatorService {
   private readonly api = inject(ApiService);
+  private readonly http = inject(HttpClient);
   private readonly basePath = 'api/uat/nacha-inbound-simulator';
 
   list() {
@@ -180,6 +267,44 @@ export class NachaInboundSimulatorService {
     scenarioType: NachaInboundSimulationType;
   }) {
     return this.api.get<AvailableInboundCycle[]>(`${this.basePath}/available-cycles`, { params });
+  }
+
+  listOriginatedPrenotifications(query: {
+    clearingHouseCode: string;
+    search?: string;
+    page: number;
+    pageSize: number;
+  }) {
+    const params = Object.fromEntries(
+      Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== '')
+    ) as Record<string, string | number>;
+    return this.api.get<PrenotificationCandidatePage>(`${this.basePath}/prenotifications/originated`, { params });
+  }
+
+  previewPrenotificationReturn(payload: PrenotificationContractRequest) {
+    return this.api.post<PrenotificationEligibilityPreview>(
+      `${this.basePath}/prenotifications/eligibility-preview`, payload);
+  }
+
+  generatePrenotificationReturn(payload: PrenotificationContractRequest) {
+    return this.api.post<NachaInboundSimulationResult>(
+      `${this.basePath}/prenotifications/generate-return`, payload);
+  }
+
+  previewTacitAcceptance(payload: PrenotificationContractRequest, evaluationTimeUtc: string | null) {
+    return this.api.post<PrenotificationTacitPreview>(
+      `${this.basePath}/prenotifications/tacit-acceptance/preview`,
+      { contract: payload, evaluationTimeUtc });
+  }
+
+  applyDueTacitAcceptance(payload: PrenotificationContractRequest) {
+    return this.api.post<PrenotificationTacitApplyResult>(
+      `${this.basePath}/prenotifications/tacit-acceptance/apply-due`, payload);
+  }
+
+  // Descarga autenticada: HttpClient atraviesa los interceptores de autorización.
+  downloadFile(id: number) {
+    return this.http.get(this.api.resolveUrl(`${this.basePath}/${id}/file`), { responseType: 'blob' });
   }
 
   downloadUrl(id: number): string {

@@ -13,9 +13,13 @@ internal static class NachaPhysicalParser
     internal static async Task<NachaPhysicalFile> ParseAsync(
         Stream nachaStream,
         CancellationToken ct,
-        NachaProfileRecordReader? profileReader = null)
+        NachaProfileRecordReader? profileReader = null,
+        bool isCenitNachaProfile = false)
     {
         ArgumentNullException.ThrowIfNull(nachaStream);
+        // Published CENIT profiles may have custom names; the caller supplies their authority.
+        // Known unpublished CENIT profiles can also be identified by their existing layout.
+        isCenitNachaProfile |= NachaInboundValidator.IsCenitNachaProfileCode(profileReader?.ProfileCode);
 
         using var buffer = new MemoryStream();
         await nachaStream.CopyToAsync(buffer, ct);
@@ -23,30 +27,32 @@ internal static class NachaPhysicalParser
 
         if (bytes.Length == 0)
         {
-            ThrowTechnical("ACHCOL-PHYSICAL-FILE-NOT-EMPTY: el archivo está vacío.");
+            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-EMPTY: el archivo está vacío." : "ACHCOL-PHYSICAL-FILE-NOT-EMPTY: el archivo está vacío.");
         }
 
         if (bytes.AsSpan().StartsWith(Encoding.UTF8.Preamble)
             || bytes.AsSpan().StartsWith(new byte[] { 0xFF, 0xFE })
             || bytes.AsSpan().StartsWith(new byte[] { 0xFE, 0xFF }))
         {
-            ThrowTechnical("ACHCOL-PHYSICAL-NO-BOM: el archivo contiene BOM.");
+            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-BOM: el archivo contiene BOM." : "ACHCOL-PHYSICAL-NO-BOM: el archivo contiene BOM.");
         }
 
         if (bytes.Any(value => value is (byte)'\r' or (byte)'\n'))
         {
-            ThrowTechnical("ACHCOL-PHYSICAL-NO-LINE-ENDINGS: el archivo contiene CR/LF.");
+            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-LINE-ENDINGS: el archivo contiene CR/LF." : "ACHCOL-PHYSICAL-NO-LINE-ENDINGS: el archivo contiene CR/LF.");
         }
 
-        if (bytes.Any(value => !IsAcceptedByte(value)))
+        if (bytes.Any(value => !IsAcceptedByte(value, isCenitNachaProfile)))
         {
-            ThrowTechnical("ACHCOL-PHYSICAL-ASCII-REPERTOIRE: el archivo contiene bytes fuera de la tabla de caracteres aceptados por ACH Colombia V35.");
+            ThrowTechnical(isCenitNachaProfile
+                ? "CENIT-NACHA-FATAL ERR_INV_PATTERN: el archivo contiene caracteres fuera del repertorio NACHA-M CENIT 2026."
+                : "ACHCOL-PHYSICAL-ASCII-REPERTOIRE: el archivo contiene bytes fuera de la tabla de caracteres aceptados por ACH Colombia V35.");
         }
 
         var recordLength = profileReader?.RecordLength ?? AchColOfficialNachaLayout.RecordLength;
         if (bytes.Length % recordLength != 0)
         {
-            ThrowTechnical("ACHCOL-PHYSICAL-RECORD-LENGTH: existen bytes residuales; cada registro debe tener 106 bytes.");
+            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-LENGTH: existen bytes residuales; cada registro debe tener 106 bytes." : "ACHCOL-PHYSICAL-RECORD-LENGTH: existen bytes residuales; cada registro debe tener 106 bytes.");
         }
 
         var content = Encoding.Latin1.GetString(bytes);
@@ -60,14 +66,14 @@ internal static class NachaPhysicalParser
 
         if (records[0].RecordType != '1')
         {
-            ThrowTechnical("ACHCOL-T1-RECORD-TYPE: el primer registro debe ser tipo 1.");
+            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-T1: el primer registro debe ser tipo 1." : "ACHCOL-T1-RECORD-TYPE: el primer registro debe ser tipo 1.");
         }
 
         var declaredLength = ReadField(profileReader, records[0].Content, "1", "RECORDSIZE");
         if (!int.TryParse(declaredLength, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedRecordLength)
             || parsedRecordLength != recordLength)
         {
-            ThrowTechnical($"ACHCOL-T1-RECORD-SIZE: el tamaño declarado debe ser {recordLength}.");
+            ThrowTechnical(isCenitNachaProfile ? $"CENIT-NACHA-FATAL-T1-SIZE: el tamaño declarado debe ser {recordLength}." : $"ACHCOL-T1-RECORD-SIZE: el tamaño declarado debe ser {recordLength}.");
         }
 
         var declaredBlockingFactor = ReadField(profileReader, records[0].Content, "1", "BLOCKINGFACTOR");
@@ -75,13 +81,13 @@ internal static class NachaPhysicalParser
             || blockingFactor <= 0
             || records.Length % blockingFactor != 0)
         {
-            ThrowTechnical("ACHCOL-PHYSICAL-BLOCKING-FACTOR: el archivo no ocupa bloques exactos de 10 registros.");
+            ThrowTechnical(isCenitNachaProfile ? "CENIT-NACHA-FATAL-BLOCKING: el archivo no ocupa bloques exactos de 10 registros." : "ACHCOL-PHYSICAL-BLOCKING-FACTOR: el archivo no ocupa bloques exactos de 10 registros.");
         }
 
         return new NachaPhysicalFile(recordLength, records);
     }
 
-    private static bool IsAcceptedByte(byte value)
+    private static bool IsAcceptedByte(byte value, bool isCenitNachaProfile)
         => value == (byte)' '
            || value is >= (byte)'0' and <= (byte)'9'
            || value is >= (byte)'A' and <= (byte)'Z'
@@ -89,7 +95,7 @@ internal static class NachaPhysicalParser
            || value is (byte)'.' or (byte)',' or (byte)';' or (byte)':' or (byte)'-'
                or (byte)'*' or (byte)'/' or (byte)'&' or (byte)'#' or (byte)'$'
                or (byte)'%' or (byte)'='
-           || value is 0xD1 or 0xF1;
+           || (!isCenitNachaProfile && (value is 0xD1 or 0xF1));
 
     private static string ReadField(
         NachaProfileRecordReader? profileReader,

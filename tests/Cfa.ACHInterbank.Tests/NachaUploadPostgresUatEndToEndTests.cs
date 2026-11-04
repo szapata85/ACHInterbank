@@ -28,7 +28,6 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Npgsql;
 using Quartz;
-using Quartz.Simpl;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -317,10 +316,7 @@ public class NachaUploadPostgresUatEndToEndTests
         services.AddTransient<DynamicJobExecutor>();
         services.AddTransient<DynamicJob>();
         services.AddTransient<NonConcurrentDynamicJob>();
-        services.AddQuartz(q =>
-        {
-            q.UseJobFactory<MicrosoftDependencyInjectionJobFactory>();
-        });
+        services.AddQuartz(); // Quartz 4 usa Microsoft DI por defecto.
 
         var provider = services.BuildServiceProvider();
         return new QuartzFixture(provider, provider.GetRequiredService<ISchedulerFactory>().GetScheduler().GetAwaiter().GetResult(), soapClient);

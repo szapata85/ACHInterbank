@@ -5841,3 +5841,7 @@ NAV4.2A puede considerarse implementado a nivel diseño/código, con runtime dif
 - NAV6 productivo: 0 cambios. `src/`, `web/`, `tests/`, `database/` y `docker/` permanecen byte-equivalentes al input NAV5.
 - Angular=`NOT_RUN_ENVIRONMENT` porque `node_modules` no existe. .NET=`NOT_RUN_ENVIRONMENT` porque `dotnet` no está disponible. No se instalaron dependencias ni herramientas.
 - Handoff: `ACHInterbank-R34-NAV-IA-NAV6-FULL-PROJECT.zip`; el SHA-256 final se registra externamente después de empaquetar y se exige reextracción + recertificación del ZIP. No ejecutar trabajo posterior sin decisión humana.
+
+## Extensión posterior independiente — NAV-UX-MFT-20261027
+
+Este historial NAV6 permanece intacto. Nuevo programa de UX/MFT (no parte de la recertificación NAV6) en `docs/ai/spa-navigation-unification/MEMORY_STATE.md`, estado `IMPLEMENTED_RUNTIME_PENDING`: apertura de ramas SPA uniforme, etiqueta MFT explícita sin cambiar permisos/semántica de navegación, 16 validaciones estáticas PASS, runtime pendiente. `NAV3.5C` sigue BLOCKED.

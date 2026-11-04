@@ -1,0 +1,176 @@
+{
+  "tool": "APN read-only static checker",
+  "generated_utc": "2026-11-03T18:55:35.941526+00:00",
+  "basis": "source code structure only; not runtime conformance",
+  "project_root": "ACHInterbank_ajustado",
+  "results": [
+    {
+      "increment": "APN-I01",
+      "key": "enum_validacion",
+      "source": "src/Cfa.ACHInterbank.Domain/Models/ACH/Enums/ThirdPartyAccountValidationEnums.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "cf0034b102ed1dff1c70000bde4f8117e5ff0d1159d8d2726678752366e1e3de"
+    },
+    {
+      "increment": "APN-I01",
+      "key": "intentos",
+      "source": "src/Cfa.ACHInterbank.Domain/Models/ACH/PrenotificationValidationAttempt.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "f488a0fa5557a3d0c843ecf912fd5e682b12dd322571c0528a75c3d7eadb4744"
+    },
+    {
+      "increment": "APN-I01",
+      "key": "transiciones",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchStateTransitionService.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "f8ddeb38495f359973b678e4878165d50f5b24c6c34cfd5828e044c637e4402a"
+    },
+    {
+      "increment": "APN-I02",
+      "key": "catalogo_7",
+      "source": "src/Cfa.ACHInterbank.Application/ACH/Models/RegulatoryCycleScheduleCatalog.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "7d67311d56f3a3fbe51661eec4b36bc992f6fe1a6536deff5a14adff4c3e3832"
+    },
+    {
+      "increment": "APN-I02",
+      "key": "calendario_7",
+      "source": "src/Cfa.ACHInterbank.Application/ACH/Models/RegulatoryCycleScheduleCatalog.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "7d67311d56f3a3fbe51661eec4b36bc992f6fe1a6536deff5a14adff4c3e3832"
+    },
+    {
+      "increment": "APN-I02",
+      "key": "devoluciones_7",
+      "source": "src/Cfa.ACHInterbank.Application/ACH/Models/RegulatoryCycleScheduleCatalog.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "7d67311d56f3a3fbe51661eec4b36bc992f6fe1a6536deff5a14adff4c3e3832"
+    },
+    {
+      "increment": "APN-I03",
+      "key": "catalogo_CENIT",
+      "source": "src/Cfa.ACHInterbank.Application/ACH/Models/RegulatoryCycleScheduleCatalog.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "7d67311d56f3a3fbe51661eec4b36bc992f6fe1a6536deff5a14adff4c3e3832"
+    },
+    {
+      "increment": "APN-I03",
+      "key": "regla_cenit",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/RegulatoryCatalogSeeder.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "d11699adeaaa9deec57a66a0e2fe4ba0cdb28c028a229653c1c834d6c8f749a3"
+    },
+    {
+      "increment": "APN-I04",
+      "key": "ingesta",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostParseProcessor.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "b58987bcd15289515f188c09a8b7a37529303fed8fd2d2329e754c431cc1ab7f"
+    },
+    {
+      "increment": "APN-I04",
+      "key": "resolucion",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPrenotificationResolver.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "aee39698f1f29ff575366453159b9e89c18255a585fceebfba96496342f8e735"
+    },
+    {
+      "increment": "APN-I04",
+      "key": "guarda",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingPrenotificationReturnGuard.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "c31be80623e4091c0caeb85f0a69a484af096080d341580b10f1ed2aed4a390d"
+    },
+    {
+      "increment": "APN-I05",
+      "key": "job",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "998f74e8dc833b30ff19bb975692371e45ce45def84aa8490ff6d87915116dec"
+    },
+    {
+      "increment": "APN-I05",
+      "key": "job_deadline",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "998f74e8dc833b30ff19bb975692371e45ce45def84aa8490ff6d87915116dec"
+    },
+    {
+      "increment": "APN-I05",
+      "key": "conversor_local",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ClearingHouseValidationPolicyService.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "c1c6e7124345cdd0972b64085514e767212d27103f3b9c343c5df95659242488"
+    },
+    {
+      "increment": "APN-I05",
+      "key": "cantidad_4",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/RegulatoryCatalogSeeder.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "d11699adeaaa9deec57a66a0e2fe4ba0cdb28c028a229653c1c834d6c8f749a3"
+    },
+    {
+      "increment": "APN-I05",
+      "key": "job_30_min",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/TaskDefinitionSeeder.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "fd4878871092e33677c4fa9ece27c46a2b3a5541096ed8ce389ad72692f486ce"
+    },
+    {
+      "increment": "APN-I06",
+      "key": "sincroniza_validacion",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchStateTransitionService.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "f8ddeb38495f359973b678e4878165d50f5b24c6c34cfd5828e044c637e4402a"
+    },
+    {
+      "increment": "APN-I06",
+      "key": "sincroniza_tercero",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchStateTransitionService.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "f8ddeb38495f359973b678e4878165d50f5b24c6c34cfd5828e044c637e4402a"
+    },
+    {
+      "increment": "APN-I06",
+      "key": "terminales",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ThirdPartyAccountValidationService.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "84a3a416ed673e25fe2f88b40d8e042b180c156177e711dd8def850cdcfe65d9"
+    },
+    {
+      "increment": "APN-I07",
+      "key": "prueba_previa",
+      "source": "tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorTacitAcceptanceI05Tests.cs",
+      "result": "FOUND_STATIC",
+      "sha256": "02aa5d10ed3cce4e02d0cda3252f1210829fb6acd3f6fe056cf89c3e062fb7e8"
+    }
+  ],
+  "risks": [
+    {
+      "id": "APN-R01",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ClearingHouseValidationPolicyService.cs",
+      "result": "PATTERN_PRESENT_FOR_REVIEW"
+    },
+    {
+      "id": "APN-R02",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ClearingHouseValidationPolicyService.cs",
+      "result": "PATTERN_PRESENT_FOR_REVIEW"
+    },
+    {
+      "id": "APN-R03",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs",
+      "result": "PATTERN_PRESENT_FOR_REVIEW"
+    },
+    {
+      "id": "APN-R04",
+      "source": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ThirdPartyAccountValidationService.cs",
+      "result": "PATTERN_PRESENT_FOR_REVIEW"
+    }
+  ],
+  "summary": {
+    "checks": 20,
+    "found": 20,
+    "missing": 0,
+    "runtime_tests_executed": 0
+  }
+}

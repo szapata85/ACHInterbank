@@ -1,0 +1,1161 @@
+--- /dev/null
++++ b/ACHInterbank_ajustado/scripts/test/prenotification_simulator_i02_static_check.py
+@@ -0,0 +1,47 @@
++#!/usr/bin/env python3
++"""I02 dependency-free STATIC guardrails. Does not compile/run C#; do not report as Xunit."""
++from pathlib import Path
++import json
++root=Path(__file__).resolve().parents[2]
++def src(p): return (root/p).read_text(encoding='utf-8-sig')
++paths={
++ 'model':'src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs',
++ 'contract':'src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationContract.cs',
++ 'policy':'src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationEligibilityPolicy.cs',
++ 'query':'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.Prenotifications.cs',
++ 'service':'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs',
++ 'controller':'src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs',
++ 'api':'src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs',
++ 'tests':'tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorEligibilityI02Tests.cs'}
++d={k:src(v) for k,v in paths.items()}
++cases=[
++ ('contracts-paged', all(x in d['model'] for x in ['PrenotificationCandidatePage','PageSize','OriginalPrenotificationId','DestinationAccountMasked'])),
++ ('contract-max-100', 'PRENOTIFICATION_IDS_LIMIT_EXCEEDED' in d['contract']),
++ ('policy-outcome-separation', all(x in d['policy'] for x in ['ReturnDeadlineExpired'.upper() if False else 'RETURN_DEADLINE_EXPIRED','PRENOTIFICATION_DEADLINE_NOT_REACHED'])),
++ ('policy-not-prenotification', 'NOT_A_PRENOTIFICATION' in d['policy']),
++ ('policy-source', 'NOT_ORIGINATED_HERE' in d['policy']),
++ ('policy-incomplete-correlation', 'PRENOTIFICATION_CORRELATION_INCOMPLETE' in d['policy']),
++ ('policy-not-transmitted', 'PRENOTIFICATION_NOT_TRANSMITTED' in d['policy']),
++ ('policy-not-active', 'PRENOTIFICATION_ATTEMPT_NOT_ACTIVE' in d['policy']),
++ ('policy-duplicate', 'PRENOTIFICATION_ALREADY_RESPONDED' in d['policy']),
++ ('policy-deadline-unknown', 'PRENOTIFICATION_DEADLINE_UNKNOWN' in d['policy']),
++ ('query-house', 'x.AchCycle.ClearingHouseId == clearingHouse.Id' in d['query']),
++ ('query-src-dest', 'x.SourceInstitution.IsDefaultSource' in d['query'] and '!x.DestinationInstitution.IsDefaultSource' in d['query']),
++ ('query-readonly', d['query'].count('AsNoTracking()')>=5 and 'SaveChangesAsync' not in d['query'] and 'File.Write' not in d['query']),
++ ('query-transmission', all(x in d['query'] for x in ['AchFileExportLifecycleStatus.Transmitted','AchFileExportLifecycleStatus.Acknowledged','x.TraceNumber == x.AchTransaction.TraceNumber'])),
++ ('query-attempt-correlated', 'x.AchTransactionId.HasValue && ids.Contains(x.AchTransactionId.Value)' in d['query']),
++ ('query-previous-response', 'AchResponses.AsNoTracking()' in d['query']),
++ ('preview-cycle-check', 'RESPONSE_CYCLE_BEFORE_ORIGINAL' in d['query'] and 'RESPONSE_CYCLE_EQUALS_ORIGINAL' in d['query']),
++ ('preview-bank-check', 'PRENOTIFICATION_WRONG_RESPONDER' in d['query']),
++ ('preview-chamber-check', 'PRENOTIFICATION_WRONG_CLEARING_HOUSE' in d['query']),
++ ('preview-cenit-value-date', 'CENIT_RETURN_OUTSIDE_VALUE_DATE' in d['query']),
++ ('preview-readonly-execution-off', 'violations.Count == 0, false' in d['query']),
++ ('query-local-uat-only', 'IsUatLike()' in d['query']),
++ ('api-policy-both-endpoints', d['controller'].count('[Authorize(Policy = P1Policies.NachaSimulatorRead)]')>=2 and 'prenotifications/originated' in d['controller'] and 'prenotifications/eligibility-preview' in d['controller']),
++ ('api-interface', 'ListOriginatedPrenotificationsAsync' in d['api'] and 'PreviewPrenotificationAsync' in d['api']),
++ ('legacy-scenario-preserved', 'PRENOTIFICATION_RETURN_NOT_IMPLEMENTED' in d['service'] and 'IncomingPrenotificationReturn' in d['service']),
++ ('tests-adversarial', all(x in d['tests'] for x in ['BlocksRepliedClosedOrIncomingAndNonCurrentAttempt','DoesNotInferSendingFromCreation','I02_ListAndPreviewAreReadOnly','I02_RejectsOtherClearingHouseAndTooManyIds'])),
++]
++for desc,ok in cases: print(f"{'PASS_STATIC' if ok else 'FAIL_STATIC'} {desc}")
++result={'checks_total':len(cases),'passed':sum(ok for _,ok in cases),'failed':[desc for desc,ok in cases if not ok],'classification':'STATIC_ONLY_NOT_DOTNET_BUILD_OR_TEST'}
++print(json.dumps(result,ensure_ascii=False));raise SystemExit(bool(result['failed']))
+--- a/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs
++++ b/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs
+@@ -39,6 +39,27 @@
+         [FromBody] PrenotificationSimulationContractRequest request)
+         => Ok(PrenotificationSimulationContract.Validate(request));
+ 
++    [HttpGet("prenotifications/originated")]
++    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
++    [EndpointDescription("I02: prenotificaciones realmente originadas, con evidencia de transmision, intento y motivos de no elegibilidad. Solo lectura.")]
++    [ProducesResponseType(typeof(PrenotificationCandidatePage), StatusCodes.Status200OK)]
++    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
++    public async Task<ActionResult<PrenotificationCandidatePage>> OriginatedPrenotifications(
++        [FromQuery] PrenotificationCandidateQuery query, CancellationToken ct)
++    {
++        try { return Ok(await _service.ListOriginatedPrenotificationsAsync(query, ct)); }
++        catch (ArgumentException ex) { return BadRequest(ToProblem(ex.Message)); }
++        catch (InvalidOperationException ex) { return BadRequest(ToProblem(ex.Message)); }
++    }
++
++    [HttpPost("prenotifications/eligibility-preview")]
++    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
++    [EndpointDescription("I02: preflight de camara, banco, ciclo, transmision, intento, duplicados y plazo. BusinessEligible no habilita ejecucion ni reserva idempotencia.")]
++    [ProducesResponseType(typeof(PrenotificationBusinessEligibilityPreviewResponse), StatusCodes.Status200OK)]
++    public async Task<ActionResult<PrenotificationBusinessEligibilityPreviewResponse>> PrenotificationEligibilityPreview(
++        [FromBody] PrenotificationSimulationContractRequest request, CancellationToken ct)
++        => Ok(await _service.PreviewPrenotificationAsync(request, ct));
++
+     [HttpPost("generate")]
+     [EndpointDescription("Genera un archivo NACHA-M de entrada simulado para UAT/local. El simulador solo genera y permite descargar el archivo: no llama NachaUpload, no importa automaticamente, no crea transacciones de entrada, no cambia estados y no transmite a camaras externas. El usuario debe cargar manualmente el archivo generado por la SPA mediante el flujo real NachaUpload. Ejemplos vigentes: ACH Colombia IncomingCredit, CENIT IncomingDebit, ACH Colombia IncomingCreditReturn. La respuesta de prenotificacion legado y el nuevo IncomingPrenotificationReturn no estan habilitados en I01. Errores esperados: 400 request invalido; 401/403 autenticacion/autorizacion; 422 simulador deshabilitado, regla no configurada, referencia inexistente o causal requerida; 500 error no controlado.")]
+     [ProducesResponseType(typeof(GenerateNachaInboundSimulationResponse), StatusCodes.Status201Created)]
+--- a/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs
++++ b/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs
+@@ -1,20 +1,22 @@
+-using Cfa.ACHInterbank.Application.ACH.Models;
+-
+-namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
+-
+-public interface INachaInboundSimulationService
+-{
+-    Task<GenerateNachaInboundSimulationResponse> GenerateAsync(GenerateNachaInboundSimulationRequest request, string userName, CancellationToken ct = default);
+-    Task<IReadOnlyList<NachaInboundSimulationDto>> ListAsync(CancellationToken ct = default);
+-    Task<NachaInboundSimulationDto?> GetAsync(int id, CancellationToken ct = default);
+-    Task<(string FileName, string ContentType, byte[] Content)?> GetFileAsync(int id, CancellationToken ct = default);
+-    Task<NachaInboundSimulationMetadataDto?> GetEvidenceAsync(int id, CancellationToken ct = default);
+-    Task<InboundSimulationEligibilityPreviewResponse> PreviewAsync(InboundSimulationEligibilityPreviewRequest request, CancellationToken ct = default);
+-    Task<DifferentialResponseTransactionPage> ListEligibleDifferentialTransactionsAsync(DifferentialResponseTransactionQuery query, CancellationToken ct = default);
+-    Task<IReadOnlyList<AvailableInboundCycleDto>> ListAvailableCyclesAsync(AvailableInboundCycleQuery query, CancellationToken ct = default);
+-}
+-
+-public interface INachaInboundSimulationFileGenerator;
+-public interface INachaInboundSimulationEvidenceService;
+-public interface INachaInboundSimulationEligibilityPolicy;
+-public interface INachaInboundSimulationQueryService;
++using Cfa.ACHInterbank.Application.ACH.Models;
++
++namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
++
++public interface INachaInboundSimulationService
++{
++    Task<PrenotificationCandidatePage> ListOriginatedPrenotificationsAsync(PrenotificationCandidateQuery request, CancellationToken ct = default);
++    Task<PrenotificationBusinessEligibilityPreviewResponse> PreviewPrenotificationAsync(PrenotificationSimulationContractRequest request, CancellationToken ct = default);
++    Task<GenerateNachaInboundSimulationResponse> GenerateAsync(GenerateNachaInboundSimulationRequest request, string userName, CancellationToken ct = default);
++    Task<IReadOnlyList<NachaInboundSimulationDto>> ListAsync(CancellationToken ct = default);
++    Task<NachaInboundSimulationDto?> GetAsync(int id, CancellationToken ct = default);
++    Task<(string FileName, string ContentType, byte[] Content)?> GetFileAsync(int id, CancellationToken ct = default);
++    Task<NachaInboundSimulationMetadataDto?> GetEvidenceAsync(int id, CancellationToken ct = default);
++    Task<InboundSimulationEligibilityPreviewResponse> PreviewAsync(InboundSimulationEligibilityPreviewRequest request, CancellationToken ct = default);
++    Task<DifferentialResponseTransactionPage> ListEligibleDifferentialTransactionsAsync(DifferentialResponseTransactionQuery query, CancellationToken ct = default);
++    Task<IReadOnlyList<AvailableInboundCycleDto>> ListAvailableCyclesAsync(AvailableInboundCycleQuery query, CancellationToken ct = default);
++}
++
++public interface INachaInboundSimulationFileGenerator;
++public interface INachaInboundSimulationEvidenceService;
++public interface INachaInboundSimulationEligibilityPolicy;
++public interface INachaInboundSimulationQueryService;
+--- a/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs
++++ b/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs
+@@ -1,236 +1,284 @@
+-using System.Text.Json.Serialization;
+-using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
+-
+-namespace Cfa.ACHInterbank.Application.ACH.Models;
+-
+-public class GenerateNachaInboundSimulationRequest
+-{
+-    [JsonConverter(typeof(JsonStringEnumConverter))]
+-    public NachaSimulationMode SimulationMode { get; set; } = NachaSimulationMode.IncomingTransactions;
+-    public string ClearingHouseCode { get; set; } = string.Empty;
+-    [JsonConverter(typeof(JsonStringEnumConverter))]
+-    public NachaInboundSimulationType ScenarioType { get; set; }
+-    public int? OriginFinancialInstitutionId { get; set; }
+-    public int? DestinationFinancialInstitutionId { get; set; }
+-    public string? OriginFinancialInstitutionCode { get; set; }
+-    public string? DestinationFinancialInstitutionCode { get; set; }
+-    public int EntriesCount { get; set; } = 1;
+-    public decimal Amount { get; set; }
+-    public string ReferencePrefix { get; set; } = string.Empty;
+-    public DateOnly BusinessDate { get; set; }
+-    public string CycleCode { get; set; } = string.Empty;
+-    public IReadOnlyList<string> PendingPrenotificationReferences { get; set; } = [];
+-    public IReadOnlyList<string> TransactionReferences { get; set; } = [];
+-    [JsonConverter(typeof(JsonStringEnumConverter))]
+-    public InboundResponseMode? ResponseMode { get; set; }
+-    public string? ReasonCode { get; set; }
+-    public string? Notes { get; set; }
+-}
+-
+-public sealed record GenerateNachaInboundSimulationResponse(
+-    Guid SimulationId,
+-    int Id,
+-    string FileName,
+-    string DownloadUrl,
+-    string EvidenceUrl,
+-    string Sha256,
+-    long FileSizeBytes,
+-    bool GeneratedOnly,
+-    bool AutoImported,
+-    bool UploadRequired,
+-    bool ExternalTransmission,
+-    string Message);
+-
+-public sealed record NachaInboundSimulationDto(
+-    int Id,
+-    Guid SimulationId,
+-    string ClearingHouseName,
+-    NachaInboundSimulationType ScenarioType,
+-    InboundResponseMode? ResponseMode,
+-    string? ReasonCode,
+-    string OriginFinancialInstitution,
+-    string DestinationFinancialInstitution,
+-    int OriginFinancialInstitutionId,
+-    int DestinationFinancialInstitutionId,
+-    int EntriesCount,
+-    decimal Amount,
+-    DateOnly BusinessDate,
+-    string CycleCode,
+-    string FileName,
+-    string Sha256,
+-    long FileSizeBytes,
+-    string Status,
+-    bool GeneratedOnly,
+-    bool AutoImported,
+-    bool UploadRequired,
+-    bool ExternalTransmission,
+-    DateTimeOffset CreatedAt,
+-    IReadOnlyList<NachaInboundSimulationEntryDto> Entries);
+-
+-public sealed record NachaInboundSimulationEntryDto(
+-    int Id,
+-    string Reference,
+-    int? TransactionId,
+-    string? PrenotificationReference,
+-    string AccountNumberMasked,
+-    decimal Amount,
+-    string Nature,
+-    string? PreviousStatus,
+-    string ExpectedStatusAfterUpload,
+-    string? ReasonCode,
+-    bool IsSynthetic);
+-
+-public sealed record NachaInboundSimulationMetadataDto(
+-    Guid SimulationId,
+-    string ClearingHouse,
+-    string ScenarioType,
+-    string? ResponseMode,
+-    string? ReasonCode,
+-    string OriginFinancialInstitution,
+-    string DestinationFinancialInstitution,
+-    int OriginFinancialInstitutionId,
+-    string OriginFinancialInstitutionCode,
+-    bool OriginIsDefaultSource,
+-    int DestinationFinancialInstitutionId,
+-    string DestinationFinancialInstitutionCode,
+-    bool DestinationIsDefaultSource,
+-    string DestinationResolvedFrom,
+-    DateOnly BusinessDate,
+-    string CycleCode,
+-    string FileName,
+-    string Sha256,
+-    long FileSizeBytes,
+-    string RecordsDetected,
+-    int BlockCount,
+-    int EntryAddendaCount,
+-    string EntryHash,
+-    bool GeneratedOnly,
+-    bool AutoImported,
+-    bool UploadRequired,
+-    string UploadFlow,
+-    bool ExternalTransmission,
+-    string SimulatorMode)
+-{
+-    public NachaSimulationMode SimulationMode { get; init; } = NachaSimulationMode.IncomingTransactions;
+-    public string Environment { get; init; } = "UAT";
+-    public string? ProfileCode { get; init; }
+-    public int? DeterministicSeed { get; init; }
+-    public IReadOnlyList<string> OriginalTraceNumbers { get; init; } = [];
+-}
+-
+-/// <summary>
+-/// I01: contrato independiente para simular el resultado de prenotificaciones
+-/// realmente originadas por ACH Interbank. Solo se valida su estructura en I01;
+-/// no habilita generacion, transiciones ni simulacion del reloj.
+-/// </summary>
+-public sealed class PrenotificationSimulationContractRequest
+-{
+-    [JsonConverter(typeof(JsonStringEnumConverter))]
+-    public PrenotificationSimulationOutcome Outcome { get; set; }
+-    public string ClearingHouseCode { get; set; } = string.Empty;
+-    public IReadOnlyList<int> OriginalPrenotificationIds { get; set; } = [];
+-    public string OriginalCycleId { get; set; } = string.Empty;
+-    // Obligatorio solo para Returned. NoReturnByDeadline no representa un ciclo de recepcion.
+-    public string? ResponseCycleId { get; set; }
+-    public DateOnly BusinessDate { get; set; }
+-    public int RespondingFinancialInstitutionId { get; set; }
+-    // Obligatorio solo para Returned. NoReturnByDeadline no tiene causal.
+-    public string? ReasonCode { get; set; }
+-    // Requerido para devoluciones. I02 implementara su reserva/concurrencia.
+-    public string? IdempotencyKey { get; set; }
+-}
+-
+-public sealed record PrenotificationSimulationContractViolation(string Code, string Field, string Message);
+-
+-/// <summary>ShapeValid no significa elegibilidad operativa; ExecutionEnabled es false en I01.</summary>
+-public sealed record PrenotificationSimulationContractValidationResponse(
+-    bool ShapeValid,
+-    bool ExecutionEnabled,
+-    string ContractVersion,
+-    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
+-
+-public sealed record PrenotificationSimulationOutcomeCapability(
+-    [property: JsonConverter(typeof(JsonStringEnumConverter))] PrenotificationSimulationOutcome Outcome,
+-    bool CreatesNachaFile,
+-    bool RequiresManualNachaUpload,
+-    bool ExecutionEnabled,
+-    string Workflow);
+-
+-public sealed record PrenotificationSimulationContractCapabilitiesResponse(
+-    string ContractVersion,
+-    string FileReturnScenario,
+-    string LegacyScenario,
+-    IReadOnlyList<string> SupportedClearingHouses,
+-    bool GeneratedOnly,
+-    bool AutoImported,
+-    bool ExternalTransmission,
+-    IReadOnlyList<PrenotificationSimulationOutcomeCapability> Outcomes);
+-
+-public sealed class InboundSimulationEligibilityPreviewRequest : GenerateNachaInboundSimulationRequest;
+-
+-public sealed record InboundSimulationEligibilityPreviewResponse(
+-    bool Eligible,
+-    string Decision,
+-    string Message,
+-    string? FunctionalCode,
+-    NachaSimulationMode SimulationMode,
+-    bool GeneratedOnly,
+-    bool AutoImported,
+-    bool UploadRequired,
+-    bool ExternalTransmission);
+-
+-public sealed class DifferentialResponseTransactionQuery
+-{
+-    public string ClearingHouseCode { get; set; } = string.Empty;
+-    public int? DestinationFinancialInstitutionId { get; set; }
+-    public DateOnly? FromDate { get; set; }
+-    public DateOnly? ToDate { get; set; }
+-    public string? State { get; set; }
+-    public string? TransactionType { get; set; }
+-    public string? TraceNumber { get; set; }
+-    public string? Search { get; set; }
+-    public int Page { get; set; } = 1;
+-    public int PageSize { get; set; } = 20;
+-}
+-
+-public sealed record DifferentialResponseEligibleTransactionDto(
+-    int Id,
+-    string Identifier,
+-    string TraceNumber,
+-    string ClearingHouse,
+-    int DestinationFinancialInstitutionId,
+-    string DestinationFinancialInstitution,
+-    string TransactionType,
+-    DateTime EffectiveDate,
+-    string Cycle,
+-    string AccountNumberMasked,
+-    decimal Amount,
+-    string State,
+-    bool HasPriorResponse,
+-    bool Eligible,
+-    string? IneligibilityReason);
+-
+-public sealed record DifferentialResponseTransactionPage(
+-    IReadOnlyList<DifferentialResponseEligibleTransactionDto> Items,
+-    int Page,
+-    int PageSize,
+-    int Total);
+-
+-public sealed class AvailableInboundCycleQuery
+-{
+-    public string ClearingHouseCode { get; set; } = string.Empty;
+-    public DateOnly ProcessingDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
+-    [JsonConverter(typeof(JsonStringEnumConverter))]
+-    public NachaInboundSimulationType ScenarioType { get; set; } = NachaInboundSimulationType.IncomingCredit;
+-}
+-
+-public sealed record AvailableInboundCycleDto(
+-    string CycleId,
+-    string CycleCode,
+-    string CycleName,
+-    int ClearingHouseId,
+-    string ClearingHouseCode,
+-    string ClearingHouseName,
+-    DateOnly ProcessingDate,
+-    int TransactionCount,
+-    string Status);
++using System.Text.Json.Serialization;
++using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
++
++namespace Cfa.ACHInterbank.Application.ACH.Models;
++
++public class GenerateNachaInboundSimulationRequest
++{
++    [JsonConverter(typeof(JsonStringEnumConverter))]
++    public NachaSimulationMode SimulationMode { get; set; } = NachaSimulationMode.IncomingTransactions;
++    public string ClearingHouseCode { get; set; } = string.Empty;
++    [JsonConverter(typeof(JsonStringEnumConverter))]
++    public NachaInboundSimulationType ScenarioType { get; set; }
++    public int? OriginFinancialInstitutionId { get; set; }
++    public int? DestinationFinancialInstitutionId { get; set; }
++    public string? OriginFinancialInstitutionCode { get; set; }
++    public string? DestinationFinancialInstitutionCode { get; set; }
++    public int EntriesCount { get; set; } = 1;
++    public decimal Amount { get; set; }
++    public string ReferencePrefix { get; set; } = string.Empty;
++    public DateOnly BusinessDate { get; set; }
++    public string CycleCode { get; set; } = string.Empty;
++    public IReadOnlyList<string> PendingPrenotificationReferences { get; set; } = [];
++    public IReadOnlyList<string> TransactionReferences { get; set; } = [];
++    [JsonConverter(typeof(JsonStringEnumConverter))]
++    public InboundResponseMode? ResponseMode { get; set; }
++    public string? ReasonCode { get; set; }
++    public string? Notes { get; set; }
++}
++
++public sealed record GenerateNachaInboundSimulationResponse(
++    Guid SimulationId,
++    int Id,
++    string FileName,
++    string DownloadUrl,
++    string EvidenceUrl,
++    string Sha256,
++    long FileSizeBytes,
++    bool GeneratedOnly,
++    bool AutoImported,
++    bool UploadRequired,
++    bool ExternalTransmission,
++    string Message);
++
++public sealed record NachaInboundSimulationDto(
++    int Id,
++    Guid SimulationId,
++    string ClearingHouseName,
++    NachaInboundSimulationType ScenarioType,
++    InboundResponseMode? ResponseMode,
++    string? ReasonCode,
++    string OriginFinancialInstitution,
++    string DestinationFinancialInstitution,
++    int OriginFinancialInstitutionId,
++    int DestinationFinancialInstitutionId,
++    int EntriesCount,
++    decimal Amount,
++    DateOnly BusinessDate,
++    string CycleCode,
++    string FileName,
++    string Sha256,
++    long FileSizeBytes,
++    string Status,
++    bool GeneratedOnly,
++    bool AutoImported,
++    bool UploadRequired,
++    bool ExternalTransmission,
++    DateTimeOffset CreatedAt,
++    IReadOnlyList<NachaInboundSimulationEntryDto> Entries);
++
++public sealed record NachaInboundSimulationEntryDto(
++    int Id,
++    string Reference,
++    int? TransactionId,
++    string? PrenotificationReference,
++    string AccountNumberMasked,
++    decimal Amount,
++    string Nature,
++    string? PreviousStatus,
++    string ExpectedStatusAfterUpload,
++    string? ReasonCode,
++    bool IsSynthetic);
++
++public sealed record NachaInboundSimulationMetadataDto(
++    Guid SimulationId,
++    string ClearingHouse,
++    string ScenarioType,
++    string? ResponseMode,
++    string? ReasonCode,
++    string OriginFinancialInstitution,
++    string DestinationFinancialInstitution,
++    int OriginFinancialInstitutionId,
++    string OriginFinancialInstitutionCode,
++    bool OriginIsDefaultSource,
++    int DestinationFinancialInstitutionId,
++    string DestinationFinancialInstitutionCode,
++    bool DestinationIsDefaultSource,
++    string DestinationResolvedFrom,
++    DateOnly BusinessDate,
++    string CycleCode,
++    string FileName,
++    string Sha256,
++    long FileSizeBytes,
++    string RecordsDetected,
++    int BlockCount,
++    int EntryAddendaCount,
++    string EntryHash,
++    bool GeneratedOnly,
++    bool AutoImported,
++    bool UploadRequired,
++    string UploadFlow,
++    bool ExternalTransmission,
++    string SimulatorMode)
++{
++    public NachaSimulationMode SimulationMode { get; init; } = NachaSimulationMode.IncomingTransactions;
++    public string Environment { get; init; } = "UAT";
++    public string? ProfileCode { get; init; }
++    public int? DeterministicSeed { get; init; }
++    public IReadOnlyList<string> OriginalTraceNumbers { get; init; } = [];
++}
++
++/// <summary>
++/// I01: contrato independiente para simular el resultado de prenotificaciones
++/// realmente originadas por ACH Interbank. Solo se valida su estructura en I01;
++/// no habilita generacion, transiciones ni simulacion del reloj.
++/// </summary>
++public sealed class PrenotificationSimulationContractRequest
++{
++    [JsonConverter(typeof(JsonStringEnumConverter))]
++    public PrenotificationSimulationOutcome Outcome { get; set; }
++    public string ClearingHouseCode { get; set; } = string.Empty;
++    public IReadOnlyList<int> OriginalPrenotificationIds { get; set; } = [];
++    public string OriginalCycleId { get; set; } = string.Empty;
++    // Obligatorio solo para Returned. NoReturnByDeadline no representa un ciclo de recepcion.
++    public string? ResponseCycleId { get; set; }
++    public DateOnly BusinessDate { get; set; }
++    public int RespondingFinancialInstitutionId { get; set; }
++    // Obligatorio solo para Returned. NoReturnByDeadline no tiene causal.
++    public string? ReasonCode { get; set; }
++    // Requerido para devoluciones. I02 implementara su reserva/concurrencia.
++    public string? IdempotencyKey { get; set; }
++}
++
++public sealed record PrenotificationSimulationContractViolation(string Code, string Field, string Message);
++
++/// <summary>ShapeValid no significa elegibilidad operativa; ExecutionEnabled es false en I01.</summary>
++public sealed record PrenotificationSimulationContractValidationResponse(
++    bool ShapeValid,
++    bool ExecutionEnabled,
++    string ContractVersion,
++    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
++
++public sealed record PrenotificationSimulationOutcomeCapability(
++    [property: JsonConverter(typeof(JsonStringEnumConverter))] PrenotificationSimulationOutcome Outcome,
++    bool CreatesNachaFile,
++    bool RequiresManualNachaUpload,
++    bool ExecutionEnabled,
++    string Workflow);
++
++public sealed record PrenotificationSimulationContractCapabilitiesResponse(
++    string ContractVersion,
++    string FileReturnScenario,
++    string LegacyScenario,
++    IReadOnlyList<string> SupportedClearingHouses,
++    bool GeneratedOnly,
++    bool AutoImported,
++    bool ExternalTransmission,
++    IReadOnlyList<PrenotificationSimulationOutcomeCapability> Outcomes);
++
++/// <summary>I02: consulta de prenotificaciones realmente originadas. Solo lectura, incluye no elegibles con motivo.</summary>
++public sealed class PrenotificationCandidateQuery
++{
++    public string ClearingHouseCode { get; set; } = string.Empty;
++    public int? RespondingFinancialInstitutionId { get; set; }
++    public DateOnly? FromDate { get; set; }
++    public DateOnly? ToDate { get; set; }
++    public string? Search { get; set; }
++    public int Page { get; set; } = 1;
++    public int PageSize { get; set; } = 20;
++}
++
++public sealed record PrenotificationCandidateDto(
++    int OriginalPrenotificationId,
++    string OriginalCycleId,
++    string ClearingHouseCode,
++    int RespondingFinancialInstitutionId,
++    string RespondingFinancialInstitution,
++    string TraceNumber,
++    string TransactionExternalId,
++    string DestinationAccountMasked,
++    DateOnly OriginalBusinessDate,
++    string TransactionStatus,
++    long? ValidationAttemptId,
++    string? ValidationAttemptStatus,
++    DateTimeOffset? ResponseDeadlineAtUtc,
++    bool TransmittedOrAcknowledged,
++    bool HasPriorResponse,
++    bool EligibleForReturn,
++    bool EligibleForNoReturnByDeadline,
++    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
++
++public sealed record PrenotificationCandidatePage(
++    IReadOnlyList<PrenotificationCandidateDto> Items,
++    int Page,
++    int PageSize,
++    int Total,
++    bool ExecutionEnabled);
++
++/// <summary>BusinessEligible solo expresa elegibilidad de consulta; NO autoriza generar ni modificar transacciones.</summary>
++public sealed record PrenotificationBusinessEligibilityPreviewResponse(
++    bool ShapeValid,
++    bool BusinessEligible,
++    bool ExecutionEnabled,
++    string ContractVersion,
++    IReadOnlyList<PrenotificationSimulationContractViolation> Violations,
++    IReadOnlyList<PrenotificationCandidateDto> Candidates);
++
++public sealed class InboundSimulationEligibilityPreviewRequest : GenerateNachaInboundSimulationRequest;
++
++public sealed record InboundSimulationEligibilityPreviewResponse(
++    bool Eligible,
++    string Decision,
++    string Message,
++    string? FunctionalCode,
++    NachaSimulationMode SimulationMode,
++    bool GeneratedOnly,
++    bool AutoImported,
++    bool UploadRequired,
++    bool ExternalTransmission);
++
++public sealed class DifferentialResponseTransactionQuery
++{
++    public string ClearingHouseCode { get; set; } = string.Empty;
++    public int? DestinationFinancialInstitutionId { get; set; }
++    public DateOnly? FromDate { get; set; }
++    public DateOnly? ToDate { get; set; }
++    public string? State { get; set; }
++    public string? TransactionType { get; set; }
++    public string? TraceNumber { get; set; }
++    public string? Search { get; set; }
++    public int Page { get; set; } = 1;
++    public int PageSize { get; set; } = 20;
++}
++
++public sealed record DifferentialResponseEligibleTransactionDto(
++    int Id,
++    string Identifier,
++    string TraceNumber,
++    string ClearingHouse,
++    int DestinationFinancialInstitutionId,
++    string DestinationFinancialInstitution,
++    string TransactionType,
++    DateTime EffectiveDate,
++    string Cycle,
++    string AccountNumberMasked,
++    decimal Amount,
++    string State,
++    bool HasPriorResponse,
++    bool Eligible,
++    string? IneligibilityReason);
++
++public sealed record DifferentialResponseTransactionPage(
++    IReadOnlyList<DifferentialResponseEligibleTransactionDto> Items,
++    int Page,
++    int PageSize,
++    int Total);
++
++public sealed class AvailableInboundCycleQuery
++{
++    public string ClearingHouseCode { get; set; } = string.Empty;
++    public DateOnly ProcessingDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
++    [JsonConverter(typeof(JsonStringEnumConverter))]
++    public NachaInboundSimulationType ScenarioType { get; set; } = NachaInboundSimulationType.IncomingCredit;
++}
++
++public sealed record AvailableInboundCycleDto(
++    string CycleId,
++    string CycleCode,
++    string CycleName,
++    int ClearingHouseId,
++    string ClearingHouseCode,
++    string ClearingHouseName,
++    DateOnly ProcessingDate,
++    int TransactionCount,
++    string Status);
+--- a/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationContract.cs
++++ b/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationContract.cs
+@@ -40,6 +40,8 @@
+         if (request.OriginalPrenotificationIds is null || request.OriginalPrenotificationIds.Count == 0
+             || request.OriginalPrenotificationIds.Any(id => id <= 0))
+             Add("PRENOTIFICATION_IDS_REQUIRED", nameof(request.OriginalPrenotificationIds), "Seleccionar IDs originales positivos.");
++        else if (request.OriginalPrenotificationIds.Count > 100)
++            Add("PRENOTIFICATION_IDS_LIMIT_EXCEEDED", nameof(request.OriginalPrenotificationIds), "Maximo 100 IDs por consulta.");
+         else if (request.OriginalPrenotificationIds.Distinct().Count() != request.OriginalPrenotificationIds.Count)
+             Add("PRENOTIFICATION_IDS_DUPLICATED", nameof(request.OriginalPrenotificationIds), "No repetir prenotificaciones.");
+         if (string.IsNullOrWhiteSpace(request.OriginalCycleId))
+--- /dev/null
++++ b/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationSimulationEligibilityPolicy.cs
+@@ -0,0 +1,73 @@
++using Cfa.ACHInterbank.Application.ACH.Models;
++using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
++using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
++
++namespace Cfa.ACHInterbank.Application.ACH.Services;
++
++/// <summary>
++/// I02: reglas puras sobre evidencia persistida. NO reserva idempotencia ni ejecuta
++/// devoluciones. I03 debe reevaluar dentro de la transaccion de generacion.
++/// </summary>
++public static class PrenotificationSimulationEligibilityPolicy
++{
++    public sealed record Evidence(
++        bool IsPrenotification,
++        bool IsOriginDefault,
++        bool IsDestinationExternal,
++        AchTransactionDirection Direction,
++        AchTransactionOrigin Origin,
++        AchTransferStateEnum TransactionState,
++        string TraceNumber,
++        string TransactionExternalId,
++        string OriginalCycleId,
++        string ClearingHouseCode,
++        int RespondingFinancialInstitutionId,
++        bool TransmittedOrAcknowledged,
++        int ActiveAttemptCount,
++        bool CurrentAttemptMatches,
++        PrenotificationValidationAttemptStatus? AttemptStatus,
++        ThirdPartyAccountValidationStatus? ValidationStatus,
++        PrenotificationValidationResolution? Resolution,
++        DateTimeOffset? ResponseDeadlineAtUtc,
++        bool HasPriorResponse);
++
++    public static IReadOnlyList<PrenotificationSimulationContractViolation> CheckCommon(Evidence evidence)
++    {
++        var issues = new List<PrenotificationSimulationContractViolation>();
++        void Error(string code, string field, string detail) => issues.Add(new(code, field, detail));
++        if (!evidence.IsPrenotification)
++            Error("NOT_A_PRENOTIFICATION", "OriginalPrenotificationIds", "El registro no es una prenotificacion.");
++        if (!evidence.IsOriginDefault || !evidence.IsDestinationExternal
++            || evidence.Direction == AchTransactionDirection.Incoming
++            || evidence.Origin == AchTransactionOrigin.ExternalInstitution)
++            Error("NOT_ORIGINATED_HERE", "OriginalPrenotificationIds", "La operacion no fue originada por ACH Interbank hacia una entidad externa.");
++        if (evidence.TransactionState != AchTransferStateEnum.Pending)
++            Error("PRENOTIFICATION_NOT_PENDING", "OriginalPrenotificationIds", "La transaccion original ya no esta pendiente.");
++        if (string.IsNullOrWhiteSpace(evidence.TraceNumber) || string.IsNullOrWhiteSpace(evidence.TransactionExternalId))
++            Error("PRENOTIFICATION_CORRELATION_INCOMPLETE", "OriginalPrenotificationIds", "Falta trace o identificador externo canonico.");
++        if (!evidence.TransmittedOrAcknowledged)
++            Error("PRENOTIFICATION_NOT_TRANSMITTED", "OriginalPrenotificationIds", "No hay exportacion transmitida o reconocida asociada a la transaccion.");
++        if (evidence.ActiveAttemptCount != 1 || !evidence.CurrentAttemptMatches
++            || evidence.AttemptStatus != PrenotificationValidationAttemptStatus.AwaitingResponse
++            || evidence.ValidationStatus != ThirdPartyAccountValidationStatus.PendingResponse
++            || evidence.Resolution != PrenotificationValidationResolution.None)
++            Error("PRENOTIFICATION_ATTEMPT_NOT_ACTIVE", "OriginalPrenotificationIds", "Falta un intento de validacion actual, unico y pendiente.");
++        if (evidence.HasPriorResponse)
++            Error("PRENOTIFICATION_ALREADY_RESPONDED", "OriginalPrenotificationIds", "Ya existe una respuesta asociada a la transaccion.");
++        if (evidence.ResponseDeadlineAtUtc is null)
++            Error("PRENOTIFICATION_DEADLINE_UNKNOWN", "OriginalPrenotificationIds", "No existe vencimiento reglamentario resuelto.");
++        return issues;
++    }
++
++    public static IReadOnlyList<PrenotificationSimulationContractViolation> CheckOutcome(
++        Evidence evidence, PrenotificationSimulationOutcome outcome, DateTimeOffset nowUtc)
++    {
++        var errors = CheckCommon(evidence).ToList();
++        if (evidence.ResponseDeadlineAtUtc is not { } deadline) return errors;
++        if (outcome == PrenotificationSimulationOutcome.Returned && nowUtc >= deadline)
++            errors.Add(new("RETURN_DEADLINE_EXPIRED", "BusinessDate", "No se puede simular una devolucion dentro del plazo cuando este ya vencio."));
++        if (outcome == PrenotificationSimulationOutcome.NoReturnByDeadline && nowUtc < deadline)
++            errors.Add(new("PRENOTIFICATION_DEADLINE_NOT_REACHED", "BusinessDate", "La aceptacion tacita aun no puede evaluarse."));
++        return errors;
++    }
++}
+--- /dev/null
++++ b/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.Prenotifications.cs
+@@ -0,0 +1,218 @@
++using Cfa.ACHInterbank.Application.ACH.Models;
++using Cfa.ACHInterbank.Application.ACH.Services;
++using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
++using Cfa.ACHInterbank.Domain.Models.ACH;
++using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
++using Microsoft.EntityFrameworkCore;
++
++namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
++
++/// <summary>
++/// I02: consulta y vista previa sin efectos. El motor de generación I03 debe
++/// volver a validar la elegibilidad en la misma transacción que reserve el intento.
++/// </summary>
++public sealed partial class NachaInboundSimulationService
++{
++    public async Task<PrenotificationCandidatePage> ListOriginatedPrenotificationsAsync(
++        PrenotificationCandidateQuery request, CancellationToken ct = default)
++    {
++        ArgumentNullException.ThrowIfNull(request);
++        var page = Math.Max(1, request.Page);
++        var pageSize = Math.Clamp(request.PageSize, 1, 100);
++        if (request.FromDate > request.ToDate)
++            throw new ArgumentException("DATE_RANGE_INVALID: La fecha inicial no puede superar la final.");
++        if (string.IsNullOrWhiteSpace(request.ClearingHouseCode))
++            throw new ArgumentException("CLEARING_HOUSE_REQUIRED: Debe seleccionar una camara.");
++        if (!_options.IsUatLike())
++            return new PrenotificationCandidatePage([], page, pageSize, 0, false);
++        var clearingHouse = await ResolveClearingHouseAsync(request.ClearingHouseCode, ct);
++        if (!_options.AllowedClearingHouses.Any(x => MatchesCode(clearingHouse, x)))
++            return new PrenotificationCandidatePage([], page, pageSize, 0, false);
++
++        // El filtro estructural evita mostrar operaciones de otra camara o banco de origen.
++        // No se fuerza estado pending aqui: las excluidas deben mostrarse con causal.
++        var query = _context.AchTransactions.AsNoTracking()
++            .Where(x => x.IsPrenotification
++                && x.Type == TransactionTypeEnum.Prenotification
++                && x.SourceInstitution.IsDefaultSource
++                && !x.DestinationInstitution.IsDefaultSource
++                && x.AchCycle.ClearingHouseId == clearingHouse.Id);
++        if (request.RespondingFinancialInstitutionId.HasValue)
++            query = query.Where(x => x.DestinationInstitutionId == request.RespondingFinancialInstitutionId.Value);
++        if (request.FromDate.HasValue)
++        {
++            var from = request.FromDate.Value.ToDateTime(TimeOnly.MinValue);
++            query = query.Where(x => x.AchCycle.ProcessingDate >= from);
++        }
++        if (request.ToDate.HasValue)
++        {
++            var to = request.ToDate.Value.AddDays(1).ToDateTime(TimeOnly.MinValue);
++            query = query.Where(x => x.AchCycle.ProcessingDate < to);
++        }
++        if (!string.IsNullOrWhiteSpace(request.Search))
++        {
++            var search = request.Search.Trim();
++            query = query.Where(x => x.TraceNumber.Contains(search)
++                || x.TransactionExternalId.Contains(search) || x.Reference.Contains(search));
++        }
++        var total = await query.CountAsync(ct);
++        var rows = await query
++            .OrderByDescending(x => x.AchCycle.ProcessingDate).ThenByDescending(x => x.Id)
++            .Skip((page - 1) * pageSize).Take(pageSize)
++            .Include(x => x.AchCycle).ThenInclude(x => x.ClearingHouse)
++            .Include(x => x.SourceInstitution)
++            .Include(x => x.DestinationInstitution)
++            .ToListAsync(ct);
++        var items = await EvaluatePrenotificationsAsync(rows, clearingHouse.Code, ct);
++        return new PrenotificationCandidatePage(items, page, pageSize, total, false);
++    }
++
++    public async Task<PrenotificationBusinessEligibilityPreviewResponse> PreviewPrenotificationAsync(
++        PrenotificationSimulationContractRequest request, CancellationToken ct = default)
++    {
++        ArgumentNullException.ThrowIfNull(request);
++        var shape = PrenotificationSimulationContract.Validate(request);
++        var violations = shape.Violations.ToList();
++        if (!shape.ShapeValid)
++            return new(false, false, false, PrenotificationSimulationContract.Version, violations, []);
++        if (!_options.IsUatLike() || !_options.DifferentialResponsesEnabled)
++        {
++            violations.Add(new("SIMULATOR_UNAVAILABLE", "Outcome", "El simulador de respuestas diferenciales no esta habilitado con guardas seguras."));
++            return new(true, false, false, PrenotificationSimulationContract.Version, violations, []);
++        }
++
++        var normalizedHouseCode = request.ClearingHouseCode.Trim().ToUpperInvariant();
++        var house = await _context.ClearingHouses.AsNoTracking()
++            .FirstOrDefaultAsync(x => x.Code == normalizedHouseCode, ct);
++        if (house is null || !_options.AllowedClearingHouses.Any(x => MatchesCode(house, x)))
++        {
++            violations.Add(new("CLEARING_HOUSE_NOT_FOUND", "ClearingHouseCode", "La camara no existe o no esta habilitada."));
++            return new(true, false, false, PrenotificationSimulationContract.Version, violations, []);
++        }
++        var originalCycle = await _context.AchCycles.AsNoTracking()
++            .FirstOrDefaultAsync(x => x.Id == request.OriginalCycleId && x.ClearingHouseId == house.Id, ct);
++        if (originalCycle is null)
++            violations.Add(new("ORIGINAL_CYCLE_NOT_FOUND", "OriginalCycleId", "Ciclo original inexistente o de otra camara."));
++
++        if (request.Outcome == PrenotificationSimulationOutcome.Returned)
++        {
++            var responseCycle = await _context.AchCycles.AsNoTracking()
++                .FirstOrDefaultAsync(x => x.Id == request.ResponseCycleId && x.ClearingHouseId == house.Id, ct);
++            if (responseCycle is null || DateOnly.FromDateTime(responseCycle.ProcessingDate) != request.BusinessDate
++                || responseCycle.OperationalStatus == AchCycleOperationalStatus.Cancelled)
++                violations.Add(new("RESPONSE_CYCLE_INVALID", "ResponseCycleId", "Ciclo de devolucion inexistente, cancelado, de otra camara o fecha diferente."));
++            if (responseCycle?.Id == originalCycle?.Id)
++                violations.Add(new("RESPONSE_CYCLE_EQUALS_ORIGINAL", "ResponseCycleId", "No se admite el mismo ciclo como devolucion de la prenotificacion."));
++            if (responseCycle is not null && originalCycle is not null
++                && (responseCycle.ProcessingDate < originalCycle.ProcessingDate
++                    || (responseCycle.ProcessingDate == originalCycle.ProcessingDate
++                        && responseCycle.StartTime <= originalCycle.StartTime)))
++                violations.Add(new("RESPONSE_CYCLE_BEFORE_ORIGINAL", "ResponseCycleId", "El ciclo de respuesta debe ser posterior al de origen."));
++            // CENIT exige que la devolucion suceda en la misma Fecha Valor.
++            if (house.Code.Equals("CENIT", StringComparison.OrdinalIgnoreCase)
++                && originalCycle is not null
++                && DateOnly.FromDateTime(originalCycle.ProcessingDate) != request.BusinessDate)
++                violations.Add(new("CENIT_RETURN_OUTSIDE_VALUE_DATE", "BusinessDate", "CENIT requiere devolucion en la Fecha Valor de la prenotificacion."));
++        }
++
++        var ids = request.OriginalPrenotificationIds.ToArray();
++        var rows = await _context.AchTransactions.AsNoTracking()
++            .Where(x => ids.Contains(x.Id))
++            .Include(x => x.AchCycle).ThenInclude(x => x.ClearingHouse)
++            .Include(x => x.SourceInstitution)
++            .Include(x => x.DestinationInstitution)
++            .ToListAsync(ct);
++        var candidates = await EvaluatePrenotificationsAsync(rows, house.Code, ct);
++        foreach (var id in ids.Where(id => rows.All(x => x.Id != id)))
++            violations.Add(new("PRENOTIFICATION_NOT_FOUND", "OriginalPrenotificationIds", $"No se encontro prenotificacion {id}."));
++        foreach (var candidate in candidates)
++        {
++            if (!candidate.ClearingHouseCode.Equals(house.Code, StringComparison.OrdinalIgnoreCase))
++                violations.Add(new("PRENOTIFICATION_WRONG_CLEARING_HOUSE", "OriginalPrenotificationIds", $"La prenotificacion {candidate.OriginalPrenotificationId} pertenece a otra camara."));
++            if (candidate.OriginalCycleId != request.OriginalCycleId)
++                violations.Add(new("PRENOTIFICATION_ORIGINAL_CYCLE_MISMATCH", "OriginalCycleId", $"La prenotificacion {candidate.OriginalPrenotificationId} corresponde a otro ciclo."));
++            if (candidate.RespondingFinancialInstitutionId != request.RespondingFinancialInstitutionId)
++                violations.Add(new("PRENOTIFICATION_WRONG_RESPONDER", "RespondingFinancialInstitutionId", $"La prenotificacion {candidate.OriginalPrenotificationId} corresponde a otro banco."));
++            violations.AddRange(candidate.Violations);
++            // Aplicar la restriccion temporal del resultado seleccionado, no la del contrario.
++            var deadline = candidate.ResponseDeadlineAtUtc;
++            if (deadline is not null && request.Outcome == PrenotificationSimulationOutcome.Returned
++                && _timeProvider.GetUtcNow() >= deadline.Value)
++                violations.Add(new("RETURN_DEADLINE_EXPIRED", "BusinessDate", $"Plazo vencido para {candidate.OriginalPrenotificationId}."));
++            if (deadline is not null && request.Outcome == PrenotificationSimulationOutcome.NoReturnByDeadline
++                && _timeProvider.GetUtcNow() < deadline.Value)
++                violations.Add(new("PRENOTIFICATION_DEADLINE_NOT_REACHED", "BusinessDate", $"Plazo no vencido para {candidate.OriginalPrenotificationId}."));
++        }
++        // Prevencion de falsas reservas: solo verificamos ahora; no se guarda la clave
++        // hasta I03 (clave unica transaccional y reevaluacion atomica de elegibilidad).
++        return new(true, violations.Count == 0, false,
++            PrenotificationSimulationContract.Version, violations, candidates);
++    }
++
++    private async Task<IReadOnlyList<PrenotificationCandidateDto>> EvaluatePrenotificationsAsync(
++        IReadOnlyList<AchTransaction> rows, string requestedClearingHouse, CancellationToken ct)
++    {
++        if (rows.Count == 0) return [];
++        var ids = rows.Select(x => x.Id).ToArray();
++        var attempts = await _context.PrenotificationValidationAttempts.AsNoTracking()
++            .Include(x => x.ThirdPartyAccountValidation)
++            .Where(x => x.AchTransactionId.HasValue && ids.Contains(x.AchTransactionId.Value))
++            .ToListAsync(ct);
++        var exported = await _context.AchFileExportTransactions.AsNoTracking()
++            .Where(x => ids.Contains(x.AchTransactionId)
++                && (x.AchFileExport.LifecycleStatus == AchFileExportLifecycleStatus.Transmitted
++                    || x.AchFileExport.LifecycleStatus == AchFileExportLifecycleStatus.Acknowledged
++                    || x.AchFileExport.LifecycleStatus == AchFileExportLifecycleStatus.Accepted)
++                && x.AchFileExport.ClearingHouseId == x.AchTransaction.AchCycle.ClearingHouseId
++                && x.AchFileExport.AchCycleId == x.AchTransaction.AchCycleId
++                && x.AchCycleId == x.AchTransaction.AchCycleId
++                && x.TraceNumber == x.AchTransaction.TraceNumber)
++            .Select(x => x.AchTransactionId).Distinct().ToListAsync(ct);
++        var sentIds = exported.ToHashSet();
++        var correlations = rows.SelectMany(x => new[] { x.TransactionExternalId, x.Reference, x.TraceNumber })
++            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal).ToArray();
++        var replies = await _context.AchResponses.AsNoTracking()
++            .Where(x => (x.AchTransactionId.HasValue && ids.Contains(x.AchTransactionId.Value))
++                || correlations.Contains(x.IdTransaccion))
++            .Select(x => new { x.AchTransactionId, x.IdTransaccion }).ToListAsync(ct);
++        var now = _timeProvider.GetUtcNow();
++        return rows.Select(x =>
++        {
++            var linked = attempts.Where(a => a.AchTransactionId == x.Id)
++                .OrderByDescending(a => a.AttemptNumber).ThenByDescending(a => a.Id).ToArray();
++            var active = linked.Where(a => a.Status == PrenotificationValidationAttemptStatus.AwaitingResponse
++                && a.Resolution == PrenotificationValidationResolution.None).ToArray();
++            var attempt = linked.FirstOrDefault();
++            var hasPrior = replies.Any(r => r.AchTransactionId == x.Id
++                || r.IdTransaccion == x.TraceNumber || r.IdTransaccion == x.TransactionExternalId
++                || r.IdTransaccion == x.Reference);
++            var evidence = new PrenotificationSimulationEligibilityPolicy.Evidence(
++                x.IsPrenotification && x.Type == TransactionTypeEnum.Prenotification,
++                x.SourceInstitution?.IsDefaultSource == true,
++                x.DestinationInstitution?.IsDefaultSource == false,
++                x.Direction, x.Origin, x.State,
++                x.TraceNumber, x.TransactionExternalId, x.AchCycleId,
++                x.AchCycle.ClearingHouse?.Code ?? string.Empty,
++                x.DestinationInstitutionId, sentIds.Contains(x.Id), active.Length,
++                attempt is not null && attempt.ThirdPartyAccountValidation?.CurrentAttemptId == attempt.Id
++                    && attempt.SourceCycleId == x.AchCycleId
++                    && attempt.ThirdPartyAccountValidation.ClearingHouseId == x.AchCycle.ClearingHouseId,
++                attempt?.Status,
++                attempt?.ThirdPartyAccountValidation?.Status,
++                attempt?.Resolution, attempt?.ResponseDeadlineAtUtc,
++                hasPrior);
++            var common = PrenotificationSimulationEligibilityPolicy.CheckCommon(evidence);
++            var forReturn = PrenotificationSimulationEligibilityPolicy.CheckOutcome(evidence,
++                PrenotificationSimulationOutcome.Returned, now);
++            var forNoReturn = PrenotificationSimulationEligibilityPolicy.CheckOutcome(evidence,
++                PrenotificationSimulationOutcome.NoReturnByDeadline, now);
++            return new PrenotificationCandidateDto(
++                x.Id, x.AchCycleId, x.AchCycle.ClearingHouse?.Code ?? string.Empty,
++                x.DestinationInstitutionId, x.DestinationInstitution?.Name ?? "",
++                x.TraceNumber, x.TransactionExternalId, MaskAccount(x.DestinationAccountNumber),
++                DateOnly.FromDateTime(x.AchCycle.ProcessingDate), x.State.ToString(),
++                attempt?.Id, attempt?.Status.ToString(), attempt?.ResponseDeadlineAtUtc,
++                sentIds.Contains(x.Id), hasPrior, forReturn.Count == 0, forNoReturn.Count == 0, common);
++        }).ToArray();
++    }
++}
+--- a/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
++++ b/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
+@@ -17,7 +17,7 @@
+ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+ 
+ [Scoped]
+-public sealed class NachaInboundSimulationService : INachaInboundSimulationService
++public sealed partial class NachaInboundSimulationService : INachaInboundSimulationService
+ {
+     private const string UploadFlow = "NachaUpload";
+     private readonly AchDbContext _context;
+--- a/ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaInboundSimulatorTests.cs
++++ b/ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaInboundSimulatorTests.cs
+@@ -16,7 +16,7 @@
+ 
+ namespace Cfa.ACHInterbank.Tests;
+ 
+-public class NachaInboundSimulatorTests
++public partial class NachaInboundSimulatorTests
+ {
+     [Fact]
+     public async Task I01_NewPrenotificationReturnMustFailClosedWithoutCreatingFileOrState()
+--- /dev/null
++++ b/ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorEligibilityI02Tests.cs
+@@ -0,0 +1,180 @@
++using Cfa.ACHInterbank.Application.ACH.Models;
++using Cfa.ACHInterbank.Application.ACH.Services;
++using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
++using Cfa.ACHInterbank.Domain.Models.ACH;
++using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
++using Microsoft.EntityFrameworkCore;
++using Xunit;
++
++namespace Cfa.ACHInterbank.Tests;
++
++public sealed class PrenotificationSimulatorEligibilityI02PolicyTests
++{
++    private static readonly DateTimeOffset Now = new(2026, 5, 20, 13, 0, 0, TimeSpan.Zero);
++    private static PrenotificationSimulationEligibilityPolicy.Evidence Valid(DateTimeOffset deadline) => new(
++        true, true, true, AchTransactionDirection.Outgoing, AchTransactionOrigin.Cfa,
++        AchTransferStateEnum.Pending, "000012830000111", "PRE-111", "ACH-CYCLE", "ACHCOL", 2,
++        true, 1, true, PrenotificationValidationAttemptStatus.AwaitingResponse,
++        ThirdPartyAccountValidationStatus.PendingResponse, PrenotificationValidationResolution.None,
++        deadline, false);
++
++    [Fact]
++    public void ReturnedOnlyBeforeDeadline_AndNoReturnOnlyAfterDeadline()
++    {
++        Assert.Empty(PrenotificationSimulationEligibilityPolicy.CheckOutcome(Valid(Now.AddHours(1)), PrenotificationSimulationOutcome.Returned, Now));
++        Assert.Contains(PrenotificationSimulationEligibilityPolicy.CheckOutcome(Valid(Now.AddHours(1)), PrenotificationSimulationOutcome.NoReturnByDeadline, Now), x => x.Code == "PRENOTIFICATION_DEADLINE_NOT_REACHED");
++        Assert.Contains(PrenotificationSimulationEligibilityPolicy.CheckOutcome(Valid(Now), PrenotificationSimulationOutcome.Returned, Now), x => x.Code == "RETURN_DEADLINE_EXPIRED");
++        Assert.Empty(PrenotificationSimulationEligibilityPolicy.CheckOutcome(Valid(Now), PrenotificationSimulationOutcome.NoReturnByDeadline, Now));
++    }
++
++    [Fact]
++    public void DoesNotInferSendingFromCreation_OrAcceptUnknownDeadline()
++    {
++        Assert.Contains(PrenotificationSimulationEligibilityPolicy.CheckCommon(Valid(Now) with { TransmittedOrAcknowledged = false }), x => x.Code == "PRENOTIFICATION_NOT_TRANSMITTED");
++        Assert.Contains(PrenotificationSimulationEligibilityPolicy.CheckCommon(Valid(Now) with { ResponseDeadlineAtUtc = null }), x => x.Code == "PRENOTIFICATION_DEADLINE_UNKNOWN");
++    }
++
++    [Fact]
++    public void BlocksRepliedClosedOrIncomingAndNonCurrentAttempt()
++    {
++        Assert.Contains(PrenotificationSimulationEligibilityPolicy.CheckCommon(Valid(Now) with { HasPriorResponse = true }), x => x.Code == "PRENOTIFICATION_ALREADY_RESPONDED");
++        Assert.Contains(PrenotificationSimulationEligibilityPolicy.CheckCommon(Valid(Now) with { TransactionState = AchTransferStateEnum.ReturnedByEpr }), x => x.Code == "PRENOTIFICATION_NOT_PENDING");
++        Assert.Contains(PrenotificationSimulationEligibilityPolicy.CheckCommon(Valid(Now) with { Direction = AchTransactionDirection.Incoming }), x => x.Code == "NOT_ORIGINATED_HERE");
++        Assert.Contains(PrenotificationSimulationEligibilityPolicy.CheckCommon(Valid(Now) with { CurrentAttemptMatches = false }), x => x.Code == "PRENOTIFICATION_ATTEMPT_NOT_ACTIVE");
++        Assert.Contains(PrenotificationSimulationEligibilityPolicy.CheckCommon(Valid(Now) with { ActiveAttemptCount = 2 }), x => x.Code == "PRENOTIFICATION_ATTEMPT_NOT_ACTIVE");
++    }
++}
++
++public partial class NachaInboundSimulatorTests
++{
++    [Theory]
++    [InlineData("ACHCOL", "ACH-CYCLE", 1, 2, 101)]
++    [InlineData("CENIT", "CENIT-CYCLE", 2, 3, 102)]
++    public async Task I02_ListAndPreviewAreReadOnly_AndRequireExportedCurrentAttempt(
++        string houseCode, string cycleId, int houseId, int destinationId, int transactionId)
++    {
++        await using var context = CreateContext();
++        Seed(context);
++        var tx = TestTransaction(transactionId, cycleId, houseId,
++            TransactionTypeEnum.Prenotification, 1, destinationId);
++        tx.IsPrenotification = true;
++        tx.Amount = 0;
++        tx.TransactionCode = "23";
++        context.AchTransactions.Add(tx);
++        await context.SaveChangesAsync();
++
++        var customer = new Customer
++        {
++            FirstName = "Prueba", LastName = "UAT", PersonType = "PJ",
++            DocumentType = "NIT", DocumentNumber = $"800000{transactionId}"
++        };
++        var party = new ThirdParty
++        {
++            Customer = customer, PersonType = "PJ", DocumentType = "NIT",
++            DocumentNumberNormalized = $"800000{transactionId}", DisplayName = "Cuenta pruebas"
++        };
++        var account = new ThirdPartyAccount
++        {
++            ThirdParty = party, FinancialInstitutionId = destinationId,
++            AccountType = AccountTypeEnum.Savings,
++            AccountNumberNormalized = $"0000{transactionId}"
++        };
++        var validation = new ThirdPartyAccountValidation
++        {
++            ThirdPartyAccount = account, ClearingHouseId = houseId,
++            TransactionNature = TransactionNature.Credit,
++            Status = ThirdPartyAccountValidationStatus.PendingResponse,
++            EffectiveDate = new DateTime(2026, 5, 20)
++        };
++        context.ThirdPartyAccountValidations.Add(validation);
++        await context.SaveChangesAsync();
++        var attempt = new PrenotificationValidationAttempt
++        {
++            ThirdPartyAccountValidationId = validation.Id,
++            AchTransactionId = transactionId, AttemptNumber = 1,
++            IdempotencyKey = $"prenote-{transactionId}",
++            Status = PrenotificationValidationAttemptStatus.AwaitingResponse,
++            Resolution = PrenotificationValidationResolution.None,
++            SourceCycleId = cycleId,
++            SentAtUtc = new DateTimeOffset(2026, 5, 20, 12, 0, 0, TimeSpan.Zero),
++            ResponseDeadlineAtUtc = new DateTimeOffset(2026, 5, 20, 23, 0, 0, TimeSpan.Zero)
++        };
++        context.PrenotificationValidationAttempts.Add(attempt);
++        await context.SaveChangesAsync();
++        validation.CurrentAttemptId = attempt.Id;
++        context.AchFileExports.Add(new AchFileExport
++        {
++            AchCycleId = cycleId, ClearingHouseId = houseId, ExportKind = "NACHA",
++            FileName = "test-uat.nacha", LifecycleStatus = AchFileExportLifecycleStatus.Transmitted,
++            Transactions =
++            [
++                new AchFileExportTransaction
++                {
++                    AchTransactionId = transactionId, AchCycleId = cycleId,
++                    AchBatchId = houseId, TraceNumber = tx.TraceNumber,
++                    Amount = 0, IncludedAtUtc = new DateTime(2026, 5, 20, 13, 0, 0, DateTimeKind.Utc)
++                }
++            ]
++        });
++        await context.SaveChangesAsync();
++        context.ChangeTracker.Clear();
++        var simulator = CreateService(context, CreateTempOutput());
++        var before = await context.PrenotificationValidationAttempts.CountAsync();
++        var page = await simulator.ListOriginatedPrenotificationsAsync(new PrenotificationCandidateQuery
++        {
++            ClearingHouseCode = houseCode, RespondingFinancialInstitutionId = destinationId
++        });
++        var item = Assert.Single(page.Items);
++        Assert.Equal(transactionId, item.OriginalPrenotificationId);
++        Assert.True(item.TransmittedOrAcknowledged);
++        Assert.Equal(attempt.Id, item.ValidationAttemptId);
++        Assert.False(page.ExecutionEnabled);
++
++        var preview = await simulator.PreviewPrenotificationAsync(new PrenotificationSimulationContractRequest
++        {
++            Outcome = PrenotificationSimulationOutcome.NoReturnByDeadline,
++            ClearingHouseCode = houseCode,
++            OriginalPrenotificationIds = [transactionId],
++            OriginalCycleId = cycleId,
++            BusinessDate = new DateOnly(2026, 5, 20),
++            RespondingFinancialInstitutionId = destinationId
++        });
++        Assert.False(preview.ExecutionEnabled);
++        Assert.True(preview.BusinessEligible); // preflight favorable por plazo vencido, pero nunca ejecutable
++        Assert.Equal(before, await context.PrenotificationValidationAttempts.CountAsync());
++        Assert.Empty(await context.NachaInboundSimulations.ToListAsync());
++    }
++
++    [Fact]
++    public async Task I02_RejectsOtherClearingHouseAndTooManyIdsWithoutWriting()
++    {
++        await using var context = CreateContext();
++        Seed(context);
++        var simulator = CreateService(context, CreateTempOutput());
++        var invalid = await simulator.PreviewPrenotificationAsync(new PrenotificationSimulationContractRequest
++        {
++            Outcome = PrenotificationSimulationOutcome.Returned,
++            ClearingHouseCode = "ACHCOL",
++            OriginalCycleId = "CENIT-CYCLE",
++            ResponseCycleId = "CENIT-CYCLE",
++            OriginalPrenotificationIds = [10],
++            BusinessDate = new DateOnly(2026, 5, 20),
++            RespondingFinancialInstitutionId = 3,
++            ReasonCode = "R04", IdempotencyKey = "return-i02-test"
++        });
++        Assert.False(invalid.BusinessEligible);
++        Assert.Contains(invalid.Violations, x => x.Code == "ORIGINAL_CYCLE_NOT_FOUND");
++        var many = await simulator.PreviewPrenotificationAsync(new PrenotificationSimulationContractRequest
++        {
++            Outcome = PrenotificationSimulationOutcome.NoReturnByDeadline,
++            ClearingHouseCode = "ACHCOL",
++            OriginalCycleId = "ACH-CYCLE",
++            OriginalPrenotificationIds = Enumerable.Range(1, 101).ToArray(),
++            BusinessDate = new DateOnly(2026, 5, 20),
++            RespondingFinancialInstitutionId = 2
++        });
++        Assert.False(many.ShapeValid);
++        Assert.Contains(many.Violations, x => x.Code == "PRENOTIFICATION_IDS_LIMIT_EXCEEDED");
++        Assert.Empty(await context.NachaInboundSimulations.ToListAsync());
++    }
++}

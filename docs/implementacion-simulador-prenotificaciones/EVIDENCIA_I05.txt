@@ -1,0 +1,12 @@
+I05 | 2026-11-02 | CLASIFICACION REPRODUCIBLE
+PASS: python scripts/validate-solution-projects.py => SOLUTION GRAPH: OK (7/7)
+PASS_STATIC: python scripts/test/prenotification_simulator_i01_static_check.py => 20/20
+PASS_STATIC: python scripts/test/prenotification_simulator_i02_static_check.py => 26/26
+PASS_STATIC: python scripts/test/prenotification_simulator_i03_static_check.py => 31/31
+PASS_STATIC: python scripts/test/prenotification_simulator_i04_static_check.py => 31/31
+PASS_STATIC: python scripts/test/prenotification_simulator_i05_static_check.py => 36/36
+TOTAL: 144/144 STATIC; NO son pruebas de compilacion ni UAT funcional.
+NO_EJECUTADA_POR_AMBIENTE: dotnet --version -> bash: dotnet: command not found
+NO_EJECUTADA_POR_AMBIENTE: dotnet build, dotnet test, BD SQLServer/PostgreSQL, Quartz, integration E2E.
+NO GENERACION: el resultado NoReturnByDeadline no fabrica archivos NACHA-M.
+NO TRANSMISION: UAT/local, sin importacion automatica ni conexiones a operadores.

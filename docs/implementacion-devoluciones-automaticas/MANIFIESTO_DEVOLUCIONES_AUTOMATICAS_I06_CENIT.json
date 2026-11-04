@@ -1,0 +1,90 @@
+{
+  "incremento": "I06-CENIT",
+  "fecha": "2026-11-03",
+  "alcance": "Diagnostico de integracion/conciliacion SIN transmision bancaria",
+  "productivo": "NO-GO",
+  "origen": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I05_CENIT_2026-11-03.zip",
+  "origen_sha256": "bddb26b63c1546edfdc03e72373a273823563e378d40435a751f80fd6f0c606c",
+  "zip_final": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I06_CENIT_2026-11-03.zip",
+  "entrada_archivos": 4934,
+  "salida_archivos": 4949,
+  "conservados_iguales": 4933,
+  "modificados": 1,
+  "añadidos": 15,
+  "eliminados": 0,
+  "archivos_modificados": [
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/DependencyInjectionService.cs",
+      "old_sha256": "2f96c73f199eb6a4638c61b6371b3e752440591ce2d1f329b8fd12cbc687cb01",
+      "new_sha256": "fe58062d1f588a9e813c9a4b929f026f5a16cd3b4ff981e19ec3f87e571b3bfd"
+    }
+  ],
+  "archivos_nuevos": [
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/EJECUCION_CONTROLES_ESTATICOS_I06_CENIT.txt",
+      "sha256": "db49bc9ecc8dc5da7b973af5f4439c1212eceeaf9ceab72641f0fddbe4719c19"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/EJECUCION_REGRESIONES_I06_CENIT.txt",
+      "sha256": "8a079d7f8f1e33527b5413d01aaa779a2b40f4a1e7210a23c9a18337d33cf1e1"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/EVIDENCIA_DEVOLUCIONES_AUTOMATICAS_I06_CENIT.md",
+      "sha256": "2cbb16426bf075447c9ed71fa90702a9ffbdef5e82544dc47866e439e6e3c276"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/INFORME_DEVOLUCIONES_AUTOMATICAS_I06_CENIT.md",
+      "sha256": "28ccf704e93d5586141604edd1ca9e5dc4b3515a94d62b3cb34bfc4283a3a70f"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/INVENTARIO_CONSERVADOS_I06_CENIT.tsv",
+      "sha256": "ba458eed662e10348cae0e3118f3cb2106f2a466c93ccd8eb7b00cae9180faf5"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MANIFIESTO_DEVOLUCIONES_AUTOMATICAS_I06_CENIT.json",
+      "sha256": null
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE_DEVOLUCIONES_AUTOMATICAS_I06_CENIT.md",
+      "sha256": "983e82b7f28890920044a543fbed9d7fe6eeea1961062cd43f3351e2028c6eeb"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/PLAN_DEVOLUCIONES_AUTOMATICAS_CENIT_I06.md",
+      "sha256": "e6450a484189c35112098e1a3be32e760c1a9eefea787a92dec1fa17590472fc"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/VERIFICACION_INTEGRIDAD_DEVOLUCIONES_AUTOMATICAS_I06_CENIT.json",
+      "sha256": null
+    },
+    {
+      "path": "ACHInterbank_ajustado/scripts/test/automatic_returns_i06_cenit_static_check.py",
+      "sha256": "3a1dfde62a5d259fe2095691ce71e26f7c51d11ef7c20c49de89e4902144a010"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/CenitReturnIntegrationController.cs",
+      "sha256": "9e5b9ff51e15ee8f99baa65329cb52bccff8fa877f05ddb547c1e16410b17c85"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Interfaces/ICenitReturnIntegrationReadService.cs",
+      "sha256": "173d7c4b880da2e38f8363ec50b861b84191ecbfe9d7b24270d099aedc36e808"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/CenitReturnIntegrationModels.cs",
+      "sha256": "a9a479446c2eabc63ac3261753e9c3840eba924944ace62e830b43e27bb29236"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitReturnIntegrationReadService.cs",
+      "sha256": "d1e4a29234bd90cd1fa7ab3f9f92f1364a83e001e9ce6b445a5a1e8771ff6a06"
+    },
+    {
+      "path": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/CenitReturnIntegrationI06Tests.cs",
+      "sha256": "0fc858d42b083ed0c651846989e788dbd5c0c5d715fa57296da4363adcf2c2d4"
+    }
+  ],
+  "archivos_eliminados": [],
+  "permanece_independiente_ACH_Colombia": true,
+  "transporte_integrado": false,
+  "pruebas_dotnet_ejecutadas": false,
+  "control_estatico_I06": "62/62",
+  "historico_I04_ACH": "32/35 abierto"
+}

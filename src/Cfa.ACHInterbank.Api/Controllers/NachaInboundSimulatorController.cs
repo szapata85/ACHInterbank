@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -23,8 +24,84 @@ public sealed class NachaInboundSimulatorController : ControllerBase
         _authorizationService = authorizationService;
     }
 
+    [HttpGet("prenotifications/contract")]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
+    [EndpointDescription("I01: contrato versionado de resultados de prenotificaciones originadas. Ambos resultados siguen inhabilitados operacionalmente.")]
+    [ProducesResponseType(typeof(PrenotificationSimulationContractCapabilitiesResponse), StatusCodes.Status200OK)]
+    public ActionResult<PrenotificationSimulationContractCapabilitiesResponse> PrenotificationContract()
+        => Ok(PrenotificationSimulationContract.Describe());
+
+    [HttpPost("prenotifications/validate-contract")]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
+    [EndpointDescription("I01: valida solo la forma del contrato. ShapeValid NO significa elegible; no consulta BD, no genera archivos ni cambia estados.")]
+    [ProducesResponseType(typeof(PrenotificationSimulationContractValidationResponse), StatusCodes.Status200OK)]
+    public ActionResult<PrenotificationSimulationContractValidationResponse> ValidatePrenotificationContract(
+        [FromBody] PrenotificationSimulationContractRequest request)
+        => Ok(PrenotificationSimulationContract.Validate(request));
+
+    [HttpGet("prenotifications/originated")]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
+    [EndpointDescription("I02: prenotificaciones realmente originadas, con evidencia de transmision, intento y motivos de no elegibilidad. Solo lectura.")]
+    [ProducesResponseType(typeof(PrenotificationCandidatePage), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PrenotificationCandidatePage>> OriginatedPrenotifications(
+        [FromQuery] PrenotificationCandidateQuery query, CancellationToken ct)
+    {
+        try { return Ok(await _service.ListOriginatedPrenotificationsAsync(query, ct)); }
+        catch (ArgumentException ex) { return BadRequest(ToProblem(ex.Message)); }
+        catch (InvalidOperationException ex) { return BadRequest(ToProblem(ex.Message)); }
+    }
+
+    [HttpPost("prenotifications/eligibility-preview")]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
+    [EndpointDescription("I02: preflight de camara, banco, ciclo, transmision, intento, duplicados y plazo. BusinessEligible no habilita ejecucion ni reserva idempotencia.")]
+    [ProducesResponseType(typeof(PrenotificationBusinessEligibilityPreviewResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PrenotificationBusinessEligibilityPreviewResponse>> PrenotificationEligibilityPreview(
+        [FromBody] PrenotificationSimulationContractRequest request, CancellationToken ct)
+        => Ok(await _service.PreviewPrenotificationAsync(request, ct));
+
+    
+    [HttpPost("prenotifications/tacit-acceptance/preview")]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
+    [EndpointDescription("I05: evalua sin efectos el vencimiento con reloj virtual opcional. No modifica transacciones, Quartz ni crea archivos NACHA-M.")]
+    [ProducesResponseType(typeof(PrenotificationTacitAcceptancePreviewResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PrenotificationTacitAcceptancePreviewResponse>> PreviewTacitAcceptance(
+        [FromBody] PrenotificationTacitAcceptancePreviewRequest request, CancellationToken ct)
+        => Ok(await _service.PreviewTacitAcceptanceAsync(request, ct));
+
+    [HttpPost("prenotifications/tacit-acceptance/apply-due")]
+    [Authorize(Policy = P1Policies.NachaSimulatorGenerateDifferential)]
+    [EndpointDescription("I05: UAT/local exclusivamente. Aplica mediante el motor canonico SOLO vencimientos reales elegibles, sin adelantar fechas ni crear NACHA-M; exige autorizacion de simulacion diferencial.")]
+    [ProducesResponseType(typeof(PrenotificationTacitAcceptanceApplyResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<PrenotificationTacitAcceptanceApplyResponse>> ApplyDueTacitAcceptance(
+        [FromBody] PrenotificationSimulationContractRequest request, CancellationToken ct)
+    {
+        try { return Ok(await _service.ApplyDueTacitAcceptanceAsync(request, User?.Identity?.Name ?? "uat-local", ct)); }
+        catch (ArgumentException ex) { return BadRequest(ToProblem(ex.Message)); }
+        catch (InvalidOperationException ex) { return UnprocessableEntity(ToProblem(ex.Message)); }
+    }
+
+    [HttpPost("prenotifications/generate-return")]
+    [Authorize(Policy = P1Policies.NachaSimulatorGenerateDifferential)]
+    [EndpointDescription("I03: genera solo un archivo de devolucion NACHA-M de prenotificaciones SALIENTES verificadas. UAT/local, con idempotencia en base de datos, sin autoimportar ni cambiar estados. NoReturnByDeadline no genera archivo (I05).")]
+    [ProducesResponseType(typeof(GenerateNachaInboundSimulationResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<GenerateNachaInboundSimulationResponse>> GeneratePrenotificationReturn(
+        [FromBody] PrenotificationSimulationContractRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.GeneratePrenotificationReturnAsync(request, User?.Identity?.Name ?? "uat-local", ct);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        }
+        catch (ArgumentException ex) { return BadRequest(ToProblem(ex.Message)); }
+        catch (InvalidOperationException ex) { return UnprocessableEntity(ToProblem(ex.Message)); }
+    }
+
     [HttpPost("generate")]
-    [EndpointDescription("Genera un archivo NACHA-M de entrada simulado para UAT/local. El simulador solo genera y permite descargar el archivo: no llama NachaUpload, no importa automaticamente, no crea transacciones de entrada, no cambia estados y no transmite a camaras externas. El usuario debe cargar manualmente el archivo generado por la SPA mediante el flujo real NachaUpload. Ejemplos: ACH Colombia IncomingCredit, CENIT IncomingPrenotificationResponse, ACH Colombia IncomingCreditReturn. Errores esperados: 400 request invalido; 401/403 autenticacion/autorizacion; 422 simulador deshabilitado, regla no configurada, referencia inexistente o causal requerida; 500 error no controlado.")]
+    [EndpointDescription("Genera un archivo NACHA-M de entrada simulado para UAT/local. El simulador solo genera y permite descargar el archivo: no llama NachaUpload, no importa automaticamente, no crea transacciones de entrada, no cambia estados y no transmite a camaras externas. El usuario debe cargar manualmente el archivo generado por la SPA mediante el flujo real NachaUpload. Ejemplos vigentes: ACH Colombia IncomingCredit, CENIT IncomingDebit, ACH Colombia IncomingCreditReturn. El escenario legado continua bloqueado; IncomingPrenotificationReturn se genera exclusivamente por prenotifications/generate-return bajo contrato I03. Errores esperados: 400 request invalido; 401/403 autenticacion/autorizacion; 422 simulador deshabilitado, regla no configurada, referencia inexistente o causal requerida; 500 error no controlado.")]
     [ProducesResponseType(typeof(GenerateNachaInboundSimulationResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -89,8 +166,15 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DownloadFile(int id, CancellationToken ct)
     {
-        var file = await _service.GetFileAsync(id, ct);
-        return file is null ? NotFound() : File(file.Value.Content, file.Value.ContentType, file.Value.FileName);
+        try
+        {
+            var file = await _service.GetFileAsync(id, ct);
+            return file is null ? NotFound() : File(file.Value.Content, file.Value.ContentType, file.Value.FileName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return UnprocessableEntity(ToProblem(ex.Message));
+        }
     }
 
     [HttpGet("{id:int}/evidence")]

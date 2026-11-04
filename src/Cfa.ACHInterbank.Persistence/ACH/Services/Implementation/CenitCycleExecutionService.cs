@@ -12,21 +12,15 @@ public class CenitCycleExecutionService : ICenitCycleExecutionService
 {
     private const string CenitCode = "CENIT";
     private readonly AchDbContext _context;
-    private readonly ICenitNettingService _nettingService;
-    private readonly ILiquidityOptimizationService _liquidityService;
     private readonly ICycleCalendarGuard _calendarGuard;
     private readonly TimeProvider _timeProvider;
 
     public CenitCycleExecutionService(
         AchDbContext context,
-        ICenitNettingService nettingService,
-        ILiquidityOptimizationService liquidityService,
         ICycleCalendarGuard? calendarGuard = null,
         TimeProvider? timeProvider = null)
     {
         _context = context;
-        _nettingService = nettingService;
-        _liquidityService = liquidityService;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context, timeProvider: _timeProvider);
     }
@@ -63,30 +57,19 @@ public class CenitCycleExecutionService : ICenitCycleExecutionService
             _context.CenitCycleExecutions.Add(execution);
             await _context.SaveChangesAsync(ct);
         }
-        else if (string.Equals(execution.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(execution.Status, "AwaitingOfficialResult", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(execution.Status, "Completed", StringComparison.OrdinalIgnoreCase))
         {
             return execution;
         }
 
-        var queued = await _context.CenitCycleQueues
-            .Where(x => x.TargetAchCycleId == cycle.Id && x.Status == "Queued")
-            .ToListAsync(ct);
-
-        foreach (var item in queued)
-        {
-            item.Status = "Consumed";
-            item.DequeuedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
-            item.CenitCycleExecutionId = execution.Id;
-        }
-
-        await _context.SaveChangesAsync(ct);
-
-        await _nettingService.CalculateAsync(execution, ct);
-        await _liquidityService.OptimizeCycleAsync(execution, ct);
-
-        execution.Status = "Completed";
-        execution.CompletedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        execution.Summary = "Execution completed with netting and optimization.";
+        // F01: el fin de la ventana NO es evidencia de liquidación, neteo ni rechazo.
+        // No ejecutar simuladores en Quartz ni consumir colas: F03 debe incorporar
+        // y confirmar cada operación en su ciclo destino antes de consumirla.
+        // Las transiciones definitivas pertenecen a respuestas oficiales del operador.
+        execution.Status = "AwaitingOfficialResult";
+        execution.CompletedAtUtc = null;
+        execution.Summary = "CENIT window ended; awaiting official chamber results. No simulated settlement.";
         await _context.SaveChangesAsync(ct);
 
         return execution;

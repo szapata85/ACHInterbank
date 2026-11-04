@@ -1,0 +1,21 @@
+{
+  "status": "VERIFICADO",
+  "base": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I05_CENIT_2026-11-03.zip",
+  "base_sha256": "bddb26b63c1546edfdc03e72373a273823563e378d40435a751f80fd6f0c606c",
+  "base_zip_crc": "PASS",
+  "first_pass_crc": "PASS",
+  "first_pass_entries": 4949,
+  "final_pass_crc": "PASS (corroborado mediante testzip y hashes al cierre)",
+  "final_entries": 4949,
+  "same_files": 4933,
+  "changed_files": 1,
+  "added_files": 15,
+  "removed_files": 0,
+  "file_byte_hashes_match_extracted_source": true,
+  "original_unchanged_sha256_match": true,
+  "dotnet_build": "NO EJECUTADO",
+  "xunit": "NO EJECUTADO",
+  "sql": "NO EJECUTADO",
+  "homologation": "NO EJECUTADA",
+  "scope": "integridad archivo ZIP, no prueba funcional"
+}

@@ -1,0 +1,35 @@
+{
+  "fecha": "2026-11-02",
+  "incremento": "I05",
+  "base": "ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I04_2026-11-02.zip",
+  "test_result": "PASS_STATIC_143_OF_143",
+  "runtime_result": "NO_EJECUTADA_POR_AMBIENTE",
+  "source_archive_sha256": "453c8c82d2c2a901d39a574d9eb88f794c66bf6ea09ead2f04c9d12df020584b",
+  "files_preserved": 4736,
+  "files_modified": [
+    "ACHInterbank_ajustado/MEMORY_STATE.md",
+    "ACHInterbank_ajustado/README_ENTREGA_SIMULADOR_PRENOTIFICACIONES.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/CHANGELOG_INCREMENTAL.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.json",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/ESTADO_INCREMENTAL.md",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs"
+  ],
+  "files_added": [
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/CONTRATO_ACEPTACION_TACITA_I05.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/EVIDENCIA_I05.txt",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/I05_CAMBIOS_CODIGO.patch",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/INFORME_I05.md",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/MANIFIESTO_I05.json",
+    "ACHInterbank_ajustado/docs/implementacion-simulador-prenotificaciones/MEMORY_STATE_I05.md",
+    "ACHInterbank_ajustado/scripts/test/prenotification_simulator_i05_static_check.py",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationTacitAcceptanceDecision.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.TacitAcceptance.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorTacitAcceptanceI05Tests.cs"
+  ],
+  "files_missing": [],
+  "note": "Archivos nuevos de manifesto y patch se agregan luego de calcular la comparacion."
+}

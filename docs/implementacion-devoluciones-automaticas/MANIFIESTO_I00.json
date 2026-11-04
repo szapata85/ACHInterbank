@@ -1,0 +1,33 @@
+{
+  "initiative": "DEV-AUTO-2026-11-02",
+  "increment": "I00",
+  "cutoff_date": "2026-11-02",
+  "nature": "DOCUMENTACION_SIN_CAMBIOS_FUNCIONALES",
+  "base_zip_name": "ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I07R1_2026-11-02.zip",
+  "base_zip_sha256": "ceaefa09a37f9deec3c2749eb5f599922d2118ba4c18b669c4396ea91b86bed6",
+  "base_entries": 4767,
+  "root": "ACHInterbank_ajustado/",
+  "updated_existing_files": [],
+  "new_files": [
+    "README_ENTREGA_DEVOLUCIONES_AUTOMATICAS_I00.md",
+    "docs/implementacion-devoluciones-automaticas/00_LEEME.md",
+    "docs/implementacion-devoluciones-automaticas/CONTRATO_FUNCIONAL.md",
+    "docs/implementacion-devoluciones-automaticas/ESTADO_INCREMENTAL.md",
+    "docs/implementacion-devoluciones-automaticas/EVIDENCIA_I00.md",
+    "docs/implementacion-devoluciones-automaticas/MANIFIESTO_I00.json",
+    "docs/implementacion-devoluciones-automaticas/MATRIZ_REGLAS_Y_CASOS.md",
+    "docs/implementacion-devoluciones-automaticas/MEMORY_STATE.md",
+    "docs/implementacion-devoluciones-automaticas/PLAN_INCREMENTAL.md",
+    "docs/implementacion-devoluciones-automaticas/PRUEBAS_Y_EVIDENCIAS.md",
+    "docs/implementacion-devoluciones-automaticas/UX_UI_ANGULAR_MATERIAL.md"
+  ],
+  "checks": {
+    "source_files_unchanged": "PASS_REAL: original source members byte-identical",
+    "zip_integrity": "PASS_REAL: checked after packaging (see external delivery hash)",
+    "dotnet_build": "NO_EJECUTADA_POR_AMBIENTE",
+    "functional_implementation": "NO"
+  },
+  "next_increment": "I01",
+  "base_entries_verified": 4767,
+  "delivered_entries_expected": 4778
+}

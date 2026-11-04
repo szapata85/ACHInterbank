@@ -8,6 +8,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { AchCyclesApiService } from '../../../../core/services/ach-cycles-api.service';
 import { AchCycleSummary } from '../../../../core/models/ach-cycle.model';
 import { AchReturnsApiService } from '../../services/ach-returns-api.service';
+import { AchColombiaReturnReviewApiService } from '../../services/ach-colombia-return-review-api.service';
 import { ReturnReasonsApiService } from '../../services/return-reasons-api.service';
 import { ReturnEligibleTransaction } from '../../transactions.models';
 import { TRANSACTIONS_ROUTES } from '../../transactions-routing.module';
@@ -72,6 +73,9 @@ describe('AchReturnsManagementComponent', () => {
       'AchReturnsApiService',
       ['getTransactionsByCycle', 'generateFile']
     );
+    const candidateApi = jasmine.createSpyObj<AchColombiaReturnReviewApiService>(
+      'AchColombiaReturnReviewApiService', ['list', 'decide']);
+    candidateApi.list.and.returnValue(of([]));
     reasonsApi = jasmine.createSpyObj<ReturnReasonsApiService>('ReturnReasonsApiService', ['getForReturns']);
     notifications = jasmine.createSpyObj<NotificationService>(
       'NotificationService',
@@ -101,6 +105,7 @@ describe('AchReturnsManagementComponent', () => {
       providers: [
         { provide: AchCyclesApiService, useValue: cyclesApi },
         { provide: AchReturnsApiService, useValue: returnsApi },
+        { provide: AchColombiaReturnReviewApiService, useValue: candidateApi },
         { provide: ReturnReasonsApiService, useValue: reasonsApi },
         { provide: NotificationService, useValue: notifications },
         { provide: AuthService, useValue: auth },

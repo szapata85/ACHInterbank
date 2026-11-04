@@ -941,6 +941,53 @@ public class AchReturnOfReturnFileGenerationServiceTests
     }
 
     [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_UsesVerifiedRawWhenNoSeparateReturnRowExists()
+    {
+        await using var context = BuildContext();
+        var targetDate = new DateTime(2026, 9, 16);
+        var id = SeedCenitCycle1RorFlow(context, 240, 8340, targetDate.AddDays(-1), targetDate);
+        var flow = await context.ReturnOfReturnFlows.SingleAsync(x => x.Id == id);
+        flow.SourceReturnTransactionId = null;
+        flow.SourceReturnTransaction = null;
+        await context.SaveChangesAsync();
+        var result = await CreateCenitCycle1PolicySut(context).GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { id }, targetDate.AddHours(8), "qa", "api"), CancellationToken.None);
+        Assert.False(result.IsGenerated);
+        Assert.DoesNotContain(result.Failures, x => x.Code.StartsWith("CENIT_ROR_SOURCE_RETURN_", StringComparison.Ordinal));
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_OPTION_C_REQUIRED");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_RejectsMissingParentRawLink()
+    {
+        await using var context = BuildContext();
+        var targetDate = new DateTime(2026, 9, 16);
+        var id = SeedCenitCycle1RorFlow(context, 242, 8342, targetDate.AddDays(-1), targetDate);
+        var rawLink = await context.IncomingNachaTransactionLinks.SingleAsync();
+        context.IncomingNachaTransactionLinks.Remove(rawLink);
+        await context.SaveChangesAsync();
+        var result = await CreateCenitCycle1PolicySut(context).GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { id }, targetDate.AddHours(8), "qa", "api"), CancellationToken.None);
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_SOURCE_RETURN_RAW_NOT_FOUND");
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CenitCycle1_RejectsMismatchedReturnTrace()
+    {
+        await using var context = BuildContext();
+        var targetDate = new DateTime(2026, 9, 16);
+        var id = SeedCenitCycle1RorFlow(context, 241, 8341, targetDate.AddDays(-1), targetDate);
+        var source = await context.AchTransactions.SingleAsync(x => x.Id == id * 10 + 1);
+        source.TraceNumber = "INVALID-TRACE";
+        await context.SaveChangesAsync();
+        var result = await CreateCenitCycle1PolicySut(context).GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { id }, targetDate.AddHours(8), "qa", "api"), CancellationToken.None);
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_SOURCE_RETURN_CORRELATION_INVALID");
+    }
+
+    [Fact]
     public async Task GenerateNachaAsync_AchColombiaCycle1_ShouldNotUseCenitContextualException()
     {
         await using var context = BuildContext();
@@ -1041,12 +1088,47 @@ public class AchReturnOfReturnFileGenerationServiceTests
         sourceReturn.EffectiveEntryDate = sourceReturnProcessingDate.Date;
         var ror = BuildTx(flowId * 10 + 2, targetCycleId, $"CROR{flowId}");
         ror.EffectiveEntryDate = targetProcessingDate.Date;
-        context.AchTransactions.AddRange(sourceReturn, ror);
+        var original = BuildTx(flowId * 10 + 3, sourceCycleId, $"CORIG{flowId}");
+        original.Type = TransactionTypeEnum.Credit;
+        original.State = AchTransferStateEnum.ReturnedByEpr;
+        context.AchTransactions.AddRange(sourceReturn, ror, original);
+        var parentEventId = 900000L + flowId;
+        context.AchTransactionStateEvents.Add(new AchTransactionStateEvent
+        {
+            Id = parentEventId, AchTransactionId = original.Id,
+            FromState = AchTransferStateEnum.Certified, ToState = AchTransferStateEnum.ReturnedByEpr,
+            Source = AchStateEventSourceEnum.Epr, ReasonCode = "R02", OccurredAtUtc = sourceReturnProcessingDate
+        });
+        var nachaId = $"CENIT-ROR-SOURCE-{flowId}";
+        var batchId = flowId * 10 + 4;
+        var entryId = flowId * 10 + 5;
+        var addendaId = flowId * 10 + 6;
+        context.NachaHeaders.Add(new NachaHeader { NachaID = nachaId, ClearingHouseId = clearingHouseId, AchCycleId = sourceCycleId });
+        context.BatchHeaders.Add(new BatchHeader { BatchID = batchId, NachaID = nachaId, StandardEntryClassCode = "PPD" });
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = entryId, NachaID = nachaId, BatchHeaderId = batchId,
+            SequenceNumber = sourceReturn.TraceNumber, Amount = sourceReturn.Amount
+        });
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = addendaId, NachaID = nachaId, EntryDetailId = entryId,
+            CodeTypeAddendumRecord = "99", ReturnReasonCode = "R02",
+            OriginalTraceNumber = original.TraceNumber
+        });
+        context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(), AchTransactionId = original.Id, EntryDetailId = entryId,
+            AddendaRecordId = addendaId, IsFinal = true
+        });
         context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow
         {
             Id = flowId,
-            OriginalTransactionId = sourceReturn.Id,
-            OriginalTransaction = sourceReturn,
+            OriginalTransactionId = original.Id,
+            OriginalTransaction = original,
+            SourceReturnTransactionId = sourceReturn.Id,
+            SourceReturnTransaction = sourceReturn,
+            ParentIncomingReturnStateEventId = parentEventId,
             ReturnOfReturnTransactionId = ror.Id,
             ReturnOfReturnTransaction = ror,
             ReasonCode = "R60",

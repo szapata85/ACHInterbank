@@ -49,7 +49,10 @@ public sealed record CenitIncomingReturnPolicyRequest(
     bool? FundsAvailabilityRequired = null,
     bool? FundsAvailabilityConfirmed = null,
     bool? ConfirmationToOriginatorRecorded = null,
-    DateTime? ReceiverRejectionDeadlineDate = null);
+    DateTime? ReceiverRejectionDeadlineDate = null,
+    DateTime? OriginalReceivedDate = null,
+    DateTime? ReceiverNotificationReceivedDate = null,
+    DateTime? CalculatedNextBusinessDayDeadline = null);
 
 /// <summary>
 /// Evidencia operativa opcional que la generación de devoluciones entrega a la política CENIT cuando corresponde.
@@ -60,7 +63,8 @@ public sealed record CenitIncomingReturnPolicyRequest(
 /// <param name="FundsAvailabilityRequired">Indica, cuando se informa, si la evaluación requiere comprobar disponibilidad de fondos.</param>
 /// <param name="FundsAvailabilityConfirmed">Resultado opcional de la comprobación de disponibilidad de fondos.</param>
 /// <param name="ConfirmationToOriginatorRecorded">Indica, cuando se informa, si quedó registrada la confirmación al originador.</param>
-/// <param name="ReceiverRejectionDeadlineDate">Fecha límite de rechazo del receptor cuando forma parte de la evidencia disponible.</param>
+/// <param name="ReceiverRejectionDeadlineDate">Fecha limite aportada por la fuente; NO se usa para autorizar R23.</param>
+/// <param name="ReceiverNotificationReceivedDate">Fecha de recepcion registrada de la notificacion del Receptor, diferente de la Fecha Valor.</param>
 public sealed record CenitIncomingReturnOperationalEvidence(
     CenitPrenotificationDirection PrenotificationDirection = CenitPrenotificationDirection.Unknown,
     DateTime? ReturnRequestDate = null,
@@ -68,7 +72,8 @@ public sealed record CenitIncomingReturnOperationalEvidence(
     bool? FundsAvailabilityRequired = null,
     bool? FundsAvailabilityConfirmed = null,
     bool? ConfirmationToOriginatorRecorded = null,
-    DateTime? ReceiverRejectionDeadlineDate = null);
+    DateTime? ReceiverRejectionDeadlineDate = null,
+    DateTime? ReceiverNotificationReceivedDate = null);
 
 public sealed record CenitIncomingReturnPolicyResult(
     CenitIncomingReturnPolicyStatus Status,

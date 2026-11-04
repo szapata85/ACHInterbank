@@ -1,0 +1,3754 @@
+--- I05/web/ach-interbank-ui/src/app/features/uat/services/nacha-inbound-simulator.service.ts
++++ I06/web/ach-interbank-ui/src/app/features/uat/services/nacha-inbound-simulator.service.ts
+@@ -1,188 +1,313 @@
+-import { Injectable, inject } from '@angular/core';
+-import { ApiService } from '../../../core/services/api.service';
+-
+-export type NachaSimulationMode = 'IncomingTransactions' | 'DifferentialResponses';
+-
+-export type NachaInboundSimulationType =
+-  | 'IncomingCredit'
+-  | 'IncomingDebit'
+-  | 'IncomingPrenotificationResponse'
+-  | 'IncomingCreditConfirmation'
+-  | 'IncomingCreditRejection'
+-  | 'IncomingCreditReturn'
+-  | 'IncomingDebitConfirmation'
+-  | 'IncomingDebitRejection'
+-  | 'IncomingDebitReturn';
+-
+-export type InboundResponseMode = 'Approved' | 'Rejected' | 'Confirmed' | 'Returned' | 'Failed';
+-
+-export interface GenerateNachaInboundSimulationRequest {
+-  simulationMode: NachaSimulationMode;
+-  clearingHouseCode: string;
+-  scenarioType: NachaInboundSimulationType;
+-  originFinancialInstitutionId: number;
+-  originFinancialInstitutionCode?: string;
+-  entriesCount: number;
+-  amount: number;
+-  referencePrefix: string;
+-  businessDate: string;
+-  cycleCode: string;
+-  pendingPrenotificationReferences: string[];
+-  transactionReferences: string[];
+-  responseMode?: InboundResponseMode | null;
+-  reasonCode?: string | null;
+-  notes?: string | null;
+-}
+-
+-export interface AchReturnCodeOption {
+-  id: number;
+-  clearingHouseId: number;
+-  code: string;
+-  flowType: string;
+-  description: string;
+-  appliesToDebit: boolean;
+-  appliesToCredit: boolean;
+-  appliesToPrenotification: boolean;
+-  appliesToReturn: boolean;
+-  effectiveFrom: string;
+-  effectiveTo?: string | null;
+-  isActive: boolean;
+-}
+-
+-export interface DifferentialResponseEligibleTransaction {
+-  id: number;
+-  identifier: string;
+-  traceNumber: string;
+-  clearingHouse: string;
+-  destinationFinancialInstitutionId: number;
+-  destinationFinancialInstitution: string;
+-  transactionType: string;
+-  effectiveDate: string;
+-  cycle: string;
+-  accountNumberMasked: string;
+-  amount: number;
+-  state: string;
+-  hasPriorResponse: boolean;
+-  eligible: boolean;
+-  ineligibilityReason?: string | null;
+-}
+-
+-export interface DifferentialResponseTransactionPage {
+-  items: DifferentialResponseEligibleTransaction[];
+-  page: number;
+-  pageSize: number;
+-  total: number;
+-}
+-
+-export interface AvailableInboundCycle {
+-  cycleId: string;
+-  cycleCode: string;
+-  cycleName: string;
+-  clearingHouseId: number;
+-  clearingHouseCode: string;
+-  clearingHouseName: string;
+-  processingDate: string;
+-  transactionCount: number;
+-  status: string;
+-}
+-
+-export interface InboundSimulationEligibilityPreview {
+-  eligible: boolean;
+-  decision: string;
+-  message: string;
+-  functionalCode?: string | null;
+-  simulationMode: NachaSimulationMode;
+-}
+-
+-export interface NachaInboundSimulationResult {
+-  id: number;
+-  simulationId: string;
+-  fileName: string;
+-  downloadUrl: string;
+-  evidenceUrl: string;
+-  sha256: string;
+-  fileSizeBytes: number;
+-  generatedOnly: boolean;
+-  autoImported: boolean;
+-  uploadRequired: boolean;
+-  externalTransmission: boolean;
+-  message: string;
+-}
+-
+-export interface NachaInboundSimulationItem {
+-  id: number;
+-  simulationId: string;
+-  clearingHouseName: string;
+-  scenarioType: string;
+-  responseMode?: string | null;
+-  reasonCode?: string | null;
+-  originFinancialInstitution: string;
+-  destinationFinancialInstitution: string;
+-  originFinancialInstitutionId: number;
+-  destinationFinancialInstitutionId: number;
+-  fileName: string;
+-  sha256: string;
+-  fileSizeBytes: number;
+-  generatedOnly: boolean;
+-  autoImported: boolean;
+-  uploadRequired: boolean;
+-  externalTransmission: boolean;
+-  createdAt: string;
+-}
+-
+-@Injectable({ providedIn: 'root' })
+-export class NachaInboundSimulatorService {
+-  private readonly api = inject(ApiService);
+-  private readonly basePath = 'api/uat/nacha-inbound-simulator';
+-
+-  list() {
+-    return this.api.get<NachaInboundSimulationItem[]>(this.basePath);
+-  }
+-
+-  preview(payload: GenerateNachaInboundSimulationRequest) {
+-    return this.api.post<InboundSimulationEligibilityPreview>(`${this.basePath}/eligibility-preview`, payload);
+-  }
+-
+-  generate(payload: GenerateNachaInboundSimulationRequest) {
+-    return this.api.post<NachaInboundSimulationResult>(`${this.basePath}/generate`, payload);
+-  }
+-
+-  eligibleDifferentialTransactions(params: {
+-    clearingHouseCode: string;
+-    destinationFinancialInstitutionId?: number;
+-    fromDate?: string;
+-    toDate?: string;
+-    state?: string;
+-    transactionType?: string;
+-    traceNumber?: string;
+-    search?: string;
+-    page: number;
+-    pageSize: number;
+-  }) {
+-    const query = Object.fromEntries(
+-      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
+-    ) as Record<string, string | number>;
+-    return this.api.get<DifferentialResponseTransactionPage>(
+-      `${this.basePath}/eligible-differential-transactions`,
+-      { params: query }
+-    );
+-  }
+-
+-  returnCodes(clearingHouseCode: string) {
+-    return this.api.get<AchReturnCodeOption[]>('api/regulatory-catalogs/return-codes', {
+-      params: { clearingHouseCode }
+-    });
+-  }
+-
+-  availableCycles(params: {
+-    clearingHouseCode: string;
+-    processingDate: string;
+-    scenarioType: NachaInboundSimulationType;
+-  }) {
+-    return this.api.get<AvailableInboundCycle[]>(`${this.basePath}/available-cycles`, { params });
+-  }
+-
+-  downloadUrl(id: number): string {
+-    return this.api.resolveUrl(`${this.basePath}/${id}/file`);
+-  }
+-}
++import { Injectable, inject } from '@angular/core';
++import { HttpClient } from '@angular/common/http';
++import { ApiService } from '../../../core/services/api.service';
++
++export type NachaSimulationMode = 'IncomingTransactions' | 'DifferentialResponses';
++
++export type NachaInboundSimulationType =
++  | 'IncomingCredit'
++  | 'IncomingDebit'
++  | 'IncomingPrenotificationResponse'
++  | 'IncomingPrenotificationReturn'
++  | 'IncomingCreditConfirmation'
++  | 'IncomingCreditRejection'
++  | 'IncomingCreditReturn'
++  | 'IncomingDebitConfirmation'
++  | 'IncomingDebitRejection'
++  | 'IncomingDebitReturn';
++
++export type InboundResponseMode = 'Approved' | 'Rejected' | 'Confirmed' | 'Returned' | 'Failed';
++
++export interface GenerateNachaInboundSimulationRequest {
++  simulationMode: NachaSimulationMode;
++  clearingHouseCode: string;
++  scenarioType: NachaInboundSimulationType;
++  originFinancialInstitutionId: number;
++  originFinancialInstitutionCode?: string;
++  entriesCount: number;
++  amount: number;
++  referencePrefix: string;
++  businessDate: string;
++  cycleCode: string;
++  pendingPrenotificationReferences: string[];
++  transactionReferences: string[];
++  responseMode?: InboundResponseMode | null;
++  reasonCode?: string | null;
++  notes?: string | null;
++}
++
++export interface AchReturnCodeOption {
++  id: number;
++  clearingHouseId: number;
++  code: string;
++  flowType: string;
++  description: string;
++  appliesToDebit: boolean;
++  appliesToCredit: boolean;
++  appliesToPrenotification: boolean;
++  appliesToReturn: boolean;
++  effectiveFrom: string;
++  effectiveTo?: string | null;
++  isActive: boolean;
++}
++
++export interface DifferentialResponseEligibleTransaction {
++  id: number;
++  identifier: string;
++  traceNumber: string;
++  clearingHouse: string;
++  destinationFinancialInstitutionId: number;
++  destinationFinancialInstitution: string;
++  transactionType: string;
++  effectiveDate: string;
++  cycle: string;
++  accountNumberMasked: string;
++  amount: number;
++  state: string;
++  hasPriorResponse: boolean;
++  eligible: boolean;
++  ineligibilityReason?: string | null;
++}
++
++export interface DifferentialResponseTransactionPage {
++  items: DifferentialResponseEligibleTransaction[];
++  page: number;
++  pageSize: number;
++  total: number;
++}
++
++export interface AvailableInboundCycle {
++  cycleId: string;
++  cycleCode: string;
++  cycleName: string;
++  clearingHouseId: number;
++  clearingHouseCode: string;
++  clearingHouseName: string;
++  processingDate: string;
++  transactionCount: number;
++  status: string;
++}
++
++export interface InboundSimulationEligibilityPreview {
++  eligible: boolean;
++  decision: string;
++  message: string;
++  functionalCode?: string | null;
++  simulationMode: NachaSimulationMode;
++}
++
++export interface NachaInboundSimulationResult {
++  id: number;
++  simulationId: string;
++  fileName: string;
++  downloadUrl: string;
++  evidenceUrl: string;
++  sha256: string;
++  fileSizeBytes: number;
++  generatedOnly: boolean;
++  autoImported: boolean;
++  uploadRequired: boolean;
++  externalTransmission: boolean;
++  message: string;
++}
++
++export interface NachaInboundSimulationItem {
++  id: number;
++  simulationId: string;
++  clearingHouseName: string;
++  scenarioType: string;
++  responseMode?: string | null;
++  reasonCode?: string | null;
++  originFinancialInstitution: string;
++  destinationFinancialInstitution: string;
++  originFinancialInstitutionId: number;
++  destinationFinancialInstitutionId: number;
++  fileName: string;
++  sha256: string;
++  fileSizeBytes: number;
++  generatedOnly: boolean;
++  autoImported: boolean;
++  uploadRequired: boolean;
++  externalTransmission: boolean;
++  createdAt: string;
++}
++
++export type PrenotificationOutcome = 'Returned' | 'NoReturnByDeadline';
++
++export interface PrenotificationViolation {
++  code: string;
++  field: string;
++  message: string;
++}
++
++export interface PrenotificationCandidate {
++  originalPrenotificationId: number;
++  originalCycleId: string;
++  clearingHouseCode: string;
++  respondingFinancialInstitutionId: number;
++  respondingFinancialInstitution: string;
++  traceNumber: string;
++  transactionExternalId: string;
++  destinationAccountMasked: string;
++  originalBusinessDate: string;
++  transactionStatus: string;
++  validationAttemptId: number | null;
++  validationAttemptStatus: string | null;
++  responseDeadlineAtUtc: string | null;
++  transmittedOrAcknowledged: boolean;
++  hasPriorResponse: boolean;
++  eligibleForReturn: boolean;
++  eligibleForNoReturnByDeadline: boolean;
++  violations: PrenotificationViolation[];
++}
++
++export interface PrenotificationCandidatePage {
++  items: PrenotificationCandidate[];
++  page: number;
++  pageSize: number;
++  total: number;
++  executionEnabled: boolean;
++}
++
++export interface PrenotificationContractRequest {
++  outcome: PrenotificationOutcome;
++  clearingHouseCode: string;
++  originalPrenotificationIds: number[];
++  originalCycleId: string;
++  responseCycleId: string | null;
++  businessDate: string;
++  respondingFinancialInstitutionId: number;
++  reasonCode: string | null;
++  idempotencyKey: string | null;
++}
++
++export interface PrenotificationEligibilityPreview {
++  shapeValid: boolean;
++  businessEligible: boolean;
++  executionEnabled: boolean;
++  contractVersion: string;
++  violations: PrenotificationViolation[];
++  candidates: PrenotificationCandidate[];
++}
++
++export interface PrenotificationTacitPreview {
++  evaluationTimeUtc: string;
++  realTimeUtc: string;
++  isVirtualTime: boolean;
++  readOnly: boolean;
++  executionEnabled: boolean;
++  items: Array<{
++    originalPrenotificationId: number;
++    deadlineAtUtc: string | null;
++    wouldApplyAtEvaluationTime: boolean;
++    eligibleAtRealTime: boolean;
++    decision: string;
++    violations: PrenotificationViolation[];
++  }>;
++  violations: PrenotificationViolation[];
++}
++
++export interface PrenotificationTacitApplyResult {
++  realTimeUtc: string;
++  applied: number;
++  alreadyApplied: number;
++  items: PrenotificationTacitPreview['items'];
++  createsNachaFile: boolean;
++  externalTransmission: boolean;
++}
++
++@Injectable({ providedIn: 'root' })
++export class NachaInboundSimulatorService {
++  private readonly api = inject(ApiService);
++  private readonly http = inject(HttpClient);
++  private readonly basePath = 'api/uat/nacha-inbound-simulator';
++
++  list() {
++    return this.api.get<NachaInboundSimulationItem[]>(this.basePath);
++  }
++
++  preview(payload: GenerateNachaInboundSimulationRequest) {
++    return this.api.post<InboundSimulationEligibilityPreview>(`${this.basePath}/eligibility-preview`, payload);
++  }
++
++  generate(payload: GenerateNachaInboundSimulationRequest) {
++    return this.api.post<NachaInboundSimulationResult>(`${this.basePath}/generate`, payload);
++  }
++
++  eligibleDifferentialTransactions(params: {
++    clearingHouseCode: string;
++    destinationFinancialInstitutionId?: number;
++    fromDate?: string;
++    toDate?: string;
++    state?: string;
++    transactionType?: string;
++    traceNumber?: string;
++    search?: string;
++    page: number;
++    pageSize: number;
++  }) {
++    const query = Object.fromEntries(
++      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
++    ) as Record<string, string | number>;
++    return this.api.get<DifferentialResponseTransactionPage>(
++      `${this.basePath}/eligible-differential-transactions`,
++      { params: query }
++    );
++  }
++
++  returnCodes(clearingHouseCode: string) {
++    return this.api.get<AchReturnCodeOption[]>('api/regulatory-catalogs/return-codes', {
++      params: { clearingHouseCode }
++    });
++  }
++
++  availableCycles(params: {
++    clearingHouseCode: string;
++    processingDate: string;
++    scenarioType: NachaInboundSimulationType;
++  }) {
++    return this.api.get<AvailableInboundCycle[]>(`${this.basePath}/available-cycles`, { params });
++  }
++
++  listOriginatedPrenotifications(query: {
++    clearingHouseCode: string;
++    search?: string;
++    page: number;
++    pageSize: number;
++  }) {
++    const params = Object.fromEntries(
++      Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== '')
++    ) as Record<string, string | number>;
++    return this.api.get<PrenotificationCandidatePage>(`${this.basePath}/prenotifications/originated`, { params });
++  }
++
++  previewPrenotificationReturn(payload: PrenotificationContractRequest) {
++    return this.api.post<PrenotificationEligibilityPreview>(
++      `${this.basePath}/prenotifications/eligibility-preview`, payload);
++  }
++
++  generatePrenotificationReturn(payload: PrenotificationContractRequest) {
++    return this.api.post<NachaInboundSimulationResult>(
++      `${this.basePath}/prenotifications/generate-return`, payload);
++  }
++
++  previewTacitAcceptance(payload: PrenotificationContractRequest, evaluationTimeUtc: string | null) {
++    return this.api.post<PrenotificationTacitPreview>(
++      `${this.basePath}/prenotifications/tacit-acceptance/preview`,
++      { contract: payload, evaluationTimeUtc });
++  }
++
++  applyDueTacitAcceptance(payload: PrenotificationContractRequest) {
++    return this.api.post<PrenotificationTacitApplyResult>(
++      `${this.basePath}/prenotifications/tacit-acceptance/apply-due`, payload);
++  }
++
++  // Descarga autenticada: HttpClient atraviesa los interceptores de autorización.
++  downloadFile(id: number) {
++    return this.http.get(this.api.resolveUrl(`${this.basePath}/${id}/file`), { responseType: 'blob' });
++  }
++
++  downloadUrl(id: number): string {
++    return this.api.resolveUrl(`${this.basePath}/${id}/file`);
++  }
++}
+--- I05/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts
++++ I06/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts
+@@ -32,7 +32,7 @@
+ import { MatTableModule } from '@angular/material/table';
+ import { MatTooltipModule } from '@angular/material/tooltip';
+ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+-import { finalize } from 'rxjs';
++import { finalize, forkJoin, Observable } from 'rxjs';
+ import { SharedModule } from '../../../../shared/shared.module';
+ import { NotificationService } from '../../../../core/services/notification.service';
+ import {
+@@ -56,7 +56,13 @@
+   NachaInboundSimulationResult,
+   NachaInboundSimulationType,
+   NachaInboundSimulatorService,
+-  NachaSimulationMode
++  NachaSimulationMode,
++  PrenotificationCandidate,
++  PrenotificationContractRequest,
++  PrenotificationEligibilityPreview,
++  PrenotificationTacitPreview,
++  PrenotificationTacitApplyResult,
++  PrenotificationOutcome
+ } from '../../services/nacha-inbound-simulator.service';
+ 
+ const MONEY_PATTERN = /^\d+(?:[.,]\d{1,2})?$/;
+@@ -131,6 +137,31 @@
+   generating = false;
+   previewing = false;
+   hasLoadedHistory = false;
++  prenotificationFlow = false;
++  pnHouseCode = '';
++  pnSearch = '';
++  pnPage = 1;
++  readonly pnPageSize = 10;
++  pnTotal = 0;
++  pnLoading = false;
++  pnBusy = false;
++  pnOptionsLoading = false;
++  pnError: string | null = null;
++  pnCandidates: PrenotificationCandidate[] = [];
++  pnSelected: PrenotificationCandidate | null = null;
++  pnOutcome: PrenotificationOutcome = 'Returned';
++  pnReasonCode = '';
++  pnResponseCycleId = '';
++  pnReturnCodes: AchReturnCodeOption[] = [];
++  pnCycles: AvailableInboundCycle[] = [];
++  pnVirtualDateTime = '';
++  pnReturnPreview: PrenotificationEligibilityPreview | null = null;
++  pnTacitPreview: PrenotificationTacitPreview | null = null;
++  pnPreviewError: string | null = null;
++  pnGenerated: NachaInboundSimulationResult | null = null;
++  pnApplied: number | null = null;
++  private pnIdempotencyKey = '';
++  downloadingId: number | null = null;
+ 
+   simulations: NachaInboundSimulationItem[] = [];
+   originFinancialInstitutions: DestinationInstitution[] = [];
+@@ -184,8 +215,7 @@
+     { value: 'IncomingCreditConfirmation', label: 'Aceptación de crédito' },
+     { value: 'IncomingCreditRejection', label: 'Rechazo de crédito' },
+     { value: 'IncomingDebitConfirmation', label: 'Aceptación de débito' },
+-    { value: 'IncomingDebitRejection', label: 'Rechazo de débito' },
+-    { value: 'IncomingPrenotificationResponse', label: 'Respuesta de prenotificación' }
++    { value: 'IncomingDebitRejection', label: 'Rechazo de débito' }
+   ];
+   readonly responseModes: Array<{ value: InboundResponseMode; label: string }> = [
+     { value: 'Approved', label: 'Aprobada' },
+@@ -282,6 +312,270 @@
+     this.loadFinancialInstitutions();
+     this.loadClearingHouses();
+     this.loadHistory();
++  }
++
++  // I06: flujo guiado sobre una sola prenotificación, dentro de la SPA existente.
++  openPrenotifications(): void {
++    this.prenotificationFlow = true;
++    this.pnHouseCode = this.form.controls.clearingHouseCode.value || this.clearingHouses[0]?.code || '';
++    this.pnSearch = '';
++    this.pnOutcome = 'Returned';
++    this.resetPnSelection();
++    this.loadPrenotifications();
++  }
++
++  closePrenotifications(): void {
++    this.prenotificationFlow = false;
++    this.resetPnSelection();
++  }
++
++  changePnHouse(code: string): void {
++    if (this.pnBusy) { return; }
++    this.pnHouseCode = code;
++    this.resetPnSelection();
++    this.pnCandidates = [];
++    this.loadPrenotifications();
++  }
++
++  loadPrenotifications(page = 1): void {
++    if (!this.pnHouseCode) {
++      this.pnCandidates = [];
++      this.pnTotal = 0;
++      return;
++    }
++    this.pnPage = Math.max(1, page);
++    this.pnLoading = true;
++    this.pnError = null;
++    const house = this.pnHouseCode;
++    this.api.listOriginatedPrenotifications({
++      clearingHouseCode: house,
++      search: this.pnSearch.trim() || undefined,
++      page: this.pnPage,
++      pageSize: this.pnPageSize
++    }).pipe(
++      takeUntilDestroyed(this.destroyRef),
++      finalize(() => { this.pnLoading = false; this.cdr.markForCheck(); })
++    ).subscribe({
++      next: (pageResult) => {
++        if (house !== this.pnHouseCode) { return; }
++        this.pnCandidates = pageResult.items ?? [];
++        this.pnTotal = pageResult.total;
++      },
++      error: (error: HttpErrorResponse) => {
++        this.pnCandidates = [];
++        this.pnTotal = 0;
++        this.pnError = this.errorMessage(error, 'No se pudieron consultar las prenotificaciones.');
++      }
++    });
++  }
++
++  selectPrenotification(candidate: PrenotificationCandidate): void {
++    if (this.pnBusy) { return; }
++    this.resetPnSelection();
++    this.pnSelected = candidate;
++    this.pnIdempotencyKey = crypto.randomUUID();
++    this.loadPnOptions(candidate);
++  }
++
++  changePnOutcome(outcome: PrenotificationOutcome): void {
++    this.pnOutcome = outcome;
++    this.clearPnPreview();
++  }
++
++  changePnDetails(): void { this.clearPnPreview(); }
++
++  get pnApplicableCodes(): AchReturnCodeOption[] {
++    return this.pnReturnCodes.filter(code => code.isActive
++      && code.appliesToPrenotification && (code.flowType === 'Return' || code.flowType === 'Any'));
++  }
++
++  get pnCanPreview(): boolean {
++    if (!this.pnSelected || this.pnBusy || this.pnOptionsLoading) { return false; }
++    if (this.pnOutcome === 'Returned') {
++      return this.pnSelected.eligibleForReturn && !!this.pnReasonCode && !!this.pnResponseCycleId;
++    }
++    return this.pnSelected.violations.length === 0;
++  }
++
++  get pnCanCommit(): boolean {
++    if (!this.pnCanPreview || !!this.pnPreviewError || this.pnGenerated !== null || this.pnApplied !== null) {
++      return false;
++    }
++    return this.pnOutcome === 'Returned'
++      ? this.pnReturnPreview?.businessEligible === true
++      : !this.pnVirtualDateTime && this.pnTacitPreview?.executionEnabled === true
++        && this.pnTacitPreview.items.length === 1
++        && this.pnTacitPreview.items[0].eligibleAtRealTime;
++  }
++
++  previewPn(): void {
++    if (!this.pnCanPreview) { return; }
++    const payload = this.pnContract();
++    this.pnBusy = true;
++    this.clearPnPreview();
++    const virtual = this.pnOutcome === 'NoReturnByDeadline' && this.pnVirtualDateTime
++      ? new Date(this.pnVirtualDateTime) : null;
++    if (virtual && Number.isNaN(virtual.getTime())) {
++      this.pnBusy = false;
++      this.pnPreviewError = 'Fecha de prueba inválida.';
++      return;
++    }
++    const request: Observable<PrenotificationEligibilityPreview | PrenotificationTacitPreview> = this.pnOutcome === 'Returned'
++      ? this.api.previewPrenotificationReturn(payload)
++      : this.api.previewTacitAcceptance(payload, virtual?.toISOString() ?? null);
++    request.pipe(takeUntilDestroyed(this.destroyRef), finalize(() => {
++      this.pnBusy = false;
++      this.cdr.markForCheck();
++    })).subscribe({
++      next: (result) => {
++        if (this.pnOutcome === 'Returned') {
++          const preview = result as PrenotificationEligibilityPreview;
++          this.pnReturnPreview = preview;
++          this.pnPreviewError = preview.businessEligible ? null
++            : this.pnIssues(preview.violations.map(issue => issue.message));
++        } else {
++          const preview = result as PrenotificationTacitPreview;
++          this.pnTacitPreview = preview;
++          const issues = [...preview.violations, ...preview.items.flatMap(item => item.violations)];
++          this.pnPreviewError = issues.length ? this.pnIssues(issues.map(issue => issue.message)) : null;
++        }
++      },
++      error: (error: HttpErrorResponse) => {
++        this.pnPreviewError = this.errorMessage(error, 'No se pudo validar la prenotificación.');
++      }
++    });
++  }
++
++  confirmPn(): void {
++    if (!this.pnCanCommit) { return; }
++    const isReturn = this.pnOutcome === 'Returned';
++    const data: OperationalConfirmDialogData = {
++      title: isReturn ? 'Generar devolución de prenotificación' : 'Aplicar aceptación tácita',
++      message: isReturn
++        ? 'Se generará un archivo NACHA-M UAT, sin importarlo automáticamente. Descárguelo y cárguelo en NachaUpload.'
++        : 'Se actualizará el estado de la prenotificación en este entorno UAT únicamente si el plazo real venció. Esta acción no genera archivos.',
++      confirmLabel: isReturn ? 'Generar archivo' : 'Aplicar vencimiento',
++      icon: isReturn ? 'assignment_return' : 'schedule'
++    };
++    this.dialog.open(OperationalConfirmDialogComponent, {
++      data, width: 'min(92vw, 520px)', disableClose: true
++    }).afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(confirmed => {
++      if (confirmed && this.pnCanCommit) { this.executePn(); }
++    });
++  }
++
++  private executePn(): void {
++    this.pnBusy = true;
++    const isReturn = this.pnOutcome === 'Returned';
++    const request = this.pnContract();
++    const action: Observable<NachaInboundSimulationResult | PrenotificationTacitApplyResult> = isReturn
++      ? this.api.generatePrenotificationReturn(request)
++      : this.api.applyDueTacitAcceptance(request);
++    action.pipe(takeUntilDestroyed(this.destroyRef), finalize(() => {
++      this.pnBusy = false;
++      this.cdr.markForCheck();
++    })).subscribe({
++      next: (response) => {
++        if (isReturn) {
++          this.pnGenerated = response as NachaInboundSimulationResult;
++          this.notifications.success('Archivo generado. Descárguelo y procéselo mediante NachaUpload.');
++          this.loadHistory();
++        } else {
++          const applied = response as { applied: number; alreadyApplied: number };
++          this.pnApplied = applied.applied;
++          this.notifications.success(applied.applied ? 'Aceptación tácita aplicada.' : 'Resultado ya aplicado previamente.');
++        }
++        // El backend conserva la autoridad; refrescar elegibilidad después de la acción.
++        this.loadPrenotifications(this.pnPage);
++      },
++      error: (error: HttpErrorResponse) => {
++        this.pnPreviewError = this.errorMessage(error, 'No se pudo completar la simulación.');
++        this.clearPnPreviewResults();
++      }
++    });
++  }
++
++  private loadPnOptions(candidate: PrenotificationCandidate): void {
++    this.pnOptionsLoading = true;
++    forkJoin({
++      codes: this.api.returnCodes(candidate.clearingHouseCode),
++      cycles: this.api.availableCycles({
++        clearingHouseCode: candidate.clearingHouseCode,
++        processingDate: candidate.originalBusinessDate,
++        scenarioType: 'IncomingPrenotificationReturn'
++      })
++    }).pipe(takeUntilDestroyed(this.destroyRef), finalize(() => {
++      this.pnOptionsLoading = false;
++      this.cdr.markForCheck();
++    })).subscribe({
++      next: result => {
++        if (this.pnSelected?.originalPrenotificationId !== candidate.originalPrenotificationId
++            || this.pnHouseCode !== candidate.clearingHouseCode) { return; }
++        this.pnReturnCodes = result.codes ?? [];
++        this.pnCycles = (result.cycles ?? []).filter(cycle => cycle.cycleId !== candidate.originalCycleId);
++      },
++      error: (error: HttpErrorResponse) => {
++        this.pnPreviewError = this.errorMessage(error, 'No se pudieron cargar las causales o ciclos de devolución.');
++      }
++    });
++  }
++
++  private pnContract(): PrenotificationContractRequest {
++    const candidate = this.pnSelected!;
++    return {
++      outcome: this.pnOutcome,
++      clearingHouseCode: candidate.clearingHouseCode,
++      originalPrenotificationIds: [candidate.originalPrenotificationId],
++      originalCycleId: candidate.originalCycleId,
++      responseCycleId: this.pnOutcome === 'Returned' ? this.pnResponseCycleId : null,
++      businessDate: candidate.originalBusinessDate,
++      respondingFinancialInstitutionId: candidate.respondingFinancialInstitutionId,
++      reasonCode: this.pnOutcome === 'Returned' ? this.pnReasonCode : null,
++      idempotencyKey: this.pnOutcome === 'Returned' ? this.pnIdempotencyKey : null
++    };
++  }
++
++  resetPnSelectionForSearch(): void { this.resetPnSelection(); }
++
++  loadPnPage(page: number): void {
++    this.resetPnSelection();
++    this.loadPrenotifications(page);
++  }
++
++  pnIssuesText(candidate: PrenotificationCandidate): string {
++    if (candidate.violations.length) {
++      return this.pnIssues(candidate.violations.map(issue => issue.message));
++    }
++    return this.pnOutcome === 'Returned'
++      ? 'El plazo reglamentario de devolución ya venció. Puede revisar el resultado sin devolución.'
++      : 'Esta prenotificación no tiene un intento pendiente válido para simular el vencimiento.';
++  }
++
++  private resetPnSelection(): void {
++    this.pnSelected = null;
++    this.pnReasonCode = '';
++    this.pnResponseCycleId = '';
++    this.pnReturnCodes = [];
++    this.pnCycles = [];
++    this.pnVirtualDateTime = '';
++    this.pnGenerated = null;
++    this.pnApplied = null;
++    this.pnIdempotencyKey = '';
++    this.clearPnPreview();
++  }
++
++  private clearPnPreview(): void {
++    this.clearPnPreviewResults();
++    this.pnPreviewError = null;
++  }
++
++  private clearPnPreviewResults(): void {
++    this.pnReturnPreview = null;
++    this.pnTacitPreview = null;
++  }
++
++  pnIssues(messages: string[]): string {
++    return messages.filter(Boolean).slice(0, 3).join(' · ') || 'La operación no es elegible.';
+   }
+ 
+   loadFinancialInstitutions(): void {
+@@ -329,6 +623,10 @@
+       .subscribe({
+         next: (items) => {
+           this.clearingHouses = (items ?? []).filter((item) => !!item.code);
++          if (this.prenotificationFlow && !this.pnHouseCode) {
++            this.pnHouseCode = this.clearingHouses[0]?.code || '';
++            this.loadPrenotifications();
++          }
+           if (!this.form.controls.clearingHouseCode.value && this.clearingHouses.length === 1) {
+             this.form.controls.clearingHouseCode.setValue(this.clearingHouses[0].code ?? '');
+             this.clearingHouseChanged();
+@@ -688,8 +986,27 @@
+     this.cdr.markForCheck();
+   }
+ 
+-  download(id: number): void {
+-    window.open(this.api.downloadUrl(id), '_blank', 'noopener');
++  download(id: number, fileName?: string): void {
++    if (this.downloadingId !== null) { return; }
++    this.downloadingId = id;
++    this.api.downloadFile(id).pipe(
++      takeUntilDestroyed(this.destroyRef),
++      finalize(() => { this.downloadingId = null; this.cdr.markForCheck(); })
++    ).subscribe({
++      next: blob => {
++        const url = URL.createObjectURL(blob);
++        const a = document.createElement('a');
++        a.href = url;
++        a.download = (fileName || this.pnGenerated?.fileName || this.result?.fileName || `nacha-uat-${id}.txt`)
++          .replace(/[^a-zA-Z0-9._-]/g, '_');
++        document.body.appendChild(a);
++        a.click();
++        a.remove();
++        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
++      },
++      error: (error: HttpErrorResponse) =>
++        this.notifications.error(this.errorMessage(error, 'No fue posible descargar el archivo.'))
++    });
+   }
+ 
+   goToUpload(): void {
+@@ -786,6 +1103,8 @@
+   }
+ 
+   scenarioLabel(value: string): string {
++    if (value === 'IncomingPrenotificationReturn' || value === '10') { return 'Devolución de prenotificación'; }
++    if (value === 'IncomingPrenotificationResponse' || value === '3') { return 'Respuesta de prenotificación (legado)'; }
+     return [...this.incomingScenarios, ...this.differentialScenarios]
+       .find((item) => item.value === value)?.label ?? 'Respuesta de contraparte';
+   }
+--- I05/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.html
++++ I06/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.html
+@@ -1,760 +1,942 @@
+-<app-page-header
+-  title="Simulador de archivos recibidos"
+-  subtitle="Genere un archivo NACHA-M de entrada sobre una transacción legítima del sistema">
+-</app-page-header>
+-
+-<section class="simulator-page" aria-label="Simulador de archivos recibidos">
+-  <div class="environment-strip" role="status">
+-    <mat-chip-set aria-label="Clasificación del ambiente">
+-      <mat-chip class="uat-chip">
+-        <mat-icon aria-hidden="true">science</mat-icon>
+-        UAT LOCAL
+-      </mat-chip>
+-      <mat-chip>
+-        <mat-icon aria-hidden="true">draft</mat-icon>
+-        Generación sin transmisión automática
+-      </mat-chip>
+-    </mat-chip-set>
+-    <p>El servicio conserva la autoridad sobre reglas normativas, nombres, consecutivos y estructura NACHA-M.</p>
+-  </div>
+-
+-  <mat-card appearance="outlined" class="mode-card">
+-    <mat-card-header>
+-      <mat-icon mat-card-avatar aria-hidden="true">swap_horiz</mat-icon>
+-      <mat-card-title>¿Qué desea simular?</mat-card-title>
+-      <mat-card-subtitle>Elija si responderá sobre una transacción existente o creará una entrada nueva</mat-card-subtitle>
+-    </mat-card-header>
+-    <mat-card-content>
+-      <mat-button-toggle-group
+-        [value]="form.controls.simulationMode.value"
+-        aria-label="Modo de simulación NACHA-M"
+-        class="mode-toggle">
+-        <mat-button-toggle
+-          value="IncomingTransactions"
+-          (click)="requestModeChange('IncomingTransactions')">
+-          <mat-icon aria-hidden="true">south_west</mat-icon>
+-          <span>
+-            <strong>Nueva transacción entrante</strong>
+-            <small>Una entidad externa origina y CFA recibe</small>
+-          </span>
+-        </mat-button-toggle>
+-        <mat-button-toggle
+-          value="DifferentialResponses"
+-          (click)="requestModeChange('DifferentialResponses')">
+-          <mat-icon aria-hidden="true">assignment_return</mat-icon>
+-          <span>
+-            <strong>Respuesta sobre una transacción</strong>
+-            <small>La contraparte responde sobre una operación creada por CFA</small>
+-          </span>
+-        </mat-button-toggle>
+-      </mat-button-toggle-group>
+-    </mat-card-content>
+-  </mat-card>
+-
+-  <form [formGroup]="form" (ngSubmit)="confirmGeneration()" novalidate>
+-    <mat-card appearance="outlined" class="configuration-card">
+-      <mat-card-header>
+-        <mat-icon mat-card-avatar aria-hidden="true">tune</mat-icon>
+-        <mat-card-title>Configuración operativa</mat-card-title>
+-        <mat-card-subtitle>Cámara, perfil oficial e instituciones participantes</mat-card-subtitle>
+-      </mat-card-header>
+-
+-      <mat-progress-bar
+-        *ngIf="loadingClearingHouses || loadingInstitutions"
+-        mode="indeterminate"
+-        aria-label="Cargando catálogos operativos">
+-      </mat-progress-bar>
+-
+-      <mat-card-content>
+-        <div class="form-grid">
+-          <mat-form-field appearance="outline">
+-            <mat-label>Cámara</mat-label>
+-            <mat-select
+-              formControlName="clearingHouseCode"
+-              (selectionChange)="clearingHouseChanged()"
+-              [attr.aria-busy]="loadingClearingHouses">
+-              <mat-option value="">Seleccione una cámara</mat-option>
+-              <mat-option *ngFor="let item of clearingHouses" [value]="item.code">
+-                {{ item.name }}
+-              </mat-option>
+-            </mat-select>
+-            <mat-icon matSuffix aria-hidden="true">account_balance</mat-icon>
+-            <mat-hint>Solo cámaras operativas autorizadas para el usuario.</mat-hint>
+-            <mat-error *ngIf="form.controls.clearingHouseCode.hasError('required')">
+-              Selecciona una cámara.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline">
+-            <mat-label>Tipo de respuesta</mat-label>
+-            <mat-select formControlName="scenarioType" (selectionChange)="simulationContextChanged()">
+-              <mat-option *ngFor="let item of scenarios" [value]="item.value">
+-                {{ item.label }}
+-              </mat-option>
+-            </mat-select>
+-            <mat-icon matSuffix aria-hidden="true">compare_arrows</mat-icon>
+-            <mat-error *ngIf="form.controls.scenarioType.hasError('required')">
+-              Selecciona el tipo de operación.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline" *ngIf="isDifferentialMode() && !isReturnScenario()">
+-            <mat-label>Resultado simulado</mat-label>
+-            <mat-select formControlName="responseMode">
+-              <mat-option *ngFor="let item of responseModes" [value]="item.value">
+-                {{ item.label }}
+-              </mat-option>
+-            </mat-select>
+-            <mat-error *ngIf="form.controls.responseMode.hasError('required')">
+-              Selecciona el resultado de la respuesta.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline">
+-            <mat-label>{{ isDifferentialMode() ? 'Entidad que responde' : 'Entidad originadora externa' }}</mat-label>
+-            <mat-select
+-              formControlName="originFinancialInstitutionId"
+-              (selectionChange)="isDifferentialMode() && loadEligibleTransactions()"
+-              [attr.aria-busy]="loadingInstitutions">
+-              <mat-option [value]="null">Seleccione una institución externa</mat-option>
+-              <mat-option *ngFor="let item of originFinancialInstitutions" [value]="item.id">
+-                {{ item.name }} · {{ item.routingNumber }}{{ item.transitCode }}
+-              </mat-option>
+-            </mat-select>
+-            <mat-icon matSuffix aria-hidden="true">outbound</mat-icon>
+-            <mat-hint>CFA se excluye automáticamente del catálogo de contrapartes.</mat-hint>
+-            <mat-error *ngIf="form.controls.originFinancialInstitutionId.hasError('required')">
+-              Selecciona una institución externa activa.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <div class="destination-field" [class.destination-field--error]="!defaultDestination">
+-            <span class="field-label">
+-              <mat-icon aria-hidden="true">home_work</mat-icon>
+-              Entidad receptora
+-            </span>
+-            <strong>{{ defaultDestination?.name || 'No disponible' }}</strong>
+-            <small *ngIf="defaultDestination">CFA se determina desde la configuración institucional y no es editable.</small>
+-            <small *ngIf="institutionCatalogError" role="alert">{{ institutionCatalogError }}</small>
+-          </div>
+-        </div>
+-
+-        <div
+-          *ngIf="clearingHouseError || institutionCatalogError"
+-          class="inline-state inline-state--error"
+-          role="alert">
+-          <mat-icon aria-hidden="true">error</mat-icon>
+-          <div>
+-            <strong>Catálogo operativo inconsistente</strong>
+-            <p>{{ clearingHouseError || institutionCatalogError }}</p>
+-          </div>
+-          <button
+-            mat-stroked-button
+-            type="button"
+-            (click)="clearingHouseError ? loadClearingHouses() : loadFinancialInstitutions()">
+-            <mat-icon aria-hidden="true">refresh</mat-icon>
+-            Reintentar
+-          </button>
+-        </div>
+-
+-        <mat-divider></mat-divider>
+-
+-        <div class="profile-section" [attr.aria-busy]="loadingProfiles">
+-          <div class="section-heading">
+-            <div>
+-              <h3>Perfil NACHA-M vigente</h3>
+-              <p>Modelo oficial Opción C, resuelto por la cámara seleccionada.</p>
+-            </div>
+-            <mat-spinner *ngIf="loadingProfiles" diameter="24" aria-label="Resolviendo perfil NACHA-M"></mat-spinner>
+-          </div>
+-
+-          <mat-chip-set *ngIf="activeProfiles.length" aria-label="Perfiles oficiales vigentes">
+-            <mat-chip *ngFor="let profile of activeProfiles">
+-              <mat-icon aria-hidden="true">verified</mat-icon>
+-              {{ profile.profileName }} · {{ profile.version }}
+-            </mat-chip>
+-          </mat-chip-set>
+-
+-          <div
+-            *ngIf="profileError && !loadingProfiles"
+-            class="inline-state inline-state--error"
+-            role="alert">
+-            <mat-icon aria-hidden="true">rule</mat-icon>
+-            <div>
+-              <strong>No se pudo confirmar el perfil oficial</strong>
+-              <p>{{ profileError }}</p>
+-            </div>
+-          </div>
+-
+-          <p *ngIf="!form.controls.clearingHouseCode.value && !loadingProfiles" class="muted">
+-            Selecciona una cámara para consultar el perfil publicado y vigente.
+-          </p>
+-        </div>
+-      </mat-card-content>
+-    </mat-card>
+-
+-    <mat-card appearance="outlined" class="data-card">
+-      <mat-card-header>
+-        <mat-icon mat-card-avatar aria-hidden="true">edit_document</mat-icon>
+-        <mat-card-title>Datos de simulación</mat-card-title>
+-        <mat-card-subtitle>Información enviada al generador NACHA-M</mat-card-subtitle>
+-      </mat-card-header>
+-
+-      <mat-card-content>
+-        <div class="form-grid">
+-          <mat-form-field appearance="outline" *ngIf="!isDifferentialMode()">
+-            <mat-label>Cantidad de operaciones</mat-label>
+-            <input matInput type="number" formControlName="entriesCount" min="1" max="10" />
+-            <mat-icon matSuffix aria-hidden="true">format_list_numbered</mat-icon>
+-            <mat-error *ngIf="form.controls.entriesCount.hasError('required')">
+-              Indica la cantidad de operaciones.
+-            </mat-error>
+-            <mat-error *ngIf="form.controls.entriesCount.hasError('min') || form.controls.entriesCount.hasError('max')">
+-              La cantidad permitida está entre 1 y 10.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline" subscriptSizing="dynamic" *ngIf="!isDifferentialMode()">
+-            <mat-label>Valor por operación</mat-label>
+-            <span matTextPrefix>COP&nbsp;</span>
+-            <input
+-              matInput
+-              type="text"
+-              inputmode="decimal"
+-              formControlName="amount"
+-              autocomplete="off"
+-              placeholder="0.00" />
+-            <mat-hint>Máximo dos decimales; el valor se conserva sin redondeo silencioso.</mat-hint>
+-            <mat-error *ngIf="form.controls.amount.hasError('required')">Ingresa el valor.</mat-error>
+-            <mat-error *ngIf="form.controls.amount.hasError('money')">
+-              Usa un valor positivo con máximo dos decimales.
+-            </mat-error>
+-            <mat-error *ngIf="form.controls.amount.hasError('moneyRange')">
+-              El valor excede la precisión segura admitida.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline">
+-            <mat-label>Fecha de operación</mat-label>
+-            <input
+-              matInput
+-              [matDatepicker]="businessDatePicker"
+-              formControlName="businessDate"
+-              (dateChange)="simulationContextChanged()" />
+-            <mat-datepicker-toggle
+-              matIconSuffix
+-              [for]="businessDatePicker"
+-              aria-label="Abrir calendario de fecha de operación">
+-            </mat-datepicker-toggle>
+-            <mat-datepicker #businessDatePicker></mat-datepicker>
+-            <mat-hint>Fecha local; no se convierte a UTC.</mat-hint>
+-            <mat-error *ngIf="form.controls.businessDate.hasError('required')">
+-              Selecciona la fecha de operación.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline">
+-            <mat-label>Ciclo operativo</mat-label>
+-            <mat-select formControlName="cycleCode" [attr.aria-busy]="loadingCycles">
+-              <mat-option *ngFor="let cycle of availableCycles" [value]="cycle.cycleCode">
+-                {{ cycle.cycleName }} · {{ formatProcessingDate(cycle.processingDate) }}
+-                · {{ cycle.transactionCount }} transacciones
+-              </mat-option>
+-            </mat-select>
+-            <mat-icon matSuffix aria-hidden="true">schedule</mat-icon>
+-            <mat-hint>Solo ciclos elegibles según cámara, fecha y operación.</mat-hint>
+-            <mat-error *ngIf="form.controls.cycleCode.hasError('required')">
+-              Selecciona un ciclo disponible.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline" *ngIf="!isDifferentialMode()">
+-            <mat-label>Prefijo de referencia</mat-label>
+-            <input matInput type="text" formControlName="referencePrefix" maxlength="24" />
+-            <mat-icon matSuffix aria-hidden="true">tag</mat-icon>
+-            <mat-error *ngIf="form.controls.referencePrefix.hasError('required')">
+-              Ingresa el prefijo de referencia.
+-            </mat-error>
+-            <mat-error *ngIf="form.controls.referencePrefix.hasError('maxlength')">
+-              Usa máximo 24 caracteres.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline" *ngIf="isReturnScenario()">
+-            <mat-label>Causal de devolución</mat-label>
+-            <mat-select formControlName="reasonCode" [attr.aria-busy]="loadingReturnCodes">
+-              <mat-option *ngFor="let item of applicableReturnCodes" [value]="item.code">
+-                {{ item.code }} — {{ item.description }}
+-              </mat-option>
+-            </mat-select>
+-            <mat-icon matSuffix aria-hidden="true">assignment_return</mat-icon>
+-            <mat-hint>Catálogo oficial vigente para la cámara y el tipo de transacción.</mat-hint>
+-            <mat-error *ngIf="form.controls.reasonCode.hasError('required')">
+-              Selecciona una causal de devolución.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline" *ngIf="isDifferentialMode() && !isReturnScenario() && form.controls.scenarioType.value.includes('Rejection')">
+-            <mat-label>Causal del rechazo</mat-label>
+-            <input matInput type="text" formControlName="reasonCode" maxlength="20" />
+-            <mat-hint>Registre la causal aplicable al rechazo.</mat-hint>
+-            <mat-error *ngIf="form.controls.reasonCode.hasError('required')">
+-              Ingresa la causal del rechazo.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline" class="wide" *ngIf="requiresPrenotificationReferences()">
+-            <mat-label>Referencias de prenotificación pendientes</mat-label>
+-            <textarea
+-              matInput
+-              formControlName="pendingPrenotificationReferencesText"
+-              rows="3"
+-              placeholder="Una referencia por línea">
+-            </textarea>
+-            <mat-hint>Separa varias referencias con salto de línea o coma.</mat-hint>
+-            <mat-error *ngIf="form.controls.pendingPrenotificationReferencesText.hasError('required')">
+-              Ingresa al menos una referencia pendiente.
+-            </mat-error>
+-          </mat-form-field>
+-
+-          <mat-form-field appearance="outline" class="wide">
+-            <mat-label>Observación UAT</mat-label>
+-            <textarea matInput formControlName="notes" rows="3" maxlength="500"></textarea>
+-            <mat-hint align="end">{{ form.controls.notes.value.length }}/500</mat-hint>
+-          </mat-form-field>
+-        </div>
+-
+-        <div *ngIf="loadingCycles" class="inline-loading" role="status">
+-          <mat-spinner diameter="22"></mat-spinner>
+-          Consultando ciclos disponibles…
+-        </div>
+-
+-        <div *ngIf="loadingReturnCodes" class="inline-loading" role="status">
+-          <mat-spinner diameter="22"></mat-spinner>
+-          Consultando causales de devolución…
+-        </div>
+-
+-        <div *ngIf="returnCodesError && !loadingReturnCodes" class="inline-state inline-state--error" role="alert">
+-          <mat-icon aria-hidden="true">rule</mat-icon>
+-          <div>
+-            <strong>No se pudieron cargar las causales</strong>
+-            <p>{{ returnCodesError }}</p>
+-          </div>
+-          <button mat-stroked-button type="button" (click)="loadReturnCodes()">Reintentar</button>
+-        </div>
+-
+-        <div
+-          *ngIf="isReturnScenario() && form.controls.clearingHouseCode.value && !loadingReturnCodes && !returnCodesError && applicableReturnCodes.length === 0"
+-          class="inline-state"
+-          role="status">
+-          <mat-icon aria-hidden="true">assignment_late</mat-icon>
+-          <div>
+-            <strong>Sin causales aplicables</strong>
+-            <p>No hay causales de devolución vigentes para la cámara y el tipo de transacción seleccionados.</p>
+-          </div>
+-        </div>
+-
+-        <div *ngIf="cycleError && !loadingCycles" class="inline-state inline-state--error" role="alert">
+-          <mat-icon aria-hidden="true">event_busy</mat-icon>
+-          <div>
+-            <strong>No se pudieron cargar los ciclos</strong>
+-            <p>{{ cycleError }}</p>
+-          </div>
+-          <button mat-stroked-button type="button" (click)="loadAvailableCycles()">Reintentar</button>
+-        </div>
+-
+-        <div
+-          *ngIf="form.controls.clearingHouseCode.value && !loadingCycles && !cycleError && availableCycles.length === 0"
+-          class="inline-state"
+-          role="status">
+-          <mat-icon aria-hidden="true">event_busy</mat-icon>
+-          <div>
+-            <strong>Sin ciclos elegibles</strong>
+-            <p>No hay ciclos disponibles para la cámara, fecha y operación seleccionadas.</p>
+-          </div>
+-          <button mat-stroked-button type="button" (click)="loadAvailableCycles()">
+-            <mat-icon aria-hidden="true">refresh</mat-icon>
+-            Actualizar
+-          </button>
+-        </div>
+-      </mat-card-content>
+-    </mat-card>
+-
+-    <mat-card appearance="outlined" *ngIf="isDifferentialMode()" class="eligible-card">
+-      <mat-card-header>
+-        <mat-icon mat-card-avatar aria-hidden="true">checklist</mat-icon>
+-        <mat-card-title>Operaciones CFA elegibles</mat-card-title>
+-        <mat-card-subtitle>
+-          Consulta paginada en servidor · {{ selectedTransactionIds.size }} seleccionada(s)
+-        </mat-card-subtitle>
+-        <span class="header-spacer"></span>
+-        <button
+-          mat-stroked-button
+-          type="button"
+-          (click)="loadEligibleTransactions()"
+-          [disabled]="loadingEligible">
+-          <mat-icon aria-hidden="true">refresh</mat-icon>
+-          Actualizar
+-        </button>
+-      </mat-card-header>
+-
+-      <mat-progress-bar
+-        *ngIf="loadingEligible"
+-        mode="indeterminate"
+-        aria-label="Cargando operaciones elegibles">
+-      </mat-progress-bar>
+-
+-      <mat-card-content>
+-        <div *ngIf="eligibleError && !loadingEligible" class="inline-state inline-state--error" role="alert">
+-          <mat-icon aria-hidden="true">error</mat-icon>
+-          <div>
+-            <strong>No se completó la consulta</strong>
+-            <p>{{ eligibleError }}</p>
+-          </div>
+-          <button mat-stroked-button type="button" (click)="loadEligibleTransactions()">Reintentar</button>
+-        </div>
+-
+-        <div
+-          *ngIf="!loadingEligible && !eligibleError && eligibleTransactions.length === 0"
+-          class="inline-state"
+-          role="status">
+-          <mat-icon aria-hidden="true">search_off</mat-icon>
+-          <div>
+-            <strong>Sin operaciones elegibles</strong>
+-            <p>No hay coincidencias para la cámara, institución, fecha y estado seleccionados.</p>
+-          </div>
+-        </div>
+-
+-        <div
+-          *ngIf="eligibleTransactions.length"
+-          class="table-scroll"
+-          tabindex="0"
+-          aria-label="Operaciones elegibles. La tabla admite desplazamiento horizontal.">
+-          <table mat-table [dataSource]="eligibleTransactions" aria-label="Operaciones CFA elegibles">
+-            <ng-container matColumnDef="select">
+-              <th mat-header-cell *matHeaderCellDef>Seleccionar</th>
+-              <td mat-cell *matCellDef="let item">
+-                <mat-checkbox
+-                  [checked]="selectedTransactionIds.has(item.id)"
+-                  [disabled]="!item.eligible || generating"
+-                  [attr.aria-label]="'Seleccionar operación ' + item.identifier"
+-                  (change)="toggleTransaction(item)">
+-                </mat-checkbox>
+-              </td>
+-            </ng-container>
+-            <ng-container matColumnDef="identifier">
+-              <th mat-header-cell *matHeaderCellDef>Transacción</th>
+-              <td mat-cell *matCellDef="let item">{{ item.identifier }}</td>
+-            </ng-container>
+-            <ng-container matColumnDef="traceNumber">
+-              <th mat-header-cell *matHeaderCellDef>Rastreo original</th>
+-              <td mat-cell *matCellDef="let item"><span class="mono">{{ item.traceNumber }}</span></td>
+-            </ng-container>
+-            <ng-container matColumnDef="institution">
+-              <th mat-header-cell *matHeaderCellDef>Institución</th>
+-              <td mat-cell *matCellDef="let item">{{ item.destinationFinancialInstitution }}</td>
+-            </ng-container>
+-            <ng-container matColumnDef="transactionType">
+-              <th mat-header-cell *matHeaderCellDef>Tipo</th>
+-              <td mat-cell *matCellDef="let item">{{ item.transactionType }}</td>
+-            </ng-container>
+-            <ng-container matColumnDef="effectiveDate">
+-              <th mat-header-cell *matHeaderCellDef>Fecha</th>
+-              <td mat-cell *matCellDef="let item">{{ formatProcessingDate(item.effectiveDate) }}</td>
+-            </ng-container>
+-            <ng-container matColumnDef="cycle">
+-              <th mat-header-cell *matHeaderCellDef>Ciclo</th>
+-              <td mat-cell *matCellDef="let item">{{ item.cycle }}</td>
+-            </ng-container>
+-            <ng-container matColumnDef="account">
+-              <th mat-header-cell *matHeaderCellDef>Cuenta</th>
+-              <td mat-cell *matCellDef="let item"><span class="mono">{{ item.accountNumberMasked }}</span></td>
+-            </ng-container>
+-            <ng-container matColumnDef="amount">
+-              <th mat-header-cell *matHeaderCellDef class="amount-cell">Valor</th>
+-              <td mat-cell *matCellDef="let item" class="amount-cell">
+-                {{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}
+-              </td>
+-            </ng-container>
+-            <ng-container matColumnDef="state">
+-              <th mat-header-cell *matHeaderCellDef>Estado</th>
+-              <td mat-cell *matCellDef="let item">{{ item.state }}</td>
+-            </ng-container>
+-            <ng-container matColumnDef="eligibility">
+-              <th mat-header-cell *matHeaderCellDef>Elegibilidad</th>
+-              <td mat-cell *matCellDef="let item">
+-                <span class="status-label" [class.status-label--blocked]="!item.eligible">
+-                  <mat-icon aria-hidden="true">{{ item.eligible ? 'check_circle' : 'block' }}</mat-icon>
+-                  {{ item.eligible ? 'Elegible' : (item.ineligibilityReason || 'No elegible') }}
+-                </span>
+-              </td>
+-            </ng-container>
+-            <tr mat-header-row *matHeaderRowDef="eligibleColumns"></tr>
+-            <tr mat-row *matRowDef="let row; columns: eligibleColumns"></tr>
+-          </table>
+-        </div>
+-
+-        <div class="server-pagination" *ngIf="eligibleTotal > eligiblePageSize">
+-          <button
+-            mat-stroked-button
+-            type="button"
+-            (click)="loadEligibleTransactions(eligiblePage - 1)"
+-            [disabled]="eligiblePage <= 1 || loadingEligible">
+-            <mat-icon aria-hidden="true">chevron_left</mat-icon>
+-            Anterior
+-          </button>
+-          <span>Página {{ eligiblePage }} · {{ eligibleTotal }} resultados</span>
+-          <button
+-            mat-stroked-button
+-            type="button"
+-            (click)="loadEligibleTransactions(eligiblePage + 1)"
+-            [disabled]="eligiblePage * eligiblePageSize >= eligibleTotal || loadingEligible">
+-            Siguiente
+-            <mat-icon aria-hidden="true">chevron_right</mat-icon>
+-          </button>
+-        </div>
+-      </mat-card-content>
+-    </mat-card>
+-
+-    <mat-card appearance="outlined" class="summary-card">
+-      <mat-card-header>
+-        <mat-icon mat-card-avatar aria-hidden="true">fact_check</mat-icon>
+-        <mat-card-title>Resumen antes de generar</mat-card-title>
+-        <mat-card-subtitle>Verifica la información que se enviará</mat-card-subtitle>
+-      </mat-card-header>
+-      <mat-card-content>
+-        <p class="operational-summary" role="status">{{ operationalSummary }}</p>
+-        <dl class="summary-grid">
+-          <div>
+-            <dt>Cámara</dt>
+-            <dd>{{ selectedClearingHouse?.name || 'Pendiente' }}</dd>
+-          </div>
+-          <div>
+-            <dt>Operación</dt>
+-            <dd>{{ operationLabel }}</dd>
+-          </div>
+-          <div>
+-            <dt>Entidad que responde</dt>
+-            <dd>{{ selectedOrigin?.name || 'Pendiente' }}</dd>
+-          </div>
+-          <div>
+-            <dt>Destino</dt>
+-            <dd>{{ defaultDestination?.name || 'No disponible' }}</dd>
+-          </div>
+-          <div>
+-            <dt>Operaciones</dt>
+-            <dd>{{ simulationCount }}</dd>
+-          </div>
+-          <div>
+-            <dt>Valor por operación</dt>
+-            <dd>{{ isDifferentialMode() ? 'No aplica' : 'COP ' + form.controls.amount.value }}</dd>
+-          </div>
+-          <div>
+-            <dt>Ciclo</dt>
+-            <dd class="mono">{{ form.controls.cycleCode.value || 'Pendiente' }}</dd>
+-          </div>
+-          <div>
+-            <dt>Impacto directo</dt>
+-            <dd>{{ isDifferentialMode() ? 'Sin movimiento monetario' : 'Genera archivo UAT; requiere flujo formal posterior' }}</dd>
+-          </div>
+-        </dl>
+-      </mat-card-content>
+-      <mat-card-actions align="end">
+-        <button
+-          mat-stroked-button
+-          type="button"
+-          (click)="preview()"
+-          [disabled]="!canExecute">
+-          <mat-spinner *ngIf="previewing" diameter="18"></mat-spinner>
+-          <mat-icon *ngIf="!previewing" aria-hidden="true">rule</mat-icon>
+-          {{ previewing ? 'Validando…' : 'Validar configuración' }}
+-        </button>
+-        <button
+-          mat-flat-button
+-          color="primary"
+-          type="submit"
+-          [disabled]="!canExecute">
+-          <mat-spinner *ngIf="generating" diameter="18"></mat-spinner>
+-          <mat-icon *ngIf="!generating" aria-hidden="true">play_arrow</mat-icon>
+-          {{ generating ? 'Generando…' : 'Generar archivo NACHA-M' }}
+-        </button>
+-      </mat-card-actions>
+-    </mat-card>
+-  </form>
+-
+-  <mat-card *ngIf="result" appearance="outlined" class="result-card" aria-live="polite">
+-    <mat-card-header>
+-      <mat-icon mat-card-avatar aria-hidden="true">task_alt</mat-icon>
+-      <mat-card-title>Archivo generado correctamente</mat-card-title>
+-      <mat-card-subtitle>El archivo no fue importado; usted decide cuándo cargarlo</mat-card-subtitle>
+-    </mat-card-header>
+-    <mat-card-content>
+-      <p class="result-message">{{ result.message }}</p>
+-      <dl class="result-grid">
+-        <div>
+-          <dt>ID de simulación</dt>
+-          <dd>
+-            <span class="mono">{{ result.simulationId }}</span>
+-            <button
+-              mat-icon-button
+-              type="button"
+-              matTooltip="Copiar ID de simulación"
+-              aria-label="Copiar ID de simulación"
+-              (click)="copyIdentifier(result.simulationId, 'ID de simulación')">
+-              <mat-icon aria-hidden="true">content_copy</mat-icon>
+-            </button>
+-          </dd>
+-        </div>
+-        <div>
+-          <dt>ID interno</dt>
+-          <dd>
+-            {{ result.id }}
+-            <button
+-              mat-icon-button
+-              type="button"
+-              matTooltip="Copiar ID interno"
+-              aria-label="Copiar ID interno"
+-              (click)="copyIdentifier(result.id, 'ID interno')">
+-              <mat-icon aria-hidden="true">content_copy</mat-icon>
+-            </button>
+-          </dd>
+-        </div>
+-        <div>
+-          <dt>Archivo</dt>
+-          <dd>{{ result.fileName }}</dd>
+-        </div>
+-        <div>
+-          <dt>Tamaño</dt>
+-          <dd>{{ result.fileSizeBytes | number:'1.0-0' }} bytes</dd>
+-        </div>
+-        <div class="wide">
+-          <dt>SHA-256</dt>
+-          <dd>
+-            <span class="mono hash">{{ result.sha256 }}</span>
+-            <button
+-              mat-icon-button
+-              type="button"
+-              matTooltip="Copiar SHA-256"
+-              aria-label="Copiar SHA-256"
+-              (click)="copyIdentifier(result.sha256, 'SHA-256')">
+-              <mat-icon aria-hidden="true">content_copy</mat-icon>
+-            </button>
+-          </dd>
+-        </div>
+-        <div>
+-          <dt>Importación automática</dt>
+-          <dd>{{ result.autoImported ? 'Sí' : 'No' }}</dd>
+-        </div>
+-        <div>
+-          <dt>Transmisión externa</dt>
+-          <dd>{{ result.externalTransmission ? 'Sí' : 'No' }}</dd>
+-        </div>
+-      </dl>
+-    </mat-card-content>
+-    <mat-card-actions align="end">
+-      <button mat-stroked-button type="button" (click)="resetSimulation()">
+-        <mat-icon aria-hidden="true">restart_alt</mat-icon>
+-        Nueva simulación
+-      </button>
+-      <button mat-stroked-button type="button" (click)="goToUpload()">
+-        <mat-icon aria-hidden="true">upload_file</mat-icon>
+-        Ir a Cargar archivo NACHA-M
+-      </button>
+-      <button mat-flat-button color="primary" type="button" (click)="download(result.id)">
+-        <mat-icon aria-hidden="true">download</mat-icon>
+-        Descargar archivo
+-      </button>
+-    </mat-card-actions>
+-  </mat-card>
+-
+-  <mat-card appearance="outlined" class="history-card">
+-    <mat-card-header>
+-      <mat-icon mat-card-avatar aria-hidden="true">history</mat-icon>
+-      <mat-card-title>Simulaciones recientes</mat-card-title>
+-      <mat-card-subtitle>Trazabilidad disponible en el entorno UAT</mat-card-subtitle>
+-      <span class="header-spacer"></span>
+-      <button
+-        mat-stroked-button
+-        type="button"
+-        (click)="loadHistory()"
+-        [disabled]="loadingHistory">
+-        <mat-icon aria-hidden="true">refresh</mat-icon>
+-        Actualizar
+-      </button>
+-    </mat-card-header>
+-
+-    <mat-progress-bar
+-      *ngIf="loadingHistory"
+-      mode="indeterminate"
+-      aria-label="Cargando simulaciones recientes">
+-    </mat-progress-bar>
+-
+-    <mat-card-content>
+-      <div *ngIf="historyError && !loadingHistory" class="inline-state inline-state--error" role="alert">
+-        <mat-icon aria-hidden="true">error</mat-icon>
+-        <div>
+-          <strong>No se pudo cargar el historial</strong>
+-          <p>{{ historyError }}</p>
+-        </div>
+-        <button mat-stroked-button type="button" (click)="loadHistory()">Reintentar</button>
+-      </div>
+-
+-      <div
+-        *ngIf="hasLoadedHistory && !loadingHistory && !historyError && simulations.length === 0"
+-        class="inline-state"
+-        role="status">
+-        <mat-icon aria-hidden="true">inventory_2</mat-icon>
+-        <div>
+-          <strong>Aún no hay simulaciones</strong>
+-          <p>El resultado de la primera simulación aparecerá en esta sección.</p>
+-        </div>
+-      </div>
+-
+-      <div
+-        *ngIf="simulations.length"
+-        class="table-scroll"
+-        tabindex="0"
+-        aria-label="Simulaciones recientes. La tabla admite desplazamiento horizontal.">
+-        <table mat-table [dataSource]="simulations" aria-label="Simulaciones recientes">
+-          <ng-container matColumnDef="id">
+-            <th mat-header-cell *matHeaderCellDef>ID</th>
+-            <td mat-cell *matCellDef="let item">{{ item.id }}</td>
+-          </ng-container>
+-          <ng-container matColumnDef="clearingHouse">
+-            <th mat-header-cell *matHeaderCellDef>Cámara</th>
+-            <td mat-cell *matCellDef="let item">{{ item.clearingHouseName }}</td>
+-          </ng-container>
+-          <ng-container matColumnDef="scenario">
+-            <th mat-header-cell *matHeaderCellDef>Escenario</th>
+-            <td mat-cell *matCellDef="let item">{{ scenarioLabel(item.scenarioType) }}</td>
+-          </ng-container>
+-          <ng-container matColumnDef="file">
+-            <th mat-header-cell *matHeaderCellDef>Archivo</th>
+-            <td mat-cell *matCellDef="let item">{{ item.fileName }}</td>
+-          </ng-container>
+-          <ng-container matColumnDef="sha256">
+-            <th mat-header-cell *matHeaderCellDef>SHA-256</th>
+-            <td mat-cell *matCellDef="let item">
+-              <span class="mono hash" [matTooltip]="item.sha256">{{ item.sha256 }}</span>
+-            </td>
+-          </ng-container>
+-          <ng-container matColumnDef="action">
+-            <th mat-header-cell *matHeaderCellDef>Acción</th>
+-            <td mat-cell *matCellDef="let item">
+-              <button
+-                mat-icon-button
+-                type="button"
+-                matTooltip="Descargar archivo"
+-                [attr.aria-label]="'Descargar simulación ' + item.id"
+-                (click)="download(item.id)">
+-                <mat-icon aria-hidden="true">download</mat-icon>
+-              </button>
+-            </td>
+-          </ng-container>
+-          <tr mat-header-row *matHeaderRowDef="historyColumns"></tr>
+-          <tr mat-row *matRowDef="let row; columns: historyColumns"></tr>
+-        </table>
+-      </div>
+-    </mat-card-content>
+-  </mat-card>
+-</section>
++<app-page-header
++  title="Simulador de archivos recibidos"
++  subtitle="Simule archivos recibidos y respuestas a prenotificaciones originadas por ACH Interbank">
++</app-page-header>
++
++<section class="simulator-page" aria-label="Simulador de archivos recibidos">
++  <div class="environment-strip" role="status">
++    <mat-chip-set aria-label="Clasificación del ambiente">
++      <mat-chip class="uat-chip">
++        <mat-icon aria-hidden="true">science</mat-icon>
++        UAT LOCAL
++      </mat-chip>
++      <mat-chip>
++        <mat-icon aria-hidden="true">draft</mat-icon>
++        Generación sin transmisión automática
++      </mat-chip>
++    </mat-chip-set>
++    <p>El servicio conserva la autoridad sobre reglas normativas, nombres, consecutivos y estructura NACHA-M.</p>
++  </div>
++
++  <mat-card appearance="outlined" class="mode-card">
++    <mat-card-header>
++      <mat-icon mat-card-avatar aria-hidden="true">swap_horiz</mat-icon>
++      <mat-card-title>¿Qué desea simular?</mat-card-title>
++      <mat-card-subtitle>Elija si responderá sobre una transacción existente o creará una entrada nueva</mat-card-subtitle>
++    </mat-card-header>
++    <mat-card-content>
++      <div *ngIf="prenotificationFlow" class="pn-mode-active">
++        <div><strong>Respuestas a prenotificaciones enviadas</strong><p>Consulte una operación real del entorno UAT y simule su devolución o vencimiento.</p></div>
++        <button mat-stroked-button type="button" (click)="closePrenotifications()" [disabled]="pnBusy">
++          <mat-icon aria-hidden="true">arrow_back</mat-icon> Volver al simulador
++        </button>
++      </div>
++      <mat-button-toggle-group *ngIf="!prenotificationFlow"
++        [value]="form.controls.simulationMode.value"
++        aria-label="Modo de simulación NACHA-M"
++        class="mode-toggle">
++        <mat-button-toggle
++          value="IncomingTransactions"
++          (click)="requestModeChange('IncomingTransactions')">
++          <mat-icon aria-hidden="true">south_west</mat-icon>
++          <span>
++            <strong>Nueva transacción entrante</strong>
++            <small>Una entidad externa origina y CFA recibe</small>
++          </span>
++        </mat-button-toggle>
++        <mat-button-toggle
++          value="DifferentialResponses"
++          (click)="requestModeChange('DifferentialResponses')">
++          <mat-icon aria-hidden="true">assignment_return</mat-icon>
++          <span>
++            <strong>Respuesta sobre una transacción</strong>
++            <small>La contraparte responde sobre una operación creada por CFA</small>
++          </span>
++        </mat-button-toggle>
++      </mat-button-toggle-group>
++      <button *ngIf="!prenotificationFlow" class="pn-entry" mat-stroked-button type="button" (click)="openPrenotifications()">
++        <mat-icon aria-hidden="true">mark_email_read</mat-icon>
++        <span><strong>Responder prenotificaciones enviadas</strong><small>Devolución NACHA-M o vencimiento sin devolución</small></span>
++        <mat-icon aria-hidden="true">chevron_right</mat-icon>
++      </button>
++    </mat-card-content>
++  </mat-card>
++
++  <!-- I06: un solo flujo en la misma pantalla, sin duplicar el simulador legado. -->
++  <section *ngIf="prenotificationFlow" class="pn-workflow" aria-label="Respuesta a prenotificaciones enviadas">
++    <mat-card appearance="outlined" class="pn-card">
++      <mat-card-header>
++        <mat-icon mat-card-avatar aria-hidden="true">search</mat-icon>
++        <mat-card-title>1. Buscar prenotificación enviada</mat-card-title>
++        <mat-card-subtitle>Solo operaciones originadas por ACH Interbank, con su estado y trazabilidad real.</mat-card-subtitle>
++      </mat-card-header>
++      <mat-card-content>
++        <div class="pn-filters">
++          <mat-form-field appearance="outline" subscriptSizing="dynamic">
++            <mat-label>Cámara</mat-label>
++            <mat-select [value]="pnHouseCode" [disabled]="pnBusy || pnLoading" (selectionChange)="changePnHouse($event.value)" aria-label="Cámara de prenotificaciones">
++              <mat-option *ngFor="let house of clearingHouses" [value]="house.code">{{ house.name }}</mat-option>
++            </mat-select>
++          </mat-form-field>
++          <mat-form-field appearance="outline" subscriptSizing="dynamic">
++            <mat-label>Referencia o rastreo</mat-label>
++            <input matInput [disabled]="pnBusy || pnLoading" [value]="pnSearch" (input)="pnSearch = $any($event.target).value"
++                   (keyup.enter)="resetPnSelectionForSearch(); loadPrenotifications()"
++                   placeholder="Buscar por referencia o trace" aria-label="Buscar prenotificación" />
++            <mat-icon matSuffix aria-hidden="true">search</mat-icon>
++          </mat-form-field>
++          <button mat-stroked-button type="button" (click)="resetPnSelectionForSearch(); loadPrenotifications()"
++                  [disabled]="pnBusy || pnLoading || !pnHouseCode">
++            <mat-icon aria-hidden="true">refresh</mat-icon> Consultar
++          </button>
++        </div>
++        <mat-progress-bar *ngIf="pnLoading" mode="indeterminate" aria-label="Consultando prenotificaciones"></mat-progress-bar>
++        <div *ngIf="pnError" class="inline-state inline-state--error" role="alert">
++          <mat-icon aria-hidden="true">error_outline</mat-icon>
++          <div><strong>No fue posible consultar</strong><p>{{ pnError }}</p></div>
++          <button mat-stroked-button type="button" (click)="loadPrenotifications()">Reintentar</button>
++        </div>
++        <div *ngIf="!pnLoading && !pnError && pnCandidates.length === 0" class="pn-empty" role="status">
++          <mat-icon aria-hidden="true">manage_search</mat-icon>
++          <p>No hay prenotificaciones para esta búsqueda. Pruebe otra referencia o cámara.</p>
++        </div>
++        <p *ngIf="pnCandidates.length" class="pn-list-hint">Seleccione una prenotificación. Las no elegibles se muestran con su motivo.</p>
++        <div *ngIf="pnCandidates.length" class="pn-candidate-list" role="group" aria-label="Prenotificaciones encontradas">
++          <button *ngFor="let item of pnCandidates" type="button" class="pn-candidate"
++                  [class.pn-candidate--selected]="pnSelected?.originalPrenotificationId === item.originalPrenotificationId"
++                  [attr.aria-pressed]="pnSelected?.originalPrenotificationId === item.originalPrenotificationId"
++                  [disabled]="pnBusy"
++                  (click)="selectPrenotification(item)">
++            <span class="pn-candidate-main">
++              <strong>{{ item.transactionExternalId || ('Prenotificación ' + item.originalPrenotificationId) }}</strong>
++              <small>Trace {{ item.traceNumber }} · {{ item.respondingFinancialInstitution }}</small>
++              <small>Cuenta {{ item.destinationAccountMasked }} · {{ formatProcessingDate(item.originalBusinessDate) }}</small>
++            </span>
++            <span class="pn-candidate-status" [class.pn-candidate-status--blocked]="!item.eligibleForReturn && !item.eligibleForNoReturnByDeadline">
++              <mat-icon aria-hidden="true">{{ item.eligibleForReturn || item.eligibleForNoReturnByDeadline ? 'check_circle' : 'info' }}</mat-icon>
++              {{ item.eligibleForReturn || item.eligibleForNoReturnByDeadline ? 'Con opciones' : 'No elegible' }}
++            </span>
++          </button>
++        </div>
++        <nav *ngIf="pnTotal > pnPageSize" class="server-pagination" aria-label="Páginas de prenotificaciones">
++          <button mat-stroked-button type="button" (click)="loadPnPage(pnPage - 1)" [disabled]="pnPage <= 1 || pnLoading || pnBusy">Anterior</button>
++          <span>Página {{ pnPage }} · {{ pnTotal }} resultados</span>
++          <button mat-stroked-button type="button" (click)="loadPnPage(pnPage + 1)" [disabled]="pnPage * pnPageSize >= pnTotal || pnLoading || pnBusy">Siguiente</button>
++        </nav>
++      </mat-card-content>
++    </mat-card>
++
++    <mat-card *ngIf="pnSelected" appearance="outlined" class="pn-card">
++      <mat-card-header>
++        <mat-icon mat-card-avatar aria-hidden="true">rule</mat-icon>
++        <mat-card-title>2. Elegir resultado</mat-card-title>
++        <mat-card-subtitle>Operación #{{ pnSelected.originalPrenotificationId }} · ciclo original {{ pnSelected.originalCycleId }}</mat-card-subtitle>
++      </mat-card-header>
++      <mat-card-content>
++        <div *ngIf="pnSelected.violations.length" class="pn-hint" role="status">
++          <mat-icon aria-hidden="true">info_outline</mat-icon>
++          <p>{{ pnIssuesText(pnSelected) }}</p>
++        </div>
++        <div class="pn-outcomes" role="group" aria-label="Tipo de resultado simulado">
++          <button type="button" class="pn-outcome" [class.pn-outcome--active]="pnOutcome === 'Returned'"
++                  [attr.aria-pressed]="pnOutcome === 'Returned'" [disabled]="pnBusy" (click)="changePnOutcome('Returned')">
++            <mat-icon aria-hidden="true">assignment_return</mat-icon>
++            <span><strong>Devolución</strong><small>Genera archivo NACHA-M para importar manualmente.</small></span>
++          </button>
++          <button type="button" class="pn-outcome" [class.pn-outcome--active]="pnOutcome === 'NoReturnByDeadline'"
++                  [attr.aria-pressed]="pnOutcome === 'NoReturnByDeadline'" [disabled]="pnBusy" (click)="changePnOutcome('NoReturnByDeadline')">
++            <mat-icon aria-hidden="true">schedule</mat-icon>
++            <span><strong>Sin devolución</strong><small>Valida el vencimiento; no genera un archivo de aprobación.</small></span>
++          </button>
++        </div>
++        <div *ngIf="pnOutcome === 'Returned'" class="pn-fields">
++          <mat-form-field appearance="outline" subscriptSizing="dynamic">
++            <mat-label>Causal de devolución</mat-label>
++            <mat-select [disabled]="pnBusy" [value]="pnReasonCode" (selectionChange)="pnReasonCode = $event.value; changePnDetails()">
++              <mat-option *ngFor="let reason of pnApplicableCodes" [value]="reason.code">{{ reason.code }} · {{ reason.description }}</mat-option>
++            </mat-select>
++            <mat-hint>Catálogo vigente aplicable a prenotificaciones</mat-hint>
++          </mat-form-field>
++          <mat-form-field appearance="outline" subscriptSizing="dynamic">
++            <mat-label>Ciclo de devolución</mat-label>
++            <mat-select [disabled]="pnBusy" [value]="pnResponseCycleId" (selectionChange)="pnResponseCycleId = $event.value; changePnDetails()">
++              <mat-option *ngFor="let cycle of pnCycles" [value]="cycle.cycleId">{{ cycle.cycleName }}</mat-option>
++            </mat-select>
++            <mat-hint>Posterior al ciclo original; la API valida el plazo</mat-hint>
++          </mat-form-field>
++          <p *ngIf="!pnOptionsLoading && (!pnApplicableCodes.length || !pnCycles.length)" class="pn-muted">
++            No hay {{ !pnApplicableCodes.length ? 'causales aplicables' : 'ciclos de respuesta' }} disponibles. Revise la configuración operativa.
++          </p>
++        </div>
++        <div *ngIf="pnOutcome === 'NoReturnByDeadline'" class="pn-tacit">
++          <p>El vencimiento se evalúa con las reglas de la cámara. Una hora virtual sirve solo para consultar; nunca adelanta el estado persistido.</p>
++          <mat-form-field appearance="outline" subscriptSizing="dynamic">
++            <mat-label>Fecha/hora virtual (opcional)</mat-label>
++            <input matInput type="datetime-local" [disabled]="pnBusy" [value]="pnVirtualDateTime"
++                   (input)="pnVirtualDateTime = $any($event.target).value; changePnDetails()" />
++            <mat-hint>Deje vacío para evaluar con el reloj real</mat-hint>
++          </mat-form-field>
++          <p class="pn-muted">Plazo de respuesta: {{ pnSelected.responseDeadlineAtUtc ? (pnSelected.responseDeadlineAtUtc | date:'medium') : 'No disponible' }}</p>
++        </div>
++        <div *ngIf="(pnOutcome === 'Returned' && !pnSelected.eligibleForReturn)
++                    || (pnOutcome === 'NoReturnByDeadline' && pnSelected.violations.length > 0)"
++             class="inline-state" role="status">
++          <mat-icon aria-hidden="true">block</mat-icon>
++          <div><strong>Operación no elegible</strong><p>{{ pnIssuesText(pnSelected) }}</p></div>
++        </div>
++      </mat-card-content>
++    </mat-card>
++
++    <mat-card *ngIf="pnSelected" appearance="outlined" class="pn-card pn-confirm">
++      <mat-card-header>
++        <mat-icon mat-card-avatar aria-hidden="true">fact_check</mat-icon>
++        <mat-card-title>3. Validar y ejecutar</mat-card-title>
++        <mat-card-subtitle>Primero revise la elegibilidad; después confirme la acción.</mat-card-subtitle>
++      </mat-card-header>
++      <mat-card-content>
++        <div *ngIf="pnPreviewError" class="inline-state inline-state--error" role="alert">
++          <mat-icon aria-hidden="true">error_outline</mat-icon><div><strong>Validación no aprobada</strong><p>{{ pnPreviewError }}</p></div>
++        </div>
++        <div *ngIf="pnReturnPreview?.businessEligible" class="inline-state" role="status">
++          <mat-icon aria-hidden="true">check_circle</mat-icon>
++          <div><strong>Devolución elegible</strong><p>Se generará el archivo NACHA-M. La importación por NachaUpload es manual.</p></div>
++        </div>
++        <div *ngIf="pnTacitPreview as preview" class="pn-tacit-feedback" role="status">
++          <strong>{{ preview.items[0]?.wouldApplyAtEvaluationTime ? 'Vencimiento alcanzado' : 'Plazo todavía vigente' }}</strong>
++          <p>{{ preview.isVirtualTime ? 'Resultado hipotético. No se modificaron estados.' : 'Evaluación con la hora real.' }}</p>
++          <p *ngIf="preview.isVirtualTime && !preview.items[0]?.eligibleAtRealTime">No se puede aplicar mientras no venza el plazo real.</p>
++          <p *ngIf="!preview.isVirtualTime && preview.items[0]?.eligibleAtRealTime">Puede aplicar la aceptación tácita en este entorno UAT.</p>
++        </div>
++        <div class="pn-actions">
++          <button mat-stroked-button type="button" (click)="previewPn()" [disabled]="!pnCanPreview">
++            <mat-spinner *ngIf="pnBusy" diameter="18"></mat-spinner>
++            <mat-icon *ngIf="!pnBusy" aria-hidden="true">fact_check</mat-icon>
++            {{ pnBusy ? 'Procesando…' : 'Validar resultado' }}
++          </button>
++          <button mat-flat-button color="primary" type="button" [disabled]="!pnCanCommit" (click)="confirmPn()">
++            {{ pnOutcome === 'Returned' ? 'Generar devolución' : 'Aplicar vencimiento real' }}
++          </button>
++        </div>
++        <div *ngIf="pnGenerated" class="pn-completion" role="status" aria-live="polite">
++          <mat-icon aria-hidden="true">task_alt</mat-icon>
++          <div><strong>Archivo listo: {{ pnGenerated.fileName }}</strong><p>Sin importación ni transmisión automática.</p></div>
++          <button mat-flat-button type="button" color="primary" (click)="download(pnGenerated.id, pnGenerated.fileName)" [disabled]="downloadingId !== null">
++            <mat-icon aria-hidden="true">download</mat-icon> Descargar
++          </button>
++          <button mat-stroked-button type="button" (click)="goToUpload()">Ir a NachaUpload</button>
++        </div>
++        <div *ngIf="pnApplied !== null" class="pn-completion" role="status" aria-live="polite">
++          <mat-icon aria-hidden="true">task_alt</mat-icon>
++          <div><strong>{{ pnApplied ? 'Aceptación tácita aplicada' : 'El resultado ya estaba aplicado' }}</strong><p>No se generó un archivo NACHA-M.</p></div>
++        </div>
++      </mat-card-content>
++    </mat-card>
++  </section>
++
++  <form *ngIf="!prenotificationFlow" [formGroup]="form" (ngSubmit)="confirmGeneration()" novalidate>
++    <mat-card appearance="outlined" class="configuration-card">
++      <mat-card-header>
++        <mat-icon mat-card-avatar aria-hidden="true">tune</mat-icon>
++        <mat-card-title>Configuración operativa</mat-card-title>
++        <mat-card-subtitle>Cámara, perfil oficial e instituciones participantes</mat-card-subtitle>
++      </mat-card-header>
++
++      <mat-progress-bar
++        *ngIf="loadingClearingHouses || loadingInstitutions"
++        mode="indeterminate"
++        aria-label="Cargando catálogos operativos">
++      </mat-progress-bar>
++
++      <mat-card-content>
++        <div class="form-grid">
++          <mat-form-field appearance="outline">
++            <mat-label>Cámara</mat-label>
++            <mat-select
++              formControlName="clearingHouseCode"
++              (selectionChange)="clearingHouseChanged()"
++              [attr.aria-busy]="loadingClearingHouses">
++              <mat-option value="">Seleccione una cámara</mat-option>
++              <mat-option *ngFor="let item of clearingHouses" [value]="item.code">
++                {{ item.name }}
++              </mat-option>
++            </mat-select>
++            <mat-icon matSuffix aria-hidden="true">account_balance</mat-icon>
++            <mat-hint>Solo cámaras operativas autorizadas para el usuario.</mat-hint>
++            <mat-error *ngIf="form.controls.clearingHouseCode.hasError('required')">
++              Selecciona una cámara.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline">
++            <mat-label>Tipo de respuesta</mat-label>
++            <mat-select formControlName="scenarioType" (selectionChange)="simulationContextChanged()">
++              <mat-option *ngFor="let item of scenarios" [value]="item.value">
++                {{ item.label }}
++              </mat-option>
++            </mat-select>
++            <mat-icon matSuffix aria-hidden="true">compare_arrows</mat-icon>
++            <mat-error *ngIf="form.controls.scenarioType.hasError('required')">
++              Selecciona el tipo de operación.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline" *ngIf="isDifferentialMode() && !isReturnScenario()">
++            <mat-label>Resultado simulado</mat-label>
++            <mat-select formControlName="responseMode">
++              <mat-option *ngFor="let item of responseModes" [value]="item.value">
++                {{ item.label }}
++              </mat-option>
++            </mat-select>
++            <mat-error *ngIf="form.controls.responseMode.hasError('required')">
++              Selecciona el resultado de la respuesta.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline">
++            <mat-label>{{ isDifferentialMode() ? 'Entidad que responde' : 'Entidad originadora externa' }}</mat-label>
++            <mat-select
++              formControlName="originFinancialInstitutionId"
++              (selectionChange)="isDifferentialMode() && loadEligibleTransactions()"
++              [attr.aria-busy]="loadingInstitutions">
++              <mat-option [value]="null">Seleccione una institución externa</mat-option>
++              <mat-option *ngFor="let item of originFinancialInstitutions" [value]="item.id">
++                {{ item.name }} · {{ item.routingNumber }}{{ item.transitCode }}
++              </mat-option>
++            </mat-select>
++            <mat-icon matSuffix aria-hidden="true">outbound</mat-icon>
++            <mat-hint>CFA se excluye automáticamente del catálogo de contrapartes.</mat-hint>
++            <mat-error *ngIf="form.controls.originFinancialInstitutionId.hasError('required')">
++              Selecciona una institución externa activa.
++            </mat-error>
++          </mat-form-field>
++
++          <div class="destination-field" [class.destination-field--error]="!defaultDestination">
++            <span class="field-label">
++              <mat-icon aria-hidden="true">home_work</mat-icon>
++              Entidad receptora
++            </span>
++            <strong>{{ defaultDestination?.name || 'No disponible' }}</strong>
++            <small *ngIf="defaultDestination">CFA se determina desde la configuración institucional y no es editable.</small>
++            <small *ngIf="institutionCatalogError" role="alert">{{ institutionCatalogError }}</small>
++          </div>
++        </div>
++
++        <div
++          *ngIf="clearingHouseError || institutionCatalogError"
++          class="inline-state inline-state--error"
++          role="alert">
++          <mat-icon aria-hidden="true">error</mat-icon>
++          <div>
++            <strong>Catálogo operativo inconsistente</strong>
++            <p>{{ clearingHouseError || institutionCatalogError }}</p>
++          </div>
++          <button
++            mat-stroked-button
++            type="button"
++            (click)="clearingHouseError ? loadClearingHouses() : loadFinancialInstitutions()">
++            <mat-icon aria-hidden="true">refresh</mat-icon>
++            Reintentar
++          </button>
++        </div>
++
++        <mat-divider></mat-divider>
++
++        <div class="profile-section" [attr.aria-busy]="loadingProfiles">
++          <div class="section-heading">
++            <div>
++              <h3>Perfil NACHA-M vigente</h3>
++              <p>Modelo oficial Opción C, resuelto por la cámara seleccionada.</p>
++            </div>
++            <mat-spinner *ngIf="loadingProfiles" diameter="24" aria-label="Resolviendo perfil NACHA-M"></mat-spinner>
++          </div>
++
++          <mat-chip-set *ngIf="activeProfiles.length" aria-label="Perfiles oficiales vigentes">
++            <mat-chip *ngFor="let profile of activeProfiles">
++              <mat-icon aria-hidden="true">verified</mat-icon>
++              {{ profile.profileName }} · {{ profile.version }}
++            </mat-chip>
++          </mat-chip-set>
++
++          <div
++            *ngIf="profileError && !loadingProfiles"
++            class="inline-state inline-state--error"
++            role="alert">
++            <mat-icon aria-hidden="true">rule</mat-icon>
++            <div>
++              <strong>No se pudo confirmar el perfil oficial</strong>
++              <p>{{ profileError }}</p>
++            </div>
++          </div>
++
++          <p *ngIf="!form.controls.clearingHouseCode.value && !loadingProfiles" class="muted">
++            Selecciona una cámara para consultar el perfil publicado y vigente.
++          </p>
++        </div>
++      </mat-card-content>
++    </mat-card>
++
++    <mat-card appearance="outlined" class="data-card">
++      <mat-card-header>
++        <mat-icon mat-card-avatar aria-hidden="true">edit_document</mat-icon>
++        <mat-card-title>Datos de simulación</mat-card-title>
++        <mat-card-subtitle>Información enviada al generador NACHA-M</mat-card-subtitle>
++      </mat-card-header>
++
++      <mat-card-content>
++        <div class="form-grid">
++          <mat-form-field appearance="outline" *ngIf="!isDifferentialMode()">
++            <mat-label>Cantidad de operaciones</mat-label>
++            <input matInput type="number" formControlName="entriesCount" min="1" max="10" />
++            <mat-icon matSuffix aria-hidden="true">format_list_numbered</mat-icon>
++            <mat-error *ngIf="form.controls.entriesCount.hasError('required')">
++              Indica la cantidad de operaciones.
++            </mat-error>
++            <mat-error *ngIf="form.controls.entriesCount.hasError('min') || form.controls.entriesCount.hasError('max')">
++              La cantidad permitida está entre 1 y 10.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline" subscriptSizing="dynamic" *ngIf="!isDifferentialMode()">
++            <mat-label>Valor por operación</mat-label>
++            <span matTextPrefix>COP&nbsp;</span>
++            <input
++              matInput
++              type="text"
++              inputmode="decimal"
++              formControlName="amount"
++              autocomplete="off"
++              placeholder="0.00" />
++            <mat-hint>Máximo dos decimales; el valor se conserva sin redondeo silencioso.</mat-hint>
++            <mat-error *ngIf="form.controls.amount.hasError('required')">Ingresa el valor.</mat-error>
++            <mat-error *ngIf="form.controls.amount.hasError('money')">
++              Usa un valor positivo con máximo dos decimales.
++            </mat-error>
++            <mat-error *ngIf="form.controls.amount.hasError('moneyRange')">
++              El valor excede la precisión segura admitida.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline">
++            <mat-label>Fecha de operación</mat-label>
++            <input
++              matInput
++              [matDatepicker]="businessDatePicker"
++              formControlName="businessDate"
++              (dateChange)="simulationContextChanged()" />
++            <mat-datepicker-toggle
++              matIconSuffix
++              [for]="businessDatePicker"
++              aria-label="Abrir calendario de fecha de operación">
++            </mat-datepicker-toggle>
++            <mat-datepicker #businessDatePicker></mat-datepicker>
++            <mat-hint>Fecha local; no se convierte a UTC.</mat-hint>
++            <mat-error *ngIf="form.controls.businessDate.hasError('required')">
++              Selecciona la fecha de operación.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline">
++            <mat-label>Ciclo operativo</mat-label>
++            <mat-select formControlName="cycleCode" [attr.aria-busy]="loadingCycles">
++              <mat-option *ngFor="let cycle of availableCycles" [value]="cycle.cycleCode">
++                {{ cycle.cycleName }} · {{ formatProcessingDate(cycle.processingDate) }}
++                · {{ cycle.transactionCount }} transacciones
++              </mat-option>
++            </mat-select>
++            <mat-icon matSuffix aria-hidden="true">schedule</mat-icon>
++            <mat-hint>Solo ciclos elegibles según cámara, fecha y operación.</mat-hint>
++            <mat-error *ngIf="form.controls.cycleCode.hasError('required')">
++              Selecciona un ciclo disponible.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline" *ngIf="!isDifferentialMode()">
++            <mat-label>Prefijo de referencia</mat-label>
++            <input matInput type="text" formControlName="referencePrefix" maxlength="24" />
++            <mat-icon matSuffix aria-hidden="true">tag</mat-icon>
++            <mat-error *ngIf="form.controls.referencePrefix.hasError('required')">
++              Ingresa el prefijo de referencia.
++            </mat-error>
++            <mat-error *ngIf="form.controls.referencePrefix.hasError('maxlength')">
++              Usa máximo 24 caracteres.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline" *ngIf="isReturnScenario()">
++            <mat-label>Causal de devolución</mat-label>
++            <mat-select formControlName="reasonCode" [attr.aria-busy]="loadingReturnCodes">
++              <mat-option *ngFor="let item of applicableReturnCodes" [value]="item.code">
++                {{ item.code }} — {{ item.description }}
++              </mat-option>
++            </mat-select>
++            <mat-icon matSuffix aria-hidden="true">assignment_return</mat-icon>
++            <mat-hint>Catálogo oficial vigente para la cámara y el tipo de transacción.</mat-hint>
++            <mat-error *ngIf="form.controls.reasonCode.hasError('required')">
++              Selecciona una causal de devolución.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline" *ngIf="isDifferentialMode() && !isReturnScenario() && form.controls.scenarioType.value.includes('Rejection')">
++            <mat-label>Causal del rechazo</mat-label>
++            <input matInput type="text" formControlName="reasonCode" maxlength="20" />
++            <mat-hint>Registre la causal aplicable al rechazo.</mat-hint>
++            <mat-error *ngIf="form.controls.reasonCode.hasError('required')">
++              Ingresa la causal del rechazo.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline" class="wide" *ngIf="requiresPrenotificationReferences()">
++            <mat-label>Referencias de prenotificación pendientes</mat-label>
++            <textarea
++              matInput
++              formControlName="pendingPrenotificationReferencesText"
++              rows="3"
++              placeholder="Una referencia por línea">
++            </textarea>
++            <mat-hint>Separa varias referencias con salto de línea o coma.</mat-hint>
++            <mat-error *ngIf="form.controls.pendingPrenotificationReferencesText.hasError('required')">
++              Ingresa al menos una referencia pendiente.
++            </mat-error>
++          </mat-form-field>
++
++          <mat-form-field appearance="outline" class="wide">
++            <mat-label>Observación UAT</mat-label>
++            <textarea matInput formControlName="notes" rows="3" maxlength="500"></textarea>
++            <mat-hint align="end">{{ form.controls.notes.value.length }}/500</mat-hint>
++          </mat-form-field>
++        </div>
++
++        <div *ngIf="loadingCycles" class="inline-loading" role="status">
++          <mat-spinner diameter="22"></mat-spinner>
++          Consultando ciclos disponibles…
++        </div>
++
++        <div *ngIf="loadingReturnCodes" class="inline-loading" role="status">
++          <mat-spinner diameter="22"></mat-spinner>
++          Consultando causales de devolución…
++        </div>
++
++        <div *ngIf="returnCodesError && !loadingReturnCodes" class="inline-state inline-state--error" role="alert">
++          <mat-icon aria-hidden="true">rule</mat-icon>
++          <div>
++            <strong>No se pudieron cargar las causales</strong>
++            <p>{{ returnCodesError }}</p>
++          </div>
++          <button mat-stroked-button type="button" (click)="loadReturnCodes()">Reintentar</button>
++        </div>
++
++        <div
++          *ngIf="isReturnScenario() && form.controls.clearingHouseCode.value && !loadingReturnCodes && !returnCodesError && applicableReturnCodes.length === 0"
++          class="inline-state"
++          role="status">
++          <mat-icon aria-hidden="true">assignment_late</mat-icon>
++          <div>
++            <strong>Sin causales aplicables</strong>
++            <p>No hay causales de devolución vigentes para la cámara y el tipo de transacción seleccionados.</p>
++          </div>
++        </div>
++
++        <div *ngIf="cycleError && !loadingCycles" class="inline-state inline-state--error" role="alert">
++          <mat-icon aria-hidden="true">event_busy</mat-icon>
++          <div>
++            <strong>No se pudieron cargar los ciclos</strong>
++            <p>{{ cycleError }}</p>
++          </div>
++          <button mat-stroked-button type="button" (click)="loadAvailableCycles()">Reintentar</button>
++        </div>
++
++        <div
++          *ngIf="form.controls.clearingHouseCode.value && !loadingCycles && !cycleError && availableCycles.length === 0"
++          class="inline-state"
++          role="status">
++          <mat-icon aria-hidden="true">event_busy</mat-icon>
++          <div>
++            <strong>Sin ciclos elegibles</strong>
++            <p>No hay ciclos disponibles para la cámara, fecha y operación seleccionadas.</p>
++          </div>
++          <button mat-stroked-button type="button" (click)="loadAvailableCycles()">
++            <mat-icon aria-hidden="true">refresh</mat-icon>
++            Actualizar
++          </button>
++        </div>
++      </mat-card-content>
++    </mat-card>
++
++    <mat-card appearance="outlined" *ngIf="isDifferentialMode()" class="eligible-card">
++      <mat-card-header>
++        <mat-icon mat-card-avatar aria-hidden="true">checklist</mat-icon>
++        <mat-card-title>Operaciones CFA elegibles</mat-card-title>
++        <mat-card-subtitle>
++          Consulta paginada en servidor · {{ selectedTransactionIds.size }} seleccionada(s)
++        </mat-card-subtitle>
++        <span class="header-spacer"></span>
++        <button
++          mat-stroked-button
++          type="button"
++          (click)="loadEligibleTransactions()"
++          [disabled]="loadingEligible">
++          <mat-icon aria-hidden="true">refresh</mat-icon>
++          Actualizar
++        </button>
++      </mat-card-header>
++
++      <mat-progress-bar
++        *ngIf="loadingEligible"
++        mode="indeterminate"
++        aria-label="Cargando operaciones elegibles">
++      </mat-progress-bar>
++
++      <mat-card-content>
++        <div *ngIf="eligibleError && !loadingEligible" class="inline-state inline-state--error" role="alert">
++          <mat-icon aria-hidden="true">error</mat-icon>
++          <div>
++            <strong>No se completó la consulta</strong>
++            <p>{{ eligibleError }}</p>
++          </div>
++          <button mat-stroked-button type="button" (click)="loadEligibleTransactions()">Reintentar</button>
++        </div>
++
++        <div
++          *ngIf="!loadingEligible && !eligibleError && eligibleTransactions.length === 0"
++          class="inline-state"
++          role="status">
++          <mat-icon aria-hidden="true">search_off</mat-icon>
++          <div>
++            <strong>Sin operaciones elegibles</strong>
++            <p>No hay coincidencias para la cámara, institución, fecha y estado seleccionados.</p>
++          </div>
++        </div>
++
++        <div
++          *ngIf="eligibleTransactions.length"
++          class="table-scroll"
++          tabindex="0"
++          aria-label="Operaciones elegibles. La tabla admite desplazamiento horizontal.">
++          <table mat-table [dataSource]="eligibleTransactions" aria-label="Operaciones CFA elegibles">
++            <ng-container matColumnDef="select">
++              <th mat-header-cell *matHeaderCellDef>Seleccionar</th>
++              <td mat-cell *matCellDef="let item">
++                <mat-checkbox
++                  [checked]="selectedTransactionIds.has(item.id)"
++                  [disabled]="!item.eligible || generating"
++                  [attr.aria-label]="'Seleccionar operación ' + item.identifier"
++                  (change)="toggleTransaction(item)">
++                </mat-checkbox>
++              </td>
++            </ng-container>
++            <ng-container matColumnDef="identifier">
++              <th mat-header-cell *matHeaderCellDef>Transacción</th>
++              <td mat-cell *matCellDef="let item">{{ item.identifier }}</td>
++            </ng-container>
++            <ng-container matColumnDef="traceNumber">
++              <th mat-header-cell *matHeaderCellDef>Rastreo original</th>
++              <td mat-cell *matCellDef="let item"><span class="mono">{{ item.traceNumber }}</span></td>
++            </ng-container>
++            <ng-container matColumnDef="institution">
++              <th mat-header-cell *matHeaderCellDef>Institución</th>
++              <td mat-cell *matCellDef="let item">{{ item.destinationFinancialInstitution }}</td>
++            </ng-container>
++            <ng-container matColumnDef="transactionType">
++              <th mat-header-cell *matHeaderCellDef>Tipo</th>
++              <td mat-cell *matCellDef="let item">{{ item.transactionType }}</td>
++            </ng-container>
++            <ng-container matColumnDef="effectiveDate">
++              <th mat-header-cell *matHeaderCellDef>Fecha</th>
++              <td mat-cell *matCellDef="let item">{{ formatProcessingDate(item.effectiveDate) }}</td>
++            </ng-container>
++            <ng-container matColumnDef="cycle">
++              <th mat-header-cell *matHeaderCellDef>Ciclo</th>
++              <td mat-cell *matCellDef="let item">{{ item.cycle }}</td>
++            </ng-container>
++            <ng-container matColumnDef="account">
++              <th mat-header-cell *matHeaderCellDef>Cuenta</th>
++              <td mat-cell *matCellDef="let item"><span class="mono">{{ item.accountNumberMasked }}</span></td>
++            </ng-container>
++            <ng-container matColumnDef="amount">
++              <th mat-header-cell *matHeaderCellDef class="amount-cell">Valor</th>
++              <td mat-cell *matCellDef="let item" class="amount-cell">
++                {{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}
++              </td>
++            </ng-container>
++            <ng-container matColumnDef="state">
++              <th mat-header-cell *matHeaderCellDef>Estado</th>
++              <td mat-cell *matCellDef="let item">{{ item.state }}</td>
++            </ng-container>
++            <ng-container matColumnDef="eligibility">
++              <th mat-header-cell *matHeaderCellDef>Elegibilidad</th>
++              <td mat-cell *matCellDef="let item">
++                <span class="status-label" [class.status-label--blocked]="!item.eligible">
++                  <mat-icon aria-hidden="true">{{ item.eligible ? 'check_circle' : 'block' }}</mat-icon>
++                  {{ item.eligible ? 'Elegible' : (item.ineligibilityReason || 'No elegible') }}
++                </span>
++              </td>
++            </ng-container>
++            <tr mat-header-row *matHeaderRowDef="eligibleColumns"></tr>
++            <tr mat-row *matRowDef="let row; columns: eligibleColumns"></tr>
++          </table>
++        </div>
++
++        <div class="server-pagination" *ngIf="eligibleTotal > eligiblePageSize">
++          <button
++            mat-stroked-button
++            type="button"
++            (click)="loadEligibleTransactions(eligiblePage - 1)"
++            [disabled]="eligiblePage <= 1 || loadingEligible">
++            <mat-icon aria-hidden="true">chevron_left</mat-icon>
++            Anterior
++          </button>
++          <span>Página {{ eligiblePage }} · {{ eligibleTotal }} resultados</span>
++          <button
++            mat-stroked-button
++            type="button"
++            (click)="loadEligibleTransactions(eligiblePage + 1)"
++            [disabled]="eligiblePage * eligiblePageSize >= eligibleTotal || loadingEligible">
++            Siguiente
++            <mat-icon aria-hidden="true">chevron_right</mat-icon>
++          </button>
++        </div>
++      </mat-card-content>
++    </mat-card>
++
++    <mat-card appearance="outlined" class="summary-card">
++      <mat-card-header>
++        <mat-icon mat-card-avatar aria-hidden="true">fact_check</mat-icon>
++        <mat-card-title>Resumen antes de generar</mat-card-title>
++        <mat-card-subtitle>Verifica la información que se enviará</mat-card-subtitle>
++      </mat-card-header>
++      <mat-card-content>
++        <p class="operational-summary" role="status">{{ operationalSummary }}</p>
++        <dl class="summary-grid">
++          <div>
++            <dt>Cámara</dt>
++            <dd>{{ selectedClearingHouse?.name || 'Pendiente' }}</dd>
++          </div>
++          <div>
++            <dt>Operación</dt>
++            <dd>{{ operationLabel }}</dd>
++          </div>
++          <div>
++            <dt>Entidad que responde</dt>
++            <dd>{{ selectedOrigin?.name || 'Pendiente' }}</dd>
++          </div>
++          <div>
++            <dt>Destino</dt>
++            <dd>{{ defaultDestination?.name || 'No disponible' }}</dd>
++          </div>
++          <div>
++            <dt>Operaciones</dt>
++            <dd>{{ simulationCount }}</dd>
++          </div>
++          <div>
++            <dt>Valor por operación</dt>
++            <dd>{{ isDifferentialMode() ? 'No aplica' : 'COP ' + form.controls.amount.value }}</dd>
++          </div>
++          <div>
++            <dt>Ciclo</dt>
++            <dd class="mono">{{ form.controls.cycleCode.value || 'Pendiente' }}</dd>
++          </div>
++          <div>
++            <dt>Impacto directo</dt>
++            <dd>{{ isDifferentialMode() ? 'Sin movimiento monetario' : 'Genera archivo UAT; requiere flujo formal posterior' }}</dd>
++          </div>
++        </dl>
++      </mat-card-content>
++      <mat-card-actions align="end">
++        <button
++          mat-stroked-button
++          type="button"
++          (click)="preview()"
++          [disabled]="!canExecute">
++          <mat-spinner *ngIf="previewing" diameter="18"></mat-spinner>
++          <mat-icon *ngIf="!previewing" aria-hidden="true">rule</mat-icon>
++          {{ previewing ? 'Validando…' : 'Validar configuración' }}
++        </button>
++        <button
++          mat-flat-button
++          color="primary"
++          type="submit"
++          [disabled]="!canExecute">
++          <mat-spinner *ngIf="generating" diameter="18"></mat-spinner>
++          <mat-icon *ngIf="!generating" aria-hidden="true">play_arrow</mat-icon>
++          {{ generating ? 'Generando…' : 'Generar archivo NACHA-M' }}
++        </button>
++      </mat-card-actions>
++    </mat-card>
++  </form>
++
++  <mat-card *ngIf="result" appearance="outlined" class="result-card" aria-live="polite">
++    <mat-card-header>
++      <mat-icon mat-card-avatar aria-hidden="true">task_alt</mat-icon>
++      <mat-card-title>Archivo generado correctamente</mat-card-title>
++      <mat-card-subtitle>El archivo no fue importado; usted decide cuándo cargarlo</mat-card-subtitle>
++    </mat-card-header>
++    <mat-card-content>
++      <p class="result-message">{{ result.message }}</p>
++      <dl class="result-grid">
++        <div>
++          <dt>ID de simulación</dt>
++          <dd>
++            <span class="mono">{{ result.simulationId }}</span>
++            <button
++              mat-icon-button
++              type="button"
++              matTooltip="Copiar ID de simulación"
++              aria-label="Copiar ID de simulación"
++              (click)="copyIdentifier(result.simulationId, 'ID de simulación')">
++              <mat-icon aria-hidden="true">content_copy</mat-icon>
++            </button>
++          </dd>
++        </div>
++        <div>
++          <dt>ID interno</dt>
++          <dd>
++            {{ result.id }}
++            <button
++              mat-icon-button
++              type="button"
++              matTooltip="Copiar ID interno"
++              aria-label="Copiar ID interno"
++              (click)="copyIdentifier(result.id, 'ID interno')">
++              <mat-icon aria-hidden="true">content_copy</mat-icon>
++            </button>
++          </dd>
++        </div>
++        <div>
++          <dt>Archivo</dt>
++          <dd>{{ result.fileName }}</dd>
++        </div>
++        <div>
++          <dt>Tamaño</dt>
++          <dd>{{ result.fileSizeBytes | number:'1.0-0' }} bytes</dd>
++        </div>
++        <div class="wide">
++          <dt>SHA-256</dt>
++          <dd>
++            <span class="mono hash">{{ result.sha256 }}</span>
++            <button
++              mat-icon-button
++              type="button"
++              matTooltip="Copiar SHA-256"
++              aria-label="Copiar SHA-256"
++              (click)="copyIdentifier(result.sha256, 'SHA-256')">
++              <mat-icon aria-hidden="true">content_copy</mat-icon>
++            </button>
++          </dd>
++        </div>
++        <div>
++          <dt>Importación automática</dt>
++          <dd>{{ result.autoImported ? 'Sí' : 'No' }}</dd>
++        </div>
++        <div>
++          <dt>Transmisión externa</dt>
++          <dd>{{ result.externalTransmission ? 'Sí' : 'No' }}</dd>
++        </div>
++      </dl>
++    </mat-card-content>
++    <mat-card-actions align="end">
++      <button mat-stroked-button type="button" (click)="resetSimulation()">
++        <mat-icon aria-hidden="true">restart_alt</mat-icon>
++        Nueva simulación
++      </button>
++      <button mat-stroked-button type="button" (click)="goToUpload()">
++        <mat-icon aria-hidden="true">upload_file</mat-icon>
++        Ir a Cargar archivo NACHA-M
++      </button>
++      <button mat-flat-button color="primary" type="button" (click)="download(result.id, result.fileName)">
++        <mat-icon aria-hidden="true">download</mat-icon>
++        Descargar archivo
++      </button>
++    </mat-card-actions>
++  </mat-card>
++
++  <mat-card appearance="outlined" class="history-card">
++    <mat-card-header>
++      <mat-icon mat-card-avatar aria-hidden="true">history</mat-icon>
++      <mat-card-title>Simulaciones recientes</mat-card-title>
++      <mat-card-subtitle>Trazabilidad disponible en el entorno UAT</mat-card-subtitle>
++      <span class="header-spacer"></span>
++      <button
++        mat-stroked-button
++        type="button"
++        (click)="loadHistory()"
++        [disabled]="loadingHistory">
++        <mat-icon aria-hidden="true">refresh</mat-icon>
++        Actualizar
++      </button>
++    </mat-card-header>
++
++    <mat-progress-bar
++      *ngIf="loadingHistory"
++      mode="indeterminate"
++      aria-label="Cargando simulaciones recientes">
++    </mat-progress-bar>
++
++    <mat-card-content>
++      <div *ngIf="historyError && !loadingHistory" class="inline-state inline-state--error" role="alert">
++        <mat-icon aria-hidden="true">error</mat-icon>
++        <div>
++          <strong>No se pudo cargar el historial</strong>
++          <p>{{ historyError }}</p>
++        </div>
++        <button mat-stroked-button type="button" (click)="loadHistory()">Reintentar</button>
++      </div>
++
++      <div
++        *ngIf="hasLoadedHistory && !loadingHistory && !historyError && simulations.length === 0"
++        class="inline-state"
++        role="status">
++        <mat-icon aria-hidden="true">inventory_2</mat-icon>
++        <div>
++          <strong>Aún no hay simulaciones</strong>
++          <p>El resultado de la primera simulación aparecerá en esta sección.</p>
++        </div>
++      </div>
++
++      <div
++        *ngIf="simulations.length"
++        class="table-scroll"
++        tabindex="0"
++        aria-label="Simulaciones recientes. La tabla admite desplazamiento horizontal.">
++        <table mat-table [dataSource]="simulations" aria-label="Simulaciones recientes">
++          <ng-container matColumnDef="id">
++            <th mat-header-cell *matHeaderCellDef>ID</th>
++            <td mat-cell *matCellDef="let item">{{ item.id }}</td>
++          </ng-container>
++          <ng-container matColumnDef="clearingHouse">
++            <th mat-header-cell *matHeaderCellDef>Cámara</th>
++            <td mat-cell *matCellDef="let item">{{ item.clearingHouseName }}</td>
++          </ng-container>
++          <ng-container matColumnDef="scenario">
++            <th mat-header-cell *matHeaderCellDef>Escenario</th>
++            <td mat-cell *matCellDef="let item">{{ scenarioLabel(item.scenarioType) }}</td>
++          </ng-container>
++          <ng-container matColumnDef="file">
++            <th mat-header-cell *matHeaderCellDef>Archivo</th>
++            <td mat-cell *matCellDef="let item">{{ item.fileName }}</td>
++          </ng-container>
++          <ng-container matColumnDef="sha256">
++            <th mat-header-cell *matHeaderCellDef>SHA-256</th>
++            <td mat-cell *matCellDef="let item">
++              <span class="mono hash" [matTooltip]="item.sha256">{{ item.sha256 }}</span>
++            </td>
++          </ng-container>
++          <ng-container matColumnDef="action">
++            <th mat-header-cell *matHeaderCellDef>Acción</th>
++            <td mat-cell *matCellDef="let item">
++              <button
++                mat-icon-button
++                type="button"
++                matTooltip="Descargar archivo"
++                [attr.aria-label]="'Descargar simulación ' + item.id"
++                (click)="download(item.id, item.fileName)">
++                <mat-icon aria-hidden="true">download</mat-icon>
++              </button>
++            </td>
++          </ng-container>
++          <tr mat-header-row *matHeaderRowDef="historyColumns"></tr>
++          <tr mat-row *matRowDef="let row; columns: historyColumns"></tr>
++        </table>
++      </div>
++    </mat-card-content>
++  </mat-card>
++</section>
+--- I05/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.scss
++++ I06/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.scss
+@@ -1,446 +1,543 @@
+-:host {
+-  display: block;
+-  min-width: 0;
+-  max-width: 100%;
+-}
+-
+-.simulator-page {
+-  display: grid;
+-  gap: 1rem;
+-  min-width: 0;
+-  max-width: 100%;
+-}
+-
+-.environment-strip {
+-  display: flex;
+-  align-items: center;
+-  justify-content: space-between;
+-  gap: 1rem;
+-  padding: .75rem 1rem;
+-  border: 1px solid var(--color-border);
+-  border-left: 4px solid var(--color-primary);
+-  border-radius: var(--radius-lg);
+-  background: var(--color-surface);
+-}
+-
+-.environment-strip p {
+-  margin: 0;
+-  color: var(--color-text-muted);
+-  font-size: .875rem;
+-}
+-
+-.environment-strip mat-chip {
+-  font-weight: 700;
+-}
+-
+-.environment-strip mat-icon,
+-.status-label mat-icon {
+-  width: 18px;
+-  height: 18px;
+-  font-size: 18px;
+-}
+-
+-.uat-chip {
+-  --mdc-chip-elevated-container-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+-  --mdc-chip-label-text-color: var(--color-primary-hover);
+-}
+-
+-mat-card {
+-  min-width: 0;
+-}
+-
+-mat-card-header {
+-  align-items: center;
+-  padding-bottom: .75rem;
+-}
+-
+-mat-card-header [mat-card-avatar] {
+-  display: grid;
+-  place-items: center;
+-  color: var(--color-primary);
+-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+-  border-radius: 50%;
+-}
+-
+-mat-card-content {
+-  padding-top: .5rem;
+-}
+-
+-:host ::ng-deep .mat-mdc-form-field .mat-mdc-floating-label.mdc-floating-label {
+-  pointer-events: none;
+-}
+-
+-.header-spacer {
+-  flex: 1 1 auto;
+-}
+-
+-.mode-toggle {
+-  display: grid;
+-  grid-template-columns: repeat(2, minmax(0, 1fr));
+-  width: 100%;
+-  border: 0;
+-  gap: .75rem;
+-}
+-
+-.mode-toggle mat-button-toggle {
+-  border: 1px solid var(--color-border-strong);
+-  border-radius: var(--radius-md);
+-  min-width: 0;
+-}
+-
+-.mode-toggle mat-button-toggle.mat-button-toggle-checked {
+-  border-color: var(--color-primary);
+-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+-}
+-
+-:host ::ng-deep .mode-toggle .mat-button-toggle-label-content {
+-  display: flex;
+-  align-items: center;
+-  justify-content: center;
+-  gap: .75rem;
+-  width: 100%;
+-  padding: .75rem 1rem;
+-  line-height: 1.25;
+-}
+-
+-.mode-toggle span {
+-  display: grid;
+-  gap: .2rem;
+-  min-width: 0;
+-  white-space: normal;
+-}
+-
+-.mode-toggle small {
+-  color: var(--color-text-muted);
+-}
+-
+-.form-grid {
+-  display: grid;
+-  grid-template-columns: repeat(3, minmax(0, 1fr));
+-  gap: 1rem;
+-  align-items: start;
+-}
+-
+-.wide {
+-  grid-column: 1 / -1;
+-}
+-
+-.destination-field {
+-  box-sizing: border-box;
+-  display: grid;
+-  align-content: center;
+-  gap: .35rem;
+-  min-height: 56px;
+-  padding: .7rem .85rem;
+-  border: 1px solid var(--color-border);
+-  border-radius: var(--radius-md);
+-  background: var(--color-surface-muted);
+-}
+-
+-.destination-field--error {
+-  border-color: var(--color-danger);
+-}
+-
+-.destination-field small {
+-  color: var(--color-text-muted);
+-  line-height: 1.35;
+-}
+-
+-.destination-field--error small {
+-  color: var(--color-danger);
+-}
+-
+-.field-label {
+-  display: flex;
+-  align-items: center;
+-  gap: .4rem;
+-  color: var(--color-text-muted);
+-  font-size: .75rem;
+-  font-weight: 700;
+-}
+-
+-.field-label mat-icon {
+-  width: 18px;
+-  height: 18px;
+-  font-size: 18px;
+-}
+-
+-mat-divider {
+-  margin: .5rem 0 1rem;
+-}
+-
+-.profile-section {
+-  min-height: 3.75rem;
+-}
+-
+-.section-heading {
+-  display: flex;
+-  align-items: center;
+-  justify-content: space-between;
+-  gap: 1rem;
+-  margin-bottom: .75rem;
+-}
+-
+-.section-heading h3,
+-.section-heading p {
+-  margin: 0;
+-}
+-
+-.section-heading h3 {
+-  font-size: 1rem;
+-}
+-
+-.section-heading p,
+-.muted {
+-  color: var(--color-text-muted);
+-  font-size: .84rem;
+-}
+-
+-.inline-state {
+-  display: flex;
+-  align-items: center;
+-  gap: .85rem;
+-  min-width: 0;
+-  padding: .9rem 1rem;
+-  border: 1px dashed var(--color-border-strong);
+-  border-radius: var(--radius-md);
+-  background: var(--color-surface-muted);
+-}
+-
+-.inline-state > div {
+-  flex: 1 1 auto;
+-  min-width: 0;
+-}
+-
+-.inline-state strong,
+-.inline-state p {
+-  margin: 0;
+-}
+-
+-.inline-state p {
+-  margin-top: .2rem;
+-  color: var(--color-text-muted);
+-  font-size: .84rem;
+-}
+-
+-.inline-state--error {
+-  border-style: solid;
+-  border-color: var(--color-danger);
+-  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
+-}
+-
+-.inline-state--error > mat-icon {
+-  color: var(--color-danger);
+-}
+-
+-.inline-loading {
+-  display: flex;
+-  align-items: center;
+-  gap: .65rem;
+-  color: var(--color-text-muted);
+-}
+-
+-.eligible-card mat-card-content,
+-.history-card mat-card-content {
+-  min-width: 0;
+-}
+-
+-.table-scroll {
+-  max-width: 100%;
+-  overflow-x: auto;
+-  border: 1px solid var(--color-border);
+-  border-radius: var(--radius-md);
+-}
+-
+-.table-scroll:focus-visible {
+-  outline: 3px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+-  outline-offset: 2px;
+-}
+-
+-table {
+-  width: 100%;
+-  min-width: 860px;
+-}
+-
+-th.mat-mdc-header-cell {
+-  white-space: nowrap;
+-  color: var(--color-text-muted);
+-  font-weight: 750;
+-  background: var(--color-surface-muted);
+-}
+-
+-td.mat-mdc-cell {
+-  max-width: 17rem;
+-}
+-
+-.amount-cell {
+-  text-align: right;
+-  white-space: nowrap;
+-}
+-
+-.mono {
+-  min-width: 0;
+-  overflow-wrap: anywhere;
+-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+-  font-size: .82rem;
+-}
+-
+-.hash {
+-  display: inline-block;
+-  max-width: 16rem;
+-  overflow: hidden;
+-  text-overflow: ellipsis;
+-  vertical-align: middle;
+-  white-space: nowrap;
+-}
+-
+-.status-label {
+-  display: inline-flex;
+-  align-items: center;
+-  gap: .3rem;
+-  color: var(--color-success);
+-  font-weight: 700;
+-}
+-
+-.status-label--blocked {
+-  color: var(--color-danger);
+-}
+-
+-.server-pagination {
+-  display: flex;
+-  align-items: center;
+-  justify-content: flex-end;
+-  gap: .75rem;
+-  margin-top: .9rem;
+-  color: var(--color-text-muted);
+-}
+-
+-.summary-grid,
+-.result-grid {
+-  display: grid;
+-  grid-template-columns: repeat(4, minmax(0, 1fr));
+-  gap: 1rem;
+-}
+-
+-.summary-grid div,
+-.result-grid div {
+-  min-width: 0;
+-  padding: .75rem;
+-  border-radius: var(--radius-md);
+-  background: var(--color-surface-muted);
+-}
+-
+-.summary-grid dt,
+-.result-grid dt {
+-  margin-bottom: .25rem;
+-  color: var(--color-text-muted);
+-  font-size: .75rem;
+-  font-weight: 750;
+-}
+-
+-.summary-grid dd,
+-.result-grid dd {
+-  min-width: 0;
+-  margin: 0;
+-  overflow-wrap: anywhere;
+-  font-weight: 650;
+-}
+-
+-mat-card-actions {
+-  flex-wrap: wrap;
+-  gap: .5rem;
+-  padding: 0 1rem 1rem;
+-}
+-
+-mat-card-actions button mat-spinner {
+-  display: inline-block;
+-  margin-right: .4rem;
+-}
+-
+-.result-card {
+-  border-color: var(--color-success);
+-}
+-
+-.result-card [mat-card-avatar] {
+-  color: var(--color-success);
+-  background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
+-}
+-
+-.result-message {
+-  margin-top: 0;
+-  color: var(--color-text-muted);
+-}
+-
+-.result-grid .wide {
+-  grid-column: span 2;
+-}
+-
+-@media (max-width: 1180px) {
+-  .form-grid,
+-  .summary-grid,
+-  .result-grid {
+-    grid-template-columns: repeat(2, minmax(0, 1fr));
+-  }
+-}
+-
+-@media (max-width: 720px) {
+-  .environment-strip {
+-    align-items: flex-start;
+-    flex-direction: column;
+-  }
+-
+-  .mode-toggle,
+-  .form-grid,
+-  .summary-grid,
+-  .result-grid {
+-    grid-template-columns: 1fr;
+-  }
+-
+-  .wide,
+-  .result-grid .wide {
+-    grid-column: 1;
+-  }
+-
+-  :host ::ng-deep .mode-toggle .mat-button-toggle-label-content {
+-    justify-content: flex-start;
+-    text-align: left;
+-  }
+-
+-  mat-card-header {
+-    align-items: flex-start;
+-    flex-wrap: wrap;
+-  }
+-
+-  .header-spacer {
+-    display: none;
+-  }
+-
+-  mat-card-header > button {
+-    width: 100%;
+-    margin-left: 0;
+-  }
+-
+-  .inline-state {
+-    align-items: flex-start;
+-    flex-wrap: wrap;
+-  }
+-
+-  .inline-state button {
+-    width: 100%;
+-  }
+-
+-  .server-pagination {
+-    align-items: stretch;
+-    flex-direction: column;
+-    text-align: center;
+-  }
+-
+-  mat-card-actions {
+-    align-items: stretch;
+-    flex-direction: column-reverse;
+-  }
+-
+-  mat-card-actions button {
+-    width: 100%;
+-  }
+-}
++:host {
++  display: block;
++  min-width: 0;
++  max-width: 100%;
++}
++
++.simulator-page {
++  display: grid;
++  gap: 1rem;
++  min-width: 0;
++  max-width: 100%;
++}
++
++.environment-strip {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 1rem;
++  padding: .75rem 1rem;
++  border: 1px solid var(--color-border);
++  border-left: 4px solid var(--color-primary);
++  border-radius: var(--radius-lg);
++  background: var(--color-surface);
++}
++
++.environment-strip p {
++  margin: 0;
++  color: var(--color-text-muted);
++  font-size: .875rem;
++}
++
++.environment-strip mat-chip {
++  font-weight: 700;
++}
++
++.environment-strip mat-icon,
++.status-label mat-icon {
++  width: 18px;
++  height: 18px;
++  font-size: 18px;
++}
++
++.uat-chip {
++  --mdc-chip-elevated-container-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
++  --mdc-chip-label-text-color: var(--color-primary-hover);
++}
++
++mat-card {
++  min-width: 0;
++}
++
++mat-card-header {
++  align-items: center;
++  padding-bottom: .75rem;
++}
++
++mat-card-header [mat-card-avatar] {
++  display: grid;
++  place-items: center;
++  color: var(--color-primary);
++  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
++  border-radius: 50%;
++}
++
++mat-card-content {
++  padding-top: .5rem;
++}
++
++:host ::ng-deep .mat-mdc-form-field .mat-mdc-floating-label.mdc-floating-label {
++  pointer-events: none;
++}
++
++.header-spacer {
++  flex: 1 1 auto;
++}
++
++.mode-toggle {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  width: 100%;
++  border: 0;
++  gap: .75rem;
++}
++
++.mode-toggle mat-button-toggle {
++  border: 1px solid var(--color-border-strong);
++  border-radius: var(--radius-md);
++  min-width: 0;
++}
++
++.mode-toggle mat-button-toggle.mat-button-toggle-checked {
++  border-color: var(--color-primary);
++  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
++}
++
++:host ::ng-deep .mode-toggle .mat-button-toggle-label-content {
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  gap: .75rem;
++  width: 100%;
++  padding: .75rem 1rem;
++  line-height: 1.25;
++}
++
++.mode-toggle span {
++  display: grid;
++  gap: .2rem;
++  min-width: 0;
++  white-space: normal;
++}
++
++.mode-toggle small {
++  color: var(--color-text-muted);
++}
++
++.form-grid {
++  display: grid;
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  gap: 1rem;
++  align-items: start;
++}
++
++.wide {
++  grid-column: 1 / -1;
++}
++
++.destination-field {
++  box-sizing: border-box;
++  display: grid;
++  align-content: center;
++  gap: .35rem;
++  min-height: 56px;
++  padding: .7rem .85rem;
++  border: 1px solid var(--color-border);
++  border-radius: var(--radius-md);
++  background: var(--color-surface-muted);
++}
++
++.destination-field--error {
++  border-color: var(--color-danger);
++}
++
++.destination-field small {
++  color: var(--color-text-muted);
++  line-height: 1.35;
++}
++
++.destination-field--error small {
++  color: var(--color-danger);
++}
++
++.field-label {
++  display: flex;
++  align-items: center;
++  gap: .4rem;
++  color: var(--color-text-muted);
++  font-size: .75rem;
++  font-weight: 700;
++}
++
++.field-label mat-icon {
++  width: 18px;
++  height: 18px;
++  font-size: 18px;
++}
++
++mat-divider {
++  margin: .5rem 0 1rem;
++}
++
++.profile-section {
++  min-height: 3.75rem;
++}
++
++.section-heading {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 1rem;
++  margin-bottom: .75rem;
++}
++
++.section-heading h3,
++.section-heading p {
++  margin: 0;
++}
++
++.section-heading h3 {
++  font-size: 1rem;
++}
++
++.section-heading p,
++.muted {
++  color: var(--color-text-muted);
++  font-size: .84rem;
++}
++
++.inline-state {
++  display: flex;
++  align-items: center;
++  gap: .85rem;
++  min-width: 0;
++  padding: .9rem 1rem;
++  border: 1px dashed var(--color-border-strong);
++  border-radius: var(--radius-md);
++  background: var(--color-surface-muted);
++}
++
++.inline-state > div {
++  flex: 1 1 auto;
++  min-width: 0;
++}
++
++.inline-state strong,
++.inline-state p {
++  margin: 0;
++}
++
++.inline-state p {
++  margin-top: .2rem;
++  color: var(--color-text-muted);
++  font-size: .84rem;
++}
++
++.inline-state--error {
++  border-style: solid;
++  border-color: var(--color-danger);
++  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
++}
++
++.inline-state--error > mat-icon {
++  color: var(--color-danger);
++}
++
++.inline-loading {
++  display: flex;
++  align-items: center;
++  gap: .65rem;
++  color: var(--color-text-muted);
++}
++
++.eligible-card mat-card-content,
++.history-card mat-card-content {
++  min-width: 0;
++}
++
++.table-scroll {
++  max-width: 100%;
++  overflow-x: auto;
++  border: 1px solid var(--color-border);
++  border-radius: var(--radius-md);
++}
++
++.table-scroll:focus-visible {
++  outline: 3px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
++  outline-offset: 2px;
++}
++
++table {
++  width: 100%;
++  min-width: 860px;
++}
++
++th.mat-mdc-header-cell {
++  white-space: nowrap;
++  color: var(--color-text-muted);
++  font-weight: 750;
++  background: var(--color-surface-muted);
++}
++
++td.mat-mdc-cell {
++  max-width: 17rem;
++}
++
++.amount-cell {
++  text-align: right;
++  white-space: nowrap;
++}
++
++.mono {
++  min-width: 0;
++  overflow-wrap: anywhere;
++  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
++  font-size: .82rem;
++}
++
++.hash {
++  display: inline-block;
++  max-width: 16rem;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  vertical-align: middle;
++  white-space: nowrap;
++}
++
++.status-label {
++  display: inline-flex;
++  align-items: center;
++  gap: .3rem;
++  color: var(--color-success);
++  font-weight: 700;
++}
++
++.status-label--blocked {
++  color: var(--color-danger);
++}
++
++.server-pagination {
++  display: flex;
++  align-items: center;
++  justify-content: flex-end;
++  gap: .75rem;
++  margin-top: .9rem;
++  color: var(--color-text-muted);
++}
++
++.summary-grid,
++.result-grid {
++  display: grid;
++  grid-template-columns: repeat(4, minmax(0, 1fr));
++  gap: 1rem;
++}
++
++.summary-grid div,
++.result-grid div {
++  min-width: 0;
++  padding: .75rem;
++  border-radius: var(--radius-md);
++  background: var(--color-surface-muted);
++}
++
++.summary-grid dt,
++.result-grid dt {
++  margin-bottom: .25rem;
++  color: var(--color-text-muted);
++  font-size: .75rem;
++  font-weight: 750;
++}
++
++.summary-grid dd,
++.result-grid dd {
++  min-width: 0;
++  margin: 0;
++  overflow-wrap: anywhere;
++  font-weight: 650;
++}
++
++mat-card-actions {
++  flex-wrap: wrap;
++  gap: .5rem;
++  padding: 0 1rem 1rem;
++}
++
++mat-card-actions button mat-spinner {
++  display: inline-block;
++  margin-right: .4rem;
++}
++
++.result-card {
++  border-color: var(--color-success);
++}
++
++.result-card [mat-card-avatar] {
++  color: var(--color-success);
++  background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
++}
++
++.result-message {
++  margin-top: 0;
++  color: var(--color-text-muted);
++}
++
++.result-grid .wide {
++  grid-column: span 2;
++}
++
++@media (max-width: 1180px) {
++  .form-grid,
++  .summary-grid,
++  .result-grid {
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++  }
++}
++
++@media (max-width: 720px) {
++  .environment-strip {
++    align-items: flex-start;
++    flex-direction: column;
++  }
++
++  .mode-toggle,
++  .form-grid,
++  .summary-grid,
++  .result-grid {
++    grid-template-columns: 1fr;
++  }
++
++  .wide,
++  .result-grid .wide {
++    grid-column: 1;
++  }
++
++  :host ::ng-deep .mode-toggle .mat-button-toggle-label-content {
++    justify-content: flex-start;
++    text-align: left;
++  }
++
++  mat-card-header {
++    align-items: flex-start;
++    flex-wrap: wrap;
++  }
++
++  .header-spacer {
++    display: none;
++  }
++
++  mat-card-header > button {
++    width: 100%;
++    margin-left: 0;
++  }
++
++  .inline-state {
++    align-items: flex-start;
++    flex-wrap: wrap;
++  }
++
++  .inline-state button {
++    width: 100%;
++  }
++
++  .server-pagination {
++    align-items: stretch;
++    flex-direction: column;
++    text-align: center;
++  }
++
++  mat-card-actions {
++    align-items: stretch;
++    flex-direction: column-reverse;
++  }
++
++  mat-card-actions button {
++    width: 100%;
++  }
++}
++
++/* I06: panel de prenotificaciones, usando únicamente tokens del tema existente. */
++.pn-entry {
++  display: flex;
++  width: 100%;
++  height: auto;
++  min-height: 4rem;
++  margin-top: 1rem;
++  padding: .8rem 1rem;
++  text-align: left;
++  border-style: dashed;
++  white-space: normal;
++}
++.pn-entry span { display: grid; gap: .2rem; flex: 1; }
++.pn-entry small, .pn-mode-active p, .pn-list-hint, .pn-muted, .pn-tacit p {
++  color: var(--color-text-muted);
++  font-size: .85rem;
++  line-height: 1.45;
++  margin: 0;
++}
++.pn-mode-active { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
++.pn-mode-active strong { font-size: 1rem; }
++.pn-workflow { display: grid; gap: 1rem; }
++.pn-card mat-card-content { display: grid; gap: 1rem; }
++.pn-filters { display: grid; grid-template-columns: minmax(12rem,1fr) minmax(15rem,2fr) auto; align-items: center; gap: .75rem; }
++.pn-filters > button { min-height: 3rem; }
++.pn-candidate-list { display: grid; gap: .5rem; }
++.pn-candidate, .pn-outcome {
++  appearance: none;
++  font: inherit;
++  text-align: left;
++  border: 1px solid var(--color-border);
++  border-radius: var(--radius-md);
++  background: var(--color-surface);
++  color: var(--color-text);
++  cursor: pointer;
++  transition: border-color .12s ease, background-color .12s ease;
++}
++.pn-candidate {
++  display: flex;
++  width: 100%;
++  align-items: center;
++  justify-content: space-between;
++  gap: 1rem;
++  padding: .8rem 1rem;
++}
++.pn-candidate:hover:not(:disabled), .pn-outcome:hover:not(:disabled) {
++  border-color: var(--color-primary);
++}
++.pn-candidate--selected, .pn-outcome--active {
++  border-color: var(--color-primary);
++  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
++}
++.pn-candidate:focus-visible, .pn-outcome:focus-visible, .pn-entry:focus-visible {
++  outline: 3px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
++  outline-offset: 2px;
++}
++.pn-candidate:disabled, .pn-outcome:disabled { cursor: wait; opacity: .7; }
++.pn-candidate-main { display: grid; gap: .2rem; min-width: 0; }
++.pn-candidate-main strong, .pn-candidate-main small { overflow-wrap: anywhere; }
++.pn-candidate-main small { font-size: .8rem; color: var(--color-text-muted); }
++.pn-candidate-status { display: inline-flex; align-items: center; gap: .3rem; color: var(--color-success); font-weight: 650; white-space: nowrap; font-size: .8rem; }
++.pn-candidate-status--blocked { color: var(--color-text-muted); }
++.pn-candidate-status mat-icon { font-size: 18px; height: 18px; width: 18px; }
++.pn-outcomes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
++.pn-outcome { display: flex; align-items: flex-start; gap: .75rem; padding: 1rem; }
++.pn-outcome mat-icon { flex-shrink: 0; color: var(--color-primary); }
++.pn-outcome span { display: grid; gap: .3rem; }
++.pn-outcome small { color: var(--color-text-muted); line-height: 1.4; }
++.pn-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
++.pn-fields .pn-muted { grid-column: 1 / -1; }
++.pn-tacit { display: grid; gap: .75rem; }
++.pn-tacit mat-form-field { max-width: 22rem; }
++.pn-hint { display: flex; gap: .5rem; color: var(--color-text-muted); font-size: .85rem; }
++.pn-hint p { margin: 0; }
++.pn-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .75rem; }
++.pn-tacit-feedback { border-left: 3px solid var(--color-primary); background: var(--color-surface-muted); padding: .85rem 1rem; border-radius: var(--radius-md); }
++.pn-tacit-feedback p { margin: .3rem 0 0; color: var(--color-text-muted); }
++.pn-completion { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; padding: 1rem; border: 1px solid var(--color-success); border-radius: var(--radius-md); }
++.pn-completion > mat-icon { color: var(--color-success); }
++.pn-completion > div { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
++.pn-completion p { margin: .2rem 0 0; color: var(--color-text-muted); }
++.pn-empty { display: flex; align-items: center; gap: .75rem; color: var(--color-text-muted); padding: 1rem; background: var(--color-surface-muted); border-radius: var(--radius-md); }
++.pn-empty p { margin: 0; }
++
++@media (max-width: 880px) {
++  .pn-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
++  .pn-filters > button { grid-column: 1 / -1; }
++}
++@media (max-width: 600px) {
++  .pn-mode-active, .pn-candidate, .pn-outcome { align-items: stretch; }
++  .pn-mode-active, .pn-candidate { flex-direction: column; }
++  .pn-filters, .pn-fields, .pn-outcomes { grid-template-columns: 1fr; }
++  .pn-filters > button, .pn-fields .pn-muted { grid-column: 1; }
++  .pn-actions { flex-direction: column; }
++  .pn-actions button, .pn-completion button, .pn-mode-active button { width: 100%; }
++}
+--- I05/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.spec.ts
++++ I06/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.spec.ts
+@@ -8,6 +8,7 @@
+ import {
+   GenerateNachaInboundSimulationRequest,
+   NachaInboundSimulationResult,
++  PrenotificationCandidate,
+   NachaInboundSimulatorService
+ } from '../../services/nacha-inbound-simulator.service';
+ import { NotificationService } from '../../../../core/services/notification.service';
+@@ -65,7 +66,9 @@
+   beforeEach(async () => {
+     service = jasmine.createSpyObj<NachaInboundSimulatorService>(
+       'NachaInboundSimulatorService',
+-      ['list', 'preview', 'generate', 'eligibleDifferentialTransactions', 'availableCycles', 'returnCodes', 'downloadUrl']
++      ['list', 'preview', 'generate', 'eligibleDifferentialTransactions', 'availableCycles', 'returnCodes', 'downloadUrl',
++       'listOriginatedPrenotifications', 'previewPrenotificationReturn', 'generatePrenotificationReturn',
++       'previewTacitAcceptance', 'applyDueTacitAcceptance', 'downloadFile']
+     );
+     financialInstitutionsApi = jasmine.createSpyObj<FinancialInstitutionsApiService>(
+       'FinancialInstitutionsApiService',
+@@ -118,6 +121,25 @@
+       isActive: true
+     }]));
+     service.downloadUrl.and.returnValue('/download');
++    service.downloadFile.and.returnValue(of(new Blob(['file'])));
++    service.listOriginatedPrenotifications.and.returnValue(of({
++      items: [], page: 1, pageSize: 10, total: 0, executionEnabled: false
++    }));
++    service.previewPrenotificationReturn.and.returnValue(of({
++      shapeValid: true, businessEligible: true, executionEnabled: false,
++      contractVersion: 'I01', violations: [], candidates: []
++    }));
++    service.generatePrenotificationReturn.and.returnValue(of(result));
++    service.previewTacitAcceptance.and.returnValue(of({
++      evaluationTimeUtc: '2026-05-21T11:00:00Z', realTimeUtc: '2026-05-21T10:00:00Z',
++      isVirtualTime: true, readOnly: true, executionEnabled: true, violations: [],
++      items: [{ originalPrenotificationId: 42, deadlineAtUtc: '2026-05-21T10:30:00Z',
++        wouldApplyAtEvaluationTime: true, eligibleAtRealTime: false, decision: 'WouldApply', violations: [] }]
++    }));
++    service.applyDueTacitAcceptance.and.returnValue(of({
++      realTimeUtc: '2026-05-21T11:00:00Z', applied: 1, alreadyApplied: 0,
++      createsNachaFile: false, externalTransmission: false, items: []
++    }));
+ 
+     financialInstitutionsApi.getAll.and.returnValue(of([
+       {
+@@ -445,4 +467,116 @@
+     expect(component.hasLoadedHistory).toBeTrue();
+     expect(fixture.nativeElement.textContent).toContain('No se pudo cargar el historial');
+   });
++  const prenotification: PrenotificationCandidate = {
++    originalPrenotificationId: 42,
++    originalCycleId: 'ACH-20260520-C1',
++    clearingHouseCode: 'ACHCOL',
++    respondingFinancialInstitutionId: 2,
++    respondingFinancialInstitution: 'Banco UAT Externo',
++    traceNumber: '009999990000042',
++    transactionExternalId: 'PRE-42',
++    destinationAccountMasked: '****0042',
++    originalBusinessDate: '2026-05-20',
++    transactionStatus: 'Pending',
++    validationAttemptId: 123,
++    validationAttemptStatus: 'AwaitingResponse',
++    responseDeadlineAtUtc: '2026-05-21T10:30:00Z',
++    transmittedOrAcknowledged: true,
++    hasPriorResponse: false,
++    eligibleForReturn: true,
++    eligibleForNoReturnByDeadline: false,
++    violations: []
++  };
++
++  it('I06: encuentra prenotificaciones originadas y permite seleccionar una', () => {
++    service.listOriginatedPrenotifications.and.returnValue(of({
++      items: [prenotification], page: 1, pageSize: 10, total: 1, executionEnabled: false
++    }));
++    component.openPrenotifications();
++    fixture.detectChanges();
++
++    expect(service.listOriginatedPrenotifications).toHaveBeenCalled();
++    expect(fixture.nativeElement.textContent).toContain('Buscar prenotificación enviada');
++    component.selectPrenotification(prenotification);
++    expect(component.pnSelected?.originalPrenotificationId).toBe(42);
++    expect(component.pnGenerated).toBeNull();
++  });
++
++  it('I06: genera una devolución solo tras previsualizar y confirmar', () => {
++    service.returnCodes.and.returnValue(of([{
++      id: 5, clearingHouseId: 1, code: 'R04', flowType: 'Return',
++      description: 'Número de cuenta inválido', appliesToDebit: true, appliesToCredit: true,
++      appliesToPrenotification: true, appliesToReturn: true,
++      effectiveFrom: '2026-01-01', isActive: true
++    }]));
++    service.availableCycles.and.returnValue(of([{
++      cycleId: 'ACH-20260520-C2', cycleCode: 'ACH-20260520-C2', cycleName: 'Ciclo 2',
++      clearingHouseId: 1, clearingHouseCode: 'ACHCOL', clearingHouseName: 'ACH Colombia',
++      processingDate: '2026-05-20', transactionCount: 1, status: 'Disponible'
++    }]));
++    component.openPrenotifications();
++    component.selectPrenotification(prenotification);
++    expect(component.pnApplicableCodes.map(item => item.code)).toContain('R04');
++    expect(component.pnCycles.map(item => item.cycleId)).toContain('ACH-20260520-C2');
++    component.pnReasonCode = 'R04';
++    component.pnResponseCycleId = 'ACH-20260520-C2';
++    component.previewPn();
++    expect(component.pnCanCommit).toBeTrue();
++    expect(service.generatePrenotificationReturn).not.toHaveBeenCalled();
++
++    component.confirmPn();
++    expect(service.generatePrenotificationReturn).toHaveBeenCalledTimes(1);
++    const payload = service.generatePrenotificationReturn.calls.mostRecent().args[0];
++    expect(payload.originalPrenotificationIds).toEqual([42]);
++    expect(payload.outcome).toBe('Returned');
++    expect(payload.reasonCode).toBe('R04');
++    expect(payload.idempotencyKey).toBeTruthy();
++    expect(component.pnGenerated?.id).toBe(91);
++    expect(service.generate).not.toHaveBeenCalled();
++  });
++
++  it('I06: la hora virtual no habilita una aplicación antes del vencimiento real', () => {
++    component.openPrenotifications();
++    component.selectPrenotification(prenotification);
++    component.changePnOutcome('NoReturnByDeadline');
++    component.pnVirtualDateTime = '2026-05-21T11:00';
++    component.previewPn();
++
++    expect(component.pnTacitPreview?.items[0].wouldApplyAtEvaluationTime).toBeTrue();
++    expect(component.pnCanCommit).toBeFalse();
++    component.confirmPn();
++    expect(service.applyDueTacitAcceptance).not.toHaveBeenCalled();
++    expect(service.generatePrenotificationReturn).not.toHaveBeenCalled();
++  });
++
++  it('I06: permite aplicar solo cuando el plazo real y el backend lo autorizan', () => {
++    service.previewTacitAcceptance.and.returnValue(of({
++      evaluationTimeUtc: '2026-05-21T11:00:00Z', realTimeUtc: '2026-05-21T11:00:00Z',
++      isVirtualTime: false, readOnly: true, executionEnabled: true, violations: [],
++      items: [{ originalPrenotificationId: 42, deadlineAtUtc: '2026-05-21T10:30:00Z',
++        wouldApplyAtEvaluationTime: true, eligibleAtRealTime: true, decision: 'WouldApply', violations: [] }]
++    }));
++    component.openPrenotifications();
++    component.selectPrenotification(prenotification);
++    component.changePnOutcome('NoReturnByDeadline');
++    component.previewPn();
++    expect(component.pnCanCommit).toBeTrue();
++    component.confirmPn();
++
++    expect(service.applyDueTacitAcceptance).toHaveBeenCalledTimes(1);
++    expect(component.pnApplied).toBe(1);
++    expect(service.generatePrenotificationReturn).not.toHaveBeenCalled();
++  });
++
++  it('I06: conserva la justificación del backend para una prenotificación no elegible', () => {
++    component.openPrenotifications();
++    component.selectPrenotification({ ...prenotification,
++      eligibleForReturn: false, eligibleForNoReturnByDeadline: false,
++      violations: [{ code: 'NOT_TRANSMITTED', field: 'OriginalPrenotificationIds',
++        message: 'No hay evidencia de transmisión.' }] });
++    expect(component.pnCanPreview).toBeFalse();
++    fixture.detectChanges();
++    expect(fixture.nativeElement.textContent).toContain('No hay evidencia de transmisión.');
++  });
++
+ });

@@ -1,0 +1,231 @@
+{
+  "initiative": "SEC-2026-10",
+  "increment": "SEC-I06A",
+  "source_snapshot": "SEC-I05",
+  "generated_date": "2026-10-27",
+  "scope": "Pruebas ya escritas, no ejecutadas. Referencias existentes verificadas por texto, no por compilación.",
+  "status": "WRITTEN_NOT_EXECUTED",
+  "go_increment": "YES",
+  "go_deploy": "NO",
+  "go_live_monetary": "NO",
+  "preserve_admin_seed_credential": true,
+  "seed_source_sha256": "5aa78003c215fb9f3315cbf097a593018f65d2b3580e657a306bacbec6ce41e7",
+  "scenarios": [
+    {
+      "id": "AUTH-01",
+      "objective": "Credential PBKDF2 y SHA256 legacy",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/Security/CredentialPasswordHasherTests.cs",
+      "test_method": "NewPasswordsUseSaltedVersionedPbkdf2",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "AUTH-02",
+      "objective": "Rechazo formatos de hash inválidos",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/Security/CredentialPasswordHasherTests.cs",
+      "test_method": "MalformedHashesAreRejectedWithoutThrowing",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "AUTH-03",
+      "objective": "Compatibilidad legado mayúsculas",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/Security/SecI06ACredentialBoundaryTests.cs",
+      "test_method": "UppercaseSha256LegacyRemainsValidWithoutRehashing",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "WRITTEN_NOT_EXECUTED"
+    },
+    {
+      "id": "AUTH-04",
+      "objective": "Rehash sugerido de PBKDF2 anterior",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/Security/SecI06ACredentialBoundaryTests.cs",
+      "test_method": "OlderVersionedPbkdf2RecommendsRehashButDoesNotRewriteHash",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "WRITTEN_NOT_EXECUTED"
+    },
+    {
+      "id": "AUTH-05",
+      "objective": "Bloqueo formatos de hash fuera política",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/Security/SecI06ACredentialBoundaryTests.cs",
+      "test_method": "OutOfPolicyHashFormatsFailClosed",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "WRITTEN_NOT_EXECUTED"
+    },
+    {
+      "id": "HTTP-01",
+      "objective": "HSTS condicional HTTPS y entorno",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/Security/SecI06AHeadersRegressionTests.cs",
+      "test_method": "HstsOnlyOnHttpsInNonDevelopment",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "WRITTEN_NOT_EXECUTED"
+    },
+    {
+      "id": "HTTP-02",
+      "objective": "Cabeceras CSP, nosniff, Referrer y ocultación de banners",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/Security/SecI06AHeadersRegressionTests.cs",
+      "test_method": "ProductionResponseEmitsMinimumBrowserHeadersAndStripsBanner",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "WRITTEN_NOT_EXECUTED"
+    },
+    {
+      "id": "PROXY-01",
+      "objective": "XFF no confiable no suplanta socket",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/RateLimitClientIdentitySecI05Tests.cs",
+      "test_method": "UntrustedProxyCannotOverrideSocketIdentity",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "PROXY-02",
+      "objective": "Proxy explícitamente confiable",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/RateLimitClientIdentitySecI05Tests.cs",
+      "test_method": "ExplicitlyTrustedProxyUsesValidatedClientAddress",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "PROXY-03",
+      "objective": "XFF malformado usa IP socket",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/RateLimitClientIdentitySecI05Tests.cs",
+      "test_method": "InvalidForwardedAddressFallsBackToSocketIdentity",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "NACHA-01",
+      "objective": "Admisión archivo ACHCOL sin ciclo explícito autorizada bajo reglas",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/IncomingNachaAdmissionAchColFileBasedTests.cs",
+      "test_method": "ValidAchColFile_IsAdmittedWithoutAnyAchCycle",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "NACHA-02",
+      "objective": "Correlación de encabezado inválida falla cerrada",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/AchColInboundHeaderCorrelationTests.cs",
+      "test_method": "InvalidCorrelation_FailsClosedWithStableReason",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "NACHA-03",
+      "objective": "Fecha valor incorrecta rechazada",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/IncomingNachaAdmissionAchColFileBasedTests.cs",
+      "test_method": "BatchEffectiveDate_IsValidatedInEightDigitAchColFormat",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "ACHCOL-01",
+      "objective": "Calendario de siete ciclos operativo",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/AchColombiaCycleOperationalScheduleAdminServiceTests.cs",
+      "test_method": "OperationalModel_RepresentsKnownC1AndC7Times_AllowsC2WithoutInventingTime_AndPreservesRegulation",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "CENIT-01",
+      "objective": "Seeder mantiene cinco sesiones CENIT",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/CenitCycleCalendarCharacterizationTests.cs",
+      "test_method": "CenitCycleSeeder_ShouldCreateFiveCenitCycles_CurrentBehavior",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "CENIT-02",
+      "objective": "Ventanas del calendario DSP152",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/CenitCycleCalendarCharacterizationTests.cs",
+      "test_method": "CenitCycleSeeder_ShouldUseDsp152OperationalWindows",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "RETURN-01",
+      "objective": "Evitar devolución duplicada",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/AchReturnIdempotencyTests.cs",
+      "test_method": "GenerateReturnsFileAsync_ShouldReject_WhenSameTransactionIsSelectedTwice",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "RETURN-02",
+      "objective": "Golden Master devolución de devolución CENIT",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/AchReturnOfReturnFileGenerationGoldenMasterTests.cs",
+      "test_method": "GenerateAsync_ShouldMatchPreliminaryGoldenMaster_ForCenit",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "RETURN-03",
+      "objective": "Golden Master devolución de devolución ACH Colombia",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/AchReturnOfReturnFileGenerationGoldenMasterTests.cs",
+      "test_method": "GenerateAsync_ShouldMatchPreliminaryGoldenMaster_ForAchColombia",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "CYCLE-01",
+      "objective": "Segunda ejecución idempotente de reasignación",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/AchPendingCycleReassignmentServiceTests.cs",
+      "test_method": "SecondInvocation_DoesNotDuplicateEventsOrBatches",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "CYCLE-02",
+      "objective": "Quartz sin flag no ejecuta aun con tarea habilitada",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/AchPendingCycleReassignmentHandlerTests.cs",
+      "test_method": "DefaultConfig_DisablesEvenEnabledTask",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "CYCLE-03",
+      "objective": "Quartz deshabilitado en BD aun con flag no ejecuta",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/AchPendingCycleReassignmentHandlerTests.cs",
+      "test_method": "PersistedTaskDisabled_CannotBeBypassedByFlag",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    },
+    {
+      "id": "CYCLE-04",
+      "objective": "Transacción exportada no se reasigna",
+      "test_file": "tests/Cfa.ACHInterbank.Tests/AchPendingCycleEligibilityServiceTests.cs",
+      "test_method": "ExportMembership_AlwaysDenies",
+      "run_requires": "LOCAL_DOTNET",
+      "status": "NOT_RUN_THIS_INCREMENT"
+    }
+  ],
+  "external_execution_gates": [
+    {
+      "id": "SEC-I06B-ENV-01",
+      "scope": "dotnet restore/build/test en .NET 10.0.403",
+      "status": "NOT_RUN_ENVIRONMENT"
+    },
+    {
+      "id": "SEC-I06B-ENV-02",
+      "scope": "Nginx final 1.30.6, API/ingress proxy real y Docker",
+      "status": "NOT_RUN_ENVIRONMENT"
+    },
+    {
+      "id": "SEC-I06B-ENV-03",
+      "scope": "Integración SQL Server/PostgreSQL con datos sintéticos",
+      "status": "NOT_RUN_ENVIRONMENT"
+    },
+    {
+      "id": "SEC-I06B-ENV-04",
+      "scope": "CFA/MFT simulados y manejo de respuestas ambiguas",
+      "status": "NOT_RUN_ENVIRONMENT"
+    },
+    {
+      "id": "SEC-I06B-ENV-05",
+      "scope": "Pruebas de concurrencia/reintentos/rollback sin dinero real",
+      "status": "NOT_RUN_ENVIRONMENT"
+    },
+    {
+      "id": "SEC-I06B-ENV-06",
+      "scope": "Homologación/regresión con operadores de cámara y aprobaciones",
+      "status": "NOT_RUN_ENVIRONMENT"
+    }
+  ]
+}

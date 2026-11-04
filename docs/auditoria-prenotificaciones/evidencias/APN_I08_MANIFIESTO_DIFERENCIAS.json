@@ -1,0 +1,60 @@
+{
+  "increment": "APN-I08",
+  "date": "2026-11-03",
+  "base_zip": "ACHInterbank_PROYECTO_COMPLETO_APN_PRENOTIFICACIONES_FINAL_2026-11-03.zip",
+  "original_files": 4982,
+  "original_unchanged": 4975,
+  "original_modified": 7,
+  "original_missing": 0,
+  "new_files_before_manifest": 6,
+  "modified": [
+    {
+      "path": "ACHInterbank_ajustado/MEMORY_STATE_APN.md",
+      "old_sha256": "307f386448bc5ef073a5fab9298eb82789631d4ef05099b8f087bc5d65fecb26",
+      "new_sha256": "d64b09e747116dc8009b8391b0e68a49178bc123c94c314ee58077ab570d71ff"
+    },
+    {
+      "path": "ACHInterbank_ajustado/README_APN_ENTREGA.md",
+      "old_sha256": "3c92e0501f38c6b1ce560cf9afed232af44b2bfebeb4af13c9b4e17370e2f803",
+      "new_sha256": "158331b1d1b383a850a75d6e230624a07b6dbaac8202cf4b8188fb2147c1fc37"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/HALLAZGOS.md",
+      "old_sha256": "e8910fc1a4195fbe43e820fa0eeb5e1901ea40f2b33757d983eb904f587a2628",
+      "new_sha256": "0ea350afbd812c85f46061d5addf1b0b28730a7ef13e3709126957133bb00ec0"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/MEMORY_STATE.md",
+      "old_sha256": "221c50fd6fb2963114cc50399304bad591e2d786b6818862f59ce1a1be6c6044",
+      "new_sha256": "cd2e32061ffa41760cf3a60e4fe2d1e4eb2602c169b7c74d710fc4f5c5e7e15d"
+    },
+    {
+      "path": "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/STATUS_IMPLEMENTACIONES.md",
+      "old_sha256": "fc5e12bc92ce0f1047885828bd34feb1855a1edf435bfafd3ff52a5a6608d84d",
+      "new_sha256": "a33e217135933c32067c24eaa5e2a5f2a8b88dd5aeb7ac870fc4e41d46aa8f18"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ClearingHouseValidationPolicyService.cs",
+      "old_sha256": "c1c6e7124345cdd0972b64085514e767212d27103f3b9c343c5df95659242488",
+      "new_sha256": "2fe4cbcace31f91ed6c2494382f7951acc048f29cb3fcc3a8ba8fc0be54454b6"
+    },
+    {
+      "path": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/ThirdPartyAccountValidationLifecycleTests.cs",
+      "old_sha256": "185916d9e34d0823614dc3484b94ee781f6d4e96628f2ad3c480a215aa89766e",
+      "new_sha256": "eaf716b4f0f98597376a7f292081e5f34610b467234039ff543f44b457aeed79"
+    }
+  ],
+  "new": [
+    "ACHInterbank_ajustado/MEMORY_STATE_APN_I08.md",
+    "ACHInterbank_ajustado/README_ENTREGA_APN_I08.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/evidencias/APN_I08_EJECUCIONES.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/incrementos/APN-I08_CORRECCION_VENCIMIENTOS.md",
+    "ACHInterbank_ajustado/docs/auditoria-prenotificaciones/incrementos/APN_I08_MANIFIESTO.md",
+    "ACHInterbank_ajustado/scripts/audit/prenotificaciones/test_apn_i08_deadline_guard.py"
+  ],
+  "limitations": [
+    "dotnet SDK unavailable; .NET unit tests not executed",
+    "UAT/DB/inbound NACHA not executed",
+    "historical persisted canonical deadlines not corrected in I08"
+  ]
+}

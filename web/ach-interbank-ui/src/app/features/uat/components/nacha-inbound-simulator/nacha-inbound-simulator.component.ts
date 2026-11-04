@@ -32,7 +32,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize } from 'rxjs';
+import { finalize, forkJoin, Observable } from 'rxjs';
 import { SharedModule } from '../../../../shared/shared.module';
 import { NotificationService } from '../../../../core/services/notification.service';
 import {
@@ -56,7 +56,13 @@ import {
   NachaInboundSimulationResult,
   NachaInboundSimulationType,
   NachaInboundSimulatorService,
-  NachaSimulationMode
+  NachaSimulationMode,
+  PrenotificationCandidate,
+  PrenotificationContractRequest,
+  PrenotificationEligibilityPreview,
+  PrenotificationTacitPreview,
+  PrenotificationTacitApplyResult,
+  PrenotificationOutcome
 } from '../../services/nacha-inbound-simulator.service';
 
 const MONEY_PATTERN = /^\d+(?:[.,]\d{1,2})?$/;
@@ -131,6 +137,35 @@ export class NachaInboundSimulatorComponent implements OnInit {
   generating = false;
   previewing = false;
   hasLoadedHistory = false;
+  prenotificationFlow = false;
+  pnHouseCode = '';
+  pnSearch = '';
+  pnPage = 1;
+  readonly pnPageSize = 10;
+  pnTotal = 0;
+  pnLoading = false;
+  pnBusy = false;
+  pnOptionsLoading = false;
+  pnError: string | null = null;
+  pnCandidates: PrenotificationCandidate[] = [];
+  pnSelected: PrenotificationCandidate | null = null;
+  pnOutcome: PrenotificationOutcome = 'Returned';
+  pnReasonCode = '';
+  pnResponseCycleId = '';
+  pnReturnCodes: AchReturnCodeOption[] = [];
+  pnCycles: AvailableInboundCycle[] = [];
+  pnVirtualDateTime = '';
+  pnReturnPreview: PrenotificationEligibilityPreview | null = null;
+  pnTacitPreview: PrenotificationTacitPreview | null = null;
+  pnPreviewError: string | null = null;
+  pnGenerated: NachaInboundSimulationResult | null = null;
+  pnApplied: number | null = null;
+  private pnIdempotencyKey = '';
+  // I07: una consulta anterior no puede sobrescribir la cámara/búsqueda vigente.
+  private pnQueryVersion = 0;
+  private pnOptionsVersion = 0;
+  private pnPreviewVersion = 0;
+  downloadingId: number | null = null;
 
   simulations: NachaInboundSimulationItem[] = [];
   originFinancialInstitutions: DestinationInstitution[] = [];
@@ -184,8 +219,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
     { value: 'IncomingCreditConfirmation', label: 'Aceptación de crédito' },
     { value: 'IncomingCreditRejection', label: 'Rechazo de crédito' },
     { value: 'IncomingDebitConfirmation', label: 'Aceptación de débito' },
-    { value: 'IncomingDebitRejection', label: 'Rechazo de débito' },
-    { value: 'IncomingPrenotificationResponse', label: 'Respuesta de prenotificación' }
+    { value: 'IncomingDebitRejection', label: 'Rechazo de débito' }
   ];
   readonly responseModes: Array<{ value: InboundResponseMode; label: string }> = [
     { value: 'Approved', label: 'Aprobada' },
@@ -284,6 +318,303 @@ export class NachaInboundSimulatorComponent implements OnInit {
     this.loadHistory();
   }
 
+  // I06: flujo guiado sobre una sola prenotificación, dentro de la SPA existente.
+  openPrenotifications(): void {
+    this.prenotificationFlow = true;
+    this.pnHouseCode = this.form.controls.clearingHouseCode.value || this.clearingHouses[0]?.code || '';
+    this.pnSearch = '';
+    this.pnOutcome = 'Returned';
+    this.resetPnSelection();
+    this.loadPrenotifications();
+  }
+
+  closePrenotifications(): void {
+    this.prenotificationFlow = false;
+    this.pnQueryVersion++;
+    this.pnLoading = false;
+    this.pnCandidates = [];
+    this.pnTotal = 0;
+    this.resetPnSelection();
+  }
+
+  changePnHouse(code: string): void {
+    if (this.pnBusy) { return; }
+    this.pnHouseCode = code;
+    this.resetPnSelection();
+    this.pnCandidates = [];
+    this.loadPrenotifications();
+  }
+
+  loadPrenotifications(page = 1): void {
+    if (!this.pnHouseCode) {
+      this.pnCandidates = [];
+      this.pnTotal = 0;
+      return;
+    }
+    this.pnPage = Math.max(1, page);
+    const version = ++this.pnQueryVersion;
+    this.pnLoading = true;
+    this.pnError = null;
+    this.pnCandidates = [];
+    this.pnTotal = 0;
+    const house = this.pnHouseCode;
+    const search = this.pnSearch.trim();
+    this.api.listOriginatedPrenotifications({
+      clearingHouseCode: house,
+      search: search || undefined,
+      page: this.pnPage,
+      pageSize: this.pnPageSize
+    }).pipe(
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => {
+        if (version === this.pnQueryVersion) { this.pnLoading = false; }
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
+      next: (pageResult) => {
+        if (version !== this.pnQueryVersion || !this.prenotificationFlow
+            || house !== this.pnHouseCode || search !== this.pnSearch.trim()) { return; }
+        this.pnCandidates = pageResult.items ?? [];
+        this.pnTotal = pageResult.total;
+      },
+      error: (error: HttpErrorResponse) => {
+        if (version !== this.pnQueryVersion || !this.prenotificationFlow) { return; }
+        this.pnCandidates = [];
+        this.pnTotal = 0;
+        this.pnError = this.errorMessage(error, 'No se pudieron consultar las prenotificaciones.');
+      }
+    });
+  }
+
+  selectPrenotification(candidate: PrenotificationCandidate): void {
+    if (this.pnBusy || this.pnLoading) { return; }
+    this.resetPnSelection();
+    this.pnSelected = candidate;
+    this.pnIdempotencyKey = crypto.randomUUID();
+    this.loadPnOptions(candidate);
+  }
+
+  changePnOutcome(outcome: PrenotificationOutcome): void {
+    this.pnOutcome = outcome;
+    this.clearPnPreview();
+  }
+
+  changePnDetails(): void { this.clearPnPreview(); }
+
+  get pnApplicableCodes(): AchReturnCodeOption[] {
+    return this.pnReturnCodes.filter(code => code.isActive
+      && code.appliesToPrenotification && (code.flowType === 'Return' || code.flowType === 'Any'));
+  }
+
+  get pnCanPreview(): boolean {
+    if (!this.pnSelected || this.pnBusy || this.pnOptionsLoading) { return false; }
+    if (this.pnOutcome === 'Returned') {
+      return this.pnSelected.eligibleForReturn && !!this.pnReasonCode && !!this.pnResponseCycleId;
+    }
+    return this.pnSelected.violations.length === 0;
+  }
+
+  get pnCanCommit(): boolean {
+    if (!this.pnCanPreview || !!this.pnPreviewError || this.pnGenerated !== null || this.pnApplied !== null) {
+      return false;
+    }
+    return this.pnOutcome === 'Returned'
+      ? this.pnReturnPreview?.businessEligible === true
+      : !this.pnVirtualDateTime && this.pnTacitPreview?.executionEnabled === true
+        && this.pnTacitPreview.items.length === 1
+        && this.pnTacitPreview.items[0].eligibleAtRealTime;
+  }
+
+  previewPn(): void {
+    if (!this.pnCanPreview) { return; }
+    const payload = this.pnContract();
+    this.pnBusy = true;
+    this.clearPnPreview();
+    // La respuesta solo sirve para la seleccion, resultado y campos que se validaron.
+    const version = this.pnPreviewVersion;
+    const outcome = this.pnOutcome;
+    const selectedId = this.pnSelected?.originalPrenotificationId;
+    const houseCode = this.pnHouseCode;
+    const isCurrent = () => version === this.pnPreviewVersion
+      && this.prenotificationFlow
+      && this.pnSelected?.originalPrenotificationId === selectedId
+      && this.pnHouseCode === houseCode
+      && this.pnOutcome === outcome;
+    const virtual = outcome === 'NoReturnByDeadline' && this.pnVirtualDateTime
+      ? new Date(this.pnVirtualDateTime) : null;
+    if (virtual && Number.isNaN(virtual.getTime())) {
+      this.pnBusy = false;
+      this.pnPreviewError = 'Fecha de prueba inválida.';
+      return;
+    }
+    const request: Observable<PrenotificationEligibilityPreview | PrenotificationTacitPreview> = outcome === 'Returned'
+      ? this.api.previewPrenotificationReturn(payload)
+      : this.api.previewTacitAcceptance(payload, virtual?.toISOString() ?? null);
+    request.pipe(takeUntilDestroyed(this.destroyRef), finalize(() => {
+      this.pnBusy = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: (result) => {
+        if (!isCurrent()) { return; }
+        if (outcome === 'Returned') {
+          const preview = result as PrenotificationEligibilityPreview;
+          this.pnReturnPreview = preview;
+          this.pnPreviewError = preview.businessEligible ? null
+            : this.pnIssues(preview.violations.map(issue => issue.message));
+        } else {
+          const preview = result as PrenotificationTacitPreview;
+          this.pnTacitPreview = preview;
+          const issues = [...preview.violations, ...preview.items.flatMap(item => item.violations)];
+          this.pnPreviewError = issues.length ? this.pnIssues(issues.map(issue => issue.message)) : null;
+        }
+        this.cdr.markForCheck();
+      },
+      error: (error: HttpErrorResponse) => {
+        if (!isCurrent()) { return; }
+        this.pnPreviewError = this.errorMessage(error, 'No se pudo validar la prenotificación.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  confirmPn(): void {
+    if (!this.pnCanCommit) { return; }
+    const isReturn = this.pnOutcome === 'Returned';
+    const data: OperationalConfirmDialogData = {
+      title: isReturn ? 'Generar devolución de prenotificación' : 'Aplicar aceptación tácita',
+      message: isReturn
+        ? 'Se generará un archivo NACHA-M UAT, sin importarlo automáticamente. Descárguelo y cárguelo en NachaUpload.'
+        : 'Se actualizará el estado de la prenotificación en este entorno UAT únicamente si el plazo real venció. Esta acción no genera archivos.',
+      confirmLabel: isReturn ? 'Generar archivo' : 'Aplicar vencimiento',
+      icon: isReturn ? 'assignment_return' : 'schedule'
+    };
+    this.dialog.open(OperationalConfirmDialogComponent, {
+      data, width: 'min(92vw, 520px)', disableClose: true
+    }).afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(confirmed => {
+      if (confirmed && this.pnCanCommit) { this.executePn(); }
+    });
+  }
+
+  private executePn(): void {
+    this.pnBusy = true;
+    const isReturn = this.pnOutcome === 'Returned';
+    const request = this.pnContract();
+    const action: Observable<NachaInboundSimulationResult | PrenotificationTacitApplyResult> = isReturn
+      ? this.api.generatePrenotificationReturn(request)
+      : this.api.applyDueTacitAcceptance(request);
+    action.pipe(takeUntilDestroyed(this.destroyRef), finalize(() => {
+      this.pnBusy = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: (response) => {
+        if (isReturn) {
+          this.pnGenerated = response as NachaInboundSimulationResult;
+          this.notifications.success('Archivo generado. Descárguelo y procéselo mediante NachaUpload.');
+          this.loadHistory();
+        } else {
+          const applied = response as { applied: number; alreadyApplied: number };
+          this.pnApplied = applied.applied;
+          this.notifications.success(applied.applied ? 'Aceptación tácita aplicada.' : 'Resultado ya aplicado previamente.');
+        }
+        // El backend conserva la autoridad; refrescar elegibilidad después de la acción.
+        this.loadPrenotifications(this.pnPage);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.pnPreviewError = this.errorMessage(error, 'No se pudo completar la simulación.');
+        this.clearPnPreviewResults();
+      }
+    });
+  }
+
+  private loadPnOptions(candidate: PrenotificationCandidate): void {
+    const version = ++this.pnOptionsVersion;
+    this.pnOptionsLoading = true;
+    forkJoin({
+      codes: this.api.returnCodes(candidate.clearingHouseCode),
+      cycles: this.api.availableCycles({
+        clearingHouseCode: candidate.clearingHouseCode,
+        processingDate: candidate.originalBusinessDate,
+        scenarioType: 'IncomingPrenotificationReturn'
+      })
+    }).pipe(takeUntilDestroyed(this.destroyRef), finalize(() => {
+      if (version === this.pnOptionsVersion) { this.pnOptionsLoading = false; }
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: result => {
+        if (version !== this.pnOptionsVersion || !this.prenotificationFlow
+            || this.pnSelected?.originalPrenotificationId !== candidate.originalPrenotificationId
+            || this.pnHouseCode !== candidate.clearingHouseCode) { return; }
+        this.pnReturnCodes = result.codes ?? [];
+        this.pnCycles = (result.cycles ?? []).filter(cycle => cycle.cycleId !== candidate.originalCycleId);
+      },
+      error: (error: HttpErrorResponse) => {
+        if (version !== this.pnOptionsVersion || !this.prenotificationFlow) { return; }
+        this.pnPreviewError = this.errorMessage(error, 'No se pudieron cargar las causales o ciclos de devolución.');
+      }
+    });
+  }
+
+  private pnContract(): PrenotificationContractRequest {
+    const candidate = this.pnSelected!;
+    return {
+      outcome: this.pnOutcome,
+      clearingHouseCode: candidate.clearingHouseCode,
+      originalPrenotificationIds: [candidate.originalPrenotificationId],
+      originalCycleId: candidate.originalCycleId,
+      responseCycleId: this.pnOutcome === 'Returned' ? this.pnResponseCycleId : null,
+      businessDate: candidate.originalBusinessDate,
+      respondingFinancialInstitutionId: candidate.respondingFinancialInstitutionId,
+      reasonCode: this.pnOutcome === 'Returned' ? this.pnReasonCode : null,
+      idempotencyKey: this.pnOutcome === 'Returned' ? this.pnIdempotencyKey : null
+    };
+  }
+
+  resetPnSelectionForSearch(): void { this.resetPnSelection(); }
+
+  loadPnPage(page: number): void {
+    this.resetPnSelection();
+    this.loadPrenotifications(page);
+  }
+
+  pnIssuesText(candidate: PrenotificationCandidate): string {
+    if (candidate.violations.length) {
+      return this.pnIssues(candidate.violations.map(issue => issue.message));
+    }
+    return this.pnOutcome === 'Returned'
+      ? 'El plazo reglamentario de devolución ya venció. Puede revisar el resultado sin devolución.'
+      : 'Esta prenotificación no tiene un intento pendiente válido para simular el vencimiento.';
+  }
+
+  private resetPnSelection(): void {
+    this.pnOptionsVersion++;
+    this.pnOptionsLoading = false;
+    this.pnSelected = null;
+    this.pnReasonCode = '';
+    this.pnResponseCycleId = '';
+    this.pnReturnCodes = [];
+    this.pnCycles = [];
+    this.pnVirtualDateTime = '';
+    this.pnGenerated = null;
+    this.pnApplied = null;
+    this.pnIdempotencyKey = '';
+    this.clearPnPreview();
+  }
+
+  private clearPnPreview(): void {
+    this.pnPreviewVersion++;
+    this.clearPnPreviewResults();
+    this.pnPreviewError = null;
+  }
+
+  private clearPnPreviewResults(): void {
+    this.pnReturnPreview = null;
+    this.pnTacitPreview = null;
+  }
+
+  pnIssues(messages: string[]): string {
+    return messages.filter(Boolean).slice(0, 3).join(' · ') || 'La operación no es elegible.';
+  }
+
   loadFinancialInstitutions(): void {
     this.loadingInstitutions = true;
     this.institutionCatalogError = null;
@@ -329,6 +660,10 @@ export class NachaInboundSimulatorComponent implements OnInit {
       .subscribe({
         next: (items) => {
           this.clearingHouses = (items ?? []).filter((item) => !!item.code);
+          if (this.prenotificationFlow && !this.pnHouseCode) {
+            this.pnHouseCode = this.clearingHouses[0]?.code || '';
+            this.loadPrenotifications();
+          }
           if (!this.form.controls.clearingHouseCode.value && this.clearingHouses.length === 1) {
             this.form.controls.clearingHouseCode.setValue(this.clearingHouses[0].code ?? '');
             this.clearingHouseChanged();
@@ -688,8 +1023,27 @@ export class NachaInboundSimulatorComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
-  download(id: number): void {
-    window.open(this.api.downloadUrl(id), '_blank', 'noopener');
+  download(id: number, fileName?: string): void {
+    if (this.downloadingId !== null) { return; }
+    this.downloadingId = id;
+    this.api.downloadFile(id).pipe(
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => { this.downloadingId = null; this.cdr.markForCheck(); })
+    ).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (fileName || this.pnGenerated?.fileName || this.result?.fileName || `nacha-uat-${id}.txt`)
+          .replace(/[^a-zA-Z0-9._-]/g, '_');
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      error: (error: HttpErrorResponse) =>
+        this.notifications.error(this.errorMessage(error, 'No fue posible descargar el archivo.'))
+    });
   }
 
   goToUpload(): void {
@@ -786,6 +1140,8 @@ export class NachaInboundSimulatorComponent implements OnInit {
   }
 
   scenarioLabel(value: string): string {
+    if (value === 'IncomingPrenotificationReturn' || value === '10') { return 'Devolución de prenotificación'; }
+    if (value === 'IncomingPrenotificationResponse' || value === '3') { return 'Respuesta de prenotificación (legado)'; }
     return [...this.incomingScenarios, ...this.differentialScenarios]
       .find((item) => item.value === value)?.label ?? 'Respuesta de contraparte';
   }

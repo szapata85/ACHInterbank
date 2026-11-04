@@ -1,0 +1,594 @@
+--- I04/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs
++++ I05/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs
+@@ -61,6 +61,27 @@
+         => Ok(await _service.PreviewPrenotificationAsync(request, ct));
+ 
+     
++    [HttpPost("prenotifications/tacit-acceptance/preview")]
++    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
++    [EndpointDescription("I05: evalua sin efectos el vencimiento con reloj virtual opcional. No modifica transacciones, Quartz ni crea archivos NACHA-M.")]
++    [ProducesResponseType(typeof(PrenotificationTacitAcceptancePreviewResponse), StatusCodes.Status200OK)]
++    public async Task<ActionResult<PrenotificationTacitAcceptancePreviewResponse>> PreviewTacitAcceptance(
++        [FromBody] PrenotificationTacitAcceptancePreviewRequest request, CancellationToken ct)
++        => Ok(await _service.PreviewTacitAcceptanceAsync(request, ct));
++
++    [HttpPost("prenotifications/tacit-acceptance/apply-due")]
++    [Authorize(Policy = P1Policies.NachaSimulatorGenerateDifferential)]
++    [EndpointDescription("I05: UAT/local exclusivamente. Aplica mediante el motor canonico SOLO vencimientos reales elegibles, sin adelantar fechas ni crear NACHA-M; exige autorizacion de simulacion diferencial.")]
++    [ProducesResponseType(typeof(PrenotificationTacitAcceptanceApplyResponse), StatusCodes.Status200OK)]
++    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
++    public async Task<ActionResult<PrenotificationTacitAcceptanceApplyResponse>> ApplyDueTacitAcceptance(
++        [FromBody] PrenotificationSimulationContractRequest request, CancellationToken ct)
++    {
++        try { return Ok(await _service.ApplyDueTacitAcceptanceAsync(request, User?.Identity?.Name ?? "uat-local", ct)); }
++        catch (ArgumentException ex) { return BadRequest(ToProblem(ex.Message)); }
++        catch (InvalidOperationException ex) { return UnprocessableEntity(ToProblem(ex.Message)); }
++    }
++
+     [HttpPost("prenotifications/generate-return")]
+     [Authorize(Policy = P1Policies.NachaSimulatorGenerateDifferential)]
+     [EndpointDescription("I03: genera solo un archivo de devolucion NACHA-M de prenotificaciones SALIENTES verificadas. UAT/local, con idempotencia en base de datos, sin autoimportar ni cambiar estados. NoReturnByDeadline no genera archivo (I05).")]
+--- I04/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs
++++ I05/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs
+@@ -4,6 +4,8 @@
+ 
+ public interface INachaInboundSimulationService
+ {
++    Task<PrenotificationTacitAcceptancePreviewResponse> PreviewTacitAcceptanceAsync(PrenotificationTacitAcceptancePreviewRequest request, CancellationToken ct = default);
++    Task<PrenotificationTacitAcceptanceApplyResponse> ApplyDueTacitAcceptanceAsync(PrenotificationSimulationContractRequest request, string actor, CancellationToken ct = default);
+     Task<GenerateNachaInboundSimulationResponse> GeneratePrenotificationReturnAsync(PrenotificationSimulationContractRequest request, string userName, CancellationToken ct = default);
+     Task<PrenotificationCandidatePage> ListOriginatedPrenotificationsAsync(PrenotificationCandidateQuery request, CancellationToken ct = default);
+     Task<PrenotificationBusinessEligibilityPreviewResponse> PreviewPrenotificationAsync(PrenotificationSimulationContractRequest request, CancellationToken ct = default);
+--- I04/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs
++++ I05/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs
+@@ -214,6 +214,39 @@
+     IReadOnlyList<PrenotificationSimulationContractViolation> Violations,
+     IReadOnlyList<PrenotificationCandidateDto> Candidates);
+ 
++/// <summary>I05: reloj virtual limitado a la previsualizacion; jamas se escribe como hora de una transaccion.</summary>
++public sealed class PrenotificationTacitAcceptancePreviewRequest
++{
++    public PrenotificationSimulationContractRequest Contract { get; set; } = new();
++    public DateTimeOffset? EvaluationTimeUtc { get; set; }
++}
++
++public sealed record PrenotificationTacitAcceptanceItem(
++    int OriginalPrenotificationId,
++    DateTimeOffset? DeadlineAtUtc,
++    bool WouldApplyAtEvaluationTime,
++    bool EligibleAtRealTime,
++    string Decision,
++    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
++
++public sealed record PrenotificationTacitAcceptancePreviewResponse(
++    DateTimeOffset EvaluationTimeUtc,
++    DateTimeOffset RealTimeUtc,
++    bool IsVirtualTime,
++    bool ReadOnly,
++    bool ExecutionEnabled,
++    IReadOnlyList<PrenotificationTacitAcceptanceItem> Items,
++    IReadOnlyList<PrenotificationSimulationContractViolation> Violations);
++
++/// <summary>I05: solo permite confirmar vencimientos REALES en UAT, sin adelantar relojes.</summary>
++public sealed record PrenotificationTacitAcceptanceApplyResponse(
++    DateTimeOffset RealTimeUtc,
++    int Applied,
++    int AlreadyApplied,
++    IReadOnlyList<PrenotificationTacitAcceptanceItem> Items,
++    bool CreatesNachaFile,
++    bool ExternalTransmission);
++
+ public sealed class InboundSimulationEligibilityPreviewRequest : GenerateNachaInboundSimulationRequest;
+ 
+ public sealed record InboundSimulationEligibilityPreviewResponse(
+--- I04/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs
++++ I05/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs
+@@ -19,6 +19,7 @@
+     private readonly IAchStateTransitionService _stateTransitionService;
+     private readonly IClearingHouseValidationPolicyService _validationPolicyService;
+     private readonly ILogger<AchTacitAcceptanceJobHandler> _log;
++    private readonly TimeProvider _timeProvider;
+ 
+     public string Code => "AchTacitAcceptanceJob";
+ 
+@@ -26,17 +27,19 @@
+         AchDbContext db,
+         IAchStateTransitionService stateTransitionService,
+         IClearingHouseValidationPolicyService validationPolicyService,
+-        ILogger<AchTacitAcceptanceJobHandler> log)
++        ILogger<AchTacitAcceptanceJobHandler> log,
++        TimeProvider? timeProvider = null)
+     {
+         _db = db;
+         _stateTransitionService = stateTransitionService;
+         _validationPolicyService = validationPolicyService;
+         _log = log;
++        _timeProvider = timeProvider ?? TimeProvider.System;
+     }
+ 
+     public async Task<string> ExecuteAsync(TaskDefinition task, CancellationToken cancellationToken)
+     {
+-        var utcNow = DateTimeOffset.UtcNow;
++        var utcNow = _timeProvider.GetUtcNow();
+         var batchSize = ParsePositiveInt(task, "BatchSize", 500);
+ 
+         // Canonical TPA3 attempts carry their own response deadline. This deadline is deliberately
+--- I04/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
++++ I05/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
+@@ -28,6 +28,8 @@
+     private readonly IAchReturnTraceSequenceService _returnTraceSequenceService;
+     private readonly ITransactionValidator _transactionValidator;
+     private readonly TimeProvider _timeProvider;
++    private readonly IAchStateTransitionService? _stateTransitionService;
++    private readonly Microsoft.Extensions.Hosting.IHostEnvironment? _hostEnvironment;
+ 
+     public NachaInboundSimulationService(
+         AchDbContext context,
+@@ -37,7 +39,9 @@
+         IAchRegulatoryCatalogService? regulatoryCatalogService = null,
+         IAchReturnTraceSequenceService? returnTraceSequenceService = null,
+         ITransactionValidator? transactionValidator = null,
+-        TimeProvider? timeProvider = null)
++        TimeProvider? timeProvider = null,
++        IAchStateTransitionService? stateTransitionService = null,
++        Microsoft.Extensions.Hosting.IHostEnvironment? hostEnvironment = null)
+     {
+         _context = context;
+         _options = options.Value;
+@@ -47,6 +51,8 @@
+         _returnTraceSequenceService = returnTraceSequenceService ?? new AchReturnTraceSequenceService(context);
+         _transactionValidator = transactionValidator ?? new TransactionValidator(context);
+         _timeProvider = timeProvider ?? TimeProvider.System;
++        _stateTransitionService = stateTransitionService;
++        _hostEnvironment = hostEnvironment;
+     }
+ 
+     public async Task<GenerateNachaInboundSimulationResponse> GenerateAsync(GenerateNachaInboundSimulationRequest request, string userName, CancellationToken ct = default)
+--- /dev/null
++++ I05/ACHInterbank_ajustado/scripts/test/prenotification_simulator_i05_static_check.py
+@@ -0,0 +1,53 @@
++"""I05 static invariants. NOT compilation, tests of DB semantics or runtime certification."""
++from pathlib import Path
++root = Path(__file__).resolve().parents[2]
++read = lambda p: (root / p).read_text(encoding='utf-8-sig')
++service = read('src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.TacitAcceptance.cs')
++job = read('src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchTacitAcceptanceJobHandler.cs')
++models = read('src/Cfa.ACHInterbank.Application/ACH/Models/NachaInboundSimulationModels.cs')
++controller = read('src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs')
++interface = read('src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaInboundSimulationService.cs')
++policy = read('src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationTacitAcceptanceDecision.cs')
++tests = read('tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorTacitAcceptanceI05Tests.cs')
++checks = {
++    'preview route': 'prenotifications/tacit-acceptance/preview' in controller,
++    'apply route': 'prenotifications/tacit-acceptance/apply-due' in controller,
++    'preview permission': controller.count('P1Policies.NachaSimulatorRead') >= 2,
++    'apply differential permission': controller.count('P1Policies.NachaSimulatorGenerateDifferential') >= 2,
++    'preview API': 'PreviewTacitAcceptanceAsync' in interface,
++    'apply API': 'ApplyDueTacitAcceptanceAsync' in interface,
++    'clock is read only': 'IsVirtualTime' in models and 'bool ReadOnly' in models,
++    'virtual time range limit': 'SIMULATED_TIME_OUT_OF_RANGE' in service,
++    'virtual preview uses no state transition': '_stateTransitionService.TransitionAsync' not in service.split('public async Task<PrenotificationTacitAcceptanceApplyResponse>')[0],
++    'real time from provider': 'var realNow = _timeProvider.GetUtcNow();' in service,
++    'job uses provider': 'var utcNow = _timeProvider.GetUtcNow();' in job,
++    'job still uses canonical deadline': 'x.ResponseDeadlineAtUtc.Value <= utcNow' in job,
++    'job protects effective policy': 'x.ThirdPartyAccountValidation.PolicyRule.TacitAcceptanceEnabled' in job,
++    'job compatibility legacy': 'legacyCandidates' in job,
++    'no NACHA file in apply': 'false, false);' in service,
++    'apply uses physical clock': 'var now = DateTimeOffset.UtcNow;' in service,
++    'apply cross checks actual deadline': 'x.DeadlineAtUtc.Value > now' in service,
++    'apply non-production gate': '_hostEnvironment.IsProduction()' in service,
++    'apply UAT gate': '_options.IsUatLike()' in service,
++    'apply no external': '_options.AllowExternalTransmission' in service,
++    'apply no autoimport': '_options.AllowAutoImport' in service,
++    'apply transaction': 'IsolationLevel.Serializable' in service,
++    'apply revalidates': 'PreviewTacitAcceptanceAsync(new()' in service,
++    'uses official state service': '_stateTransitionService.TransitionAsync' in service,
++    'state target tacit': 'AchTransferStateEnum.AppliedTacitly' in service,
++    'prohibits duplicate prior return': 'RETURN_SIMULATION_ALREADY_GENERATED' in service,
++    'requires rule enabled': 'TACIT_POLICY_DISABLED' in service,
++    'requires real deadline': 'EligibleAtRealTime' in service,
++    'requires matching original bank': 'RespondingFinancialInstitutionId' in service,
++    'requires matching business date': 'TACIT_BUSINESS_DATE_MISMATCH' in service,
++    'no mixed terminal': 'TACIT_MIXED_TERMINAL_STATES' in service,
++    'stable idempotency': 'uat-prenotification-tacit:{id}:{attempt}' in service,
++    'pure decision': 'public static bool IsDue' in policy,
++    'deadline exact boundary tests': 'Deadline.AddTicks(-1)' in tests,
++    'generated return block tested': 'GeneratedReturnBlocksTacit' in tests,
++    'contract no fictitious response': 'NO_RETURN_HAS_NO_RESPONSE_CYCLE' in tests,
++}
++for name, passed in checks.items():
++    print(f'{"PASS_STATIC" if passed else "FAIL"}: {name}')
++print(f'RESULT: {sum(checks.values())}/{len(checks)} PASS_STATIC')
++raise SystemExit(0 if all(checks.values()) else 1)
+--- /dev/null
++++ I05/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Services/PrenotificationTacitAcceptanceDecision.cs
+@@ -0,0 +1,10 @@
++namespace Cfa.ACHInterbank.Application.ACH.Services;
++
++/// <summary>I05: regla temporal pura; no cambia la fecha del sistema ni persiste estados.</summary>
++public static class PrenotificationTacitAcceptanceDecision
++{
++    public static bool IsDue(DateTimeOffset? canonicalDeadlineAtUtc, DateTimeOffset evaluationTimeUtc,
++        bool commonEligibility, bool effectivePolicyEnabled, bool hasGeneratedReturn)
++        => canonicalDeadlineAtUtc.HasValue && evaluationTimeUtc >= canonicalDeadlineAtUtc.Value
++           && commonEligibility && effectivePolicyEnabled && !hasGeneratedReturn;
++}
+--- /dev/null
++++ I05/ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.TacitAcceptance.cs
+@@ -0,0 +1,181 @@
++using System.Data;
++using System.Text.Json;
++using Cfa.ACHInterbank.Application.ACH.Models;
++using Cfa.ACHInterbank.Application.ACH.Services;
++using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
++using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.Extensions.Hosting;
++
++namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
++
++/// <summary>
++/// I05: previsualizacion con tiempo virtual exclusivamente read-only.
++/// La aplicacion usa SOLAMENTE la hora real del servidor y el motor canonico de estados.
++/// No altera fecha de BD, vencimientos, Quartz ni fabrica un archivo de aprobacion.
++/// </summary>
++public sealed partial class NachaInboundSimulationService
++{
++    public async Task<PrenotificationTacitAcceptancePreviewResponse> PreviewTacitAcceptanceAsync(
++        PrenotificationTacitAcceptancePreviewRequest request, CancellationToken ct = default)
++    {
++        ArgumentNullException.ThrowIfNull(request);
++        ArgumentNullException.ThrowIfNull(request.Contract);
++        var realNow = _timeProvider.GetUtcNow();
++        var evaluationTime = request.EvaluationTimeUtc?.ToUniversalTime() ?? realNow;
++        var problems = new List<PrenotificationSimulationContractViolation>();
++        var shape = PrenotificationSimulationContract.Validate(request.Contract);
++        problems.AddRange(shape.Violations);
++        if (request.Contract.Outcome != PrenotificationSimulationOutcome.NoReturnByDeadline)
++            problems.Add(new("TACIT_OUTCOME_REQUIRED", "Outcome", "La aceptacion tacita no representa una devolucion."));
++        if ((evaluationTime - realNow).Duration() > TimeSpan.FromDays(366))
++            problems.Add(new("SIMULATED_TIME_OUT_OF_RANGE", "EvaluationTimeUtc", "El reloj virtual debe estar dentro de 366 dias de la hora real."));
++        if (!_options.IsUatLike() || !_options.DifferentialResponsesEnabled)
++            problems.Add(new("SIMULATOR_UNAVAILABLE", "Outcome", "Solo se permite en simulador UAT/local configurado."));
++        if (!shape.ShapeValid || problems.Count > 0)
++            return new(evaluationTime, realNow, request.EvaluationTimeUtc.HasValue, true, false, [], problems);
++
++        var preflight = await PreviewPrenotificationAsync(request.Contract, ct);
++        // El preflight I02 usa reloj REAL: en la vista virtual solamente se sustituye
++        // PRENOTIFICATION_DEADLINE_NOT_REACHED, nunca un control de seguridad/correlacion.
++        problems.AddRange(preflight.Violations.Where(v => v.Code != "PRENOTIFICATION_DEADLINE_NOT_REACHED"));
++        if (preflight.Candidates.Any(x => x.OriginalBusinessDate != request.Contract.BusinessDate))
++            problems.Add(new("TACIT_BUSINESS_DATE_MISMATCH", "BusinessDate", "La fecha indicada no corresponde a la prenotificacion original."));
++        var ids = request.Contract.OriginalPrenotificationIds.ToArray();
++        var rules = await _context.PrenotificationValidationAttempts.AsNoTracking()
++            .Where(x => x.AchTransactionId.HasValue && ids.Contains(x.AchTransactionId.Value)
++                        && x.ThirdPartyAccountValidation.CurrentAttemptId == x.Id)
++            .Select(x => new
++            {
++                TransactionId = x.AchTransactionId!.Value,
++                Enabled = x.ThirdPartyAccountValidation.PolicyRule != null
++                          && x.ThirdPartyAccountValidation.PolicyRule.TacitAcceptanceEnabled
++            }).ToListAsync(ct);
++        var priorReturnIds = await _context.NachaInboundSimulationEntries.AsNoTracking()
++            .Where(x => x.TransactionId.HasValue && ids.Contains(x.TransactionId.Value)
++                        && x.Simulation.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn
++                        && x.Simulation.Status != NachaInboundSimulationStatus.Failed
++                        && x.Simulation.Status != NachaInboundSimulationStatus.Blocked)
++            .Select(x => x.TransactionId!.Value).Distinct().ToListAsync(ct);
++        var priorReturns = priorReturnIds.ToHashSet();
++        var items = new List<PrenotificationTacitAcceptanceItem>();
++        foreach (var id in ids)
++        {
++            var candidate = preflight.Candidates.SingleOrDefault(x => x.OriginalPrenotificationId == id);
++            var issues = candidate?.Violations.ToList() ?? new List<PrenotificationSimulationContractViolation>();
++            if (candidate is null)
++                issues.Add(new("PRENOTIFICATION_NOT_FOUND", "OriginalPrenotificationIds", $"Prenotificacion {id} no encontrada."));
++            if (!rules.Any(x => x.TransactionId == id && x.Enabled))
++                issues.Add(new("TACIT_POLICY_DISABLED", "OriginalPrenotificationIds", $"La politica canonica vigente no permite aceptacion tacita para {id}."));
++            if (priorReturns.Contains(id))
++                issues.Add(new("RETURN_SIMULATION_ALREADY_GENERATED", "OriginalPrenotificationIds", $"Existe devolucion simulada pendiente o generada para {id}."));
++            var deadline = candidate?.ResponseDeadlineAtUtc;
++            var structurallyValid = issues.Count == 0 && problems.Count == 0 && deadline.HasValue;
++            var virtualDue = PrenotificationTacitAcceptanceDecision.IsDue(
++                deadline, evaluationTime, issues.Count == 0 && problems.Count == 0,
++                rules.Any(x => x.TransactionId == id && x.Enabled), priorReturns.Contains(id));
++            var realDue = PrenotificationTacitAcceptanceDecision.IsDue(
++                deadline, realNow, issues.Count == 0 && problems.Count == 0,
++                rules.Any(x => x.TransactionId == id && x.Enabled), priorReturns.Contains(id));
++            items.Add(new(id, deadline, virtualDue, realDue,
++                !structurallyValid ? "Blocked" : virtualDue ? "WouldApply" : "DeadlineNotReached", issues));
++        }
++        return new(evaluationTime, realNow, request.EvaluationTimeUtc.HasValue, true,
++            _hostEnvironment is not null && !_hostEnvironment.IsProduction(), items, problems);
++    }
++
++    public async Task<PrenotificationTacitAcceptanceApplyResponse> ApplyDueTacitAcceptanceAsync(
++        PrenotificationSimulationContractRequest request, string actor, CancellationToken ct = default)
++    {
++        ArgumentNullException.ThrowIfNull(request);
++        if (_hostEnvironment is null || _hostEnvironment.IsProduction()
++            || !_options.IsUatLike() || !_options.DifferentialResponsesEnabled
++            || _options.AllowExternalTransmission || _options.AllowAutoImport
++            || _stateTransitionService is null)
++            throw new InvalidOperationException("TACIT_EXECUTION_DISABLED: Solo es posible aplicar vencimientos reales en UAT/local con el motor canonico disponible.");
++        var shape = PrenotificationSimulationContract.Validate(request);
++        if (!shape.ShapeValid || request.Outcome != PrenotificationSimulationOutcome.NoReturnByDeadline)
++            throw new ArgumentException("TACIT_CONTRACT_INVALID: Solicitud de aceptacion tacita invalida.");
++        if (request.OriginalPrenotificationIds.Count > _options.MaxEntriesPerSimulation)
++            throw new InvalidOperationException("TACIT_BATCH_TOO_LARGE: Excede el maximo del simulador.");
++
++        // SERIALIZABLE y la llave funcional por intento evitan aplicar el mismo resultado
++        // dos veces desde el simulador. El job normal sigue siendo la fuente productiva.
++        await using var tx = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
++        var ids = request.OriginalPrenotificationIds.ToArray();
++        var originalRows = await _context.AchTransactions.AsNoTracking()
++            .Where(x => ids.Contains(x.Id))
++            .Select(x => new
++            {
++                x.Id, x.State, x.IsPrenotification, x.AchCycleId, x.DestinationInstitutionId,
++                ClearingHouseCode = x.AchCycle.ClearingHouse.Code,
++                x.Direction, x.Origin,
++                OriginDefault = x.SourceInstitution.IsDefaultSource,
++                DestinationExternal = !x.DestinationInstitution.IsDefaultSource
++            }).ToListAsync(ct);
++        if (originalRows.Count != ids.Length || originalRows.Any(x =>
++            !x.IsPrenotification || !x.OriginDefault || !x.DestinationExternal
++            || x.Direction == AchTransactionDirection.Incoming || x.Origin == AchTransactionOrigin.ExternalInstitution
++            || x.AchCycleId != request.OriginalCycleId
++            || x.DestinationInstitutionId != request.RespondingFinancialInstitutionId
++            || !x.ClearingHouseCode.Equals(request.ClearingHouseCode, StringComparison.OrdinalIgnoreCase)))
++            throw new InvalidOperationException("TACIT_ORIGINAL_MISMATCH: Camara, banco, origen o ciclo original no coinciden.");
++        var alreadyApplied = originalRows.Where(x => x.State == AchTransferStateEnum.AppliedTacitly)
++            .Select(x => x.Id).ToHashSet();
++        if (originalRows.Any(x => x.State != AchTransferStateEnum.Pending
++                                  && x.State != AchTransferStateEnum.AppliedTacitly))
++            throw new InvalidOperationException("TACIT_ORIGINAL_TERMINAL: La seleccion incluye estados incompatibles.");
++
++        if (alreadyApplied.Count > 0 && alreadyApplied.Count != ids.Length)
++            throw new InvalidOperationException("TACIT_MIXED_TERMINAL_STATES: No mezclar prenotificaciones ya aplicadas con pendientes.");
++        var pendingIds = ids.Where(x => !alreadyApplied.Contains(x)).ToArray();
++        var items = new List<PrenotificationTacitAcceptanceItem>();
++        // apply-due nunca toma el reloj virtual/injectable: solo el reloj real del host.
++        var now = DateTimeOffset.UtcNow;
++        if (pendingIds.Length > 0)
++        {
++            // Vista previa por TODA la seleccion mientras se conserva la misma transaccion.
++            // La elegibilidad se vuelve a calcular justo antes de la transicion.
++            var preview = await PreviewTacitAcceptanceAsync(new()
++            {
++                Contract = request
++            }, ct);
++            if (preview.Violations.Count != 0 || preview.Items.Any(x =>
++                    pendingIds.Contains(x.OriginalPrenotificationId)
++                    && (!x.EligibleAtRealTime || !x.DeadlineAtUtc.HasValue || x.DeadlineAtUtc.Value > now)))
++                throw new InvalidOperationException("TACIT_NOT_DUE_OR_INELIGIBLE: " +
++                    string.Join(",", preview.Violations.Select(x => x.Code)
++                        .Concat(preview.Items.Where(x => pendingIds.Contains(x.OriginalPrenotificationId))
++                            .SelectMany(x => x.Violations.Select(v => v.Code))).Distinct()));
++            foreach (var id in pendingIds)
++            {
++                var item = preview.Items.Single(x => x.OriginalPrenotificationId == id);
++                var attempt = await _context.PrenotificationValidationAttempts.AsNoTracking()
++                    .Where(x => x.AchTransactionId == id
++                                && x.ThirdPartyAccountValidation.CurrentAttemptId == x.Id)
++                    .Select(x => x.Id).SingleAsync(ct);
++                var clearingHouseId = await _context.AchTransactions.AsNoTracking()
++                    .Where(x => x.Id == id).Select(x => x.AchCycle.ClearingHouseId).SingleAsync(ct);
++                var result = await _stateTransitionService.TransitionAsync(new AchStateTransitionRequest(
++                    id, AchTransferStateEnum.AppliedTacitly, AchStateEventSourceEnum.System,
++                    PayloadJson: JsonSerializer.Serialize(new
++                    {
++                        origin = "uat-prenotification-tacit-acceptance",
++                        actor = string.IsNullOrWhiteSpace(actor) ? "uat-local" : actor,
++                        deadlineAuthority = "clearing-house-policy",
++                        realNowUtc = now,
++                        originalPrenotificationId = id
++                    }),
++                    ChangedAtUtc: now.UtcDateTime,
++                    IdempotencyKey: $"uat-prenotification-tacit:{id}:{attempt}",
++                    ClearingHouseId: clearingHouseId), ct);
++                items.Add(item with { Decision = result.Applied ? "Applied" : "AlreadyApplied" });
++            }
++        }
++        foreach (var id in alreadyApplied)
++            items.Add(new(id, null, false, false, "AlreadyApplied", []));
++        await tx.CommitAsync(ct);
++        return new(now, items.Count(x => x.Decision == "Applied"),
++            items.Count(x => x.Decision == "AlreadyApplied"), items, false, false);
++    }
++}
+--- /dev/null
++++ I05/ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/PrenotificationSimulatorTacitAcceptanceI05Tests.cs
+@@ -0,0 +1,192 @@
++using Cfa.ACHInterbank.Domain.Models.ACH;
++using Microsoft.EntityFrameworkCore;
++using Cfa.ACHInterbank.Application.ACH.Models;
++using Cfa.ACHInterbank.Application.ACH.Services;
++using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
++using Xunit;
++
++namespace Cfa.ACHInterbank.Tests;
++
++public sealed class PrenotificationSimulatorTacitAcceptanceI05Tests
++{
++    private static readonly DateTimeOffset Deadline = new(2026, 11, 2, 17, 15, 0, TimeSpan.Zero);
++
++    [Theory]
++    [InlineData("ACHCOL")]
++    [InlineData("CENIT")]
++    public void DeadlineBoundary_WaitsBefore_AndAllowsAtExactDeadline(string house)
++    {
++        Assert.False(PrenotificationTacitAcceptanceDecision.IsDue(Deadline,
++            Deadline.AddTicks(-1), true, true, false));
++        Assert.True(PrenotificationTacitAcceptanceDecision.IsDue(Deadline,
++            Deadline, true, true, false));
++        Assert.True(PrenotificationTacitAcceptanceDecision.IsDue(Deadline,
++            Deadline.AddMinutes(1), true, true, false));
++        Assert.Contains(house, new[] { "ACHCOL", "CENIT" });
++    }
++
++    [Fact]
++    public void WithoutCanonicalDeadline_OrEffectiveEnabledPolicy_NeverAllowsTacit()
++    {
++        Assert.False(PrenotificationTacitAcceptanceDecision.IsDue(null, Deadline.AddDays(30), true, true, false));
++        Assert.False(PrenotificationTacitAcceptanceDecision.IsDue(Deadline, Deadline, true, false, false));
++        Assert.False(PrenotificationTacitAcceptanceDecision.IsDue(Deadline, Deadline, false, true, false));
++    }
++
++    [Fact]
++    public void GeneratedReturnBlocksTacitEvenAfterDeadline()
++        => Assert.False(PrenotificationTacitAcceptanceDecision.IsDue(
++            Deadline, Deadline.AddDays(1), true, true, true));
++
++    [Fact]
++    public void NoReturnContractDoesNotDeclareReturnFileOrCause()
++    {
++        var request = new PrenotificationSimulationContractRequest
++        {
++            Outcome = PrenotificationSimulationOutcome.NoReturnByDeadline,
++            ClearingHouseCode = "CENIT", OriginalPrenotificationIds = [42],
++            OriginalCycleId = "CENIT-CYCLE-01", BusinessDate = new DateOnly(2026, 11, 2),
++            RespondingFinancialInstitutionId = 5
++        };
++        Assert.True(PrenotificationSimulationContract.Validate(request).ShapeValid);
++        request.ResponseCycleId = "CENIT-CYCLE-02";
++        Assert.Contains(PrenotificationSimulationContract.Validate(request).Violations,
++            x => x.Code == "NO_RETURN_HAS_NO_RESPONSE_CYCLE");
++        request.ResponseCycleId = null;
++        request.ReasonCode = "R04";
++        Assert.Contains(PrenotificationSimulationContract.Validate(request).Violations,
++            x => x.Code == "NO_RETURN_HAS_NO_REASON");
++    }
++}
++
++public partial class NachaInboundSimulatorTests
++{
++    [Fact]
++    public async Task I05_ApplyWithoutExplicitUatHost_IsFailClosed()
++    {
++        await using var context = CreateContext();
++        Seed(context);
++        var simulator = CreateService(context, CreateTempOutput());
++        var request = new PrenotificationSimulationContractRequest
++        {
++            Outcome = PrenotificationSimulationOutcome.NoReturnByDeadline,
++            ClearingHouseCode = "ACHCOL", OriginalCycleId = "ACH-CYCLE",
++            OriginalPrenotificationIds = [1001], BusinessDate = new DateOnly(2026, 5, 20),
++            RespondingFinancialInstitutionId = 2
++        };
++        var error = await Assert.ThrowsAsync<InvalidOperationException>(
++            () => simulator.ApplyDueTacitAcceptanceAsync(request, "uat"));
++        Assert.Contains("TACIT_EXECUTION_DISABLED", error.Message);
++        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
++    }
++
++    [Theory]
++    [InlineData("ACHCOL", "ACH-CYCLE", 1, 2, 1001)]
++    [InlineData("CENIT", "CENIT-CYCLE", 2, 3, 1002)]
++    public async Task I05_VirtualClockPreview_IsReadOnlyForBothHouses(
++        string house, string cycleId, int houseId, int recipientId, int id)
++    {
++        await using var context = CreateContext();
++        Seed(context);
++        var original = TestTransaction(id, cycleId, houseId,
++            TransactionTypeEnum.Prenotification, 1, recipientId);
++        original.IsPrenotification = true;
++        original.Amount = 0;
++        original.TransactionCode = "23";
++        context.AchTransactions.Add(original);
++        var rule = new Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseTransactionRule
++        {
++            ClearingHouseId = houseId,
++            TransactionNature = TransactionNature.Credit,
++            TransactionType = TransactionTypeEnum.Credit,
++            TacitAcceptanceEnabled = true,
++            EffectiveFrom = new DateTime(2026, 1, 1), IsActive = true
++        };
++        var account = new Cfa.ACHInterbank.Domain.Models.ACH.ThirdPartyAccount
++        {
++            ThirdParty = new Cfa.ACHInterbank.Domain.Models.ACH.ThirdParty
++            {
++                Customer = new Cfa.ACHInterbank.Domain.Models.ACH.Customer
++                {
++                    FirstName = "Uat", LastName = "Prenote", PersonType = "PJ",
++                    DocumentType = "NIT", DocumentNumber = $"9001{id}"
++                },
++                PersonType = "PJ", DocumentType = "NIT", DocumentNumberNormalized = $"9001{id}",
++                DisplayName = "Cuenta UAT"
++            },
++            FinancialInstitutionId = recipientId,
++            AccountType = AccountTypeEnum.Savings,
++            AccountNumberNormalized = $"12345{id}"
++        };
++        var validation = new Cfa.ACHInterbank.Domain.Models.ACH.ThirdPartyAccountValidation
++        {
++            ThirdPartyAccount = account, ClearingHouseId = houseId, PolicyRule = rule,
++            TransactionNature = TransactionNature.Credit,
++            Status = ThirdPartyAccountValidationStatus.PendingResponse,
++            EffectiveDate = new DateTime(2026, 5, 20)
++        };
++        context.ThirdPartyAccountValidations.Add(validation);
++        await context.SaveChangesAsync();
++        var deadline = new DateTimeOffset(2026, 5, 20, 23, 0, 0, TimeSpan.Zero);
++        var attempt = new Cfa.ACHInterbank.Domain.Models.ACH.PrenotificationValidationAttempt
++        {
++            ThirdPartyAccountValidationId = validation.Id, AchTransactionId = id,
++            AttemptNumber = 1, IdempotencyKey = $"i05-{id}",
++            Status = PrenotificationValidationAttemptStatus.AwaitingResponse,
++            Resolution = PrenotificationValidationResolution.None,
++            SourceCycleId = cycleId,
++            SentAtUtc = deadline.AddHours(-2), ResponseDeadlineAtUtc = deadline
++        };
++        context.PrenotificationValidationAttempts.Add(attempt);
++        await context.SaveChangesAsync();
++        validation.CurrentAttemptId = attempt.Id;
++        context.AchFileExports.Add(new Cfa.ACHInterbank.Domain.Models.ACH.AchFileExport
++        {
++            AchCycleId = cycleId, ClearingHouseId = houseId,
++            ExportKind = "NACHA", FileName = "i05-uat.nacha",
++            LifecycleStatus = AchFileExportLifecycleStatus.Transmitted,
++            Transactions =
++            [
++                new Cfa.ACHInterbank.Domain.Models.ACH.AchFileExportTransaction
++                {
++                    AchTransactionId = id, AchCycleId = cycleId, AchBatchId = houseId,
++                    TraceNumber = original.TraceNumber, Amount = 0,
++                    IncludedAtUtc = new DateTime(2026, 5, 20, 12, 0, 0, DateTimeKind.Utc)
++                }
++            ]
++        });
++        await context.SaveChangesAsync();
++        context.ChangeTracker.Clear();
++        var clock = new Cfa.ACHInterbank.Tests.TestSupport.FixedTimeProvider(
++            deadline.AddMinutes(-30), TimeZoneInfo.Utc);
++        var simulator = new Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.NachaInboundSimulationService(
++            context, Microsoft.Extensions.Options.Options.Create(
++                new Cfa.ACHInterbank.Application.ACH.Configuration.NachaInboundSimulatorOptions
++                {
++                    Enabled = true, Mode = "UAT", DifferentialResponsesEnabled = true,
++                    AllowedClearingHouses = ["ACHCOL", "CENIT"]
++                }), timeProvider: clock);
++        var contract = new PrenotificationSimulationContractRequest
++        {
++            Outcome = PrenotificationSimulationOutcome.NoReturnByDeadline,
++            ClearingHouseCode = house, OriginalPrenotificationIds = [id],
++            OriginalCycleId = cycleId, BusinessDate = new DateOnly(2026, 5, 20),
++            RespondingFinancialInstitutionId = recipientId
++        };
++        var before = await simulator.PreviewTacitAcceptanceAsync(new()
++        {
++            Contract = contract, EvaluationTimeUtc = deadline.AddTicks(-1)
++        });
++        var after = await simulator.PreviewTacitAcceptanceAsync(new()
++        {
++            Contract = contract, EvaluationTimeUtc = deadline
++        });
++        Assert.False(Assert.Single(before.Items).WouldApplyAtEvaluationTime);
++        Assert.True(Assert.Single(after.Items).WouldApplyAtEvaluationTime);
++        Assert.False(Assert.Single(after.Items).EligibleAtRealTime);
++        Assert.True(after.ReadOnly);
++        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
++        Assert.Equal(AchTransferStateEnum.Pending,
++            (await context.AchTransactions.SingleAsync(x => x.Id == id)).State);
++    }
++}

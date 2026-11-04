@@ -1,0 +1,46 @@
+{
+  "increment": "I07-R1",
+  "date": "2026-11-02",
+  "base_zip": "ACHInterbank_COMPLETO_SIMULADOR_PRENOTIFICACIONES_I07_2026-11-02.zip",
+  "checks": {
+    "solution_graph": {
+      "status": "PASS",
+      "total": 7,
+      "passed": 7
+    },
+    "static_I01_I07": {
+      "status": "PASS_STATIC",
+      "total": 200,
+      "passed": 200
+    },
+    "static_I07R1": {
+      "status": "PASS_STATIC",
+      "total": 20,
+      "passed": 20
+    },
+    "typescript_syntax": {
+      "status": "PASS_SYNTAX_ONLY",
+      "total": 2,
+      "passed": 2
+    },
+    "dotnet": {
+      "status": "NOT_EXECUTED_ENVIRONMENT",
+      "reason": "dotnet command not found"
+    },
+    "npm_ci_offline": {
+      "status": "BLOCKED_ENVIRONMENT",
+      "reason": "ENOTCACHED zone.js@0.16.3"
+    },
+    "runtime_PRE": {
+      "status": "NOT_EXECUTED",
+      "total": 14,
+      "passed": 0
+    }
+  },
+  "claims_limited_to": "Source changes and static/syntax checks; NOT runtime certification",
+  "modified_runtime_files": [
+    "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs",
+    "src/Cfa.ACHInterbank.Api/Controllers/NachaInboundSimulatorController.cs",
+    "web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts"
+  ]
+}

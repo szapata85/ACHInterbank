@@ -32,6 +32,7 @@ internal sealed class NachaInboundValidator
     }
 
     private readonly IReadOnlyDictionary<string, AchFileRejectionCode> _rejectionCatalog;
+    private bool _isCenitNachaProfile;
 
     internal NachaInboundValidator(IReadOnlyDictionary<string, AchFileRejectionCode> rejectionCatalog)
     {
@@ -53,8 +54,20 @@ internal sealed class NachaInboundValidator
             ? publishedAuthority.HasT6AddendaCount
             : CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode);
 
-        return new NachaInboundValidationContext(publishedAuthority, isCenitInboundProfile, isCenitCtxInboundProfile);
+        var isCenitNachaProfile = publishedAuthority?.IsCenit == true
+            || IsCenitNachaProfileCode(profileReader?.ProfileCode);
+        return new NachaInboundValidationContext(publishedAuthority, isCenitInboundProfile, isCenitCtxInboundProfile, isCenitNachaProfile);
     }
+
+    // CENIT NACHA-M is not the STA file-transfer service. Keep the STA Dxx catalogue
+    // available to its own consumers, but never expose those causes for NACHA failures.
+    internal void SelectNachaErrorDomain(bool isCenitNachaProfile)
+        => _isCenitNachaProfile = isCenitNachaProfile;
+
+    internal static bool IsCenitNachaProfileCode(string? profileCode)
+        => CenitOrdinaryInbound2026Layout.IsProfile(profileCode)
+           || CenitReturnIn2026Layout.IsProfile(profileCode)
+           || CenitReturnOfReturn2026Layout.IsProfile(profileCode);
 
     internal NachaTransactionCodeSemanticRule? ResolvePublishedTransactionRule(
         NachaInboundPublishedAuthority? authority,
@@ -744,6 +757,13 @@ internal sealed class NachaInboundValidator
 
     private string GetRegulatoryError(string dxxCode, string fallbackMessage)
     {
+        if (_isCenitNachaProfile)
+        {
+            // Local fatal-format classification, NOT an invented operator response code.
+            // The original Dxx identifier is a legacy ACH/STA lookup key only.
+            return $"CENIT-NACHA-FATAL: {fallbackMessage}";
+        }
+
         if (_rejectionCatalog.TryGetValue(dxxCode, out var catalog))
         {
             return $"{catalog.Code}: {catalog.Description}. {fallbackMessage}";
@@ -1122,7 +1142,8 @@ internal sealed class NachaInboundDatabaseValidator
 internal sealed record NachaInboundValidationContext(
     NachaInboundPublishedAuthority? PublishedAuthority,
     bool IsCenitInboundProfile,
-    bool IsCenitCtxInboundProfile);
+    bool IsCenitCtxInboundProfile,
+    bool IsCenitNachaProfile);
 
 internal sealed record NachaEntryAddendaPreparation(bool OptionalAddenda, NachaAddendaBounds? PublishedBounds);
 

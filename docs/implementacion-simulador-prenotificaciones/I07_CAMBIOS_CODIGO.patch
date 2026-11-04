@@ -1,0 +1,365 @@
+--- I06/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
++++ I07/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs
+@@ -605,11 +605,13 @@
+                 ClearingHouseName = x.ClearingHouse.Name,
+                 x.ProcessingDate,
+                 x.StartTime,
+-                TransactionCount = x.Transactions.Count(t =>
+-                    NachaExportEligibility.ExportableStates.Contains(t.State)
+-                    && (t.Type == transactionType
+-                        || (t.Type == TransactionTypeEnum.Prenotification
+-                            && prenotificationCodes.Contains(t.TransactionCode))))
++                TransactionCount = request.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn
++                    ? 0 // Ciclo habilitado para respuestas, aun sin transacciones de retorno.
++                    : x.Transactions.Count(t =>
++                        NachaExportEligibility.ExportableStates.Contains(t.State)
++                        && (t.Type == transactionType
++                            || (t.Type == TransactionTypeEnum.Prenotification
++                                && prenotificationCodes.Contains(t.TransactionCode))))
+             })
+             .ToListAsync(ct);
+ 
+@@ -657,11 +659,17 @@
+                 && x.ClearingHouseCycleConfig.StartTime == x.StartTime
+                 && x.ClearingHouseCycleConfig.EndTime == x.EndTime
+                 && x.ClearingHouseCycleConfig.CutoffTime == x.CutoffTime
+-                && x.Transactions.Any(t =>
+-                    NachaExportEligibility.ExportableStates.Contains(t.State)
+-                    && (t.Type == transactionType
+-                        || (t.Type == TransactionTypeEnum.Prenotification
+-                            && prenotificationCodes.Contains(t.TransactionCode)))));
++                // I07: un ciclo de retorno de prenotificación puede no contener todavía
++                // transacciones salientes. El fichero de respuesta se generará en I03;
++                // exigir una transacción previa oculta ciclos configurados y válidos.
++                // La validación de ciclo posterior, fecha y plazo sigue en el preflight I02.
++                && (scenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn
++                    ? x.OperationalStatus != AchCycleOperationalStatus.Cancelled
++                    : x.Transactions.Any(t =>
++                        NachaExportEligibility.ExportableStates.Contains(t.State)
++                        && (t.Type == transactionType
++                            || (t.Type == TransactionTypeEnum.Prenotification
++                                && prenotificationCodes.Contains(t.TransactionCode))))));
+     }
+ 
+     private async Task EnsureCycleAvailableAsync(
+--- I06/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.TacitAcceptance.cs
++++ I07/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.TacitAcceptance.cs
+@@ -81,7 +81,10 @@
+                 !structurallyValid ? "Blocked" : virtualDue ? "WouldApply" : "DeadlineNotReached", issues));
+         }
+         return new(evaluationTime, realNow, request.EvaluationTimeUtc.HasValue, true,
+-            _hostEnvironment is not null && !_hostEnvironment.IsProduction(), items, problems);
++            _hostEnvironment is not null && !_hostEnvironment.IsProduction()
++                && _options.IsUatLike() && _options.DifferentialResponsesEnabled
++                && !_options.AllowExternalTransmission && !_options.AllowAutoImport
++                && _stateTransitionService is not null, items, problems);
+     }
+ 
+     public async Task<PrenotificationTacitAcceptanceApplyResponse> ApplyDueTacitAcceptanceAsync(
+--- I06/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts
++++ I07/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts
+@@ -161,6 +161,9 @@
+   pnGenerated: NachaInboundSimulationResult | null = null;
+   pnApplied: number | null = null;
+   private pnIdempotencyKey = '';
++  // I07: una consulta anterior no puede sobrescribir la cámara/búsqueda vigente.
++  private pnQueryVersion = 0;
++  private pnOptionsVersion = 0;
+   downloadingId: number | null = null;
+ 
+   simulations: NachaInboundSimulationItem[] = [];
+@@ -326,6 +329,10 @@
+ 
+   closePrenotifications(): void {
+     this.prenotificationFlow = false;
++    this.pnQueryVersion++;
++    this.pnLoading = false;
++    this.pnCandidates = [];
++    this.pnTotal = 0;
+     this.resetPnSelection();
+   }
+ 
+@@ -344,24 +351,33 @@
+       return;
+     }
+     this.pnPage = Math.max(1, page);
++    const version = ++this.pnQueryVersion;
+     this.pnLoading = true;
+     this.pnError = null;
++    this.pnCandidates = [];
++    this.pnTotal = 0;
+     const house = this.pnHouseCode;
++    const search = this.pnSearch.trim();
+     this.api.listOriginatedPrenotifications({
+       clearingHouseCode: house,
+-      search: this.pnSearch.trim() || undefined,
++      search: search || undefined,
+       page: this.pnPage,
+       pageSize: this.pnPageSize
+     }).pipe(
+       takeUntilDestroyed(this.destroyRef),
+-      finalize(() => { this.pnLoading = false; this.cdr.markForCheck(); })
++      finalize(() => {
++        if (version === this.pnQueryVersion) { this.pnLoading = false; }
++        this.cdr.markForCheck();
++      })
+     ).subscribe({
+       next: (pageResult) => {
+-        if (house !== this.pnHouseCode) { return; }
++        if (version !== this.pnQueryVersion || !this.prenotificationFlow
++            || house !== this.pnHouseCode || search !== this.pnSearch.trim()) { return; }
+         this.pnCandidates = pageResult.items ?? [];
+         this.pnTotal = pageResult.total;
+       },
+       error: (error: HttpErrorResponse) => {
++        if (version !== this.pnQueryVersion || !this.prenotificationFlow) { return; }
+         this.pnCandidates = [];
+         this.pnTotal = 0;
+         this.pnError = this.errorMessage(error, 'No se pudieron consultar las prenotificaciones.');
+@@ -370,7 +386,7 @@
+   }
+ 
+   selectPrenotification(candidate: PrenotificationCandidate): void {
+-    if (this.pnBusy) { return; }
++    if (this.pnBusy || this.pnLoading) { return; }
+     this.resetPnSelection();
+     this.pnSelected = candidate;
+     this.pnIdempotencyKey = crypto.randomUUID();
+@@ -496,6 +512,7 @@
+   }
+ 
+   private loadPnOptions(candidate: PrenotificationCandidate): void {
++    const version = ++this.pnOptionsVersion;
+     this.pnOptionsLoading = true;
+     forkJoin({
+       codes: this.api.returnCodes(candidate.clearingHouseCode),
+@@ -505,16 +522,18 @@
+         scenarioType: 'IncomingPrenotificationReturn'
+       })
+     }).pipe(takeUntilDestroyed(this.destroyRef), finalize(() => {
+-      this.pnOptionsLoading = false;
++      if (version === this.pnOptionsVersion) { this.pnOptionsLoading = false; }
+       this.cdr.markForCheck();
+     })).subscribe({
+       next: result => {
+-        if (this.pnSelected?.originalPrenotificationId !== candidate.originalPrenotificationId
++        if (version !== this.pnOptionsVersion || !this.prenotificationFlow
++            || this.pnSelected?.originalPrenotificationId !== candidate.originalPrenotificationId
+             || this.pnHouseCode !== candidate.clearingHouseCode) { return; }
+         this.pnReturnCodes = result.codes ?? [];
+         this.pnCycles = (result.cycles ?? []).filter(cycle => cycle.cycleId !== candidate.originalCycleId);
+       },
+       error: (error: HttpErrorResponse) => {
++        if (version !== this.pnOptionsVersion || !this.prenotificationFlow) { return; }
+         this.pnPreviewError = this.errorMessage(error, 'No se pudieron cargar las causales o ciclos de devolución.');
+       }
+     });
+@@ -552,6 +571,8 @@
+   }
+ 
+   private resetPnSelection(): void {
++    this.pnOptionsVersion++;
++    this.pnOptionsLoading = false;
+     this.pnSelected = null;
+     this.pnReasonCode = '';
+     this.pnResponseCycleId = '';
+--- I06/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.html
++++ I07/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.html
+@@ -105,7 +105,7 @@
+           <button *ngFor="let item of pnCandidates" type="button" class="pn-candidate"
+                   [class.pn-candidate--selected]="pnSelected?.originalPrenotificationId === item.originalPrenotificationId"
+                   [attr.aria-pressed]="pnSelected?.originalPrenotificationId === item.originalPrenotificationId"
+-                  [disabled]="pnBusy"
++                  [disabled]="pnBusy || pnLoading"
+                   (click)="selectPrenotification(item)">
+             <span class="pn-candidate-main">
+               <strong>{{ item.transactionExternalId || ('Prenotificación ' + item.originalPrenotificationId) }}</strong>
+--- I06/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.spec.ts
++++ I07/web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.spec.ts
+@@ -7,8 +7,11 @@
+ import { NachaInboundSimulatorComponent } from './nacha-inbound-simulator.component';
+ import {
+   GenerateNachaInboundSimulationRequest,
++  AchReturnCodeOption,
++  AvailableInboundCycle,
+   NachaInboundSimulationResult,
+   PrenotificationCandidate,
++  PrenotificationCandidatePage,
+   NachaInboundSimulatorService
+ } from '../../services/nacha-inbound-simulator.service';
+ import { NotificationService } from '../../../../core/services/notification.service';
+@@ -579,4 +582,56 @@
+     expect(fixture.nativeElement.textContent).toContain('No hay evidencia de transmisión.');
+   });
+ 
++  it('I07: la respuesta de una consulta antigua no sobrescribe la cámara vigente', () => {
++    const oldRequest = new Subject<PrenotificationCandidatePage>();
++    const currentRequest = new Subject<PrenotificationCandidatePage>();
++    service.listOriginatedPrenotifications.and.returnValues(oldRequest, currentRequest);
++    component.openPrenotifications(); // ACHCOL
++    component.changePnHouse('CENIT');
++    const cenit = { ...prenotification, originalPrenotificationId: 51, clearingHouseCode: 'CENIT' };
++    currentRequest.next({ items: [cenit], page: 1, pageSize: 10, total: 1, executionEnabled: false });
++    currentRequest.complete();
++    oldRequest.next({ items: [prenotification], page: 1, pageSize: 10, total: 1, executionEnabled: false });
++    oldRequest.complete();
++    expect(component.pnHouseCode).toBe('CENIT');
++    expect(component.pnCandidates.map(item => item.originalPrenotificationId)).toEqual([51]);
++    expect(component.pnLoading).toBeFalse();
++  });
++
++  it('I07: ignora resultados tardíos al cerrar el flujo de prenotificaciones', () => {
++    const oldRequest = new Subject<PrenotificationCandidatePage>();
++    service.listOriginatedPrenotifications.and.returnValue(oldRequest);
++    component.openPrenotifications();
++    component.closePrenotifications();
++    oldRequest.next({ items: [prenotification], page: 1, pageSize: 10, total: 1, executionEnabled: false });
++    oldRequest.complete();
++    expect(component.prenotificationFlow).toBeFalse();
++    expect(component.pnCandidates).toEqual([]);
++    expect(component.pnLoading).toBeFalse();
++  });
++
++  it('I07: no utiliza catálogos de otra prenotificación si su respuesta llega tarde', () => {
++    const oldCodes = new Subject<AchReturnCodeOption[]>();
++    const oldCycles = new Subject<AvailableInboundCycle[]>();
++    service.returnCodes.and.returnValues(oldCodes, of([]));
++    service.availableCycles.and.returnValues(oldCycles, of([]));
++    component.openPrenotifications();
++    component.selectPrenotification(prenotification);
++    component.selectPrenotification({ ...prenotification, originalPrenotificationId: 43 });
++    oldCodes.next([{ id: 7, clearingHouseId: 1, code: 'R04', flowType: 'Return',
++      description: 'Cuenta inválida', appliesToDebit: true, appliesToCredit: true,
++      appliesToPrenotification: true, appliesToReturn: true,
++      effectiveFrom: '2026-01-01', isActive: true }]);
++    oldCycles.next([{ cycleId: 'ACH-20260520-C2', cycleCode: 'ACH-20260520-C2',
++      cycleName: 'Ciclo 2', clearingHouseId: 1, clearingHouseCode: 'ACHCOL',
++      clearingHouseName: 'ACH Colombia', processingDate: '2026-05-20',
++      transactionCount: 0, status: 'Disponible' }]);
++    oldCodes.complete();
++    oldCycles.complete();
++    expect(component.pnSelected?.originalPrenotificationId).toBe(43);
++    expect(component.pnReturnCodes).toEqual([]);
++    expect(component.pnCycles).toEqual([]);
++    expect(component.pnOptionsLoading).toBeFalse();
++  });
++
+ });
+--- /dev/null
++++ I07/tests/Cfa.ACHInterbank.Tests/NachaInboundSimulatorTests.I07.cs
+@@ -0,0 +1,50 @@
++using Cfa.ACHInterbank.Application.ACH.Models;
++using Cfa.ACHInterbank.Domain.Models.ACH;
++using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
++using Microsoft.EntityFrameworkCore;
++using Xunit;
++
++namespace Cfa.ACHInterbank.Tests;
++
++public partial class NachaInboundSimulatorTests
++{
++    [Theory]
++    [InlineData("ACHCOL", "ACH-CYCLE")]
++    [InlineData("CENIT", "CENIT-CYCLE")]
++    public async Task I07_PrenotificationReturnCycle_DoesNotRequireExistingReturnTransactions(
++        string houseCode, string expectedCycleId)
++    {
++        await using var context = CreateContext();
++        Seed(context);
++        // La semilla solo contiene créditos y débitos, ninguna devolución de prenotificación.
++        Assert.False(await context.AchTransactions.AnyAsync(x => x.IsPrenotification));
++        var simulator = CreateService(context, CreateTempOutput());
++        var cycles = await simulator.ListAvailableCyclesAsync(new AvailableInboundCycleQuery
++        {
++            ClearingHouseCode = houseCode,
++            ProcessingDate = new DateOnly(2026, 5, 20),
++            ScenarioType = NachaInboundSimulationType.IncomingPrenotificationReturn
++        });
++        var cycle = Assert.Single(cycles);
++        Assert.Equal(expectedCycleId, cycle.CycleId);
++        Assert.Equal(0, cycle.TransactionCount);
++        Assert.Empty(await context.NachaInboundSimulations.ToListAsync());
++    }
++
++    [Fact]
++    public async Task I07_PrenotificationReturnCycle_DoesNotExposeCancelledCycle()
++    {
++        await using var context = CreateContext();
++        Seed(context);
++        var cycle = await context.AchCycles.SingleAsync(x => x.Id == "ACH-CYCLE");
++        cycle.OperationalStatus = AchCycleOperationalStatus.Cancelled;
++        await context.SaveChangesAsync();
++        var simulator = CreateService(context, CreateTempOutput());
++        Assert.Empty(await simulator.ListAvailableCyclesAsync(new AvailableInboundCycleQuery
++        {
++            ClearingHouseCode = "ACHCOL",
++            ProcessingDate = new DateOnly(2026, 5, 20),
++            ScenarioType = NachaInboundSimulationType.IncomingPrenotificationReturn
++        }));
++    }
++}
+--- /dev/null
++++ I07/scripts/test/prenotification_simulator_i07_static_check.py
+@@ -0,0 +1,62 @@
++#!/usr/bin/env python3
++"""I07: controles estáticos reproducibles, NO sustituyen build .NET/Angular/E2E."""
++from pathlib import Path
++import json
++import re
++import shutil
++import subprocess
++from html.parser import HTMLParser
++
++root = Path(__file__).resolve().parents[2]
++def source(path): return (root / path).read_text(encoding='utf-8-sig')
++service = source('src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.cs')
++tacit = source('src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.TacitAcceptance.cs')
++component = source('web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts')
++template = source('web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.html')
++spec = source('web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.spec.ts')
++cstests = source('tests/Cfa.ACHInterbank.Tests/NachaInboundSimulatorTests.I07.cs')
++checks = {
++    'Return-cycle exception narrowly scoped': 'scenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn' in service,
++    'Return-cycle active config still enforced': all(x in service for x in ['x.ClearingHouseCycleConfig.IsActive','x.ClearingHouse.IsActive','x.ClearingHouseCycleConfigId.HasValue']),
++    'Cancelled cycle excluded for prenotification return': 'x.OperationalStatus != AchCycleOperationalStatus.Cancelled' in service,
++    'Legacy scenarios retain transaction requirement': ': x.Transactions.Any(t =>' in service,
++    'Return-cycle reports zero existing return transactions': 'TransactionCount = request.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn' in service,
++    'Generator preview still validates return after original': 'RESPONSE_CYCLE_BEFORE_ORIGINAL' in source('src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundSimulationService.Prenotifications.cs'),
++    'C# tests both clearing houses': all(x in cstests for x in ['InlineData("ACHCOL", "ACH-CYCLE")', 'InlineData("CENIT", "CENIT-CYCLE")']),
++    'C# test cancelled return cycle': 'I07_PrenotificationReturnCycle_DoesNotExposeCancelledCycle' in cstests,
++    'SPA query version increments': 'const version = ++this.pnQueryVersion' in component,
++    'SPA stale results rejected': 'version !== this.pnQueryVersion' in component,
++    'SPA stale catalog responses rejected': 'version !== this.pnOptionsVersion' in component,
++    'SPA close invalidates outstanding queries': 'this.pnQueryVersion++;' in component.split('closePrenotifications(): void')[1].split('changePnHouse(')[0],
++    'SPA selected disabled during load': '[disabled]="pnBusy || pnLoading"' in template,
++    'SPA stale search ignored': 'search !== this.pnSearch.trim()' in component,
++    'SPA clear candidate results during refresh': 'this.pnCandidates = [];\n    this.pnTotal = 0;\n    const house' in component,
++    'SPA tests stale camera selection': 'I07: la respuesta de una consulta antigua' in spec,
++    'SPA tests closed dialog response': 'I07: ignora resultados tardíos' in spec,
++    'SPA tests stale catalog': 'I07: no utiliza catálogos de otra prenotificación' in spec,
++    'Tacit preview guard equals apply environment constraints': all(x in tacit for x in ['&& !_options.AllowExternalTransmission && !_options.AllowAutoImport', '&& _stateTransitionService is not null, items, problems']),
++    'Tacit apply ignores virtual time': 'var now = DateTimeOffset.UtcNow;' in tacit,
++    'No fictitious confirmation in SPA': 'no genera un archivo de aprobación' in template,
++    'Authenticated blob download preserved': 'downloadFile(id: number)' in source('web/ach-interbank-ui/src/app/features/uat/services/nacha-inbound-simulator.service.ts'),
++}
++class Balanced(HTMLParser):
++    void={'input','br','hr','img','link','meta','source','area'}
++    def __init__(self): super().__init__(); self.stack=[]; self.errors=[]
++    def handle_starttag(self, tag, attrs):
++        if tag not in self.void: self.stack.append(tag)
++    def handle_startendtag(self, tag, attrs): pass
++    def handle_endtag(self, tag):
++        if not self.stack or self.stack[-1] != tag: self.errors.append(tag)
++        else: self.stack.pop()
++b = Balanced(); b.feed(template)
++checks['Angular HTML balanced'] = not b.errors and not b.stack
++node = shutil.which('node')
++if node:
++    ts_script="""const ts=require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript');const fs=require('fs');let n=0;for(let f of process.argv.slice(1)){const s=ts.createSourceFile(f,fs.readFileSync(f,'utf8'),ts.ScriptTarget.Latest,true);n+=s.parseDiagnostics.length;}process.exit(n?1:0);"""
++    paths = [str(root / p) for p in ['web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.ts','web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.spec.ts']]
++    checks['Global TypeScript AST parser: source/spec'] = subprocess.run([node,'-e',ts_script,*paths], capture_output=True).returncode == 0
++else: checks['Global TypeScript AST parser: source/spec'] = False
++for title, passed in checks.items(): print(('PASS_STATIC' if passed else 'FAIL_STATIC'), title)
++result = {'classification':'STATIC_ONLY_NOT_DOTNET_BUILD_ANGULAR_BUILD_OR_E2E','checks_total':len(checks),'passed':sum(checks.values()),'failed':[name for name, ok in checks.items() if not ok]}
++print('SUMMARY_JSON '+json.dumps(result,ensure_ascii=False))
++raise SystemExit(bool(result['failed']))

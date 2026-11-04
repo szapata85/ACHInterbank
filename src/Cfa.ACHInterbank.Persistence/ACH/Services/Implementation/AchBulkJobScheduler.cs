@@ -31,7 +31,7 @@ public class AchBulkJobScheduler : IAchBulkJobScheduler
             .StartNow()
             .Build();
 
-        await scheduler.ScheduleJob(job, trigger, ct);
+        await scheduler.ScheduleJob(job, trigger, cancellationToken: ct);
         return correlationId;
     }
 }

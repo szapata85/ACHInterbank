@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""Static source checks for F04; NOT an executable C#/DB certification."""
+from pathlib import Path
+root=Path(__file__).resolve().parents[2]
+checks=[]
+def check(name,ok):
+ checks.append((name,bool(ok)))
+ print(('PASS' if ok else 'FAIL'),name)
+p=(root/'src/Cfa.ACHInterbank.Application/ACH/Services/CenitIncomingReturnPolicy.cs').read_text()
+a=(root/'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchReturnEligibilityPolicyComponent.cs').read_text()
+b=(root/'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostParseProcessor.cs').read_text()
+m=(root/'src/Cfa.ACHInterbank.Application/ACH/Models/CenitIncomingReturnPolicyModels.cs').read_text()
+t=(root/'tests/Cfa.ACHInterbank.Tests/CenitF04ReturnPolicyTests.cs').read_text()
+u=(root/'tests/Cfa.ACHInterbank.Tests/CenitF04CalendarRouteTests.cs').read_text()
+check('R06 C5 origin C4 enforced before R06 evaluation',p.index('CENIT_CYCLE5_R06_ORIGIN_C4_REQUIRED')<p.index('return EvaluateR06(request)'))
+check('R06 C5 same operational day', 'request.ReturnValueDate.Date != request.OriginalValueDate.Date' in p)
+check('R23 same-day next-cycle enforced', 'IsImmediateFollowingCycle(request.OriginalCycleNumber!.Value, request.ReturnCycleNumber!.Value)' in p)
+check('R23 prior-day exception still C1-only', 'CENIT_CYCLE1_R23_PRIOR_DAY_REQUIRED' in p)
+check('R23 max calendar days from receipt', '(request.ReturnValueDate.Date - receipt).Days > 15' in p)
+check('R23 missing receipt fails closed', 'CENIT_R23_ORIGINAL_RECEIPT_REQUIRED' in p)
+check('R23 missing receiver notification fails closed', 'CENIT_R23_NOTIFICATION_RECEIPT_REQUIRED' in p)
+check('R23 missing computed deadline fails closed', 'CENIT_R23_CALENDAR_VALIDATION_REQUIRED' in p)
+check('R23 calendar deadline used instead of supplied', 'request.ReturnValueDate.Date <= request.CalculatedNextBusinessDayDeadline.Value.Date' in p and 'request.ReturnValueDate.Date <= request.ReceiverRejectionDeadlineDate.Value.Date' not in p)
+check('R23 fifteen day inclusive', 'if ((request.ReturnValueDate.Date - receipt).Days > 15)' in p)
+check('R23 original received and notification separate from value date', 'DateTime? OriginalReceivedDate' in m and 'DateTime? ReceiverNotificationReceivedDate' in m)
+check('Outbound caller awaits calendar from notification+1', 'await operationalCalendarService.GetNextBusinessDayAsync(' in a and 'evidence.ReceiverNotificationReceivedDate.Value.Date.AddDays(1)' in a)
+check('Inbound caller awaits calendar from notification+1', 'await _operationalCalendar.GetNextBusinessDayAsync(' in b and 'evidence.ReceiverNotificationReceivedDate.Value.Date.AddDays(1)' in b)
+check('Outbound original receipt sourced from persisted cycle', 'transaction.AchCycle?.ProcessingDate' in a)
+check('Inbound original receipt sourced from persisted cycle', 'originalCycle?.ProcessingDate' in b)
+check('Outbound only evaluates CENIT', 'if (!scope.IsCenit)' in a)
+check('Inbound excludes non-CENIT', 'if (!string.Equals(clearingHouseCode, "CENIT"' in b)
+check('No CUD integration introduced', all(x not in (p+a+b).lower() for x in ['cudapi', 'cudtransfer', 'cudbalance']))
+check('R23 and R06 targeted xUnit cases', 'R23SameDay_OnlyFollowingCycleUsesOrdinaryRule' in t and 'R06FifthCycle_DisallowsOtherSourceCycles' in t)
+check('Calendar route xUnit checks supplied deadline ignored', 'OutboundR23_UsesBankCalendarRatherThanSuppliedDeadline' in u)
+check('No new Dxx STA codes', 'D01' not in a+b)
+print(f"TOTAL {sum(ok for _,ok in checks)}/{len(checks)}")
+raise SystemExit(0 if all(ok for _,ok in checks) else 1)

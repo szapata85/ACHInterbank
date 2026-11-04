@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -19,11 +20,16 @@ public sealed class IncomingNachaAdmissionValidator : IIncomingNachaAdmissionVal
 
     private readonly AchDbContext _context;
     private readonly TimeProvider _timeProvider;
+    private readonly IConfiguration? _configuration;
 
-    public IncomingNachaAdmissionValidator(AchDbContext context, TimeProvider? timeProvider = null)
+    public IncomingNachaAdmissionValidator(
+        AchDbContext context,
+        TimeProvider? timeProvider = null,
+        IConfiguration? configuration = null)
     {
         _context = context;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _configuration = configuration;
     }
 
     public async Task<IncomingNachaAdmissionResult> ValidateAsync(
@@ -40,10 +46,27 @@ public sealed class IncomingNachaAdmissionValidator : IIncomingNachaAdmissionVal
                 "Verifique que el archivo corresponda al formato y perfil seleccionados.");
         }
 
+        // A resolved ACH Colombia file context is NOT an internal AchCycle.  The
+        // opt-in flag is independently enforced at admission (defense in depth).
+        // A caller cannot obtain this exception with a legacy or ambiguous state.
+        var cycleIndependentAchCol = request.Resolution.IsResolved
+            && !request.Resolution.IsAmbiguous
+            && request.Resolution.Status == IncomingNachaCycleResolutionStatus.ResueltoSinCiclo
+            && string.Equals(request.Resolution.ResolutionMode, "AchColFileBased", StringComparison.Ordinal)
+            && string.IsNullOrWhiteSpace(request.Resolution.AchCycleId)
+            && _configuration?.GetValue<bool>("AchCol:AllowCycleIndependentInboundDispatch") == true;
+
         var headerDate = DateOnly.FromDateTime(request.Resolution.OperationalDate.Value);
         var fileNameDate = ParseFileNameDate(request.FileName);
-        var effectiveDate = ParseEffectiveDate(request.Records);
-        var cycleNumber = CenitOfficialFileNameParser.ExtractCycleNumberFromFileName(request.FileName);
+        var effectiveDate = ParseEffectiveDate(request.Records, cycleIndependentAchCol);
+        var parsedAchColName = cycleIndependentAchCol
+            && AchColInboundFileNameParser.TryParse(request.FileName, out var achColName, out _)
+                ? achColName
+                : null;
+        // For ACHCOL this is the external suffix N, not ZZZ and not AchCycleId.
+        var cycleNumber = cycleIndependentAchCol
+            ? parsedAchColName?.ExternalCycleNumber
+            : CenitOfficialFileNameParser.ExtractCycleNumberFromFileName(request.FileName);
         var preview = new NachaHeaderPreview(
             headerRecord.Substring(3, 10).Trim(),
             headerRecord.Substring(13, 10).Trim(),
@@ -73,7 +96,9 @@ public sealed class IncomingNachaAdmissionValidator : IIncomingNachaAdmissionVal
                 Format(headerDate), Format(effectiveDate.Value));
         }
 
-        if (!request.Resolution.ClearingHouseId.HasValue || string.IsNullOrWhiteSpace(request.Resolution.AchCycleId))
+        if (!request.Resolution.ClearingHouseId.HasValue
+            || (!cycleIndependentAchCol && string.IsNullOrWhiteSpace(request.Resolution.AchCycleId))
+            || (request.Resolution.Status == IncomingNachaCycleResolutionStatus.ResueltoSinCiclo && !cycleIndependentAchCol))
         {
             return Reject(preview, fileNameDate, effectiveDate, cycleNumber,
                 "CYCLE_NOT_RESOLVED",
@@ -94,6 +119,64 @@ public sealed class IncomingNachaAdmissionValidator : IIncomingNachaAdmissionVal
                 "La fecha del archivo no es un día hábil",
                 $"La fecha {Format(headerDate)} no está habilitada como día operativo para la cámara seleccionada.",
                 "Seleccione un archivo correspondiente a un día hábil habilitado.");
+        }
+
+        if (cycleIndependentAchCol)
+        {
+            // Only an ACTIVE, explicitly identified ACHCOL camera can use this
+            // path. Do not infer approval merely from a resolution DTO or suffix.
+            var achColClearingHouse = await _context.ClearingHouses.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == clearingHouseId, ct);
+            if (achColClearingHouse is null
+                || !achColClearingHouse.IsActive
+                || !string.Equals(achColClearingHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+            {
+                return Reject(preview, fileNameDate, effectiveDate, cycleNumber,
+                    "ACHCOL_CLEARING_HOUSE_NOT_AUTHORIZED",
+                    "Cámara ACH Colombia no habilitada",
+                    "La cámara resuelta no existe, está inactiva o no corresponde a ACH Colombia.",
+                    "Verifique la cámara configurada y su habilitación antes de reintentar.");
+            }
+
+            // F1.2 already checks this after decryption. Revalidate here so
+            // no alternative admission caller can bypass the name/header link.
+            string? correlationError = null;
+            if (parsedAchColName is null
+                || !AchColInboundHeaderCorrelation.TryValidate(
+                    request.FileName, request.FileName, request.Records, out _, out correlationError))
+            {
+                return Reject(preview, fileNameDate, effectiveDate, cycleNumber,
+                    "ACHCOL_INBOUND_HEADER_CORRELATION_INVALID",
+                    "El archivo no coincide con su encabezado NACHA-M",
+                    $"No se pudo confirmar el nombre físico y el encabezado ({correlationError ?? "ACHCOL_INBOUND_NAME_INVALID"}).",
+                    "Verifique el consecutivo ZZZ, el identificador del encabezado y la fecha del archivo.");
+            }
+
+            if (!ParseTime(headerRecord.Substring(31, 4)).HasValue)
+            {
+                return Reject(preview, fileNameDate, effectiveDate, cycleNumber,
+                    "ACHCOL_HEADER_TIME_INVALID",
+                    "Hora de creación inválida en el encabezado",
+                    "La hora de creación del registro tipo 1 no tiene formato HHmm válido.",
+                    "Corrija la hora del encabezado antes de reprocesar.");
+            }
+
+            // ACH Colombia V35 defines an eight-digit yyyyMMdd effective date.
+            // Unlike the legacy six-digit reader, do not silently overlook an
+            // invalid present batch date on the file-based path.
+            if (request.Records.Any(x => x.Length == 106 && x[0] == '5') && !effectiveDate.HasValue)
+            {
+                return Reject(preview, fileNameDate, effectiveDate, cycleNumber,
+                    "ACHCOL_EFFECTIVE_DATE_INVALID",
+                    "Fecha efectiva inválida en el lote",
+                    "El registro de lote no contiene una fecha efectiva yyyyMMdd válida.",
+                    "Verifique la fecha efectiva de los lotes del archivo.");
+            }
+
+            // No cycle lookup, cycle status or cycle reception-window check is
+            // permitted here. Validations common to all cameras already ran.
+            // This admission is NOT transaction dispatch authorization.
+            return IncomingNachaAdmissionResult.Accepted(preview, fileNameDate, effectiveDate, cycleNumber);
         }
 
         var cycle = await _context.AchCycles.AsNoTracking()
@@ -162,12 +245,13 @@ public sealed class IncomingNachaAdmissionValidator : IIncomingNachaAdmissionVal
                 : null;
     }
 
-    private static DateOnly? ParseEffectiveDate(IEnumerable<string> records)
+    private static DateOnly? ParseEffectiveDate(IEnumerable<string> records, bool cycleIndependentAchCol)
     {
         var record = records.FirstOrDefault(x => x.Length == 106 && x[0] == '5');
         if (record is null) return null;
         var raw = AchColOfficialNachaLayout.Read(record, "5", "EFFECTIVEENTRYDATE").Trim();
-        return DateOnly.TryParseExact(raw, "yyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var value)
+        return DateOnly.TryParseExact(raw, cycleIndependentAchCol ? "yyyyMMdd" : "yyMMdd",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var value)
             ? value
             : null;
     }

@@ -1,0 +1,49 @@
+{
+  "incremento": "I07-ACH",
+  "fecha": "2026-11-02",
+  "proyectoBase": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I06_ACHCOLOMBIA_2026-11-02.zip",
+  "sha256Base": "058974576c6bb7eabd8b1adb874e3f25c3dcbabaf642611ef634ebba7d1b800d",
+  "camaraModificada": "ACH Colombia",
+  "cenitModificado": false,
+  "transporteAutomaticoHabilitado": false,
+  "estadoProductivo": "NO-GO",
+  "entradasArchivoBase": 4842,
+  "archivosAnterioresModificados": [
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/ESTADO_INCREMENTAL.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE.md",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchColombiaReturnReviewService.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchColombiaAutomaticReturnI06Tests.cs"
+  ],
+  "archivosAnadidos": [
+    "ACHInterbank_ajustado/README_ENTREGA_DEVOLUCIONES_AUTOMATICAS_I07_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/EVIDENCIA_I07_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/INFORME_I07_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MATRIZ_UAT_I07_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE_I07_ACH.md",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/PLAN_AJUSTE_I07_ACH.md",
+    "ACHInterbank_ajustado/scripts/test/automatic_returns_i07_ach_static_check.py",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchColombiaReturnRecoveryI07Tests.cs",
+    "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MANIFIESTO_I07_ACH.json"
+  ],
+  "archivosAnterioresConContenidoIntacto": 4838,
+  "verificacionesEstatisticas": {
+    "I07": "24/24",
+    "I06": "28/28",
+    "I05": "33/33",
+    "I03": "25/25",
+    "I02": "18/18",
+    "grafoSolucion": "7/7"
+  },
+  "pruebasNoEjecutadas": [
+    "dotnet build",
+    "xUnit",
+    "Angular build/Jasmine",
+    "SQL Server",
+    "PostgreSQL",
+    "homologacion ACH Colombia"
+  ],
+  "observaciones": [
+    "El verificador antiguo I04 contiene tres expectativas obsoletas y no pasa (32/35).",
+    "No se deben inferir transmisión o liquidación del estado ReturnedByEpr."
+  ]
+}

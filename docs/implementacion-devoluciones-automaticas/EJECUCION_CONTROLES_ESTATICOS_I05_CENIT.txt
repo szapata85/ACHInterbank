@@ -1,0 +1,514 @@
+EJECUCIÓN REAL DE CONTROLES ESTÁTICOS I05-CENIT — 2026-11-03
+Sin compilación .NET, sin xUnit, sin BD y sin homologación.
+
+===== CENIT i01 =====
+PASS: modo default en modelo compartido
+PASS: modo default y longitud 20 en EF
+PASS: concurrencia EF
+PASS: restricción CHECK en EF
+PASS: ruta exclusiva CENIT
+PASS: GET exige ConfigRead
+PASS: PUT exige ConfigManage
+PASS: controlador autenticado
+PASS: 400 para valor inválido
+PASS: 409 para conflicto
+PASS: valores estrictos
+PASS: aislamiento por código CENIT
+PASS: no acepta fila ajena
+PASS: detecta fila compartida
+PASS: revisión anterior obligatoria
+PASS: cambio de modo auditado por DB
+PASS: procesamiento siempre desconectado
+PASS: sin motor / envío en el servicio
+PASS: interface propia CENIT
+PASS: contrato incluye ExpectedMode
+PASS: registro DI
+PASS: SQL Server conserva migración de configuración
+PASS: Postgres añade columna + CHECK
+PASS: Postgres es migración EF identificada
+PASS: snapshot Postgres refleja columna
+PASS: pruebas incluyen auditoría
+PASS: pruebas incluyen doble escritura
+PASS: pruebas incluyen ACH y CENIT
+PASS: pruebas incluyen conservación de permisos
+I01-CENIT: 29/29 controles estáticos
+===== CENIT i02 =====
+PASS: servicio CENIT propio
+PASS: API contrato propio
+PASS: DTO no autoriza procesamiento
+PASS: API solo GET
+PASS: ruta exclusivamente CENIT
+PASS: autenticacion
+PASS: permiso consulta administracion
+PASS: limite endpoint
+PASS: registro DI independiente
+PASS: valida configuración original I01
+PASS: camara por codigo canonico
+PASS: filtra camara tanto ejecucion como cola
+PASS: filtra camara por ciclo transaccion
+PASS: bloquea ACHCOL
+PASS: requiere transaccion entrante y clasificada
+PASS: requiere clasificacion funcional entrante
+PASS: requiere cola funcional finalizada
+PASS: trazabilidad final
+PASS: protege origen ingesta
+PASS: excluye enlace ambiguo
+PASS: unicamente nucleo Funcional
+PASS: no toma errores de transporte
+PASS: requiere resultado funcional definitivo
+PASS: exige catalogo resuelto
+PASS: catalogo de causal exclusivamente CENIT
+PASS: vigencia y tipo de catalogo
+PASS: no Dxx ni Rxx inventado
+PASS: aplicabilidad debito credito
+PASS: R06 R23 especiales
+PASS: cancelacion manual especial
+PASS: prenotificacion revision
+PASS: no considera resultado obsoleto
+PASS: ignora devoluciones ya generadas
+PASS: sin SaveChanges del detector
+PASS: sin creacion de filas
+PASS: sin motor ni transporte ni scheduler
+PASS: respuesta NO conectada
+PASS: lectura sin seguimiento
+PASS: ventana acotada
+PASS: sin datos de cuentas DTO
+PASS: prueba de estado desactivado
+PASS: prueba modos
+PASS: prueba fallo tecnico simulacion
+PASS: prueba de respuesta posterior
+PASS: prueba causales
+PASS: prueba prenotificaciones y duplicado
+PASS: prueba aislamiento de cola ACH
+PASS: prueba aislamiento catalogo
+PASS: prueba de permisos
+PASS: conserva API I01
+I02-CENIT: 50/50 controles estáticos
+===== CENIT i03 =====
+OK - servicio propio CENIT
+OK - modelo propio CENIT
+OK - DTO demanda transacción y evidencia de ejecución
+OK - contrato propio
+OK - DI registrado
+OK - DbSet CENIT propio
+OK - GET y POST solamente
+OK - ruta CENIT única
+OK - autenticación declarativa
+OK - GET permiso lectura
+OK - POST permiso configuración
+OK - POST no es aprobación
+OK - validación de entrada HTTP
+OK - conflicto HTTP 409
+OK - guardia modo desactivado
+OK - configuración real I01
+OK - filtro cámara CENIT por código
+OK - sin reglas ACH Colombia
+OK - reconsulta última ejecución
+OK - compara ID evidencia vista por operador
+OK - revalida EVALUATE I02
+OK - admite solo indicio causal ordinario
+OK - cataloga por cámara
+OK - no devuelve ya generado
+OK - no duplicación en aplicación
+OK - serializable en BD real
+OK - falla cerrada ante unique concurrente
+OK - firma de auditoría por SaveChanges
+OK - Fecha Valor real
+OK - siguiente sesión del mismo día
+OK - límite ciclo no superado
+OK - comparación con agenda CENIT
+OK - requiere ciclo original cerrado
+OK - siguiente ciclo abierto/programado
+OK - requiere política activa
+OK - bloquea fechas futuras y cruces de valor
+OK - bloquea fines de semana y festivos
+OK - fuera de horario no crea candidatos tardíos
+OK - prenotificación y solicitudes no se preparan
+OK - solo lectura no registra cambios
+OK - DTO no expone datos bancarios
+OK - respuesta desconectada
+OK - ni generación NACHA ni transporte
+OK - unique original EF
+OK - unique origen ejecución EF
+OK - referencias EF restrictivas
+OK - migraciones SQL y PG
+OK - indices SQL y PG
+OK - FK a evidencia SQL y PG
+OK - model snapshots ambos
+OK - test estado DESACTIVADO
+OK - test modos y auditoría
+OK - test R06 y ejecución obsoleta
+OK - test resultado posterior
+OK - test cámara y Fecha Valor
+OK - test festivo y retorno existente
+OK - test permisos
+RESULTADO ESTATICO I03-CENIT: 57/57
+===== CENIT i04 =====
+OK - modelo sigue siendo independiente CENIT
+OK - estado preexistente conserva bloqueo concurrencia
+OK - campo auditor revisor
+OK - marca temporal de decisión
+OK - justificación persistente
+OK - referencia de evidencia persistente
+OK - config actor longitud
+OK - config justificación longitud
+OK - config referencia longitud
+OK - nuevo contrato CENIT
+OK - DTO requiere estado esperado
+OK - DTO incluye justificación
+OK - DTO incluye evidencia
+OK - no DTO de números de cuentas
+OK - actor NO proviene del payload
+OK - DI servicio independiente
+OK - API CENIT
+OK - API autenticada
+OK - permiso lectura
+OK - permiso decisión autorizado
+OK - actor desde claims autenticados
+OK - sin identidad HTTP la decisión es denegada
+OK - HTTP 400 para inválidos
+OK - HTTP 409 para conflictos
+OK - GET revisión y excepciones sólo consulta
+OK - excepciones no usa POST de autorización
+OK - lista sólo CENIT
+OK - únicos estados terminales
+OK - requiere estado esperado
+OK - única transición
+OK - auditoría de primera persona del INSERT
+OK - identidad de preparador no system
+OK - diferente preparador y revisor
+OK - actor inválido bloqueado
+OK - justificación validada
+OK - soporte obligatorio para aprobar
+OK - estado modo controlado
+OK - descarte aún con modo desactivado
+OK - transacción serializable BD relacional
+OK - auditoría en SaveChanges
+OK - conflicto concurrencia
+OK - verifica última ejecución
+OK - compara ID de cola
+OK - recalcula causal CENIT
+OK - solo indicio ordinario
+OK - comparación de causal
+OK - bloqueo explícito R06 R23 R34
+OK - bloqueo prenotificaciones
+OK - bloqueo devoluciones ya generadas
+OK - bloqueo festivos
+OK - revalida siguiente ciclo CENIT
+OK - valida Fecha Valor
+OK - no invoca reglas ACH Colombia
+OK - no motor ni transmisión
+OK - sin efecto procesador conectado
+OK - migración SQL reversible
+OK - migración PG reversible
+OK - migraciones solo CENIT
+OK - snapshots sin pérdida CENIT
+OK - prueba de doble operador
+OK - prueba separación personas
+OK - prueba preparación sin identidad
+OK - prueba descarte terminal
+OK - prueba cambio de configuración y ventana
+OK - prueba evidencia posterior y R23
+OK - prueba petición malformada
+OK - prueba sin claims
+OK - prueba excepciones sin escritura
+OK - prueba token concurrency
+OK - sin cambios ACH Colombia en persistencia I04
+OK - sin escritura de políticas ACH Colombia
+I04-CENIT: 71/71 controles estáticos
+===== CENIT i05 =====
+OK - Entidad única CENIT conservada
+OK - Metadato I05 ProtectedArtifactContent
+OK - Migraciones ambos motores ProtectedArtifactContent
+OK - Metadato I05 ArtifactSha256
+OK - Migraciones ambos motores ArtifactSha256
+OK - Metadato I05 ArtifactFileName
+OK - Migraciones ambos motores ArtifactFileName
+OK - Metadato I05 ArtifactTraceNumber
+OK - Migraciones ambos motores ArtifactTraceNumber
+OK - Metadato I05 ArtifactProfileCode
+OK - Migraciones ambos motores ArtifactProfileCode
+OK - Metadato I05 ArtifactRecordCount
+OK - Migraciones ambos motores ArtifactRecordCount
+OK - Metadato I05 GeneratedAtUtc
+OK - Migraciones ambos motores GeneratedAtUtc
+OK - Metadato I05 GeneratedByUserId
+OK - Migraciones ambos motores GeneratedByUserId
+OK - Migraciones reversibles SQL
+OK - Migraciones reversibles PG
+OK - No crea tablas nuevas
+OK - Estado concurrencia preexistente
+OK - Contrato CENIT propio
+OK - DTO bandera de no transmisión
+OK - DI independiente
+OK - Solo API cenit
+OK - Autenticación general
+OK - Rol lectura metadata
+OK - Rol fuerte generación y descarga
+OK - POST sólo manual
+OK - No endpoint de envío
+OK - Identidad solo claims
+OK - HTTP no caché local
+OK - Archivo interno etiquetado
+OK - Sin transporte en servicio
+OK - No flujo financiero ACH
+OK - Estado de salida limitado
+OK - Origen debe estar aprobado
+OK - Única generación
+OK - Estado fuente revalidado
+OK - Modo CENIT revalidado en I04
+OK - Separación preparador revisor
+OK - Auditoría INSERT verdadera
+OK - Identidad generador no preparador
+OK - Actor system bloqueado
+OK - Fuente original final única
+OK - Vínculo único por cámara
+OK - No clasificación manual ambigua
+OK - Trazabilidad exacta 15
+OK - Comparación importe original
+OK - Comparación cuenta original
+OK - Comparación código original
+OK - DFIs verificados
+OK - PPD CCD exclusivo
+OK - Sin inventar CTX
+OK - Adenda original y nueva secuencia
+OK - Secuencias compartidas con reserva
+OK - Misma fecha valor
+OK - EF serializable
+OK - Concurrencia EF
+OK - Perfil propio CENIT
+OK - Motor oficial Opción C
+OK - No fallback legado
+OK - Estructura 106 y bloques10
+OK - Adenda 99
+OK - Registro 6 y 7 secuencias
+OK - Registros 1/5/6/7/8/9
+OK - Suma de entradas 2
+OK - Importe de centavos cotejado
+OK - Hash SHA-256 materializado
+OK - Protección cifrada por Data Protection
+OK - Material cifrado dentro de entidad
+OK - Protector existente configurado
+OK - Hash verificado al leer
+OK - No descarga con modo inválido
+OK - No file name externo
+OK - No persistir retorno financiero
+OK - No procesamiento por job
+OK - Prueba requiere aprobación
+OK - Prueba origen inexistente
+OK - Prueba cifrado y sin envío
+OK - Prueba desactivado/cámara cruzada
+OK - Prueba permisos
+OK - Prueba corrupción física
+OK - Golden master de CENIT ya existe
+RESULTADO ESTATICO I05-CENIT: 84/84
+===== ACH i02 =====
+PASS_STATIC: Detección restringida a ACHCOL
+PASS_STATIC: Identidad de cámara y ciclo consistente
+PASS_STATIC: Origen limitado a cola CycleBound
+PASS_STATIC: Modo Live en ambas evidencias
+PASS_STATIC: Respuesta de transporte confirmada
+PASS_STATIC: Catálogo funcional confirmado
+PASS_STATIC: Errores técnicos excluidos
+PASS_STATIC: Sin reintentos inciertos
+PASS_STATIC: Tipos crédito/débito/prenotificación
+PASS_STATIC: Causal condicionada a catálogo
+PASS_STATIC: No inferir causal a partir del mensaje
+PASS_STATIC: Deduplicación en seguimiento
+PASS_STATIC: Evidencia sin envío ni generación
+PASS_STATIC: Detector conectado tras respuesta confirmada
+PASS_STATIC: Fallo de observación aislado
+PASS_STATIC: Sin llamadas a generador/transporte en detector
+PASS_STATIC: Escenarios de cámara, modo e incidencias
+PASS_STATIC: Pruebas sin efectos monetarios
+RESULTADO: 18/18 comprobaciones estáticas
+===== ACH i03 =====
+PASS_STATIC: Modelo de preparación
+PASS_STATIC: Candidata no devuelve archivo
+PASS_STATIC: BD única por original
+PASS_STATIC: BD única por evento
+PASS_STATIC: Contexto expone candidatas
+PASS_STATIC: Migración incluye índice único
+PASS_STATIC: Migración conserva origen y evento
+PASS_STATIC: Migración reversible
+PASS_STATIC: Snapshot actualizado
+PASS_STATIC: Aislamiento ACH Colombia
+PASS_STATIC: Sólo modo activo prepara
+PASS_STATIC: Incidencia causal verificada
+PASS_STATIC: Sin respuesta técnica
+PASS_STATIC: No se infiere causal de texto
+PASS_STATIC: Código ACH por cámara y tipo
+PASS_STATIC: No duplica retorno manual
+PASS_STATIC: Unicidad concurrente tratada
+PASS_STATIC: Siete ciclos: matriz existente
+PASS_STATIC: Crédito tardío a revisión
+PASS_STATIC: No intenta generar ni enviar
+PASS_STATIC: Procesador después de persistencia
+PASS_STATIC: Procesador no interrumpe core
+PASS_STATIC: Pruebas tres tipos
+PASS_STATIC: Pruebas no envío / CENIT
+PASS_STATIC: Pruebas de ventana y unicidad
+RESULTADO: 25/25
+===== ACH i04 =====
+PASS_STATIC | interfaces propuestas disponibles
+PASS_STATIC | rutas solo ACH Colombia
+PASS_STATIC | GET con permiso lectura
+PASS_STATIC | POST con permiso generación
+PASS_STATIC | decisiones restringidas
+PASS_STATIC | no exposición de cuentas en DTO
+PASS_STATIC | consulta limitada
+PASS_STATIC | consulta filtra cámara
+PASS_STATIC | configuración activa para aprobar
+PASS_STATIC | verifica generación manual
+PASS_STATIC | verifica fuente I02
+PASS_STATIC | verifica JSON de origen
+PASS_STATIC | verifica causal catálogo ACH
+PASS_STATIC | verifica causal de devolución
+PASS_STATIC | revalida cuatro ciclos
+PASS_STATIC | rechaza ciclo distinto
+PASS_STATIC | crédito tardío no aprobable
+PASS_STATIC | R10 sin base adicional bloqueado
+PASS_STATIC | estado aprobada sin envío
+PASS_STATIC | estado descartada
+FAIL | sin generador NACHA
+FAIL | sin transición financiera
+PASS_STATIC | guarda auditada
+PASS_STATIC | concurrencia optimista EF
+PASS_STATIC | snapshot actualizado
+PASS_STATIC | servicio inyectado
+PASS_STATIC | Angular Material
+PASS_STATIC | confirmación por operador
+PASS_STATIC | permiso en SPA
+PASS_STATIC | error de concurrencia usuario
+FAIL | SPA no invoca creación archivo
+PASS_STATIC | integración pantalla existente
+PASS_STATIC | endpoints SPA cámara específica
+PASS_STATIC | casos xUnit incorporados
+PASS_STATIC | casos Angular incorporados
+RESULTADO 32/35
+FALLA/pendiente histórico: ACH i04
+===== ACH i05 =====
+PASS_STATIC | Ruta propia ACH Colombia
+PASS_STATIC | El endpoint no acepta selección arbitraria de tx, causal o ciclo
+PASS_STATIC | Control de permiso de generación
+PASS_STATIC | Exclusión de CENIT antes de generar
+PASS_STATIC | Solo candidata aprobada
+PASS_STATIC | Modo apagado impide generación
+PASS_STATIC | Verificación causal y cuenta documental
+PASS_STATIC | R10 sin evidencia sigue excluida
+PASS_STATIC | Se comprueba origen funcional I02
+PASS_STATIC | Ciclo original inmutable
+PASS_STATIC | Se reevalúa ventana del día
+PASS_STATIC | Duplicado manual comprobado
+PASS_STATIC | Se reutiliza generador normativo
+PASS_STATIC | Ciclo y causal salen de la candidata
+PASS_STATIC | Unidad de trabajo transaccional y estrategia EF
+PASS_STATIC | Estado distinto generado sin envío
+PASS_STATIC | Respaldo del registro generado para confirmar
+PASS_STATIC | Clave única existente en generador
+PASS_STATIC | Concurrencia por estado
+PASS_STATIC | Sin invocación de transporte por I05
+PASS_STATIC | Formato de respuesta incluye nombre oficial
+PASS_STATIC | SPA usa el nombre devuelto
+PASS_STATIC | SPA requiere confirmación
+PASS_STATIC | SPA bloquea si no es elegible
+PASS_STATIC | SPA muestra generación por separado de aprobación
+PASS_STATIC | Sin ruta/pantalla SPA redundante
+PASS_STATIC | Servicio SPA llama endpoint acotado
+PASS_STATIC | La SPA no llama servicios CENIT
+PASS_STATIC | Pruebas bloqueo/no envío/estado
+PASS_STATIC | Pruebas de fallo de generador
+PASS_STATIC | Prueba SPA de confirmación
+PASS_STATIC | Prueba contrato SPA
+PASS_STATIC | Sin cambios al esquema en I05
+RESULTADO 33/33
+===== ACH i06 =====
+PASS_STATIC | Puerta técnica desactivada inicialmente
+PASS_STATIC | Doble condición informada en configuración
+PASS_STATIC | Sin cron nuevo en runner
+PASS_STATIC | Límite estricto por pasada
+PASS_STATIC | Ruta exclusiva ACH Colombia
+PASS_STATIC | Solo preparadas o aprobadas
+PASS_STATIC | Consultas sin alterar resultados core
+PASS_STATIC | Apagado entre candidatas
+PASS_STATIC | Detención al fallar
+PASS_STATIC | Puerta integrada a orquestador existente
+PASS_STATIC | Falla cerrada cuando no existe el servicio
+PASS_STATIC | Lanzamiento tras persistencia de resultados
+PASS_STATIC | Acción interna sin ruta API de generación automática
+PASS_STATIC | Método automático separado del manual
+PASS_STATIC | Puerta revisada dentro del servicio de generación
+PASS_STATIC | Modo AUTOMATICO revalidado en el servicio
+PASS_STATIC | Ningún salto de R10
+PASS_STATIC | Ventana revalidada
+PASS_STATIC | No duplicar manual
+PASS_STATIC | Archivo confirmado persistido
+PASS_STATIC | Estado sin afirmación de transmisión
+PASS_STATIC | Recuperación no invoca generador
+PASS_STATIC | Recuperación valida identidad y cámara
+PASS_STATIC | API protegida reutiliza permiso
+PASS_STATIC | SPA conserva material y vista existente
+PASS_STATIC | Pruebas de desactivación y CENIT
+PASS_STATIC | Pruebas de unicidad y recuperación
+PASS_STATIC | No se invoca transporte automático
+RESULTADO: 28/28 comprobaciones estáticas
+===== ACH i07 =====
+PASS_STATIC | consulta de evento original
+PASS_STATIC | clave de idempotencia original
+PASS_STATIC | cámara restringida
+PASS_STATIC | estado fuente sin transporte
+PASS_STATIC | referencia de transacción
+PASS_STATIC | archivo original
+PASS_STATIC | ciclo original
+PASS_STATIC | causal original
+PASS_STATIC | registro original
+PASS_STATIC | cantidad devoluciones
+PASS_STATIC | huella auditada
+PASS_STATIC | huella calculada en los bytes, no metadato del builder
+PASS_STATIC | comparación de tiempo constante
+PASS_STATIC | evidencia faltante bloqueada
+PASS_STATIC | error de integridad no descarga
+PASS_STATIC | estado explícito sin envío
+PASS_STATIC | flag productivo inicialmente falso
+PASS_STATIC | sin transporte en ejecutor automático
+PASS_STATIC | test alteración contenido
+PASS_STATIC | test ausencia auditoría
+PASS_STATIC | test metadatos
+PASS_STATIC | test aislamiento CENIT
+PASS_STATIC | test positivo huella
+PASS_STATIC | fixture I06 ajustada a auditoría original
+RESULTADO: 24/24
+===== ACH i08 =====
+PASS_STATIC | comparación de contenido real
+PASS_STATIC | comprobación previa a cambio de estado
+PASS_STATIC | solo rama automática
+PASS_STATIC | transacción envolvente
+PASS_STATIC | reversión ante errores
+PASS_STATIC | validación de disponibilidad del reconstructor
+PASS_STATIC | cámara verificada
+PASS_STATIC | ciclo verificado
+PASS_STATIC | archivo verificado
+PASS_STATIC | transacción verificada
+PASS_STATIC | registros verificados
+PASS_STATIC | archivo vacío impedido
+PASS_STATIC | error controlado
+PASS_STATIC | xUnit discrepancia bytes
+PASS_STATIC | xUnit cámara diferente
+PASS_STATIC | xUnit ciclo diferente
+PASS_STATIC | xUnit identificador diferente
+PASS_STATIC | xUnit registro diferente
+PASS_STATIC | xUnit servicio ausente
+PASS_STATIC | xUnit fallo reconstrucción
+PASS_STATIC | xUnit aislamiento CENIT
+PASS_STATIC | fixtures I06 tienen bytes coherentes
+PASS_STATIC | habilitación permanece apagada
+PASS_STATIC | ejecutor no transmite
+PASS_STATIC | sin nuevas rutas de API en incremento
+RESULTADO: 25/25
+===== GRAFO DE SOLUCION =====
+SOLUTION GRAPH: OK
+  solution projects: 7
+  disk projects:     7
+  project references: all targets exist and are loaded by the solution
+===== ENTORNO .NET =====
+dotnet NO DISPONIBLE — compilación y xUnit NO EJECUTADAS

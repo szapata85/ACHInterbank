@@ -505,7 +505,10 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             {
                 ClearingHouseId = clearingHouseIds.CenitId,
                 OriginalReturnCode = originalCause,
-                AllowedNewReturnCodesCsv = cenitRorCauses,
+                // R74 es exclusiva de una devolución R32; las condiciones de crédito/adenda se verifican en el servicio productivo.
+                AllowedNewReturnCodesCsv = originalCause == "R32"
+                    ? cenitRorCauses
+                    : string.Join(',', cenitRorCauses.Split(',', StringSplitOptions.RemoveEmptyEntries).Where(code => code != "R74")),
                 MaxDays = 1,
                 RequiredOriginalState = "ReturnedByEpr",
                 IsUniquePerTransaction = true,

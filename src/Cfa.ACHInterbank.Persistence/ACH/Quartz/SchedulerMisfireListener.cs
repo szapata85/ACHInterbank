@@ -24,13 +24,13 @@ public sealed class SchedulerMisfireListener : ITriggerListener
 
     public string Name => "achinterbank-functional-misfire-listener";
 
-    public Task TriggerFired(ITrigger trigger, IJobExecutionContext context, CancellationToken cancellationToken)
-        => Task.CompletedTask;
+    public ValueTask TriggerFired(ITrigger trigger, IJobExecutionContext context, CancellationToken cancellationToken = default)
+        => ValueTask.CompletedTask;
 
-    public Task<bool> VetoJobExecution(ITrigger trigger, IJobExecutionContext context, CancellationToken cancellationToken)
-        => Task.FromResult(false);
+    public ValueTask<bool> VetoJobExecution(ITrigger trigger, IJobExecutionContext context, CancellationToken cancellationToken = default)
+        => ValueTask.FromResult(false);
 
-    public async Task TriggerMisfired(ITrigger trigger, CancellationToken cancellationToken)
+    public async ValueTask TriggerMisfired(ITrigger trigger, IScheduler scheduler, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -50,7 +50,7 @@ public sealed class SchedulerMisfireListener : ITriggerListener
             }
 
             var occurredAt = DateTimeOffset.UtcNow;
-            var executionId = CreateDeterministicId($"misfire:{trigger.Key}:{trigger.GetNextFireTimeUtc():O}");
+            var executionId = CreateDeterministicId($"misfire:{trigger.Key}:{trigger.NextFireTimeUtc:O}");
             if (await db.TaskExecutionLogs.AnyAsync(x => x.ExecutionId == executionId, cancellationToken))
             {
                 return;
@@ -76,7 +76,7 @@ public sealed class SchedulerMisfireListener : ITriggerListener
                 SchedulerInstanceName = string.Empty,
                 IdempotencyKey = executionId.ToString("N"),
                 CorrelationId = $"misfire:{executionId:N}",
-                ScheduledAt = trigger.GetPreviousFireTimeUtc() ?? occurredAt,
+                ScheduledAt = trigger.PreviousFireTimeUtc ?? occurredAt,
                 StartedAt = occurredAt,
                 FinishedAt = occurredAt,
                 DurationMilliseconds = 0,
@@ -101,12 +101,12 @@ public sealed class SchedulerMisfireListener : ITriggerListener
         }
     }
 
-    public Task TriggerComplete(
+    public ValueTask TriggerComplete(
         ITrigger trigger,
         IJobExecutionContext context,
         SchedulerInstruction triggerInstructionCode,
-        CancellationToken cancellationToken)
-        => Task.CompletedTask;
+        CancellationToken cancellationToken = default)
+        => ValueTask.CompletedTask;
 
     private static int? ParseTaskId(string name)
         => name.StartsWith("job:", StringComparison.OrdinalIgnoreCase)

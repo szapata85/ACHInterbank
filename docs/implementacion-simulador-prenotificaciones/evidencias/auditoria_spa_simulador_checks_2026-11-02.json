@@ -1,0 +1,23 @@
+{
+  "type": "static_source_pattern_checks",
+  "checks": {
+    "SPA_01_descarga_ventana_sin_bearer": true,
+    "SPA_02_descripcion_lote_no_normativa": true,
+    "SPA_03_monto_incoming_tomado_de_tx": true,
+    "SPA_04_revalidacion_diferencial_incompleta": true,
+    "SPA_05_ciclo_referencias_no_correlacionadas": true,
+    "SPA_06_maximo_diferencial_no_aplicado_a_seleccion": true,
+    "SPA_07_secuencia_conteo_no_atomico": true,
+    "SPA_08_persistencia_no_atomica_archivos_db": true,
+    "SPA_09_cambio_camara_no_limpia_referencias": true,
+    "SPA_10_escenarios_diferenciales_bloqueados": true,
+    "SPA_11_etiqueta_uat_estatica": true,
+    "SPA_12_e2e_selectores_desactualizados": true,
+    "SPA_13_preview_camara_inexistente_error_no_controlado": true,
+    "SPA_14_require_synthetic_no_aplicado": true
+  },
+  "matched": 14,
+  "total": 14,
+  "runtimeExecuted": false,
+  "limitations": "Las coincidencias ayudan a reproducir los hallazgos; no son pruebas funcionales ni demuestran explotabilidad."
+}

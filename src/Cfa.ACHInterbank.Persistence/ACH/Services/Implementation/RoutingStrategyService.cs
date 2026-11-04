@@ -135,6 +135,9 @@ public class RoutingStrategyService : IRoutingStrategyService
                         Cycle = c,
                         Window = _windowResolver.Resolve(c.ProcessingDate, c.StartTime, c.CutoffTime, timeZoneId, candidateInstant)
                     })
+                    // I04: no proyectar sobre sesiones explícitamente cerradas o canceladas.
+                    .Where(x => x.Cycle.OperationalStatus is not AchCycleOperationalStatus.Closed
+                        and not AchCycleOperationalStatus.Cancelled)
                     .Where(x => x.Window.Status != OperationalCycleWindowStatus.After)
                     .OrderBy(x => x.Window.EndInstant)
                     .ThenBy(x => x.Cycle.CutoffTime)

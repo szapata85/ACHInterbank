@@ -39,8 +39,8 @@ public sealed class SchedulerAdministrationTests
     public async Task ManualExecution_ShouldBeIdempotentForDuplicateRequestId()
     {
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        scheduler.Setup(x => x.TriggerJob(It.IsAny<JobKey>(), It.IsAny<JobDataMap>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        scheduler.Setup(x => x.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        scheduler.Setup(x => x.TriggerJob(It.IsAny<JobKey>(), It.IsAny<JobDataMap>(), It.IsAny<CancellationToken>())).Returns(ValueTask.CompletedTask);
         await using var fixture = await SchedulerFixture.CreateAsync(scheduler);
         var requestId = Guid.NewGuid();
         var command = new ExecuteSchedulerTaskCommand("ACH_CYCLE_SCHEDULER", "Reproceso autorizado por Operaciones", requestId, "user-1", "operador", "corr-1");
@@ -148,8 +148,8 @@ public sealed class SchedulerAdministrationTests
     public async Task SoapTaskManualExecution_ShouldTriggerExistingQuartzJobForSafeEvaluation()
     {
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        scheduler.Setup(x => x.TriggerJob(It.IsAny<JobKey>(), It.IsAny<JobDataMap>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        scheduler.Setup(x => x.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        scheduler.Setup(x => x.TriggerJob(It.IsAny<JobKey>(), It.IsAny<JobDataMap>(), It.IsAny<CancellationToken>())).Returns(ValueTask.CompletedTask);
         await using var fixture = await SchedulerFixture.CreateAsync(scheduler);
         fixture.Db.TaskDefinitions.Add(new TaskDefinition
         {
@@ -179,8 +179,7 @@ public sealed class SchedulerAdministrationTests
     public async Task Tasks_ShouldUseCentralHumanizedMetadata()
     {
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<ITrigger>());
+        Quartz4SchedulerMockHelpers.SetupTriggersForJob(scheduler, () => Array.Empty<ITrigger>());
         await using var fixture = await SchedulerFixture.CreateAsync(scheduler);
         var definition = await fixture.Db.TaskDefinitions.SingleAsync();
         definition.PeriodicityType = PeriodicityTypeEnum.Cron;
@@ -201,11 +200,11 @@ public sealed class SchedulerAdministrationTests
     public async Task AdministrativeOperations_ShouldAuditPauseResumeAndScheduleWithCorrelation()
     {
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), ScheduleJobOptions.Replacing, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
         scheduler.Setup(x => x.GetJobDetail(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync((IJobDetail?)null);
-        scheduler.Setup(x => x.PauseJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        scheduler.Setup(x => x.ResumeJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        scheduler.Setup(x => x.PauseJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).Returns(ValueTask.FromResult(true));
+        scheduler.Setup(x => x.ResumeJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).Returns(ValueTask.FromResult(true));
         await using var fixture = await SchedulerFixture.CreateAsync(scheduler);
 
         fixture.SetAuditScope("Scheduler.Pause", "pause-correlation");

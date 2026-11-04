@@ -225,7 +225,7 @@ public class S1TraceabilityMatrixTests
     private static string ExtractSection(string content, string startHeading, string nextHeadingPrefix)
     {
         var start = content.IndexOf(startHeading, StringComparison.Ordinal);
-        start.Should().BeGreaterOrEqualTo(0, $"no se encontró sección {startHeading}");
+        start.Should().BeGreaterThanOrEqualTo(0, $"no se encontró sección {startHeading}");
 
         var tail = content[start..];
         var next = tail.IndexOf("\n" + nextHeadingPrefix, StringComparison.Ordinal);

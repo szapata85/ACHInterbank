@@ -1,0 +1,33 @@
+{
+  "status": "PASS_STATIC",
+  "checks": {
+    "seed_file_preserved": true,
+    "docs_default_off_non_development": true,
+    "docs_root_redirect_safe": true,
+    "rate_limiter_uses_proxy_allowlist": true,
+    "no_untrusted_rate_limiter_client_header": true,
+    "nginx_sanitizes_forwarded_for": true,
+    "nginx_preserves_upload_limit": true,
+    "nginx_static_headers_and_dotfile_guard": true,
+    "api_no_hpkp": true,
+    "api_hsts_only_https": true,
+    "kestrel_hide_version": true,
+    "test_source_created": true
+  },
+  "nginx_transformed_host_compat": "PASS_SYNTAX_ONLY",
+  "nginx_host_version": "1.26.3",
+  "nginx_target_version": "1.30.6",
+  "dotnet_build": "NOT_RUN_ENVIRONMENT",
+  "docker_build": "NOT_RUN_ENVIRONMENT",
+  "nginx_1306_real_test": "NOT_RUN_ENVIRONMENT",
+  "uat": "NOT_RUN_ENVIRONMENT",
+  "seed_parent_sha256": "5aa78003c215fb9f3315cbf097a593018f65d2b3580e657a306bacbec6ce41e7",
+  "all_source_static": true,
+  "security_constraints": {
+    "PRESERVE_ADMIN_SEED_CREDENTIAL": true,
+    "GO_INCREMENT": "YES",
+    "GO_DEPLOY": "NO",
+    "GO_LIVE_MONETARY": "NO",
+    "ACH_CR_001_QUARTZ": "DISABLED"
+  }
+}

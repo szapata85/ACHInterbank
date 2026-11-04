@@ -1,0 +1,102 @@
+{
+  "iniciativa": "DEV-AUTO-CENIT",
+  "incremento": "I01-CENIT",
+  "corte": "2026-11-02",
+  "archivo_zip_origen": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I08_ACHCOLOMBIA_2026-11-02.zip",
+  "sha256_zip_origen": "008a19c8e9e62e5dfaf274983433bdf50a2c4e24789078eddcb0b5247bc15317",
+  "archivo_zip_salida": "ACHInterbank_COMPLETO_DEVOLUCIONES_AUTOMATICAS_I01_CENIT_2026-11-02.zip",
+  "ruta_raiz_zip": "ACHInterbank_ajustado/",
+  "resultado_comparacion": {
+    "entradas_origen": 4860,
+    "entradas_heredadas_conservadas_byte_a_byte": 4858,
+    "entradas_heredadas_modificadas": 2,
+    "entradas_heredadas_eliminadas": 0,
+    "nuevos_archivos_incluido_manifiesto": 13,
+    "total_entradas_zip_salida": 4873
+  },
+  "modificados": [
+    {
+      "ruta": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/AchDbContextModelSnapshot.cs",
+      "sha256_original": "2aa56b953cf004889e9139c1a4d728c4bd28c5ac945871c8987b2e7712b014bc",
+      "sha256_i01": "bf4195f56fac0c53f7acf94338ec3ca6b8ddf519a40dbdc020b934bbbf5c2282",
+      "justificacion": "Snapshot PostgreSQL de parámetro compartido que faltaba"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/DependencyInjectionService.cs",
+      "sha256_original": "b5bb3803f3b2dc6aa819d3490919ff3f27aede0cf4ad6f2dd35b35b6278d567c",
+      "sha256_i01": "fa4509a9c2d68287e364691421b0ee3a6aa7d0ab476307e1ab31a6d3d9e00c72",
+      "justificacion": "Registro DI para servicio CENIT"
+    }
+  ],
+  "nuevos": [
+    {
+      "ruta": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/EVIDENCIA_DEVOLUCIONES_AUTOMATICAS_I01_CENIT.md",
+      "sha256_i01": "a17ff778ecd205b4adf50e6e1de01725b23ed9f19e684e3d5f229498acf8d533"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/INFORME_DEVOLUCIONES_AUTOMATICAS_I01_CENIT.md",
+      "sha256_i01": "dbb6b08270400be0f919f85846323fbd2aa3a4b2b873caf1fd311ec84b0c4dd9"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/INVENTARIO_CONSERVADOS_I01_CENIT.tsv",
+      "sha256_i01": "bb4084e60e9d21efff2dbda4fc9acac9a52a515e55aea24fe2ec82287462d7e3"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MEMORY_STATE_DEVOLUCIONES_AUTOMATICAS_I01_CENIT.md",
+      "sha256_i01": "bd42dbbe63a71be408d7a05b2e05e96f897827332a546a3565b423e084fbc663"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/PLAN_DEVOLUCIONES_AUTOMATICAS_CENIT.md",
+      "sha256_i01": "11c575ddd5a89bbc8e7e682cfdd6c618ba31fbb406dbdd6f052698b23eecc2e3"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/scripts/test/automatic_returns_i01_cenit_static_check.py",
+      "sha256_i01": "ba0f0cc5b9b2740d6e9f4617945e47638ef16b96778d7e9e1235db04a85a7ffa"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Api/Controllers/CenitAutomaticReturnSettingsController.cs",
+      "sha256_i01": "fa5e03a9a5efd0adc506dcb70eb43114019df1d50209ad1ab5e4cfff96d073ff"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Interfaces/ICenitAutomaticReturnSettingsService.cs",
+      "sha256_i01": "7447b751a2140f4e518ee11aefef51634f9baea17859f40c0a65fa0893e0c357"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/CenitAutomaticReturnSettings.cs",
+      "sha256_i01": "c1f8f6541c9a01e1ddfe60dccfa8c45847ee6c868f684d8886bdb3b641f1163a"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitAutomaticReturnSettingsService.cs",
+      "sha256_i01": "cdbf8172a3e11347b2d9f00b517b2e71e73f666193adcbeddb367f29eb3b4cab"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/20261102233000_CenitAutomaticReturnConfigurationI01.cs",
+      "sha256_i01": "564b0d173acedf4faf0f574bd8f669b82eec01e22f7657fd006ef27a2a9809fe"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/CenitAutomaticReturnSettingsI01Tests.cs",
+      "sha256_i01": "611fc73e375fb58fa467fe11c34800064a76e4285ec787f5236473512b839d10"
+    },
+    {
+      "ruta": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/MANIFIESTO_DEVOLUCIONES_AUTOMATICAS_I01_CENIT.json",
+      "sha256_i01": "AUTORREFERENCIA_NO_APLICA"
+    }
+  ],
+  "conservados": {
+    "cantidad": 4858,
+    "inventario_completo": "ACHInterbank_ajustado/docs/implementacion-devoluciones-automaticas/INVENTARIO_CONSERVADOS_I01_CENIT.tsv",
+    "sha256_inventario": "bb4084e60e9d21efff2dbda4fc9acac9a52a515e55aea24fe2ec82287462d7e3"
+  },
+  "eliminados": [],
+  "validacion": {
+    "zip_origen_unzip_t": "OK",
+    "static_cenit_i01": "29/29 PASS_STATIC",
+    "static_ach_i04": "32/35, NO APROBADA (histórico)",
+    "compilacion_dotnet": "NO_EJECUTADA_ENTORNO",
+    "pruebas_xunit": "NO_EJECUTADAS_ENTORNO",
+    "pruebas_sql_server_postgresql": "NO_EJECUTADAS_ENTORNO",
+    "homologacion": "PENDIENTE",
+    "estado_productivo": "NO-GO"
+  },
+  "nota_sha256_salida": "Se entrega fuera del ZIP en archivo .sha256, para evitar referencia circular."
+}

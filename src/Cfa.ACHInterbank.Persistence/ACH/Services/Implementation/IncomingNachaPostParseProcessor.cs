@@ -1,9 +1,10 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
     private readonly ICenitIncomingReturnPolicy _cenitReturnPolicy;
     private readonly ICycleNumberResolver _cycleNumberResolver;
     private readonly ICenitReturnOfReturnService? _cenitReturnOfReturnService;
+    private readonly IOperationalCalendarService _operationalCalendar;
 
     public IncomingNachaPostParseProcessor(
         AchDbContext context,
@@ -38,7 +40,8 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         IIncomingNachaAchResultResolver? resultResolver = null,
         ICenitIncomingReturnPolicy? cenitReturnPolicy = null,
         ICycleNumberResolver? cycleNumberResolver = null,
-        ICenitReturnOfReturnService? cenitReturnOfReturnService = null)
+        ICenitReturnOfReturnService? cenitReturnOfReturnService = null,
+        IOperationalCalendarService? operationalCalendarService = null)
     {
         _context = context;
         _classifier = classifier;
@@ -52,6 +55,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         _cenitReturnPolicy = cenitReturnPolicy ?? new CenitIncomingReturnPolicy();
         _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
         _cenitReturnOfReturnService = cenitReturnOfReturnService;
+        _operationalCalendar = operationalCalendarService ?? new OperationalCalendarService(context);
     }
 
     public async Task ProcessAsync(Guid ingestionId, string executedBy, CancellationToken ct = default)
@@ -121,6 +125,20 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
             var ingestion = await _context.IncomingNachaFileIngestions
                 .AsNoTracking()
                 .FirstAsync(x => x.Id == ingestionId, ct);
+
+            // F3.3: a monetary ACHCOL entry is sourced directly from NACHA-M.
+            // The absence of an AchTransaction/legacy cycle is not an ambiguous
+            // match. Returns, prenotes and any manual cases retain legacy linking.
+            if (string.Equals(ingestion.ResolutionMode, "AchColFileBased", StringComparison.Ordinal)
+                && ingestion.CycleResolutionStatus == IncomingNachaCycleResolutionStatus.ResueltoSinCiclo
+                && ingestion.ResolvedAchCycleId is null
+                && classification.EligibilityStatus == IncomingNachaEligibilityStatus.Elegible
+                && !classification.RequiresManualResolution
+                && (classification.FunctionalClass is IncomingNachaFunctionalClass.CreditoEntrante
+                    or IncomingNachaFunctionalClass.DebitoEntrante))
+            {
+                continue;
+            }
 
             if (_localLivePreparationService is not null)
             {
@@ -410,6 +428,26 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
 
         if (classification.FunctionalClass is IncomingNachaFunctionalClass.Devolucion or IncomingNachaFunctionalClass.RechazadaOperador or IncomingNachaFunctionalClass.RetornoEpr)
         {
+            // I04: enlace y procedencia se verifican ANTES de cualquier cambio de estado.
+            // El estado de la prenotificacion, su intento y el tercero se actualizan
+            // exclusivamente por AchStateTransitionService y sus sincronizadores existentes.
+            var prenoteGuard = await EvaluatePrenotificationReturnAsync(
+                ingestion, entry, addenda, classification, link, ct);
+            if (prenoteGuard.Applies)
+            {
+                if (!prenoteGuard.Allowed)
+                {
+                    classification.EligibilityStatus = IncomingNachaEligibilityStatus.RevisionManual;
+                    classification.RequiresManualResolution = true;
+                    await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
+                        "PrenotificacionReturnBloqueada", "RevisionManual", prenoteGuard.Message,
+                        new { prenoteGuard.Code, classification.OriginalTraceRef, classification.ReturnReasonCode }, executedBy, ct);
+                    return new(false, false, true, null, prenoteGuard.Code, prenoteGuard.Message);
+                }
+                await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
+                    "PrenotificacionReturnCorrelacionada", "Ok", prenoteGuard.Message,
+                    new { prenoteGuard.Code, classification.OriginalTraceRef, classification.ReturnReasonCode }, executedBy, ct);
+            }
             var route = await ResolveReturnRouteAsync(
                 ingestion.ResolvedClearingHouseId ?? 0,
                 classification.ReturnReasonCode,
@@ -491,6 +529,49 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         return new(false, false, classification.RequiresManualResolution, null, "NoReturnEffect", "La clasificación no requiere aplicación de devolución.");
     }
 
+    private async Task<IncomingPrenotificationReturnGuard.Result> EvaluatePrenotificationReturnAsync(
+        IncomingNachaFileIngestion ingestion,
+        EntryDetail entry,
+        AddendaRecord? addenda,
+        IncomingNachaEntryClassification classification,
+        IncomingNachaLinkingResult link,
+        CancellationToken ct)
+    {
+        // Un SHA coincidente es la unica forma de asociar el fichero importado a
+        // un archivo generado por I03. No se confia en un nombre de archivo editable.
+        // IngestAsync persiste hexadecimal en minusculas; el builder I03 usa
+        // Convert.ToHexString (mayusculas). Normalizar antes de comparar.
+        var simulationSha = ingestion.FileHashSha256?.Trim().ToUpperInvariant();
+        var simulatedMatches = string.IsNullOrWhiteSpace(simulationSha)
+            ? new List<NachaInboundSimulation>()
+            : await _context.NachaInboundSimulations.AsNoTracking()
+                .Include(x => x.Entries)
+                .Where(x => x.Sha256 == simulationSha
+                    && x.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationReturn)
+                .Take(2)
+                .ToListAsync(ct);
+
+        var original = await _context.AchTransactions.AsNoTracking()
+            .Include(x => x.AchCycle)
+            .FirstOrDefaultAsync(x => x.Id == link.AchTransactionId, ct);
+        PrenotificationValidationAttempt? attempt = null;
+        if (original is not null && (original.IsPrenotification || original.Type == TransactionTypeEnum.Prenotification))
+        {
+            var attempts = await _context.PrenotificationValidationAttempts.AsNoTracking()
+                .Include(x => x.ThirdPartyAccountValidation)
+                .Where(x => x.AchTransactionId == original.Id)
+                .Take(2)
+                .ToListAsync(ct);
+            if (attempts.Count > 1)
+                return IncomingPrenotificationReturnGuard.Result.Block(
+                    "PRENOTE_MULTIPLE_ATTEMPTS", "La transaccion tiene multiples intentos; requiere revision manual.");
+            attempt = attempts.SingleOrDefault();
+        }
+        return IncomingPrenotificationReturnGuard.Evaluate(
+            ingestion, entry, addenda, classification, link, original, attempt,
+            simulatedMatches.FirstOrDefault(), simulatedMatches.Count > 1);
+    }
+
     private async Task<CenitIncomingReturnPolicyResult?> EvaluateCenitReturnPolicyAsync(
         IncomingNachaFileIngestion ingestion,
         EntryDetail entry,
@@ -545,10 +626,10 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 .Select(x => x.CycleName)
                 .SingleOrDefaultAsync(ct)
             : null;
-        var originalCycleName = !string.IsNullOrWhiteSpace(transaction.AchCycleId)
+        var originalCycle = !string.IsNullOrWhiteSpace(transaction.AchCycleId)
             ? await _context.AchCycles.AsNoTracking()
                 .Where(x => x.Id == transaction.AchCycleId)
-                .Select(x => x.CycleName)
+                .Select(x => new { x.CycleName, x.ProcessingDate })
                 .SingleOrDefaultAsync(ct)
             : null;
         var returnCycleNumber = ingestion.DetectedCycleNumber ?? _cycleNumberResolver.Resolve(returnCycleName);
@@ -565,12 +646,22 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
             .Max();
 
         var evidence = ParseCenitOperationalEvidence(classification.ClassificationEvidenceJson);
+        DateTime? calculatedDeadline = null;
+        if (string.Equals(classification.ReturnReasonCode, "R23", StringComparison.OrdinalIgnoreCase)
+            && returnValueDate.Value.Date > transaction.EffectiveEntryDate.Date
+            && evidence.ReceiverNotificationReceivedDate.HasValue)
+        {
+            calculatedDeadline = (await _operationalCalendar.GetNextBusinessDayAsync(
+                DateOnly.FromDateTime(evidence.ReceiverNotificationReceivedDate.Value.Date.AddDays(1)),
+                ingestion.ResolvedClearingHouseId.Value, ct)).ToDateTime(TimeOnly.MinValue);
+        }
+
         return _cenitReturnPolicy.Evaluate(new CenitIncomingReturnPolicyRequest(
-            transaction.Type,
+            transaction.IsPrenotification ? TransactionTypeEnum.Prenotification : transaction.Type,
             classification.ReturnReasonCode ?? string.Empty,
             transaction.EffectiveEntryDate.Date,
             returnValueDate.Value.Date,
-            _cycleNumberResolver.Resolve(originalCycleName),
+            _cycleNumberResolver.Resolve(originalCycle?.CycleName),
             returnCycleNumber,
             lastReturnCycleNumber > 0 ? lastReturnCycleNumber : null,
             transaction.Amount,
@@ -581,7 +672,10 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
             evidence.FundsAvailabilityRequired,
             evidence.FundsAvailabilityConfirmed,
             evidence.ConfirmationToOriginatorRecorded,
-            evidence.ReceiverRejectionDeadlineDate));
+            evidence.ReceiverRejectionDeadlineDate,
+            originalCycle?.ProcessingDate,
+            evidence.ReceiverNotificationReceivedDate,
+            calculatedDeadline));
     }
 
     private static CenitIncomingReturnOperationalEvidence ParseCenitOperationalEvidence(string? evidenceJson)
@@ -691,7 +785,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
 
         var transaction = await _context.AchTransactions.AsNoTracking()
             .Where(x => x.Id == achTransactionId)
-            .Select(x => new { x.Type })
+            .Select(x => new { x.Type, x.IsPrenotification })
             .FirstOrDefaultAsync(ct);
         if (transaction is null)
         {
@@ -703,9 +797,9 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
             clearingHouseId,
             code,
             AchReturnFlowType.Return,
-            transaction.Type == TransactionTypeEnum.Debit,
-            transaction.Type == TransactionTypeEnum.Credit,
-            transaction.Type == TransactionTypeEnum.Prenotification,
+            !transaction.IsPrenotification && transaction.Type == TransactionTypeEnum.Debit,
+            !transaction.IsPrenotification && transaction.Type == TransactionTypeEnum.Credit,
+            transaction.IsPrenotification || transaction.Type == TransactionTypeEnum.Prenotification,
             transaction.Type is TransactionTypeEnum.Return or TransactionTypeEnum.Reversal,
             effectiveDate), ct);
         if (!resolution.IsResolved)

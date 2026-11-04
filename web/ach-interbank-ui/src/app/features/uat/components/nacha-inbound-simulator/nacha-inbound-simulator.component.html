@@ -1,6 +1,6 @@
 <app-page-header
   title="Simulador de archivos recibidos"
-  subtitle="Genere un archivo NACHA-M de entrada sobre una transacción legítima del sistema">
+  subtitle="Simule archivos recibidos y respuestas a prenotificaciones originadas por ACH Interbank">
 </app-page-header>
 
 <section class="simulator-page" aria-label="Simulador de archivos recibidos">
@@ -25,7 +25,13 @@
       <mat-card-subtitle>Elija si responderá sobre una transacción existente o creará una entrada nueva</mat-card-subtitle>
     </mat-card-header>
     <mat-card-content>
-      <mat-button-toggle-group
+      <div *ngIf="prenotificationFlow" class="pn-mode-active">
+        <div><strong>Respuestas a prenotificaciones enviadas</strong><p>Consulte una operación real del entorno UAT y simule su devolución o vencimiento.</p></div>
+        <button mat-stroked-button type="button" (click)="closePrenotifications()" [disabled]="pnBusy">
+          <mat-icon aria-hidden="true">arrow_back</mat-icon> Volver al simulador
+        </button>
+      </div>
+      <mat-button-toggle-group *ngIf="!prenotificationFlow"
         [value]="form.controls.simulationMode.value"
         aria-label="Modo de simulación NACHA-M"
         class="mode-toggle">
@@ -48,10 +54,186 @@
           </span>
         </mat-button-toggle>
       </mat-button-toggle-group>
+      <button *ngIf="!prenotificationFlow" class="pn-entry" mat-stroked-button type="button" (click)="openPrenotifications()">
+        <mat-icon aria-hidden="true">mark_email_read</mat-icon>
+        <span><strong>Responder prenotificaciones enviadas</strong><small>Devolución NACHA-M o vencimiento sin devolución</small></span>
+        <mat-icon aria-hidden="true">chevron_right</mat-icon>
+      </button>
     </mat-card-content>
   </mat-card>
 
-  <form [formGroup]="form" (ngSubmit)="confirmGeneration()" novalidate>
+  <!-- I06: un solo flujo en la misma pantalla, sin duplicar el simulador legado. -->
+  <section *ngIf="prenotificationFlow" class="pn-workflow" aria-label="Respuesta a prenotificaciones enviadas">
+    <mat-card appearance="outlined" class="pn-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">search</mat-icon>
+        <mat-card-title>1. Buscar prenotificación enviada</mat-card-title>
+        <mat-card-subtitle>Solo operaciones originadas por ACH Interbank, con su estado y trazabilidad real.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="pn-filters">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Cámara</mat-label>
+            <mat-select [value]="pnHouseCode" [disabled]="pnBusy || pnLoading" (selectionChange)="changePnHouse($event.value)" aria-label="Cámara de prenotificaciones">
+              <mat-option *ngFor="let house of clearingHouses" [value]="house.code">{{ house.name }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Referencia o rastreo</mat-label>
+            <input matInput [disabled]="pnBusy || pnLoading" [value]="pnSearch" (input)="pnSearch = $any($event.target).value"
+                   (keyup.enter)="resetPnSelectionForSearch(); loadPrenotifications()"
+                   placeholder="Buscar por referencia o trace" aria-label="Buscar prenotificación" />
+            <mat-icon matSuffix aria-hidden="true">search</mat-icon>
+          </mat-form-field>
+          <button mat-stroked-button type="button" (click)="resetPnSelectionForSearch(); loadPrenotifications()"
+                  [disabled]="pnBusy || pnLoading || !pnHouseCode">
+            <mat-icon aria-hidden="true">refresh</mat-icon> Consultar
+          </button>
+        </div>
+        <mat-progress-bar *ngIf="pnLoading" mode="indeterminate" aria-label="Consultando prenotificaciones"></mat-progress-bar>
+        <div *ngIf="pnError" class="inline-state inline-state--error" role="alert">
+          <mat-icon aria-hidden="true">error_outline</mat-icon>
+          <div><strong>No fue posible consultar</strong><p>{{ pnError }}</p></div>
+          <button mat-stroked-button type="button" (click)="loadPrenotifications()">Reintentar</button>
+        </div>
+        <div *ngIf="!pnLoading && !pnError && pnCandidates.length === 0" class="pn-empty" role="status">
+          <mat-icon aria-hidden="true">manage_search</mat-icon>
+          <p>No hay prenotificaciones para esta búsqueda. Pruebe otra referencia o cámara.</p>
+        </div>
+        <p *ngIf="pnCandidates.length" class="pn-list-hint">Seleccione una prenotificación. Las no elegibles se muestran con su motivo.</p>
+        <div *ngIf="pnCandidates.length" class="pn-candidate-list" role="group" aria-label="Prenotificaciones encontradas">
+          <button *ngFor="let item of pnCandidates" type="button" class="pn-candidate"
+                  [class.pn-candidate--selected]="pnSelected?.originalPrenotificationId === item.originalPrenotificationId"
+                  [attr.aria-pressed]="pnSelected?.originalPrenotificationId === item.originalPrenotificationId"
+                  [disabled]="pnBusy || pnLoading"
+                  (click)="selectPrenotification(item)">
+            <span class="pn-candidate-main">
+              <strong>{{ item.transactionExternalId || ('Prenotificación ' + item.originalPrenotificationId) }}</strong>
+              <small>Trace {{ item.traceNumber }} · {{ item.respondingFinancialInstitution }}</small>
+              <small>Cuenta {{ item.destinationAccountMasked }} · {{ formatProcessingDate(item.originalBusinessDate) }}</small>
+            </span>
+            <span class="pn-candidate-status" [class.pn-candidate-status--blocked]="!item.eligibleForReturn && !item.eligibleForNoReturnByDeadline">
+              <mat-icon aria-hidden="true">{{ item.eligibleForReturn || item.eligibleForNoReturnByDeadline ? 'check_circle' : 'info' }}</mat-icon>
+              {{ item.eligibleForReturn || item.eligibleForNoReturnByDeadline ? 'Con opciones' : 'No elegible' }}
+            </span>
+          </button>
+        </div>
+        <nav *ngIf="pnTotal > pnPageSize" class="server-pagination" aria-label="Páginas de prenotificaciones">
+          <button mat-stroked-button type="button" (click)="loadPnPage(pnPage - 1)" [disabled]="pnPage <= 1 || pnLoading || pnBusy">Anterior</button>
+          <span>Página {{ pnPage }} · {{ pnTotal }} resultados</span>
+          <button mat-stroked-button type="button" (click)="loadPnPage(pnPage + 1)" [disabled]="pnPage * pnPageSize >= pnTotal || pnLoading || pnBusy">Siguiente</button>
+        </nav>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card *ngIf="pnSelected" appearance="outlined" class="pn-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">rule</mat-icon>
+        <mat-card-title>2. Elegir resultado</mat-card-title>
+        <mat-card-subtitle>Operación #{{ pnSelected.originalPrenotificationId }} · ciclo original {{ pnSelected.originalCycleId }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="pnSelected.violations.length" class="pn-hint" role="status">
+          <mat-icon aria-hidden="true">info_outline</mat-icon>
+          <p>{{ pnIssuesText(pnSelected) }}</p>
+        </div>
+        <div class="pn-outcomes" role="group" aria-label="Tipo de resultado simulado">
+          <button type="button" class="pn-outcome" [class.pn-outcome--active]="pnOutcome === 'Returned'"
+                  [attr.aria-pressed]="pnOutcome === 'Returned'" [disabled]="pnBusy" (click)="changePnOutcome('Returned')">
+            <mat-icon aria-hidden="true">assignment_return</mat-icon>
+            <span><strong>Devolución</strong><small>Genera archivo NACHA-M para importar manualmente.</small></span>
+          </button>
+          <button type="button" class="pn-outcome" [class.pn-outcome--active]="pnOutcome === 'NoReturnByDeadline'"
+                  [attr.aria-pressed]="pnOutcome === 'NoReturnByDeadline'" [disabled]="pnBusy" (click)="changePnOutcome('NoReturnByDeadline')">
+            <mat-icon aria-hidden="true">schedule</mat-icon>
+            <span><strong>Sin devolución</strong><small>Valida el vencimiento; no genera un archivo de aprobación.</small></span>
+          </button>
+        </div>
+        <div *ngIf="pnOutcome === 'Returned'" class="pn-fields">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Causal de devolución</mat-label>
+            <mat-select [disabled]="pnBusy" [value]="pnReasonCode" (selectionChange)="pnReasonCode = $event.value; changePnDetails()">
+              <mat-option *ngFor="let reason of pnApplicableCodes" [value]="reason.code">{{ reason.code }} · {{ reason.description }}</mat-option>
+            </mat-select>
+            <mat-hint>Catálogo vigente aplicable a prenotificaciones</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Ciclo de devolución</mat-label>
+            <mat-select [disabled]="pnBusy" [value]="pnResponseCycleId" (selectionChange)="pnResponseCycleId = $event.value; changePnDetails()">
+              <mat-option *ngFor="let cycle of pnCycles" [value]="cycle.cycleId">{{ cycle.cycleName }}</mat-option>
+            </mat-select>
+            <mat-hint>Posterior al ciclo original; la API valida el plazo</mat-hint>
+          </mat-form-field>
+          <p *ngIf="!pnOptionsLoading && (!pnApplicableCodes.length || !pnCycles.length)" class="pn-muted">
+            No hay {{ !pnApplicableCodes.length ? 'causales aplicables' : 'ciclos de respuesta' }} disponibles. Revise la configuración operativa.
+          </p>
+        </div>
+        <div *ngIf="pnOutcome === 'NoReturnByDeadline'" class="pn-tacit">
+          <p>El vencimiento se evalúa con las reglas de la cámara. Una hora virtual sirve solo para consultar; nunca adelanta el estado persistido.</p>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Fecha/hora virtual (opcional)</mat-label>
+            <input matInput type="datetime-local" [disabled]="pnBusy" [value]="pnVirtualDateTime"
+                   (input)="pnVirtualDateTime = $any($event.target).value; changePnDetails()" />
+            <mat-hint>Deje vacío para evaluar con el reloj real</mat-hint>
+          </mat-form-field>
+          <p class="pn-muted">Plazo de respuesta: {{ pnSelected.responseDeadlineAtUtc ? (pnSelected.responseDeadlineAtUtc | date:'medium') : 'No disponible' }}</p>
+        </div>
+        <div *ngIf="(pnOutcome === 'Returned' && !pnSelected.eligibleForReturn)
+                    || (pnOutcome === 'NoReturnByDeadline' && pnSelected.violations.length > 0)"
+             class="inline-state" role="status">
+          <mat-icon aria-hidden="true">block</mat-icon>
+          <div><strong>Operación no elegible</strong><p>{{ pnIssuesText(pnSelected) }}</p></div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card *ngIf="pnSelected" appearance="outlined" class="pn-card pn-confirm">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">fact_check</mat-icon>
+        <mat-card-title>3. Validar y ejecutar</mat-card-title>
+        <mat-card-subtitle>Primero revise la elegibilidad; después confirme la acción.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="pnPreviewError" class="inline-state inline-state--error" role="alert">
+          <mat-icon aria-hidden="true">error_outline</mat-icon><div><strong>Validación no aprobada</strong><p>{{ pnPreviewError }}</p></div>
+        </div>
+        <div *ngIf="pnReturnPreview?.businessEligible" class="inline-state" role="status">
+          <mat-icon aria-hidden="true">check_circle</mat-icon>
+          <div><strong>Devolución elegible</strong><p>Se generará el archivo NACHA-M. La importación por NachaUpload es manual.</p></div>
+        </div>
+        <div *ngIf="pnTacitPreview as preview" class="pn-tacit-feedback" role="status">
+          <strong>{{ preview.items[0]?.wouldApplyAtEvaluationTime ? 'Vencimiento alcanzado' : 'Plazo todavía vigente' }}</strong>
+          <p>{{ preview.isVirtualTime ? 'Resultado hipotético. No se modificaron estados.' : 'Evaluación con la hora real.' }}</p>
+          <p *ngIf="preview.isVirtualTime && !preview.items[0]?.eligibleAtRealTime">No se puede aplicar mientras no venza el plazo real.</p>
+          <p *ngIf="!preview.isVirtualTime && preview.items[0]?.eligibleAtRealTime">Puede aplicar la aceptación tácita en este entorno UAT.</p>
+        </div>
+        <div class="pn-actions">
+          <button mat-stroked-button type="button" (click)="previewPn()" [disabled]="!pnCanPreview">
+            <mat-spinner *ngIf="pnBusy" diameter="18"></mat-spinner>
+            <mat-icon *ngIf="!pnBusy" aria-hidden="true">fact_check</mat-icon>
+            {{ pnBusy ? 'Procesando…' : 'Validar resultado' }}
+          </button>
+          <button mat-flat-button color="primary" type="button" [disabled]="!pnCanCommit" (click)="confirmPn()">
+            {{ pnOutcome === 'Returned' ? 'Generar devolución' : 'Aplicar vencimiento real' }}
+          </button>
+        </div>
+        <div *ngIf="pnGenerated" class="pn-completion" role="status" aria-live="polite">
+          <mat-icon aria-hidden="true">task_alt</mat-icon>
+          <div><strong>Archivo listo: {{ pnGenerated.fileName }}</strong><p>Sin importación ni transmisión automática.</p></div>
+          <button mat-flat-button type="button" color="primary" (click)="download(pnGenerated.id, pnGenerated.fileName)" [disabled]="downloadingId !== null">
+            <mat-icon aria-hidden="true">download</mat-icon> Descargar
+          </button>
+          <button mat-stroked-button type="button" (click)="goToUpload()">Ir a NachaUpload</button>
+        </div>
+        <div *ngIf="pnApplied !== null" class="pn-completion" role="status" aria-live="polite">
+          <mat-icon aria-hidden="true">task_alt</mat-icon>
+          <div><strong>{{ pnApplied ? 'Aceptación tácita aplicada' : 'El resultado ya estaba aplicado' }}</strong><p>No se generó un archivo NACHA-M.</p></div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </section>
+
+  <form *ngIf="!prenotificationFlow" [formGroup]="form" (ngSubmit)="confirmGeneration()" novalidate>
     <mat-card appearance="outlined" class="configuration-card">
       <mat-card-header>
         <mat-icon mat-card-avatar aria-hidden="true">tune</mat-icon>
@@ -660,7 +842,7 @@
         <mat-icon aria-hidden="true">upload_file</mat-icon>
         Ir a Cargar archivo NACHA-M
       </button>
-      <button mat-flat-button color="primary" type="button" (click)="download(result.id)">
+      <button mat-flat-button color="primary" type="button" (click)="download(result.id, result.fileName)">
         <mat-icon aria-hidden="true">download</mat-icon>
         Descargar archivo
       </button>
@@ -746,7 +928,7 @@
                 type="button"
                 matTooltip="Descargar archivo"
                 [attr.aria-label]="'Descargar simulación ' + item.id"
-                (click)="download(item.id)">
+                (click)="download(item.id, item.fileName)">
                 <mat-icon aria-hidden="true">download</mat-icon>
               </button>
             </td>

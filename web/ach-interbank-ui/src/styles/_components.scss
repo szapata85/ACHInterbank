@@ -86,9 +86,12 @@ small,
 }
 
 /* Buttons
+   Do not style Angular Material mat-list-item navigation disclosures as generic
+   buttons. These do not necessarily carry .mat-mdc-button-base; the global
+   hover --btn-bg used to overwrite their shell-themed contrast background.
    Base = neutral surface button (legible by default).
    Variants (.primary, .secondary, etc.) override CSS variables explicitly. */
-button:not(.mat-mdc-button-base),
+button:not(.mat-mdc-button-base):not([mat-list-item]),
 .btn {
   --btn-bg: var(--color-primary);
   --btn-border: var(--color-primary);
@@ -118,19 +121,19 @@ button:not(.mat-mdc-button-base),
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
-button:not(.mat-mdc-button-base):hover,
+button:not(.mat-mdc-button-base):not([mat-list-item]):hover,
 .btn:hover {
   --btn-bg: var(--color-primary-hover);
   --btn-border: var(--color-primary-hover);
   --btn-color: var(--color-primary-contrast);
 }
 
-button:not(.mat-mdc-button-base):active,
+button:not(.mat-mdc-button-base):not([mat-list-item]):active,
 .btn:active {
   transform: translateY(0.5px);
 }
 
-button:not(.mat-mdc-button-base):focus-visible,
+button:not(.mat-mdc-button-base):not([mat-list-item]):focus-visible,
 .btn:focus-visible {
   box-shadow: var(--focus-ring);
 }
@@ -281,8 +284,8 @@ button[aria-busy='true'] {
   opacity: 0.85;
 }
 
-button:not(.mat-mdc-button-base):disabled,
-button:not(.mat-mdc-button-base)[disabled],
+button:not(.mat-mdc-button-base):not([mat-list-item]):disabled,
+button:not(.mat-mdc-button-base):not([mat-list-item])[disabled],
 .btn:disabled {
   --btn-color: var(--color-text-soft);
   opacity: 0.55;

@@ -1,0 +1,374 @@
+--- a/src/Cfa.ACHInterbank.Application/ACH/Services/CenitIncomingReturnPolicy.cs
++++ b/src/Cfa.ACHInterbank.Application/ACH/Services/CenitIncomingReturnPolicy.cs
+@@ -75,6 +75,15 @@
+ 
+         if (code == R06)
+         {
++            // The fifth CENIT session receives returns of fourth-session entries;
++            // operational evidence does not override the session's source restriction.
++            if (request.ReturnCycleNumber == 5
++                && (request.OriginalCycleNumber != 4
++                    || request.ReturnValueDate.Date != request.OriginalValueDate.Date))
++            {
++                return Reject("CENIT_CYCLE5_R06_ORIGIN_C4_REQUIRED", "R06 del ciclo 5 exige una entrada original del ciclo 4 del mismo dia operacional.");
++            }
++
+             return EvaluateR06(request);
+         }
+ 
+@@ -238,11 +247,9 @@
+             return Reject("CENIT_R23_PARTIAL_OR_AMOUNT_MISMATCH", "R23 solo permite devolver el valor original completo.");
+         }
+ 
++        // OriginalValueDate is not the original receipt date: the 15-day limit
++        // is evaluated below against the persisted original processing date.
+         var elapsedDays = (request.ReturnValueDate.Date - request.OriginalValueDate.Date).Days;
+-        if (elapsedDays > 15)
+-        {
+-            return Reject("CENIT_R23_MAX_CALENDAR_DAYS_EXCEEDED", "R23 excede quince dias calendario desde la entrada al Participante Receptor.");
+-        }
+ 
+         if (!request.ReturnRequestDate.HasValue || !request.ImmediateReturnCycleConfirmed.HasValue)
+         {
+@@ -262,17 +269,51 @@
+ 
+         if (elapsedDays == 0)
+         {
+-            return Allow("CENIT_R23_SAME_DAY_ALLOWED", "R23 del mismo dia conserva Fecha Valor y acredita el ciclo de devoluciones mas inmediato.");
+-        }
+-
+-        if (!request.ReceiverRejectionDeadlineDate.HasValue)
+-        {
+-            return Manual("CENIT_R23_NOTIFICATION_DEADLINE_REQUIRED", "R23 posterior requiere la fecha limite calculada desde la notificacion del Receptor.");
+-        }
+-
+-        return request.ReturnValueDate.Date <= request.ReceiverRejectionDeadlineDate.Value.Date
+-            ? Allow("CENIT_R23_LATER_ALLOWED", "R23 posterior cumple el maximo de quince dias y el plazo desde la notificacion del Receptor.")
+-            : Reject("CENIT_R23_NOTIFICATION_DEADLINE_EXCEEDED", "R23 no fue tramitada dentro del Dia Habil Bancario siguiente a la notificacion del Receptor.");
++            // Same-day R23 must follow the ordinary next-cycle rule; it is NOT the
++            // prior-day R23 exception allowed in all sessions.
++            return IsImmediateFollowingCycle(request.OriginalCycleNumber!.Value, request.ReturnCycleNumber!.Value)
++                ? Allow("CENIT_R23_SAME_DAY_NEXT_CYCLE_ALLOWED", "R23 del mismo dia cumple el ciclo inmediatamente siguiente.")
++                : Reject("CENIT_R23_SAME_DAY_NOT_NEXT_CYCLE", "R23 del mismo dia no pertenece a la excepcion de devoluciones de dias anteriores.");
++        }
++
++        if (!request.OriginalReceivedDate.HasValue)
++        {
++            return Manual("CENIT_R23_ORIGINAL_RECEIPT_REQUIRED", "R23 posterior requiere fecha verificable de recepcion original, distinta de la Fecha Valor.");
++        }
++
++        var receipt = request.OriginalReceivedDate.Value.Date;
++        if (receipt < request.OriginalValueDate.Date || receipt > request.ReturnValueDate.Date)
++        {
++            return Reject("CENIT_R23_ORIGINAL_RECEIPT_INVALID", "La fecha de entrada al participante receptor no es consistente con la operacion.");
++        }
++
++        if ((request.ReturnValueDate.Date - receipt).Days > 15)
++        {
++            return Reject("CENIT_R23_MAX_CALENDAR_DAYS_EXCEEDED", "R23 excede quince dias calendario desde la entrada al Participante Receptor.");
++        }
++
++        if (!request.ReceiverNotificationReceivedDate.HasValue)
++        {
++            return Manual("CENIT_R23_NOTIFICATION_RECEIPT_REQUIRED", "R23 posterior requiere fecha de recepcion de la notificacion del Receptor.");
++        }
++
++        var notificationDate = request.ReceiverNotificationReceivedDate.Value.Date;
++        if (notificationDate < receipt || notificationDate > request.ReturnValueDate.Date)
++        {
++            return Reject("CENIT_R23_NOTIFICATION_DATE_INVALID", "La fecha de notificacion R23 no es consistente con la entrada y la devolucion.");
++        }
++
++        // This value must be calculated by the existing bank-holiday calendar in
++        // the production caller. Never trust ReceiverRejectionDeadlineDate supplied
++        // as operational evidence to grant eligibility.
++        if (!request.CalculatedNextBusinessDayDeadline.HasValue)
++        {
++            return Manual("CENIT_R23_CALENDAR_VALIDATION_REQUIRED", "No se ha calculado el siguiente Dia Habil Bancario desde la notificacion.");
++        }
++
++        return request.ReturnValueDate.Date <= request.CalculatedNextBusinessDayDeadline.Value.Date
++            ? Allow("CENIT_R23_LATER_ALLOWED", "R23 posterior cumple el plazo calculado desde la notificacion y los quince dias calendario.")
++            : Reject("CENIT_R23_NOTIFICATION_DEADLINE_EXCEEDED", "R23 excede el Dia Habil Bancario siguiente a la notificacion del Receptor.");
+     }
+ 
+     private static bool IsImmediateFollowingCycle(int originalCycle, int returnCycle)
+--- a/src/Cfa.ACHInterbank.Application/ACH/Models/CenitIncomingReturnPolicyModels.cs
++++ b/src/Cfa.ACHInterbank.Application/ACH/Models/CenitIncomingReturnPolicyModels.cs
+@@ -49,7 +49,10 @@
+     bool? FundsAvailabilityRequired = null,
+     bool? FundsAvailabilityConfirmed = null,
+     bool? ConfirmationToOriginatorRecorded = null,
+-    DateTime? ReceiverRejectionDeadlineDate = null);
++    DateTime? ReceiverRejectionDeadlineDate = null,
++    DateTime? OriginalReceivedDate = null,
++    DateTime? ReceiverNotificationReceivedDate = null,
++    DateTime? CalculatedNextBusinessDayDeadline = null);
+ 
+ /// <summary>
+ /// Evidencia operativa opcional que la generación de devoluciones entrega a la política CENIT cuando corresponde.
+@@ -60,7 +63,8 @@
+ /// <param name="FundsAvailabilityRequired">Indica, cuando se informa, si la evaluación requiere comprobar disponibilidad de fondos.</param>
+ /// <param name="FundsAvailabilityConfirmed">Resultado opcional de la comprobación de disponibilidad de fondos.</param>
+ /// <param name="ConfirmationToOriginatorRecorded">Indica, cuando se informa, si quedó registrada la confirmación al originador.</param>
+-/// <param name="ReceiverRejectionDeadlineDate">Fecha límite de rechazo del receptor cuando forma parte de la evidencia disponible.</param>
++/// <param name="ReceiverRejectionDeadlineDate">Fecha limite aportada por la fuente; NO se usa para autorizar R23.</param>
++/// <param name="ReceiverNotificationReceivedDate">Fecha de recepcion registrada de la notificacion del Receptor, diferente de la Fecha Valor.</param>
+ public sealed record CenitIncomingReturnOperationalEvidence(
+     CenitPrenotificationDirection PrenotificationDirection = CenitPrenotificationDirection.Unknown,
+     DateTime? ReturnRequestDate = null,
+@@ -68,7 +72,8 @@
+     bool? FundsAvailabilityRequired = null,
+     bool? FundsAvailabilityConfirmed = null,
+     bool? ConfirmationToOriginatorRecorded = null,
+-    DateTime? ReceiverRejectionDeadlineDate = null);
++    DateTime? ReceiverRejectionDeadlineDate = null,
++    DateTime? ReceiverNotificationReceivedDate = null);
+ 
+ public sealed record CenitIncomingReturnPolicyResult(
+     CenitIncomingReturnPolicyStatus Status,
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchReturnEligibilityPolicyComponent.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchReturnEligibilityPolicyComponent.cs
+@@ -11,7 +11,8 @@
+ internal sealed class AchReturnEligibilityPolicyComponent(
+     AchDbContext context,
+     IAchReturnEligibilityService returnEligibilityService,
+-    ICenitIncomingReturnPolicy? cenitReturnPolicy)
++    ICenitIncomingReturnPolicy? cenitReturnPolicy,
++    IOperationalCalendarService operationalCalendarService)
+ {
+     public void ValidateScopeRequest(
+         AchReturnGenerationScope scope,
+@@ -79,13 +80,14 @@
+         return reasonCode;
+     }
+ 
+-    public void ValidateCenitOperationalPolicy(
++    public async Task ValidateCenitOperationalPolicyAsync(
+         AchTransaction transaction,
+         AchReturnGenerationScope scope,
+         AchReturnCorrelationResult correlation,
+         ReturnSelectionItemDto item,
+         string reasonCode,
+-        decimal amount)
++        decimal amount,
++        CancellationToken ct)
+     {
+         if (!scope.IsCenit)
+         {
+@@ -97,6 +99,16 @@
+             ? evidence.PrenotificationDirection
+             : ResolveCenitPrenotificationDirection(transaction.TransactionCode);
+         var cycleEvidence = correlation.CenitCycleEvidence!;
++        DateTime? calculatedDeadline = null;
++        if (string.Equals(reasonCode, "R23", StringComparison.OrdinalIgnoreCase)
++            && scope.ReturnCycle.ProcessingDate.Date > transaction.EffectiveEntryDate.Date
++            && evidence.ReceiverNotificationReceivedDate.HasValue)
++        {
++            calculatedDeadline = (await operationalCalendarService.GetNextBusinessDayAsync(
++                DateOnly.FromDateTime(evidence.ReceiverNotificationReceivedDate.Value.Date.AddDays(1)),
++                scope.ReturnCycle.ClearingHouseId, ct)).ToDateTime(TimeOnly.MinValue);
++        }
++
+         var policyResult = cenitReturnPolicy!.Evaluate(new CenitIncomingReturnPolicyRequest(
+             transaction.Type,
+             reasonCode,
+@@ -113,7 +125,10 @@
+             evidence.FundsAvailabilityRequired,
+             evidence.FundsAvailabilityConfirmed,
+             evidence.ConfirmationToOriginatorRecorded,
+-            evidence.ReceiverRejectionDeadlineDate));
++            evidence.ReceiverRejectionDeadlineDate,
++            transaction.AchCycle?.ProcessingDate,
++            evidence.ReceiverNotificationReceivedDate,
++            calculatedDeadline));
+         if (!policyResult.IsAllowed)
+         {
+             throw new InvalidOperationException($"{policyResult.Code}: {policyResult.Message}");
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchReturnsService.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchReturnsService.cs
+@@ -41,7 +41,8 @@
+         IAchStateTransitionService? stateTransitionService = null,
+         INachaFileBuilder? nachaFileBuilder = null,
+         IAchReturnTraceSequenceService? returnTraceSequenceService = null,
+-        ICenitIncomingReturnPolicy? cenitReturnPolicy = null)
++        ICenitIncomingReturnPolicy? cenitReturnPolicy = null,
++        IOperationalCalendarService? operationalCalendarService = null)
+     {
+         _context = context;
+         _ = regulatoryCatalogService
+@@ -59,7 +60,9 @@
+         var resolvedTraceSequenceService = returnTraceSequenceService ?? new AchReturnTraceSequenceService(context);
+ 
+         _correlation = new AchReturnOriginalCorrelationComponent(context);
+-        _eligibilityPolicy = new AchReturnEligibilityPolicyComponent(context, resolvedEligibilityService, cenitReturnPolicy);
++        _eligibilityPolicy = new AchReturnEligibilityPolicyComponent(
++            context, resolvedEligibilityService, cenitReturnPolicy,
++            operationalCalendarService ?? new OperationalCalendarService(context));
+         _causePolicy = new AchReturnCausePolicyComponent(causeCodePolicy, resolvedLogger);
+         _batchAssembly = new AchReturnBatchComposerComponent(resolvedTraceSequenceService);
+         _artifactGeneration = new AchReturnArtifactGenerationComponent(context, nachaFileBuilder, externalFileNamePolicy, resolvedLogger);
+@@ -98,13 +101,14 @@
+             await _causePolicy.ValidateAsync(transaction, scope, reasonCode, ct);
+ 
+             var amount = transaction.IsPrenotification ? 0m : transaction.Amount;
+-            _eligibilityPolicy.ValidateCenitOperationalPolicy(
++            await _eligibilityPolicy.ValidateCenitOperationalPolicyAsync(
+                 transaction,
+                 scope,
+                 correlation,
+                 item,
+                 reasonCode,
+-                amount);
++                amount,
++                ct);
+ 
+             var cenitSource = scope.IsCenit ? correlation.CenitSources[transaction.Id] : null;
+             prepared.Add(_batchAssembly.Prepare(
+--- a/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostParseProcessor.cs
++++ b/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostParseProcessor.cs
+@@ -25,6 +25,7 @@
+     private readonly ICenitIncomingReturnPolicy _cenitReturnPolicy;
+     private readonly ICycleNumberResolver _cycleNumberResolver;
+     private readonly ICenitReturnOfReturnService? _cenitReturnOfReturnService;
++    private readonly IOperationalCalendarService _operationalCalendar;
+ 
+     public IncomingNachaPostParseProcessor(
+         AchDbContext context,
+@@ -38,7 +39,8 @@
+         IIncomingNachaAchResultResolver? resultResolver = null,
+         ICenitIncomingReturnPolicy? cenitReturnPolicy = null,
+         ICycleNumberResolver? cycleNumberResolver = null,
+-        ICenitReturnOfReturnService? cenitReturnOfReturnService = null)
++        ICenitReturnOfReturnService? cenitReturnOfReturnService = null,
++        IOperationalCalendarService? operationalCalendarService = null)
+     {
+         _context = context;
+         _classifier = classifier;
+@@ -52,6 +54,7 @@
+         _cenitReturnPolicy = cenitReturnPolicy ?? new CenitIncomingReturnPolicy();
+         _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
+         _cenitReturnOfReturnService = cenitReturnOfReturnService;
++        _operationalCalendar = operationalCalendarService ?? new OperationalCalendarService(context);
+     }
+ 
+     public async Task ProcessAsync(Guid ingestionId, string executedBy, CancellationToken ct = default)
+@@ -559,10 +562,10 @@
+                 .Select(x => x.CycleName)
+                 .SingleOrDefaultAsync(ct)
+             : null;
+-        var originalCycleName = !string.IsNullOrWhiteSpace(transaction.AchCycleId)
++        var originalCycle = !string.IsNullOrWhiteSpace(transaction.AchCycleId)
+             ? await _context.AchCycles.AsNoTracking()
+                 .Where(x => x.Id == transaction.AchCycleId)
+-                .Select(x => x.CycleName)
++                .Select(x => new { x.CycleName, x.ProcessingDate })
+                 .SingleOrDefaultAsync(ct)
+             : null;
+         var returnCycleNumber = ingestion.DetectedCycleNumber ?? _cycleNumberResolver.Resolve(returnCycleName);
+@@ -579,12 +582,22 @@
+             .Max();
+ 
+         var evidence = ParseCenitOperationalEvidence(classification.ClassificationEvidenceJson);
++        DateTime? calculatedDeadline = null;
++        if (string.Equals(classification.ReturnReasonCode, "R23", StringComparison.OrdinalIgnoreCase)
++            && returnValueDate.Value.Date > transaction.EffectiveEntryDate.Date
++            && evidence.ReceiverNotificationReceivedDate.HasValue)
++        {
++            calculatedDeadline = (await _operationalCalendar.GetNextBusinessDayAsync(
++                DateOnly.FromDateTime(evidence.ReceiverNotificationReceivedDate.Value.Date.AddDays(1)),
++                ingestion.ResolvedClearingHouseId.Value, ct)).ToDateTime(TimeOnly.MinValue);
++        }
++
+         return _cenitReturnPolicy.Evaluate(new CenitIncomingReturnPolicyRequest(
+             transaction.Type,
+             classification.ReturnReasonCode ?? string.Empty,
+             transaction.EffectiveEntryDate.Date,
+             returnValueDate.Value.Date,
+-            _cycleNumberResolver.Resolve(originalCycleName),
++            _cycleNumberResolver.Resolve(originalCycle?.CycleName),
+             returnCycleNumber,
+             lastReturnCycleNumber > 0 ? lastReturnCycleNumber : null,
+             transaction.Amount,
+@@ -595,7 +608,10 @@
+             evidence.FundsAvailabilityRequired,
+             evidence.FundsAvailabilityConfirmed,
+             evidence.ConfirmationToOriginatorRecorded,
+-            evidence.ReceiverRejectionDeadlineDate));
++            evidence.ReceiverRejectionDeadlineDate,
++            originalCycle?.ProcessingDate,
++            evidence.ReceiverNotificationReceivedDate,
++            calculatedDeadline));
+     }
+ 
+     private static CenitIncomingReturnOperationalEvidence ParseCenitOperationalEvidence(string? evidenceJson)
+--- a/tests/Cfa.ACHInterbank.Tests/CenitIncomingReturnPolicyTests.cs
++++ b/tests/Cfa.ACHInterbank.Tests/CenitIncomingReturnPolicyTests.cs
+@@ -153,7 +153,10 @@
+             returnDate: ValueDate.AddDays(10),
+             returnRequestDate: ValueDate.AddDays(10),
+             immediateReturnCycle: true,
+-            receiverRejectionDeadline: ValueDate.AddDays(11)));
++            receiverRejectionDeadline: ValueDate.AddDays(11),
++            originalReceivedDate: ValueDate,
++            receiverNotificationDate: ValueDate.AddDays(10),
++            calculatedDeadline: ValueDate.AddDays(11)));
+         var noNotificationEvidence = _sut.Evaluate(Request(
+             TransactionTypeEnum.Credit,
+             "R23",
+@@ -168,7 +171,8 @@
+             returnDate: ValueDate.AddDays(16),
+             returnRequestDate: ValueDate.AddDays(16),
+             immediateReturnCycle: true,
+-            receiverRejectionDeadline: ValueDate.AddDays(17)));
++            receiverRejectionDeadline: ValueDate.AddDays(17),
++            originalReceivedDate: ValueDate));
+ 
+         Assert.True(sameDay.IsAllowed);
+         Assert.True(later.IsAllowed);
+@@ -192,7 +196,10 @@
+             returnDate: returnDate,
+             returnRequestDate: returnDate,
+             immediateReturnCycle: true,
+-            receiverRejectionDeadline: returnDate.AddDays(1)));
++            receiverRejectionDeadline: returnDate.AddDays(1),
++            originalReceivedDate: ValueDate,
++            receiverNotificationDate: returnDate,
++            calculatedDeadline: returnDate.AddDays(1)));
+ 
+         Assert.True(result.IsAllowed);
+         Assert.Equal("CENIT_R23_LATER_ALLOWED", result.Code);
+@@ -253,7 +260,10 @@
+             returnDate: returnDate,
+             returnRequestDate: returnDate,
+             immediateReturnCycle: true,
+-            receiverRejectionDeadline: returnDate.AddDays(1)));
++            receiverRejectionDeadline: returnDate.AddDays(1),
++            originalReceivedDate: ValueDate,
++            receiverNotificationDate: returnDate,
++            calculatedDeadline: returnDate.AddDays(1)));
+ 
+         Assert.True(result.IsAllowed);
+         Assert.Equal("CENIT_R23_LATER_ALLOWED", result.Code);
+@@ -283,7 +293,10 @@
+         bool? fundsRequired = null,
+         bool? fundsAvailable = null,
+         bool? originatorConfirmation = null,
+-        DateTime? receiverRejectionDeadline = null)
++        DateTime? receiverRejectionDeadline = null,
++        DateTime? originalReceivedDate = null,
++        DateTime? receiverNotificationDate = null,
++        DateTime? calculatedDeadline = null)
+         => new(
+             type,
+             code,
+@@ -300,5 +313,8 @@
+             fundsRequired,
+             fundsAvailable,
+             originatorConfirmation,
+-            receiverRejectionDeadline);
++            receiverRejectionDeadline,
++            originalReceivedDate,
++            receiverNotificationDate,
++            calculatedDeadline);
+ }

@@ -12,5 +12,6 @@ public class NonConcurrentDynamicJob : IJob
         _executor = executor;
     }
 
-    public Task Execute(IJobExecutionContext context) => _executor.ExecuteAsync(context);
+    public ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
+        => new(_executor.ExecuteAsync(context, cancellationToken));
 }

@@ -11,7 +11,8 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 internal sealed class AchReturnEligibilityPolicyComponent(
     AchDbContext context,
     IAchReturnEligibilityService returnEligibilityService,
-    ICenitIncomingReturnPolicy? cenitReturnPolicy)
+    ICenitIncomingReturnPolicy? cenitReturnPolicy,
+    IOperationalCalendarService operationalCalendarService)
 {
     public void ValidateScopeRequest(
         AchReturnGenerationScope scope,
@@ -79,13 +80,14 @@ internal sealed class AchReturnEligibilityPolicyComponent(
         return reasonCode;
     }
 
-    public void ValidateCenitOperationalPolicy(
+    public async Task ValidateCenitOperationalPolicyAsync(
         AchTransaction transaction,
         AchReturnGenerationScope scope,
         AchReturnCorrelationResult correlation,
         ReturnSelectionItemDto item,
         string reasonCode,
-        decimal amount)
+        decimal amount,
+        CancellationToken ct)
     {
         if (!scope.IsCenit)
         {
@@ -97,6 +99,16 @@ internal sealed class AchReturnEligibilityPolicyComponent(
             ? evidence.PrenotificationDirection
             : ResolveCenitPrenotificationDirection(transaction.TransactionCode);
         var cycleEvidence = correlation.CenitCycleEvidence!;
+        DateTime? calculatedDeadline = null;
+        if (string.Equals(reasonCode, "R23", StringComparison.OrdinalIgnoreCase)
+            && scope.ReturnCycle.ProcessingDate.Date > transaction.EffectiveEntryDate.Date
+            && evidence.ReceiverNotificationReceivedDate.HasValue)
+        {
+            calculatedDeadline = (await operationalCalendarService.GetNextBusinessDayAsync(
+                DateOnly.FromDateTime(evidence.ReceiverNotificationReceivedDate.Value.Date.AddDays(1)),
+                scope.ReturnCycle.ClearingHouseId, ct)).ToDateTime(TimeOnly.MinValue);
+        }
+
         var policyResult = cenitReturnPolicy!.Evaluate(new CenitIncomingReturnPolicyRequest(
             transaction.Type,
             reasonCode,
@@ -113,7 +125,10 @@ internal sealed class AchReturnEligibilityPolicyComponent(
             evidence.FundsAvailabilityRequired,
             evidence.FundsAvailabilityConfirmed,
             evidence.ConfirmationToOriginatorRecorded,
-            evidence.ReceiverRejectionDeadlineDate));
+            evidence.ReceiverRejectionDeadlineDate,
+            transaction.AchCycle?.ProcessingDate,
+            evidence.ReceiverNotificationReceivedDate,
+            calculatedDeadline));
         if (!policyResult.IsAllowed)
         {
             throw new InvalidOperationException($"{policyResult.Code}: {policyResult.Message}");

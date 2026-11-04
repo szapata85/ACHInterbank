@@ -12,7 +12,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Quartz;
-using Quartz.Impl.Matchers;
 using System.Globalization;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz;
@@ -173,7 +172,7 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
             await scheduler.DeleteJob(jobKey, cancellationToken);
         }
 
-        var jobBuilder = JobBuilder.Create(jobType)
+        var jobBuilder = JobBuilder.Create().OfType(jobType)
             .WithIdentity(jobKey)
             .UsingJobData("TaskId", task.Id.ToString(CultureInfo.InvariantCulture))
             .UsingJobData("TaskCode", task.Code)
@@ -193,7 +192,7 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
             return;
         }
 
-        await scheduler.ScheduleJob(job, new[] { trigger }, true, cancellationToken);
+        await scheduler.ScheduleJob(job, new[] { trigger }, ScheduleJobOptions.Replacing, cancellationToken);
         if (task.Paused)
         {
             await scheduler.PauseJob(jobKey, cancellationToken);
@@ -208,7 +207,7 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
         CancellationToken cancellationToken)
     {
         var legacyJobKey = GetJobKey(task.Id);
-        if (await scheduler.CheckExists(legacyJobKey, cancellationToken))
+        if (await scheduler.Exists(legacyJobKey, cancellationToken))
         {
             await scheduler.DeleteJob(legacyJobKey, cancellationToken);
         }
@@ -258,7 +257,7 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
             }
 
             var fingerprint = BuildAchColombiaOperationalScheduleFingerprint(schedule);
-            var job = JobBuilder.Create(jobType)
+            var job = JobBuilder.Create().OfType(jobType)
                 .WithIdentity(jobKey)
                 .UsingJobData("TaskId", task.Id.ToString(CultureInfo.InvariantCulture))
                 .UsingJobData("TaskCode", task.Code)
@@ -272,7 +271,7 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
                 .Build();
             var trigger = BuildAchColombiaOperationalOutboundTrigger(schedule, jobKey, triggerKey, fingerprint);
 
-            await scheduler.ScheduleJob(job, new[] { trigger }, true, cancellationToken);
+            await scheduler.ScheduleJob(job, new[] { trigger }, ScheduleJobOptions.Replacing, cancellationToken);
             if (task.Paused)
             {
                 await scheduler.PauseJob(jobKey, cancellationToken);
@@ -300,9 +299,9 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
             ?? throw new InvalidOperationException("ACHCOL_OPERATIONAL_OUTBOUND_START_REQUIRED_FOR_TRIGGER");
         var timeZone = ResolveTimeZone(schedule.EffectiveTimeZoneId);
         var cron = $"{start.Seconds} {start.Minutes} {start.Hours} * * ?";
-        var quartzSchedule = CronScheduleBuilder.CronSchedule(cron)
+        var quartzSchedule = CronScheduleBuilder.Create(cron)
             .InTimeZone(timeZone)
-            .WithMisfireHandlingInstructionDoNothing();
+            .WithMisfireInstruction(CronTriggerMisfireInstruction.DoNothing);
 
         return TriggerBuilder.Create()
             .WithIdentity(triggerKey)
@@ -359,14 +358,14 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
             await scheduler.DeleteJob(jobKey, cancellationToken);
         }
 
-        var job = JobBuilder.Create(jobType)
+        var job = JobBuilder.Create().OfType(jobType)
             .WithIdentity(jobKey)
             .UsingJobData("TaskId", task.Id.ToString(CultureInfo.InvariantCulture))
             .UsingJobData("TaskCode", task.Code)
             .RequestRecovery(task.RequestsRecovery)
             .StoreDurably()
             .Build();
-        await scheduler.AddJob(job, true, true, cancellationToken);
+        await scheduler.AddJob(job, AddJobOptions.ReplacingAndStoringNonDurable, cancellationToken);
 
         var today = _timeProvider.GetUtcNow().UtcDateTime.Date;
         var configurations = await db.ClearingHouseCycleConfigs.AsNoTracking()
@@ -386,7 +385,7 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
             .ToDictionary(x => x.Key, x => x);
 
         var legacyTrigger = GetTriggerKey(task.Id);
-        if (await scheduler.CheckExists(legacyTrigger, cancellationToken))
+        if (await scheduler.Exists(legacyTrigger, cancellationToken))
         {
             await scheduler.UnscheduleJob(legacyTrigger, cancellationToken);
         }
@@ -404,7 +403,7 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
             {
                 await scheduler.UnscheduleJob(trigger.Key, cancellationToken);
             }
-            await scheduler.ScheduleJob(trigger, cancellationToken);
+            await scheduler.ScheduleJob(trigger, cancellationToken: cancellationToken);
         }
 
         foreach (var orphan in current.Keys.Where(x => !expected.ContainsKey(x)))
@@ -443,12 +442,12 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
             var (start, end) = parts[index];
             var fingerprint = $"{config.Id}|{config.StartTime:c}|{config.EndTime:c}|{catalog.MinimumIntervalMinutes}|{config.ClearingHouse.ClearingHouseConfig.TimeZoneId}|{index}";
             var schedule = DailyTimeIntervalScheduleBuilder.Create()
-                .StartingDailyAt(new TimeOfDay(start.Hours, start.Minutes, start.Seconds))
-                .EndingDailyAt(new TimeOfDay(end.Hours, end.Minutes, end.Seconds))
-                .WithIntervalInMinutes(catalog.MinimumIntervalMinutes)
+                .StartingDailyAt(new TimeOnly(start.Hours, start.Minutes, start.Seconds))
+                .EndingDailyAt(new TimeOnly(end.Hours, end.Minutes, end.Seconds))
+                .WithInterval(catalog.MinimumIntervalMinutes, IntervalUnit.Minute)
                 .OnEveryDay()
                 .InTimeZone(TimeZoneInfo.FindSystemTimeZoneById(config.ClearingHouse.ClearingHouseConfig.TimeZoneId))
-                .WithMisfireHandlingInstructionDoNothing();
+                .WithMisfireInstruction(DailyTimeIntervalTriggerMisfireInstruction.DoNothing);
             triggers.Add(TriggerBuilder.Create()
                 .WithIdentity($"trg:{task.Id}:cycle:{config.Id}:part:{index + 1}", DynamicGroup)
                 .ForJob(jobKey)
@@ -572,22 +571,22 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
             case PeriodicityTypeEnum.Once:
                 return tb.WithSimpleSchedule(s => ApplySimpleMisfire(s.WithRepeatCount(0), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.EveryNMinutes:
-                return tb.WithSimpleSchedule(s => ApplySimpleMisfire(s.WithIntervalInMinutes(task.N ?? 1).RepeatForever(), task.MisfirePolicy)).Build();
+                return tb.WithSimpleSchedule(s => ApplySimpleMisfire(s.WithInterval(TimeSpan.FromMinutes(task.N ?? 1)).RepeatForever(), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.HourlyAtMinute:
-                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.CronSchedule($"0 {task.Minute ?? 0} * * * ?").InTimeZone(tz), task.MisfirePolicy)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.Create($"0 {task.Minute ?? 0} * * * ?").InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.DailyAtTime:
-                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.DailyAtHourAndMinute(task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz), task.MisfirePolicy)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.Create($"0 {task.TimeOfDay!.Value.Minute} {task.TimeOfDay.Value.Hour} * * ?").InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.Weekly:
-                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.WeeklyOnDayAndHourAndMinute(task.WeeklyDay!.Value, task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz), task.MisfirePolicy)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.Create($"0 {task.TimeOfDay!.Value.Minute} {task.TimeOfDay.Value.Hour} ? * {task.WeeklyDay!.Value.ToString()[..3].ToUpperInvariant()}").InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.Monthly:
-                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.MonthlyOnDayAndHourAndMinute(task.MonthDay!.Value, task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz), task.MisfirePolicy)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.Create($"0 {task.TimeOfDay!.Value.Minute} {task.TimeOfDay.Value.Hour} {task.MonthDay!.Value} * ?").InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.Cron:
-                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.CronSchedule(task.CronExpression!).InTimeZone(tz), task.MisfirePolicy)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.Create(task.CronExpression!).InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.Yearly:
                 if (!task.StartAt.HasValue) return null;
                 var local = TimeZoneInfo.ConvertTime(task.StartAt.Value, tz);
                 return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder
-                    .CronSchedule($"{local.Second} {local.Minute} {local.Hour} {local.Day} {local.Month} ?")
+                    .Create($"{local.Second} {local.Minute} {local.Hour} {local.Day} {local.Month} ?")
                     .InTimeZone(tz), task.MisfirePolicy)).Build();
             default:
                 return null;
@@ -665,11 +664,11 @@ public class SchedulerSyncService : BackgroundService, IAchColombiaOperationalSc
 
     private static CronScheduleBuilder ApplyCronMisfire(CronScheduleBuilder builder, SchedulerMisfirePolicy policy)
         => policy == SchedulerMisfirePolicy.FireAndProceed
-            ? builder.WithMisfireHandlingInstructionFireAndProceed()
-            : builder.WithMisfireHandlingInstructionDoNothing();
+            ? builder.WithMisfireInstruction(CronTriggerMisfireInstruction.FireAndProceed)
+            : builder.WithMisfireInstruction(CronTriggerMisfireInstruction.DoNothing);
 
     private static SimpleScheduleBuilder ApplySimpleMisfire(SimpleScheduleBuilder builder, SchedulerMisfirePolicy policy)
         => policy == SchedulerMisfirePolicy.FireAndProceed
-            ? builder.WithMisfireHandlingInstructionFireNow()
-            : builder.WithMisfireHandlingInstructionNextWithRemainingCount();
+            ? builder.WithMisfireInstruction(SimpleTriggerMisfireInstruction.FireNow)
+            : builder.WithMisfireInstruction(SimpleTriggerMisfireInstruction.NextWithRemainingCount);
 }

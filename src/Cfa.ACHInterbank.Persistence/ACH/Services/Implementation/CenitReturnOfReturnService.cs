@@ -70,6 +70,9 @@ public sealed class CenitReturnOfReturnService(
         if (!string.Equals(sourceArtifact.EntryDetail.BatchHeader.StandardEntryClassCode?.Trim(), "PPD", StringComparison.OrdinalIgnoreCase))
             return Failure(CenitReturnOfReturn2026Layout.CcdScopeStatus, "El contrato específico vigente de ROR CENIT está definido para PPD.");
 
+        if (reason == "R74" && !await HasR74OriginalCreditEvidenceAsync(original, ct))
+            return Failure("CENIT_R74_R32_CREDIT_ADDENDA_REQUIRED", "R74 exige devolución R32 de crédito monetario con información original en el campo 3 de la adenda.");
+
         var parentCycleId = await context.NachaHeaders.AsNoTracking()
             .Where(x => x.NachaID == sourceArtifact.EntryDetail.NachaID)
             .Select(x => x.AchCycleId)
@@ -82,6 +85,28 @@ public sealed class CenitReturnOfReturnService(
             ct);
         if (operationalFailure is not null) return operationalFailure;
         var targetCycle = await context.AchCycles.SingleAsync(x => x.Id == request.ReturnCycleId, ct);
+
+        // A Return In cambia el estado de la operación original; el evento NO es una transacción Return.
+        // Para C1 se exige un registro Return persistido, identificado por traza, ciclo e importe raw.
+        var parentReturnTrace = sourceArtifact.EntryDetail.SequenceNumber?.Trim();
+        var sourceReturns = string.IsNullOrWhiteSpace(parentReturnTrace) || string.IsNullOrWhiteSpace(parentCycleId)
+            ? new List<AchTransaction>()
+            : await context.AchTransactions.AsNoTracking()
+                .Where(x => x.Type == TransactionTypeEnum.Return
+                    && x.TraceNumber == parentReturnTrace
+                    && x.AchCycleId == parentCycleId
+                    && x.Amount == sourceArtifact.EntryDetail.Amount)
+                .Take(2).ToListAsync(ct);
+        if (sourceReturns.Count > 1)
+            return Failure("CENIT_ROR_SOURCE_RETURN_AMBIGUOUS", "Existen múltiples devoluciones para la traza raw del evento padre.");
+        var sourceReturnId = sourceReturns.SingleOrDefault()?.Id;
+        if (_cycleNumberResolver.Resolve(targetCycle.CycleName) == 1
+            && (string.IsNullOrWhiteSpace(parentReturnTrace)
+                || !string.Equals(sourceArtifact.AddendaRecord.OriginalTraceNumber?.Trim(), original.TraceNumber, StringComparison.Ordinal)
+                || sourceArtifact.EntryDetail.Amount != original.Amount))
+            return Failure("CENIT_ROR_SOURCE_RETURN_RAW_INVALID", "ROR C1 exige traza original, importe y registro raw de devolución coherentes con el evento padre.");
+        // Si la recepción no crea una transacción Return independiente, la correlación raw sigue siendo válida.
+        // No fabricar una transacción financiera para rellenar SourceReturnTransactionId.
 
         var participant = Digits(original.OriginatingDFI, 8);
         var effectiveEntryDate = targetCycle.ProcessingDate.Date;
@@ -107,6 +132,7 @@ public sealed class CenitReturnOfReturnService(
         {
             ParentIncomingReturnStateEventId = parentEvent.Id,
             OriginalTransactionId = original.Id,
+            SourceReturnTransactionId = sourceReturnId,
             ReturnOfReturnTransactionId = ror.Id,
             ReasonCode = reason,
             Direction = "Out",
@@ -149,6 +175,8 @@ public sealed class CenitReturnOfReturnService(
             ct,
             allowReturnedByEpr: true);
         if (policyFailure is not null) return policyFailure;
+        if (reason == "R74" && !await HasR74OriginalCreditEvidenceAsync(parent.OriginalTransaction, ct))
+            return Failure("CENIT_R74_R32_CREDIT_ADDENDA_REQUIRED", "R74 exige devolución R32 de crédito monetario con información original en el campo 3 de la adenda.");
 
         if (!string.Equals(parent.NewSequenceNumber, request.SourceReturnTraceNumber, StringComparison.Ordinal)
             || !string.Equals(parent.OriginalSequenceNumber, request.OriginalTraceNumber, StringComparison.Ordinal)
@@ -209,6 +237,8 @@ public sealed class CenitReturnOfReturnService(
             return Failure("ROR_REASON_INVALID", "La causal ROR debe pertenecer al rango R60-R74.");
         if (!CenitReturnIn2026Layout.IsOrdinaryReturnCause(originalReason))
             return Failure("PARENT_RETURN_REASON_INVALID", "La causal de la devolución padre no es una causal ordinaria CENIT.");
+        if (reason == "R74" && !string.Equals(originalReason?.Trim(), "R32", StringComparison.OrdinalIgnoreCase))
+            return Failure("CENIT_R74_R32_PARENT_REQUIRED", "La causal R74 solo aplica a una devolución padre R32.");
         if (!allowReturnedByEpr && state is not (AchTransferStateEnum.ReturnedByEpr or AchTransferStateEnum.ReturnedByOperator))
             return Failure("PARENT_RETURN_STATE_INVALID", "El estado de la devolución padre no es elegible.");
 
@@ -222,6 +252,34 @@ public sealed class CenitReturnOfReturnService(
             ct);
         return policy.IsAllowed ? null : Failure("ROR_POLICY_REJECTED", policy.Reason ?? "La policy ROR rechazó la operación.");
     }
+
+    private async Task<bool> HasR74OriginalCreditEvidenceAsync(AchTransaction original, CancellationToken ct)
+    {
+        if (original.Type != TransactionTypeEnum.Credit || original.IsPrenotification || original.Amount <= 0)
+            return false;
+
+        // Solo la adenda de la operación original; nunca la adenda 99 de la devolución R32.
+        var originals = await context.IncomingNachaTransactionLinks.AsNoTracking()
+            .Include(x => x.AddendaRecord)
+            .Where(x => x.AchTransactionId == original.Id
+                && x.AddendaRecord != null
+                && x.AddendaRecord.CodeTypeAddendumRecord == "05"
+                && (x.AddendaRecord.ReturnReasonCode == null || x.AddendaRecord.ReturnReasonCode == ""))
+            .ToListAsync(ct);
+        if (originals.Any(x => HasMeaningfulPaymentInformation(x.AddendaRecord!.IdUserOrig)
+                || HasMeaningfulPaymentInformation(x.AddendaRecord.InvoiceOrAccountNumber)
+                || HasMeaningfulPaymentInformation(x.AddendaRecord.InfofromOriginator)))
+            return true;
+
+        var ownAddendas = await context.AchTransactionAddendas.AsNoTracking()
+            .Where(x => x.AchTransactionId == original.Id && x.AddendaType == "05")
+            .ToListAsync(ct);
+        return ownAddendas.Any(x => HasMeaningfulPaymentInformation(x.Information)
+            || HasMeaningfulPaymentInformation(x.Reference));
+    }
+
+    private static bool HasMeaningfulPaymentInformation(string? value)
+        => !string.IsNullOrWhiteSpace(value) && value.Any(c => c != '0' && c != ' ');
 
     private async Task<CenitReturnOfReturnResult?> ValidateOperationalWindowAsync(
         int clearingHouseId,

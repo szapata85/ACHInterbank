@@ -44,6 +44,7 @@ internal sealed class NachaFileGenerationCoordinator
     private readonly INachaControlTotalsCalculator _controlTotalsCalculator;
     private readonly IOperationalTimeSnapshotProvider _operationalTimeProvider;
     private readonly ICycleCalendarGuard _calendarGuard;
+    private readonly ICenitCycleQueueService? _cenitCycleQueueService;
 
     public NachaFileGenerationCoordinator(
         AchDbContext context,
@@ -64,7 +65,8 @@ internal sealed class NachaFileGenerationCoordinator
         IBatchNumberGenerator batchNumberGenerator,
         INachaControlTotalsCalculator controlTotalsCalculator,
         IOperationalTimeSnapshotProvider operationalTimeProvider,
-        ICycleCalendarGuard calendarGuard)
+        ICycleCalendarGuard calendarGuard,
+        ICenitCycleQueueService? cenitCycleQueueService = null)
     {
         _context = context;
         _dataLoader = dataLoader;
@@ -85,6 +87,7 @@ internal sealed class NachaFileGenerationCoordinator
         _controlTotalsCalculator = controlTotalsCalculator;
         _operationalTimeProvider = operationalTimeProvider;
         _calendarGuard = calendarGuard;
+        _cenitCycleQueueService = cenitCycleQueueService;
     }
 
     public async Task<NachaReturnOutBuildResult> BuildReturnOutAsync(
@@ -393,23 +396,28 @@ internal sealed class NachaFileGenerationCoordinator
     {
         var context = await _dataLoader.LoadByCycleAsync(cycleId, ct);
         var cycle = context.Cycle;
+        var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
+        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
+        if (!calendarDecision.CanExecute)
+            throw new CycleDeferredByCalendarException(cycle.Id, calendarDecision);
+
+        // F03: en el punto productivo de exportación, incorporar colas CENIT antes
+        // de capturar la selección de registros 5/6/7. Si falla, NO construir archivo parcial.
+        if (string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+            && _cenitCycleQueueService is not null)
+        {
+            await _cenitCycleQueueService.IncorporateForCycleAsync(cycleId, ct);
+            context = await _dataLoader.LoadByCycleAsync(cycleId, ct);
+        }
         var transactions = context.Transactions;
         var batches = context.Batches;
-
         if (transactions.Count == 0)
             return NachaFileBuildResult.Empty;
-
         if (batches.Count == 0)
             throw new InvalidOperationException($"El ciclo {cycleId} no tiene lotes asociados para exportar.");
 
         var nachaHeader = await _dataLoader.LoadHeaderAsync(cycle.Id, ct);
-        var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
         var chamberPolicy = NachaChamberFlowPolicyResolver.Resolve(clearingHouseCode);
-        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
-        if (!calendarDecision.CanExecute)
-        {
-            throw new CycleDeferredByCalendarException(cycle.Id, calendarDecision);
-        }
         chamberPolicy.EnforcePreResolutionGenerationGate(
             _generationOptions,
             IsOfficialTableDrivenMode(),

@@ -180,7 +180,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         Assert.DoesNotContain("RegistrarRespuestaTransaccion", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("PLValidarUsuarioBV", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
 
-        var readModel = await new TransactionIntegrationResultService(context).GetAsync(queue.AchTransactionId);
+        var readModel = await new TransactionIntegrationResultService(context).GetAsync((queue.AchTransactionId ?? throw new InvalidOperationException("La cola de prueba requiere AchTransactionId.")));
         Assert.NotNull(readModel?.Latest);
         Assert.Equal("Proc_Transacciones", readModel.Latest.Method);
         Assert.Equal("R96", readModel.Latest.ResponseCode);

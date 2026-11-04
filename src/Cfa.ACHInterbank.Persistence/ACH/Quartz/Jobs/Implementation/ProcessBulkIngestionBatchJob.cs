@@ -18,7 +18,7 @@ public class ProcessBulkIngestionBatchJob : IJob
         _logger = logger;
     }
 
-    public async Task Execute(IJobExecutionContext context)
+    public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
         var batchIdRaw = context.MergedJobDataMap.GetString("BatchId");
         var attemptIdRaw = context.MergedJobDataMap.GetString("AttemptId");
@@ -29,6 +29,6 @@ public class ProcessBulkIngestionBatchJob : IJob
         }
 
         long? attemptId = long.TryParse(attemptIdRaw, out var parsedAttemptId) ? parsedAttemptId : null;
-        await _processingService.ProcessBatchAsync(batchId, attemptId, context.FireInstanceId, context.CancellationToken);
+        await _processingService.ProcessBatchAsync(batchId, attemptId, context.FireInstanceId, cancellationToken);
     }
 }

@@ -40,7 +40,8 @@ public class RegulatoryCatalogSeederReturnOfReturnPoliciesByClearingHouseTests
         {
             Assert.True(policy.IsUniquePerTransaction);
             Assert.Equal(1, policy.MaxDays);
-            Assert.Equal(expected, policy.AllowedNewReturnCodesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            var allowed = policy.AllowedNewReturnCodesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            Assert.Equal(policy.OriginalReturnCode == "R32" ? expected : expected.Where(code => code != "R74"), allowed);
         });
     }
 

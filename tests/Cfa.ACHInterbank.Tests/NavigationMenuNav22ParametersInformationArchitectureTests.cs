@@ -97,7 +97,7 @@ public sealed class NavigationMenuNav22ParametersInformationArchitectureTests
             ("/integraciones/contrato", "Contrato del servicio", 10),
             ("/integraciones/relacion-informacion", "Relación de información", 20),
             ("/integraciones/conexion", "Conexión entidad participante", 30),
-            ("/administracion/mft-ach", "Configuración del intercambio de archivos", 40)
+            ("/administracion/mft-ach", "Administración de transferencias de archivos (MFT)", 40)
         ];
         Assert.Equal(
             expectedConnectionChildren,
