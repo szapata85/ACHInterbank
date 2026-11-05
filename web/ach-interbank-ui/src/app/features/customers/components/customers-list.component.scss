@@ -1,49 +1,16 @@
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  padding: 1.5rem;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.9rem;
-}
-
-input,
-select {
-  padding: 0.55rem 0.75rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border-strong);
-}
-
-.filter-actions {
-  display: flex;
-  align-items: end;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.table th,
-.table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--color-border);
-  text-align: left;
-}
-
-:host ::ng-deep .grid-actions { display: flex; gap: .65rem; align-items: center; }
-:host ::ng-deep .grid-actions .link { border: 0; background: transparent; color: var(--color-primary); cursor: pointer; padding: .2rem 0; font-weight: 600; }
-:host ::ng-deep .grid-actions .link:hover { text-decoration: underline; }
+:host { display: block; min-width: 0; }
+.customers-page { display: grid; gap: 1rem; min-width: 0; padding-bottom: 1.5rem; }
+.customers-panel { background: var(--color-surface); border-color: var(--color-border); border-radius: var(--radius-lg); min-width: 0; }
+.customers-panel mat-card-header { padding-bottom: 1rem; }
+.customers-panel mat-card-subtitle { color: var(--color-text-muted); margin-top: .3rem; line-height: 1.5; }
+.customers-panel mat-card-content { min-width: 0; }
+.filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem 1rem; align-items: start; }
+.filters mat-form-field { width: 100%; min-width: 0; }
+.filter-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.filter-actions button { min-height: 42px; }
+.results-header { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: .5rem; }
+:host ::ng-deep .grid-actions { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+:host ::ng-deep .grid-actions .link { border: 0; background: transparent; border-radius: var(--radius-sm); color: var(--color-primary); cursor: pointer; padding: .3rem .5rem; font: inherit; font-weight: 600; }
+:host ::ng-deep .grid-actions .link:hover { background: color-mix(in srgb, var(--color-primary) 9%, transparent); }
+:host ::ng-deep .grid-actions .link:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+@media (max-width: 700px) { .filters { grid-template-columns: minmax(0, 1fr); } .filter-actions button { width: 100%; } }

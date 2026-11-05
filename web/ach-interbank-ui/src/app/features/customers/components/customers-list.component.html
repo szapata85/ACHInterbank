@@ -1,44 +1,70 @@
-<app-page-header title="Clientes" subtitle="Administra los clientes registrados" [actionsTemplate]="headerActions">
-</app-page-header>
+<section class="customers-page" [attr.aria-busy]="loading">
+  <app-page-header title="Clientes" subtitle="Consulta clientes registrados y administra su información según tus permisos." [actionsTemplate]="headerActions"></app-page-header>
 
-<ng-template #headerActions>
-  <button type="button" class="btn btn-primary" (click)="create()">Nuevo cliente</button>
-</ng-template>
+  <ng-template #headerActions>
+    <button *ngIf="canManage" mat-flat-button type="button" (click)="create()">
+      <mat-icon>person_add</mat-icon> Nuevo cliente
+    </button>
+  </ng-template>
 
-<section class="card filters" [formGroup]="filtersForm">
-  <label>
-    Documento
-    <input type="text" formControlName="document" placeholder="CC 123456" />
-  </label>
-  <label>
-    Nombre
-    <input type="text" formControlName="name" placeholder="Nombre del cliente" />
-  </label>
-  <label>
-    Cuenta
-    <input type="text" formControlName="account" placeholder="Número de cuenta" />
-  </label>
-  <label>
-    Tipo persona
-    <select formControlName="personType">
-      <option value="">Todos</option>
-      <option value="PN">Persona natural</option>
-      <option value="PJ">Persona jurídica</option>
-    </select>
-  </label>
-  <div class="filter-actions">
-    <button type="button" class="btn btn-outline" (click)="resetFilters()">Limpiar filtros</button>
-  </div>
-</section>
+  <mat-card appearance="outlined" class="customers-panel">
+    <mat-card-header>
+      <mat-card-title>Buscar clientes</mat-card-title>
+      <mat-card-subtitle>Utiliza uno o varios filtros para encontrar el registro que necesitas.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <form class="filters" [formGroup]="filtersForm" (ngSubmit)="$event.preventDefault()" aria-label="Filtros de clientes">
+        <mat-form-field appearance="outline">
+          <mat-label>Documento</mat-label>
+          <input matInput type="text" formControlName="document" placeholder="Tipo o número de documento" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre o razón social</mat-label>
+          <input matInput type="text" formControlName="name" placeholder="Nombre del cliente o empresa" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Número de cuenta</mat-label>
+          <input matInput type="text" formControlName="account" placeholder="Cuenta asociada" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo de persona</mat-label>
+          <mat-select formControlName="personType">
+            <mat-option value="">Todas las personas</mat-option>
+            <mat-option value="PN">Persona natural</mat-option>
+            <mat-option value="PJ">Persona jurídica</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <div class="filter-actions">
+          <button mat-stroked-button type="button" (click)="resetFilters()" [disabled]="!hasActiveFilters">
+            <mat-icon>filter_alt_off</mat-icon> Limpiar filtros
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
 
-<section class="card">
-  <ui-grilla-empresarial
-    [columnas]="columnas"
-    [datos]="filasGrilla"
-    [cargando]="loading"
-    [error]="false"
-    [tamanoPagina]="20"
-    [mensajeVacio]="'No hay clientes registrados para los filtros seleccionados.'"
-    [mensajeCargando]="'Cargando información...'"
-  ></ui-grilla-empresarial>
+  <mat-card appearance="outlined" class="customers-panel">
+    <mat-card-header class="results-header">
+      <mat-card-title>Resultados</mat-card-title>
+      <mat-card-subtitle aria-live="polite">
+        {{ loading ? 'Buscando clientes…' : loadError ? 'La consulta no está disponible' : (filteredCustomers.length + (filteredCustomers.length === 1 ? ' cliente encontrado' : ' clientes encontrados')) }}
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-progress-bar *ngIf="loading" mode="indeterminate" aria-label="Consultando clientes"></mat-progress-bar>
+    <mat-card-content>
+      <ui-grilla-empresarial
+        [columnas]="columnas"
+        [datos]="filasGrilla"
+        [cargando]="loading"
+        [error]="loadError"
+        [tamanoPagina]="20"
+        [mensajeError]="'No pudimos cargar el listado. Comprueba tu conexión e inténtalo de nuevo.'"
+        (reintentar)="load()"
+        [tituloVacio]="hasActiveFilters ? 'No hay coincidencias' : 'Aún no hay clientes'"
+        [mensajeVacio]="hasActiveFilters ? 'Prueba con otros filtros o limpia la búsqueda.' : 'Los clientes registrados aparecerán aquí.'"
+        [mensajeCargando]="'Consultando clientes…'"
+        placeholderBusqueda="Buscar en los resultados…"
+      ></ui-grilla-empresarial>
+    </mat-card-content>
+  </mat-card>
 </section>

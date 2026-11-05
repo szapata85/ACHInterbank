@@ -1,81 +1,152 @@
-<app-page-header
-  [title]="isEdit ? 'Editar cliente' : 'Nuevo cliente'"
-  subtitle="Completa la información general del cliente."
-></app-page-header>
+<section class="customer-page" [attr.aria-busy]="loading || saving">
+  <app-page-header
+    [title]="isEdit ? 'Editar cliente' : 'Nuevo cliente'"
+    subtitle="Registra o actualiza los datos de identificación y las cuentas asociadas al cliente."
+  ></app-page-header>
 
-<form class="card form" [formGroup]="form" (ngSubmit)="save()">
-  <div class="form-grid">
-    <label>
-      Tipo de persona
-      <select formControlName="personType">
-        <option value="">Selecciona</option>
-        <option *ngFor="let option of personTypeOptions" [value]="option.value">{{ option.label }}</option>
-      </select>
-    </label>
-
-    <label>
-      Tipo de documento
-      <select formControlName="documentType">
-        <option value="">Selecciona</option>
-        <option *ngFor="let option of documentTypeOptions" [value]="option.value">{{ option.label }}</option>
-      </select>
-    </label>
-
-    <label>
-      Número de documento
-      <input type="text" formControlName="documentNumber" />
-    </label>
-    <div class="accounts-block">
-      <span class="accounts-label">Números de cuenta</span>
-      <div class="accounts-input-row">
-        <input type="text" [formControl]="accountNumberInput" placeholder="Agregar número de cuenta" />
-        <button type="button" class="btn btn-outline" (click)="addAccountNumber()">Agregar</button>
+  <mat-card appearance="outlined" class="customer-card" *ngIf="loadError">
+    <mat-card-content>
+      <div class="feedback feedback--error" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <div>
+          <strong>No se pudo cargar el cliente.</strong>
+          <p>Comprueba tu conexión e inténtalo nuevamente. No se ha modificado ningún dato.</p>
+          <button mat-stroked-button type="button" (click)="loadCustomer()">
+            <mat-icon>refresh</mat-icon> Reintentar
+          </button>
+        </div>
       </div>
-      <small *ngIf="!hasAccountNumbers">Agrega al menos un número de cuenta.</small>
-      <div class="accounts-chips" *ngIf="hasAccountNumbers">
-        <span class="chip" *ngFor="let accountNumber of accountNumbers">
-          {{ accountNumber }}
-          <button type="button" (click)="removeAccountNumber(accountNumber)">×</button>
-        </span>
-      </div>
-    </div>
+    </mat-card-content>
+  </mat-card>
 
-    <label *ngIf="isCompany">
-      Razón social
-      <input type="text" formControlName="companyName" />
-    </label>
+  <mat-card appearance="outlined" class="customer-card" *ngIf="!loadError">
+    <mat-progress-bar *ngIf="loading || saving" mode="indeterminate" [attr.aria-label]="saving ? 'Guardando cliente' : 'Cargando cliente'"></mat-progress-bar>
+    <mat-card-content>
+      <p class="required-note">Los campos marcados con * son obligatorios.</p>
+      <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+        <fieldset [disabled]="loading || saving" class="customer-fieldset">
+          <div class="section-heading">
+            <mat-icon aria-hidden="true">badge</mat-icon>
+            <div>
+              <h2>Identificación del cliente</h2>
+              <p>Selecciona el tipo de persona y registra el documento tal como aparece en sus datos oficiales.</p>
+            </div>
+          </div>
+          <div class="fields-grid">
+            <mat-form-field appearance="outline">
+              <mat-label>Tipo de persona</mat-label>
+              <mat-select formControlName="personType" required>
+                <mat-option *ngFor="let option of personTypeOptions" [value]="option.value">{{ option.label }}</mat-option>
+              </mat-select>
+              <mat-error *ngIf="form.controls.personType.hasError('required')">Selecciona el tipo de persona.</mat-error>
+            </mat-form-field>
 
-    <label *ngIf="!isCompany">
-      Nombre
-      <input type="text" formControlName="firstName" />
-    </label>
+            <mat-form-field appearance="outline">
+              <mat-label>Tipo de documento</mat-label>
+              <mat-select formControlName="documentType" required>
+                <mat-option *ngFor="let option of documentTypeOptions" [value]="option.value">{{ option.label }}</mat-option>
+              </mat-select>
+              <mat-error *ngIf="form.controls.documentType.hasError('required')">Selecciona un tipo de documento.</mat-error>
+            </mat-form-field>
 
-    <label *ngIf="!isCompany">
-      Segundo nombre
-      <input type="text" formControlName="middleName" />
-    </label>
+            <mat-form-field appearance="outline" class="full-row">
+              <mat-label>Número de documento</mat-label>
+              <input matInput formControlName="documentNumber" required autocomplete="off" placeholder="Escribe el número sin espacios adicionales" />
+              <mat-hint>Se conserva el valor registrado; revisa los dígitos antes de guardar.</mat-hint>
+              <mat-error *ngIf="form.controls.documentNumber.invalid">Ingresa un número de documento válido.</mat-error>
+            </mat-form-field>
+          </div>
 
-    <label *ngIf="!isCompany">
-      Apellido
-      <input type="text" formControlName="lastName" />
-    </label>
+          <div class="section-heading section-heading--separated">
+            <mat-icon aria-hidden="true">person</mat-icon>
+            <div>
+              <h2>{{ isCompany ? 'Datos de la empresa' : 'Datos personales' }}</h2>
+              <p>{{ isCompany ? 'La razón social es obligatoria para personas jurídicas.' : 'El nombre y el primer apellido son obligatorios para personas naturales.' }}</p>
+            </div>
+          </div>
+          <div class="fields-grid" *ngIf="isCompany; else naturalPersonFields">
+            <mat-form-field appearance="outline" class="full-row">
+              <mat-label>Razón social</mat-label>
+              <input matInput formControlName="companyName" required autocomplete="organization" />
+              <mat-error *ngIf="form.controls.companyName.invalid">Ingresa la razón social de la empresa.</mat-error>
+            </mat-form-field>
+          </div>
+          <ng-template #naturalPersonFields>
+            <div class="fields-grid" *ngIf="form.controls.personType.value === 'PN'">
+              <mat-form-field appearance="outline">
+                <mat-label>Primer nombre</mat-label>
+                <input matInput formControlName="firstName" required autocomplete="given-name" />
+                <mat-error *ngIf="form.controls.firstName.invalid">Ingresa el primer nombre.</mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Segundo nombre</mat-label>
+                <input matInput formControlName="middleName" autocomplete="additional-name" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Primer apellido</mat-label>
+                <input matInput formControlName="lastName" required autocomplete="family-name" />
+                <mat-error *ngIf="form.controls.lastName.invalid">Ingresa el primer apellido.</mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Segundo apellido</mat-label>
+                <input matInput formControlName="secondLastName" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-row">
+                <mat-label>Género (opcional)</mat-label>
+                <mat-select formControlName="gender">
+                  <mat-option value="">Prefiere no seleccionar</mat-option>
+                  <mat-option *ngFor="let option of genderOptions" [value]="option.value">{{ option.label }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+          </ng-template>
 
-    <label *ngIf="!isCompany">
-      Segundo apellido
-      <input type="text" formControlName="secondLastName" />
-    </label>
+          <div class="section-heading section-heading--separated">
+            <mat-icon aria-hidden="true">account_balance</mat-icon>
+            <div>
+              <h2>Cuentas asociadas</h2>
+              <p>Registra al menos una cuenta. Puedes agregar varias y quitarlas antes de guardar.</p>
+            </div>
+          </div>
+          <div class="accounts-editor">
+            <div class="account-input-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Número de cuenta</mat-label>
+                <input matInput [formControl]="accountNumberInput" autocomplete="off" placeholder="Escribe el número de cuenta"
+                  (input)="accountError = ''" (keydown.enter)="$event.preventDefault(); addAccountNumber()" />
+                <mat-hint>Presiona Enter o selecciona Agregar cuenta.</mat-hint>
+              </mat-form-field>
+              <button mat-stroked-button type="button" (click)="addAccountNumber()">
+                <mat-icon>add</mat-icon> Agregar cuenta
+              </button>
+            </div>
+            <p class="account-error" *ngIf="accountError" role="alert">{{ accountError }}</p>
+            <div *ngIf="hasAccountNumbers; else noAccounts" class="accounts-added">
+              <p class="account-count">{{ accountNumbers.length }} {{ accountNumbers.length === 1 ? 'cuenta agregada' : 'cuentas agregadas' }}</p>
+              <mat-chip-set aria-label="Cuentas asociadas al cliente">
+                <mat-chip *ngFor="let accountNumber of accountNumbers">
+                  {{ accountNumber }}
+                  <button matChipRemove type="button" [attr.aria-label]="'Quitar cuenta ' + accountNumber"
+                    (click)="removeAccountNumber(accountNumber)">
+                    <mat-icon>cancel</mat-icon>
+                  </button>
+                </mat-chip>
+              </mat-chip-set>
+            </div>
+            <ng-template #noAccounts><p class="empty-accounts">Aún no has agregado cuentas. Necesitas al menos una para guardar el cliente.</p></ng-template>
+          </div>
+        </fieldset>
 
-    <label *ngIf="!isCompany">
-      Género
-      <select formControlName="gender">
-        <option value="">Selecciona</option>
-        <option *ngFor="let option of genderOptions" [value]="option.value">{{ option.label }}</option>
-      </select>
-    </label>
-  </div>
-
-  <div class="form-actions">
-    <button type="submit" class="btn btn-primary">Guardar</button>
-    <a class="btn btn-outline" [routerLink]="['/customers']">Cancelar</a>
-  </div>
-</form>
+        <p *ngIf="operationError" class="feedback-text" role="alert">{{ operationError }}</p>
+        <div class="form-actions">
+          <a mat-stroked-button [routerLink]="['/customers']" [attr.aria-disabled]="saving ? 'true' : null"
+            (click)="saving && $event.preventDefault()">Cancelar</a>
+          <button mat-flat-button type="submit" [disabled]="saving || loading || loadError">
+            <mat-icon>{{ saving ? 'hourglass_top' : 'save' }}</mat-icon>
+            {{ saving ? 'Guardando…' : (isEdit ? 'Guardar cambios' : 'Crear cliente') }}
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</section>
