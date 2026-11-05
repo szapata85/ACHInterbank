@@ -144,7 +144,7 @@
                 {{ option.label }}
               </mat-option>
             </mat-select>
-            <mat-hint>Alta, normal o baja.</mat-hint>
+            <mat-hint>Define el orden de preferencia cuando existan varias cámaras habilitadas.</mat-hint>
             <mat-error
               *ngIf="
                 createForm.controls.priority.hasError('required')
@@ -157,8 +157,9 @@
           </mat-form-field>
 
           <div class="checkbox-group">
-            <mat-checkbox formControlName="isDefault">Marcar como predeterminada</mat-checkbox>
-            <mat-checkbox formControlName="isActive">Relación activa</mat-checkbox>
+            <mat-checkbox formControlName="isDefault">Usar como cámara predeterminada</mat-checkbox>
+            <small>Esta opción identifica la relación preferida para la institución; no modifica los criterios operativos de cada cámara.</small>
+            <mat-checkbox formControlName="isActive">Relación habilitada</mat-checkbox>
           </div>
         </div>
 
@@ -216,8 +217,9 @@
           </mat-form-field>
 
           <div class="checkbox-group">
-            <mat-checkbox formControlName="isDefault">Marcar como predeterminada</mat-checkbox>
-            <mat-checkbox formControlName="isActive">Relación activa</mat-checkbox>
+            <mat-checkbox formControlName="isDefault">Usar como cámara predeterminada</mat-checkbox>
+            <small>Esta opción identifica la relación preferida para la institución; no modifica los criterios operativos de cada cámara.</small>
+            <mat-checkbox formControlName="isActive">Relación habilitada</mat-checkbox>
           </div>
         </div>
 

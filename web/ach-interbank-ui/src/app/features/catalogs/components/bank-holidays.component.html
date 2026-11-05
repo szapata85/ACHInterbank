@@ -9,7 +9,7 @@
 
       <button mat-flat-button type="button" (click)="startCreate()" [disabled]="loading || saving">
         <mat-icon aria-hidden="true">add</mat-icon>
-        Nuevo festivo
+        Agregar día no hábil
       </button>
     </mat-card-header>
 
@@ -54,22 +54,22 @@
       @if (loading) {
         <div class="state-panel" role="status" aria-live="polite">
           <mat-spinner diameter="40"></mat-spinner>
-          <p>Cargando festivos de {{ lastLoadedYear }}…</p>
+          <p>Cargando días no hábiles de {{ lastLoadedYear }}…</p>
         </div>
       } @else if (loadError) {
         <div class="state-panel state-panel--error" role="alert">
           <mat-icon aria-hidden="true">error_outline</mat-icon>
-          <h2>No fue posible cargar los festivos</h2>
+          <h2>No pudimos cargar los días no hábiles</h2>
           <p>Verifica la conexión e intenta nuevamente.</p>
           <button mat-stroked-button type="button" (click)="search()">Reintentar</button>
         </div>
       } @else if (hasSearched && holidays.length === 0) {
         <div class="state-panel">
           <mat-icon aria-hidden="true">event_busy</mat-icon>
-          <h2>Sin festivos para {{ lastLoadedYear }}</h2>
-          <p>No hay fechas registradas para el año seleccionado.</p>
+          <h2>Sin días no hábiles para {{ lastLoadedYear }}</h2>
+          <p>No hay fechas registradas para el año que elegiste.</p>
           <button mat-flat-button type="button" (click)="startCreate()" [disabled]="saving">
-            Agregar festivo
+            Agregar día no hábil
           </button>
         </div>
       } @else if (holidays.length > 0) {
@@ -169,7 +169,7 @@
     <mat-card appearance="outlined" class="editor-card">
       <mat-card-header>
         <mat-card-title id="holiday-editor-title">
-          {{ editing ? 'Editar festivo' : 'Nuevo festivo' }}
+          {{ editing ? 'Editar festivo' : 'Agregar día no hábil' }}
         </mat-card-title>
       </mat-card-header>
 

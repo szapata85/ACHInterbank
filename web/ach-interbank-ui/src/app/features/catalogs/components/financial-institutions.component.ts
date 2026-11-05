@@ -77,8 +77,8 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
 
   readonly columnDefs: ColDef<DestinationInstitution>[] = [
     { field: 'name', headerName: 'Nombre', flex: 1, minWidth: 240, filter: 'agTextColumnFilter' },
-    { field: 'routingNumber', headerName: 'Routing', minWidth: 120, maxWidth: 150 },
-    { field: 'transitCode', headerName: 'Transit', minWidth: 110, maxWidth: 130 },
+    { field: 'routingNumber', headerName: 'Código de ruta', minWidth: 120, maxWidth: 150 },
+    { field: 'transitCode', headerName: 'Código de tránsito', minWidth: 110, maxWidth: 130 },
     { field: 'checkDigit', headerName: 'Dígito de chequeo', minWidth: 105, maxWidth: 125 },
     {
       field: 'isDefaultSource',

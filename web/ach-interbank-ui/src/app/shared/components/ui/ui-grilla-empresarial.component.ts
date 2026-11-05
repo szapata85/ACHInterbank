@@ -66,8 +66,8 @@ import { UiEstadoVacioComponent } from './ui-estado-vacio.component';
       .estado-contenedor.visible { opacity: 1; transform: translateY(0); pointer-events: auto; height: auto; }
       :host ::ng-deep .ag-header-cell-label { font-weight: 700; }
       :host ::ng-deep .ag-row { transition: background-color .18s ease; }
-      :host ::ng-deep .ag-row:hover { background: #f8fbff !important; }
-      :host ::ng-deep .ag-row.ag-row-selected { background: #e8f0ff !important; }
+      :host ::ng-deep .ag-row:hover { background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface)) !important; }
+      :host ::ng-deep .ag-row.ag-row-selected { background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface)) !important; }
       :host ::ng-deep .ag-cell .btn-grid { font-size: .78rem; padding: .25rem .5rem; border-radius: var(--radius-sm); }
       @media (max-width: 600px) {
         .toolbar { align-items: stretch; flex-direction: column; }

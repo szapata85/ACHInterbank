@@ -1,61 +1,81 @@
-<app-page-header
-  title="Conceptos de lote"
-  subtitle="Administra el catálogo de conceptos para la descripción de entrada de la empresa.">
-</app-page-header>
-
-<section class="card form-card">
-  <h3>{{ editingId ? 'Editar registro' : 'Nuevo registro' }}</h3>
-  <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid" novalidate>
-    <label>
-      <span>Término *</span>
-      <input type="text" formControlName="term" maxlength="12" />
-      <app-error-message [control]="form.get('term')"></app-error-message>
-    </label>
-
-    <label>
-      <span>Código SEC *</span>
-      <select formControlName="standardEntryClassCode">
-        <option value="PPD">PPD</option>
-        <option value="CCD">CCD</option>
-      </select>
-      <app-error-message [control]="form.get('standardEntryClassCode')"></app-error-message>
-    </label>
-
-    <label>
-      <span>Estado</span>
-      <select formControlName="isActive">
-        <option [ngValue]="true">Activo</option>
-        <option [ngValue]="false">Inactivo</option>
-      </select>
-      <app-error-message [control]="form.get('isActive')"></app-error-message>
-    </label>
-
-    <label class="full-width">
-      <span>Descripción *</span>
-      <input type="text" formControlName="description" maxlength="255" />
-      <app-error-message [control]="form.get('description')"></app-error-message>
-    </label>
-
-    <div class="actions full-width">
-      <button type="submit" [disabled]="saving || loading">{{ editingId ? 'Actualizar' : 'Crear' }}</button>
-      <button type="button" class="btn btn-outline" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
-    </div>
-  </form>
-</section>
-
-<section class="card">
-  <ui-grilla-empresarial
-    [columnas]="columnas"
-    [datos]="filasGrilla"
-    [cargando]="loading"
-    [error]="false"
-    [tamanoPagina]="10"
-    [mensajeVacio]="'No hay descripciones de entrada registradas.'"
-    [mensajeCargando]="'Cargando información...'"
-  ></ui-grilla-empresarial>
-
-  <ng-template #emptyState>
-    <p class="muted" *ngIf="loading">Cargando...</p>
-    <p class="muted" *ngIf="!loading">No hay descripciones de entrada registradas.</p>
-  </ng-template>
+<section class="catalog-editor-page" [attr.aria-busy]="loading || saving || deleting">
+  <app-page-header title="Conceptos de lote" subtitle="Define los conceptos usados en la descripción de los lotes ACH."></app-page-header>
+  <mat-card appearance="outlined" class="catalog-panel">
+    <mat-card-header>
+      <mat-card-title id="concept-editor-title">{{ editingId ? 'Editar concepto' : 'Agregar concepto' }}</mat-card-title>
+      <mat-card-subtitle>
+        {{ editingId ? 'Modifica los datos del concepto seleccionado.' : 'El término aparecerá en la información operativa de los lotes. Comprueba que coincida con el uso previsto.' }}
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-progress-bar *ngIf="saving" mode="indeterminate" aria-label="Guardando concepto"></mat-progress-bar>
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="submit()" class="catalog-editor-form" aria-labelledby="concept-editor-title" novalidate>
+        <div class="catalog-editor-fields">
+          <mat-form-field appearance="outline">
+            <mat-label>Término del lote</mat-label>
+            <input matInput formControlName="term" maxlength="12" autocomplete="off" />
+            <mat-hint>Se guardará en mayúsculas. Máximo 12 caracteres.</mat-hint>
+            <mat-error *ngIf="form.controls.term.hasError('required') || form.controls.term.hasError('pattern')">Ingresa el término del lote.</mat-error>
+            <mat-error *ngIf="form.controls.term.hasError('maxlength')">El término no debe superar 12 caracteres.</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Clase de entrada (SEC)</mat-label>
+            <mat-select formControlName="standardEntryClassCode">
+              <mat-option value="PPD">PPD — Pagos y depósitos preacordados</mat-option>
+              <mat-option value="CCD">CCD — Concentración y dispersión de fondos</mat-option>
+            </mat-select>
+            <mat-hint>La clase determina a qué tipo de lote aplica el concepto.</mat-hint>
+            <mat-error *ngIf="form.controls.standardEntryClassCode.hasError('required')">Selecciona una clase de entrada.</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Estado</mat-label>
+            <mat-select formControlName="isActive">
+              <mat-option [value]="true">Activo</mat-option>
+              <mat-option [value]="false">Inactivo</mat-option>
+            </mat-select>
+            <mat-hint>Los conceptos inactivos se conservan para consulta.</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="wide">
+            <mat-label>Descripción</mat-label>
+            <textarea matInput formControlName="description" maxlength="255" rows="2"></textarea>
+            <mat-hint align="end">{{ form.controls.description.value?.length || 0 }}/255</mat-hint>
+            <mat-error *ngIf="form.controls.description.hasError('required') || form.controls.description.hasError('pattern')">Explica para qué se usa este concepto.</mat-error>
+            <mat-error *ngIf="form.controls.description.hasError('maxlength')">La descripción no debe superar 255 caracteres.</mat-error>
+          </mat-form-field>
+        </div>
+        <div class="catalog-editor-actions">
+          <button mat-button type="button" (click)="cancelEdit()" [disabled]="saving || deleting">{{ editingId ? 'Cancelar edición' : 'Limpiar campos' }}</button>
+          <button mat-flat-button type="submit" [disabled]="saving || deleting || loading || form.invalid">
+            <mat-icon aria-hidden="true">{{ editingId ? 'save' : 'add' }}</mat-icon>
+            {{ saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Agregar concepto' }}
+          </button>
+        </div>
+      </form>
+      <p class="catalog-feedback catalog-feedback--success" role="status" *ngIf="successMessage">{{ successMessage }}</p>
+      <p class="catalog-feedback catalog-feedback--error" role="alert" *ngIf="operationError">{{ operationError }}</p>
+    </mat-card-content>
+  </mat-card>
+  <mat-card appearance="outlined" class="catalog-panel">
+    <mat-card-header class="catalog-results-heading">
+      <div>
+        <mat-card-title>Conceptos registrados</mat-card-title>
+        <mat-card-subtitle>{{ rows.length }} {{ rows.length === 1 ? 'concepto' : 'conceptos' }} disponibles para consultar o editar.</mat-card-subtitle>
+      </div>
+      <button mat-stroked-button type="button" (click)="load()" [disabled]="loading || saving || deleting"><mat-icon aria-hidden="true">refresh</mat-icon> Actualizar</button>
+    </mat-card-header>
+    <mat-card-content>
+      <ui-grilla-empresarial
+        [columnas]="columnas"
+        [datos]="filasGrilla"
+        [cargando]="loading"
+        [error]="loadError"
+        [mensajeError]="'No pudimos consultar los conceptos. Revisa tu conexión y vuelve a intentarlo.'"
+        (reintentar)="load()"
+        [tamanoPagina]="10"
+        [mensajeVacio]="'Aún no hay conceptos de lote. Puedes agregar uno con el formulario.'"
+        [mensajeCargando]="'Consultando conceptos…'"
+        [placeholderBusqueda]="'Buscar término, clase o descripción'"
+      ></ui-grilla-empresarial>
+    </mat-card-content>
+  </mat-card>
 </section>

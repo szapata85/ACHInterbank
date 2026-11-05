@@ -5,7 +5,7 @@
         <p class="eyebrow">Catálogos</p>
         <h1 mat-card-title id="financial-institutions-title">Entidades financieras</h1>
         <mat-card-subtitle>
-          Administra las instituciones configuradas en ACH, incluyendo su estado y datos de enrutamiento.
+          Consulta y actualiza las entidades financieras, sus códigos de identificación y su disponibilidad operativa.
         </mat-card-subtitle>
       </div>
 
@@ -55,7 +55,7 @@
     ></mat-progress-bar>
 
     <mat-card-header>
-      <h2 mat-card-title>{{ editing ? 'Editar institución' : 'Nueva institución' }}</h2>
+      <h2 mat-card-title>{{ editing ? 'Editar institución' : 'Agregar institución' }}</h2>
       <mat-card-subtitle>
         {{ editing
           ? 'Actualiza los datos sin cambiar el identificador de la institución.'

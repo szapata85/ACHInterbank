@@ -30,12 +30,12 @@ interface FinancialInstitutionResponse {
 const scopedRoutes: RouteDefinition[] = [
   { path: '/audit-logs', heading: /Registro de auditoría/i },
   { path: '/auth-logs', heading: /Registro de autenticaciones/i },
-  { path: '/catalogs/financial-institutions', heading: /Instituciones financieras/i },
+  { path: '/catalogs/financial-institutions', heading: /Entidades financieras/i },
   {
     path: '/catalogs/clearing-house-preferences',
-    heading: /Prioridades por cámara compensadora/i
+    heading: /Prioridades por cámara/i
   },
-  { path: '/catalogs/bank-holidays', heading: /Festivos bancarios/i }
+  { path: '/catalogs/bank-holidays', heading: /Días no hábiles/i }
 ];
 
 test.describe.serial('Auditorías y catálogos Material', () => {
@@ -356,9 +356,9 @@ async function verifyBankHolidays(page: Page): Promise<void> {
     await expect(dialog).toBeHidden();
   }
 
-  await page.getByRole('button', { name: 'Nuevo festivo' }).click();
+  await page.getByRole('button', { name: 'Agregar día no hábil' }).click();
   const editor = page.locator('mat-card.editor-card');
-  await expect(editor.getByText('Nuevo festivo', { exact: true })).toBeVisible();
+  await expect(editor.getByText('Agregar día no hábil', { exact: true })).toBeVisible();
   const saveButton = editor.getByRole('button', { name: 'Guardar' });
   await expect(saveButton).toBeDisabled();
 

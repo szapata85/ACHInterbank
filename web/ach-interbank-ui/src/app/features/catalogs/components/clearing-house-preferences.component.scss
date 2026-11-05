@@ -61,6 +61,8 @@
   gap: 0.35rem;
   min-height: 56px;
   padding: 0.55rem 0.75rem;
+
+  small { color: var(--color-text-muted); line-height: 1.45; }
 }
 
 .relation-summary {

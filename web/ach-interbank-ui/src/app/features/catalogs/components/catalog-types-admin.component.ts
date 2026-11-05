@@ -6,11 +6,21 @@ import { NotificationService } from '../../../core/services/notification.service
 import { CatalogTypesApiService } from '../services/catalog-types-api.service';
 import { CatalogTypeItem } from '../models/catalog-type.model';
 import { ColDef } from 'ag-grid-community';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { take } from 'rxjs/operators';
+import { CatalogActionConfirmDialogComponent, CatalogActionConfirmDialogData } from './catalog-action-confirm-dialog.component';
+import { catalogErrorMessage } from './catalog-error-message.util';
 
 @Component({
   selector: 'app-catalog-types-admin',
   standalone: true,
-  imports: [SharedModule],
+  imports: [SharedModule, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule],
   templateUrl: './catalog-types-admin.component.html',
   styleUrls: ['./catalog-types-admin.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -21,6 +31,7 @@ export class CatalogTypesAdminComponent implements OnInit {
   private readonly api = inject(CatalogTypesApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly dialog = inject(MatDialog);
 
   catalogType = '';
   title = 'Catálogo';
@@ -30,6 +41,9 @@ export class CatalogTypesAdminComponent implements OnInit {
   loading = false;
   loadError = false;
   saving = false;
+  deleting = false;
+  operationError = '';
+  successMessage = '';
   editingCode: string | null = null;
 
   readonly columnas: ColDef[] = [
@@ -51,6 +65,7 @@ export class CatalogTypesAdminComponent implements OnInit {
         editar.type = 'button';
         editar.classList.add('link');
         editar.innerText = 'Editar';
+        editar.setAttribute('aria-label', 'Editar registro ' + String(params.data?._original?.code ?? ''));
         editar.addEventListener('click', () => {
           if (params.data?._original) {
             this.edit(params.data._original);
@@ -60,6 +75,7 @@ export class CatalogTypesAdminComponent implements OnInit {
         eliminar.type = 'button';
         eliminar.classList.add('link');
         eliminar.innerText = 'Eliminar';
+        eliminar.setAttribute('aria-label', 'Eliminar registro ' + String(params.data?._original?.code ?? ''));
         eliminar.addEventListener('click', () => {
           if (params.data?._original) {
             this.remove(params.data._original);
@@ -82,8 +98,8 @@ export class CatalogTypesAdminComponent implements OnInit {
   }
 
   readonly form = this.fb.group({
-    code: ['', [Validators.required, Validators.maxLength(30)]],
-    name: ['', [Validators.required, Validators.maxLength(100)]],
+    code: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(30)]],
+    name: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(100)]],
     description: ['', [Validators.maxLength(200)]]
   });
 
@@ -103,6 +119,7 @@ export class CatalogTypesAdminComponent implements OnInit {
 
     this.loading = true;
     this.loadError = false;
+    this.operationError = '';
     this.api.list(this.catalogType).subscribe({
       next: (rows) => {
         this.rows = rows ?? [];
@@ -127,15 +144,19 @@ export class CatalogTypesAdminComponent implements OnInit {
       description: row.description ?? ''
     });
     this.form.get('code')?.disable({ emitEvent: false });
+    this.operationError = '';
+    this.cdr.markForCheck();
   }
 
   cancelEdit(): void {
     this.editingCode = null;
     this.form.reset({ code: '', name: '', description: '' });
     this.form.get('code')?.enable({ emitEvent: false });
+    this.cdr.markForCheck();
   }
 
   submit(): void {
+    if (this.saving || this.deleting || this.loading) return;
     if (this.form.invalid || !this.catalogType) {
       this.form.markAllAsTouched();
       return;
@@ -148,6 +169,8 @@ export class CatalogTypesAdminComponent implements OnInit {
     };
 
     this.saving = true;
+    this.operationError = '';
+    this.successMessage = '';
 
     const request$ = this.editingCode
       ? this.api.update(this.catalogType, this.editingCode, payload)
@@ -155,14 +178,15 @@ export class CatalogTypesAdminComponent implements OnInit {
 
     request$.subscribe({
       next: () => {
-        this.notifications.success(this.editingCode ? 'Registro actualizado.' : 'Registro creado.');
+        this.successMessage = this.editingCode ? 'Los cambios se guardaron correctamente.' : 'El registro se agregó correctamente.';
+        this.notifications.success(this.successMessage);
         this.saving = false;
         this.cancelEdit();
         this.load();
       },
       error: (err) => {
-        const message = err?.error?.message || err?.error || 'No fue posible guardar el registro.';
-        this.notifications.error(String(message));
+        this.operationError = catalogErrorMessage(err, 'No pudimos guardar el registro. Revisa los datos e inténtalo nuevamente.');
+        this.notifications.error(this.operationError);
         this.saving = false;
         this.cdr.markForCheck();
       }
@@ -170,24 +194,40 @@ export class CatalogTypesAdminComponent implements OnInit {
   }
 
   remove(row: CatalogTypeItem): void {
-    if (!this.catalogType) {
-      return;
-    }
+    if (!this.catalogType || this.saving || this.deleting || this.loading) return;
 
-    const ok = window.confirm(`¿Deseas eliminar el código ${row.code} del catálogo?`);
-    if (!ok) {
-      return;
-    }
-
-    this.api.delete(this.catalogType, row.code).subscribe({
-      next: () => {
-        this.notifications.success('Registro eliminado.');
-        this.load();
-      },
-      error: (err) => {
-        const message = err?.error?.message || err?.error || 'No fue posible eliminar el registro.';
-        this.notifications.error(String(message));
+    this.dialog.open<CatalogActionConfirmDialogComponent, CatalogActionConfirmDialogData, boolean>(
+      CatalogActionConfirmDialogComponent,
+      {
+        width: 'min(92vw, 440px)',
+        data: {
+          title: 'Eliminar registro',
+          message: `¿Quieres eliminar el código ${row.code}? Esta acción no se puede deshacer.`,
+          confirmText: 'Eliminar registro',
+          destructive: true
+        }
       }
+    ).afterClosed().pipe(take(1)).subscribe(confirmed => {
+      if (!confirmed || this.deleting || this.saving) return;
+      this.deleting = true;
+      this.operationError = '';
+      this.successMessage = '';
+      this.cdr.markForCheck();
+      this.api.delete(this.catalogType, row.code).subscribe({
+        next: () => {
+          this.deleting = false;
+          this.successMessage = 'El registro se eliminó correctamente.';
+          this.notifications.success(this.successMessage);
+          if (this.editingCode === row.code) this.cancelEdit();
+          this.load();
+        },
+        error: err => {
+          this.deleting = false;
+          this.operationError = catalogErrorMessage(err, 'No pudimos eliminar el registro. Inténtalo de nuevo.');
+          this.notifications.error(this.operationError);
+          this.cdr.markForCheck();
+        }
+      });
     });
   }
 }

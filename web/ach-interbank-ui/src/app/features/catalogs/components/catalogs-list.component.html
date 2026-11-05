@@ -1,19 +1,49 @@
-<section class="card">
-  <h2>Instituciones financieras</h2>
-  <ui-grilla-empresarial
-    [columnas]="columnas"
-    [datos]="banks"
-    [paginacion]="true"
-    [tamanoPagina]="10"
-    [error]="false"
-  ></ui-grilla-empresarial>
-</section>
+<section class="catalog-home" aria-labelledby="catalog-home-title" [attr.aria-busy]="loading">
+  <header class="catalog-home__header">
+    <p class="catalog-home__eyebrow">Administración</p>
+    <h1 id="catalog-home-title">Catálogos</h1>
+    <p>Consulta los datos maestros y administra las configuraciones que mantienen actualizada la operación interbancaria.</p>
+  </header>
 
-<section class="card catalog-links">
-  <h2>Catálogos de administración</h2>
-  <ul>
-    <li *ngFor="let catalog of adminCatalogs">
-      <a [routerLink]="catalog.route">{{ catalog.label }}</a>
-    </li>
-  </ul>
+  <mat-card appearance="outlined" class="catalog-home__panel">
+    <mat-card-header>
+      <mat-card-title>Ir a un catálogo</mat-card-title>
+      <mat-card-subtitle>Elige qué información necesitas consultar o administrar.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <nav *ngIf="canManage" class="catalog-home__links" aria-label="Catálogos disponibles">
+        <a *ngFor="let catalog of adminCatalogs" mat-stroked-button [routerLink]="catalog.route">
+          <mat-icon aria-hidden="true">{{ catalog.icon }}</mat-icon>
+          <span>{{ catalog.label }}</span>
+          <mat-icon aria-hidden="true" class="catalog-home__arrow">chevron_right</mat-icon>
+        </a>
+      </nav>
+      <p *ngIf="canManage" class="catalog-home__hint">Las fechas especiales de cada cámara se administran desde el detalle de esa cámara.</p>
+      <p *ngIf="!canManage" class="catalog-home__hint" role="status">Puedes consultar las instituciones disponibles. Para editar catálogos, solicita el permiso de administración correspondiente.</p>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="catalog-home__panel">
+    <mat-card-header class="catalog-home__results-head">
+      <div>
+        <mat-card-title>Instituciones disponibles</mat-card-title>
+        <mat-card-subtitle>Consulta por nombre, código o tipo. {{ banks.length }} {{ banks.length === 1 ? 'institución' : 'instituciones' }}.</mat-card-subtitle>
+      </div>
+      <button mat-stroked-button type="button" (click)="load()" [disabled]="loading"><mat-icon aria-hidden="true">refresh</mat-icon> Actualizar</button>
+    </mat-card-header>
+    <mat-card-content>
+      <ui-grilla-empresarial
+        [columnas]="columnas"
+        [datos]="banks"
+        [cargando]="loading"
+        [error]="loadError"
+        [mensajeError]="'No pudimos cargar las instituciones. Inténtalo nuevamente.'"
+        (reintentar)="load()"
+        [paginacion]="true"
+        [tamanoPagina]="10"
+        [placeholderBusqueda]="'Buscar instituciones'"
+        [mensajeVacio]="'No hay instituciones para mostrar.'"
+      ></ui-grilla-empresarial>
+    </mat-card-content>
+  </mat-card>
 </section>

@@ -10,7 +10,7 @@
   <div *ngIf="!loading && error" class="dates-page__error" role="alert">
     <ui-estado-error
       id="dates-content-title"
-      titulo="No fue posible mostrar las fechas especiales"
+      titulo="No pudimos mostrar las fechas especiales"
       [mensaje]="error"
       [mostrarReintentar]="false"
     ></ui-estado-error>
@@ -179,8 +179,9 @@
           <input matInput [matDatepicker]="datePicker" formControlName="date" />
           <mat-datepicker-toggle matIconSuffix [for]="datePicker"></mat-datepicker-toggle>
           <mat-datepicker #datePicker></mat-datepicker>
-          <mat-error *ngIf="form.controls.date.hasError('required')">La fecha es obligatoria.</mat-error>
-          <mat-error *ngIf="form.controls.date.hasError('duplicateDate')">La fecha ya está configurada para esta cámara.</mat-error>
+          <mat-error *ngIf="form.controls.date.hasError('required')">Selecciona una fecha.</mat-error>
+          <mat-error *ngIf="form.controls.date.hasError('matDatepickerParse')">Selecciona una fecha válida.</mat-error>
+          <mat-error *ngIf="form.controls.date.hasError('duplicateDate')">Esta fecha ya está registrada para la cámara seleccionada.</mat-error>
         </mat-form-field>
         <p *ngIf="dateWarning" class="form-warning" role="status">{{ dateWarning }}</p>
         <mat-form-field appearance="outline">

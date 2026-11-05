@@ -1,0 +1,23 @@
+:host { display: block; min-width: 0; }
+.catalog-editor-page { display: grid; gap: 1rem; min-width: 0; padding-bottom: 1.5rem; }
+.catalog-panel { min-width: 0; border-color: var(--color-border); background: var(--color-surface); border-radius: var(--radius-lg); }
+.catalog-panel mat-card-header { padding-bottom: 1rem; }
+.catalog-panel mat-card-subtitle { margin-top: .4rem; color: var(--color-text-muted); line-height: 1.5; }
+.catalog-editor-form { display: grid; gap: 1rem; }
+.catalog-editor-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem 1rem; }
+.catalog-editor-fields mat-form-field { width: 100%; min-width: 0; }
+.catalog-editor-fields .wide { grid-column: 1 / -1; }
+.catalog-editor-actions { display: flex; gap: .65rem; flex-wrap: wrap; justify-content: end; }
+.catalog-editor-actions button { min-height: 40px; }
+.catalog-results-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.catalog-results-heading > div { min-width: 0; }
+.catalog-feedback { margin: .75rem 0 0; padding: .7rem .85rem; border-radius: var(--radius-md); line-height: 1.5; }
+.catalog-feedback--success { background: var(--color-success-surface); color: var(--color-success-text); }
+.catalog-feedback--error { background: var(--color-error-surface); color: var(--color-error-text); }
+:host ::ng-deep .ag-cell-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+:host ::ng-deep .row-actions { display: flex; gap: .5rem; align-items: center; min-width: 0; }
+:host ::ng-deep .row-actions .link { border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; padding: .3rem .5rem; }
+:host ::ng-deep .row-actions .link:hover { background: color-mix(in srgb, var(--color-primary) 9%, transparent); }
+:host ::ng-deep .row-actions .link:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+:host ::ng-deep .row-actions .link[disabled] { opacity: .55; cursor: not-allowed; }
+@media (max-width: 700px) { .catalog-editor-fields { grid-template-columns: 1fr; } .catalog-editor-actions { justify-content: stretch; } .catalog-editor-actions button { flex: 1; } .catalog-results-heading button { width: 100%; } }
