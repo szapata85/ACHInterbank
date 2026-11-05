@@ -30,6 +30,15 @@ describe('UiIconComponent', () => {
     expect(host.querySelector('.glyph')?.textContent?.trim()).toBe('manage_search');
   });
 
+  it('uses a contextual neutral icon for an unsupported navigation key', () => {
+    component.name = 'unknown_navigation_symbol';
+    component.fallbackIcon = 'folder';
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.dataset['iconKey']).toBe('unknown_navigation_symbol');
+    expect(host.dataset['iconResolved']).toBe('folder');
+  });
+
   it('uses a controlled fallback for an unknown key', () => {
     component.name = 'not_a_configured_symbol';
     fixture.detectChanges();

@@ -33,11 +33,38 @@
       </div>
 
       <div class="navigation">
-        <mat-nav-list aria-label="Opciones de navegación">
+        <div class="navigation-search" *ngIf="!isDesktopCompact || isMobileViewport" role="search">
+          <mat-icon aria-hidden="true">search</mat-icon>
+          <input
+            #menuSearchInput
+            type="search"
+            aria-label="Buscar una opción en el menú"
+            placeholder="Buscar una opción"
+            autocomplete="off"
+            [value]="menuSearchQuery"
+            (input)="onMenuSearchInput(menuSearchInput.value)"
+          />
+          <button
+            *ngIf="menuSearchQuery"
+            mat-icon-button
+            type="button"
+            class="navigation-search-clear"
+            aria-label="Limpiar búsqueda del menú"
+            (click)="clearMenuSearch()"
+          >
+            <mat-icon aria-hidden="true">close</mat-icon>
+          </button>
+        </div>
+
+        <nav class="menu-list" aria-label="Opciones de navegación">
           <ng-container
-            *ngTemplateOutlet="menuTree; context: { $implicit: menuItems }"
+            *ngTemplateOutlet="menuTree; context: { $implicit: visibleMenuItems }"
           ></ng-container>
-        </mat-nav-list>
+        </nav>
+
+        <p class="navigation-empty" *ngIf="menuSearchQuery && !visibleMenuItems.length && !menuLoadError" role="status">
+          No hay opciones que coincidan con tu búsqueda.
+        </p>
 
         <div class="navigation-status" *ngIf="menuLoadError" role="status" aria-live="polite">
           <mat-icon aria-hidden="true">warning</mat-icon>
@@ -118,42 +145,45 @@
       [attr.data-menu-node-id]="item.id"
     >
       <ng-container *ngIf="item.children?.length; else navigableMenuItem">
-        <!-- Every branch uses the same whole-row disclosure button.
-             A functional parent has a separate, secondary navigation link. -->
-        <div class="nav-parent-actions">
-          <button
-            mat-list-item
-            type="button"
-            class="nav-item nav-parent"
-            [class.active]="activeItemIds.has(item.id)"
-            [attr.data-menu-item-id]="item.id"
-            [attr.data-menu-toggle-id]="item.id"
-            [attr.aria-label]="(isItemExpanded(item) ? 'Contraer ' : 'Expandir ') + item.label"
-            [attr.aria-expanded]="isItemExpanded(item)"
-            [attr.aria-controls]="'submenu-' + item.id"
-            [matTooltip]="item.label"
-            [matTooltipDisabled]="!isDesktopCompact || isMobileViewport"
-            matTooltipPosition="after"
-            (click)="toggleSubmenu(item)"
-          >
-            <app-ui-icon
-              *ngIf="item.icon"
-              matListItemIcon
-              class="nav-icon"
-              [name]="item.icon"
-            ></app-ui-icon>
-            <span matListItemTitle class="nav-label">{{ item.label }}</span>
-            <span
-              matListItemMeta
-              class="expand-icon"
-              [class.expanded]="isItemExpanded(item)"
-              aria-hidden="true"
-            ></span>
-          </button>
+        <!-- Una fila = una acción: el título despliega, y el enlace opcional
+             hacia la página del grupo vive dentro del submenú. -->
+        <button
+          mat-button
+          type="button"
+          class="nav-item nav-parent"
+          [class.active]="activeItemIds.has(item.id)"
+          [attr.data-menu-item-id]="item.id"
+          [attr.data-menu-toggle-id]="item.id"
+          [attr.aria-label]="(isItemExpanded(item) ? 'Contraer ' : 'Expandir ') + item.label"
+          [attr.aria-expanded]="isItemExpanded(item)"
+          [attr.aria-controls]="'submenu-' + item.id"
+          [matTooltip]="item.label"
+          [matTooltipDisabled]="!isDesktopCompact || isMobileViewport"
+          matTooltipPosition="after"
+          (click)="toggleSubmenu(item)"
+        >
+          <app-ui-icon
+            *ngIf="item.icon"
+            class="nav-icon"
+            [name]="item.icon"
+            fallbackIcon="folder"
+          ></app-ui-icon>
+          <mat-icon *ngIf="!item.icon" class="nav-icon" aria-hidden="true">folder</mat-icon>
+          <span class="nav-label">{{ item.label }}</span>
+          <span class="expand-icon" [class.expanded]="isItemExpanded(item)" aria-hidden="true"></span>
+        </button>
 
+        <div
+          *ngIf="isItemExpanded(item)"
+          class="nav-children"
+          [id]="'submenu-' + item.id"
+          role="group"
+          [attr.aria-label]="'Opciones de ' + item.label"
+        >
           <a
             *ngIf="isNavigableParent(item)"
-            class="nav-parent-destination"
+            mat-button
+            class="nav-item nav-destination"
             [routerLink]="item.route"
             routerLinkActive="active"
             [routerLinkActiveOptions]="exactRouteMatch"
@@ -161,20 +191,12 @@
             [attr.data-menu-destination-id]="item.id"
             [attr.aria-label]="'Abrir página de ' + item.label"
             [matTooltip]="'Abrir página de ' + item.label"
-            matTooltipPosition="after"
+            [matTooltipDisabled]="!isDesktopCompact || isMobileViewport"
             (click)="onNavItemSelected()"
           >
-            <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+            <mat-icon class="nav-icon" aria-hidden="true">article</mat-icon>
+            <span class="nav-label">Ver {{ item.label }}</span>
           </a>
-        </div>
-
-        <div
-          *ngIf="isItemExpanded(item)"
-          class="nav-children"
-          [id]="'submenu-' + item.id"
-          role="group"
-          [attr.aria-label]="'Submenú de ' + item.label"
-        >
           <ng-container
             *ngTemplateOutlet="menuTree; context: { $implicit: item.children }"
           ></ng-container>
@@ -183,8 +205,8 @@
 
       <ng-template #navigableMenuItem>
         <a
-          mat-list-item
-          class="nav-item"
+          mat-button
+          class="nav-item nav-link"
           [routerLink]="item.route"
           routerLinkActive="active"
           [routerLinkActiveOptions]="item.exact ? exactRouteMatch : subsetRouteMatch"
@@ -197,11 +219,12 @@
         >
           <app-ui-icon
             *ngIf="item.icon"
-            matListItemIcon
             class="nav-icon"
             [name]="item.icon"
+            fallbackIcon="list"
           ></app-ui-icon>
-          <span matListItemTitle class="nav-label">{{ item.label }}</span>
+          <mat-icon *ngIf="!item.icon" class="nav-icon" aria-hidden="true">article</mat-icon>
+          <span class="nav-label">{{ item.label }}</span>
         </a>
       </ng-template>
     </div>

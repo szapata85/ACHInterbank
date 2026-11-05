@@ -6,6 +6,9 @@ const SUPPORTED_MATERIAL_SYMBOLS = new Set([
   'account_balance',
   'add',
   'analytics',
+  'account_tree',
+  'admin_panel_settings',
+  'article',
   'assignment',
   'assignment_return',
   'block',
@@ -13,6 +16,8 @@ const SUPPORTED_MATERIAL_SYMBOLS = new Set([
   'check_circle',
   'credit_card',
   'dashboard',
+  'dataset',
+  'description',
   'download',
   'edit',
   'event',
@@ -24,6 +29,7 @@ const SUPPORTED_MATERIAL_SYMBOLS = new Set([
   'groups',
   'help',
   'history',
+  'inventory_2',
   'home',
   'hub',
   'inbox',
@@ -33,11 +39,13 @@ const SUPPORTED_MATERIAL_SYMBOLS = new Set([
   'lock',
   'lock_clock',
   'login',
+  'monitoring',
   'manage_accounts',
   'manage_search',
   'menu',
   'note_add',
   'palette',
+  'report',
   'payments',
   'playlist_add_check',
   'policy',
@@ -51,15 +59,18 @@ const SUPPORTED_MATERIAL_SYMBOLS = new Set([
   'search',
   'security',
   'settings',
+  'shield',
   'settings_ethernet',
   'summarize',
   'support',
+  'supervised_user_circle',
   'swap_horiz',
   'sync',
   'timer',
   'tune',
   'upload',
   'upload_file',
+  'verified_user',
   'view_column',
   'view_list',
   'visibility',
@@ -95,14 +106,23 @@ const SUPPORTED_MATERIAL_SYMBOLS = new Set([
 export class UiIconComponent {
   private iconKey = '';
 
-  resolvedIcon = FALLBACK_ICON;
+  private fallback = FALLBACK_ICON;
+
+  get resolvedIcon(): string {
+    return SUPPORTED_MATERIAL_SYMBOLS.has(this.iconKey) ? this.iconKey : this.fallback;
+  }
 
   @Input()
   set name(value: string | null | undefined) {
     this.iconKey = (value ?? '').trim().toLowerCase();
-    this.resolvedIcon = SUPPORTED_MATERIAL_SYMBOLS.has(this.iconKey)
-      ? this.iconKey
-      : FALLBACK_ICON;
+  }
+
+  // La navegación puede usar un icono neutro en lugar del interrogante
+  // genérico si el administrador cargó un nombre de icono no disponible.
+  @Input()
+  set fallbackIcon(value: string | null | undefined) {
+    const key = (value ?? '').trim().toLowerCase();
+    this.fallback = SUPPORTED_MATERIAL_SYMBOLS.has(key) ? key : FALLBACK_ICON;
   }
 
   @HostBinding('attr.data-icon-key')

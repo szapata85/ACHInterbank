@@ -1,15 +1,15 @@
+/* La navegación es parte del shell, no de los botones primarios del SPA.
+   Sólo usa la paleta del sidebar que BrandingService calcula en tiempo real. */
 :host {
   --shell-sidenav-bg: var(--color-sidebar);
   --shell-nav-text: var(--color-on-sidebar);
-  --shell-nav-text-secondary: color-mix(in srgb, var(--color-on-sidebar) 78%, transparent);
-  --shell-nav-icon: color-mix(in srgb, var(--color-on-sidebar) 88%, transparent);
-  --shell-nav-hover-bg: color-mix(in srgb, var(--color-on-sidebar) 10%, transparent);
+  --shell-nav-secondary: color-mix(in srgb, var(--color-on-sidebar) 88%, transparent);
+  --shell-nav-muted: color-mix(in srgb, var(--color-on-sidebar) 70%, transparent);
+  --shell-nav-hover-bg: color-mix(in srgb, var(--color-on-sidebar) 11%, transparent);
+  --shell-nav-expanded-bg: color-mix(in srgb, var(--color-on-sidebar) 7%, transparent);
+  --shell-nav-active-bg: color-mix(in srgb, var(--color-primary) 24%, var(--shell-sidenav-bg));
+  --shell-nav-active-border: color-mix(in srgb, var(--color-on-sidebar) 26%, transparent);
   --shell-nav-focus-ring: var(--color-focus);
-  --shell-nav-active-bg: color-mix(in srgb, var(--color-primary) 24%, transparent);
-  --shell-nav-active-border: color-mix(in srgb, var(--color-primary) 54%, transparent);
-  --shell-nav-active-indicator: var(--color-primary);
-  --shell-nav-expanded-bg: color-mix(in srgb, var(--color-on-sidebar) 14%, transparent);
-  --shell-nav-child-bg: color-mix(in srgb, var(--color-on-sidebar) 6%, transparent);
   display: block;
   width: 100%;
   height: 100dvh;
@@ -30,7 +30,7 @@
   border-right: 0;
   background: var(--shell-sidenav-bg);
   color: var(--shell-nav-text);
-  box-shadow: 1px 0 0 rgba(148, 163, 184, 0.16);
+  box-shadow: 1px 0 0 color-mix(in srgb, var(--shell-nav-text) 12%, transparent);
 }
 
 .primary-sidenav.compact {
@@ -42,7 +42,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  padding: 1.1rem 0.75rem;
+  padding: 1rem 0.75rem;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -51,8 +51,9 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  min-height: 48px;
-  padding: 0 0.25rem;
+  min-height: 52px;
+  padding: 0 0.25rem 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--shell-nav-text) 16%, transparent);
 }
 
 .brand-copy {
@@ -63,7 +64,7 @@
 .brand-copy small {
   display: block;
   margin-top: 0.2rem;
-  color: var(--shell-nav-text-secondary);
+  color: var(--shell-nav-secondary);
   white-space: nowrap;
 }
 
@@ -104,241 +105,250 @@
 .navigation {
   flex: 1 1 auto;
   min-height: 0;
-  margin-top: 1rem;
+  padding-top: 0.85rem;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--color-on-sidebar) 28%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--shell-nav-text) 28%, transparent) transparent;
 }
 
 .navigation::-webkit-scrollbar {
-  width: 8px;
-}
-
-.navigation::-webkit-scrollbar-track {
-  background: transparent;
+  width: 7px;
 }
 
 .navigation::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-on-sidebar) 28%, transparent);
-  background-clip: padding-box;
+  background: color-mix(in srgb, var(--shell-nav-text) 28%, transparent);
 }
 
-.navigation::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in srgb, var(--color-on-sidebar) 48%, transparent);
+.navigation-search {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 42px;
+  margin: 0 0.15rem 0.85rem;
+  padding: 0 0.7rem;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--shell-nav-text) 26%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--shell-nav-text) 7%, transparent);
+  color: var(--shell-nav-text);
 }
 
-.navigation mat-nav-list {
+.navigation-search:focus-within {
+  outline: 2px solid var(--shell-nav-focus-ring);
+  outline-offset: 1px;
+}
+
+.navigation-search > mat-icon {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+  color: var(--shell-nav-secondary);
+}
+
+/* Override the generic global input rules; this search belongs to the dark/light sidebar. */
+.navigation-search input[type='search'] {
+  appearance: none;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
   padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--shell-nav-text);
+  font: inherit;
+  font-size: 0.84rem;
+}
+
+.navigation-search input::placeholder {
+  color: var(--shell-nav-secondary);
+  opacity: 1;
+}
+
+.navigation-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.navigation-search-clear.mat-mdc-icon-button {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  padding: 3px;
+  color: var(--shell-nav-text);
+  --mdc-icon-button-icon-color: var(--shell-nav-text);
+  --mat-icon-button-state-layer-color: var(--shell-nav-text);
+}
+
+.navigation-search-clear mat-icon {
+  font-size: 18px;
+  height: 18px;
+  width: 18px;
+}
+
+.menu-list {
+  display: block;
+  padding-bottom: 0.75rem;
 }
 
 .nav-node {
   position: relative;
-  margin-bottom: 0.25rem;
+  margin: 0 0 0.2rem;
 }
 
-.nav-parent-actions {
+/* Mat-button provides the keyboard/ripple semantics; explicit shell tokens
+   prevent Material's global primary text color from turning labels dark. */
+.primary-sidenav .nav-item.mat-mdc-button {
   display: flex;
-  align-items: stretch;
-  gap: 0.2rem;
-}
-
-.nav-parent-actions .nav-item {
-  flex: 1 1 auto;
-  width: auto;
-  min-width: 0;
-}
-
-/* Parent action has the same hit target and disclosure behavior at every depth. */
-.nav-parent-destination {
-  display: grid;
-  flex: 0 0 44px;
-  width: 44px;
-  min-height: 44px;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  color: var(--shell-nav-text-secondary);
-  text-decoration: none;
-}
-
-.nav-parent-destination mat-icon {
-  width: 19px;
-  height: 19px;
-  font-size: 19px;
-}
-
-.nav-parent-destination:hover,
-.nav-parent-destination:focus-visible {
-  background: var(--shell-nav-hover-bg);
-  color: var(--shell-nav-text);
-}
-
-.nav-parent-destination:focus-visible {
-  outline: 3px solid var(--shell-nav-focus-ring);
-  outline-offset: 2px;
-}
-
-.nav-parent-destination.active {
-  color: var(--shell-nav-text);
-  background: var(--shell-nav-active-bg);
-  border-color: var(--shell-nav-active-border);
-}
-
-
-.nav-item {
-  position: relative;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   min-height: 44px;
+  height: auto;
+  margin: 0;
+  padding: 0.62rem 0.7rem;
   border: 1px solid transparent;
   border-radius: 10px;
-  color: var(--shell-nav-text-secondary);
-  text-decoration: none;
-  --mdc-list-list-item-label-text-color: var(--shell-nav-text-secondary);
-  --mdc-list-list-item-leading-icon-color: var(--shell-nav-icon);
-  --mdc-list-list-item-trailing-icon-color: var(--shell-nav-text-secondary);
-  --mdc-list-list-item-hover-label-text-color: var(--shell-nav-text);
-  --mdc-list-list-item-hover-leading-icon-color: var(--shell-nav-text);
-  --mdc-list-list-item-hover-trailing-icon-color: var(--shell-nav-text);
-  --mdc-list-list-item-focus-label-text-color: var(--shell-nav-text);
-  --mdc-list-list-item-focus-leading-icon-color: var(--shell-nav-text);
-  --mdc-list-list-item-focus-trailing-icon-color: var(--shell-nav-text);
-}
-
-button.nav-item {
-  font: inherit;
-  text-align: left;
   background: transparent;
+  color: var(--shell-nav-secondary);
+  text-align: left;
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 0.87rem;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: normal;
+  --mdc-text-button-label-text-color: var(--shell-nav-secondary);
+  --mat-text-button-state-layer-color: var(--shell-nav-text);
+  --mat-text-button-hover-state-layer-opacity: 0;
+  --mat-text-button-focus-state-layer-opacity: 0;
 }
 
-/* Explicitly keep the label/icon and the hover surface on the sidebar palette.
-   Brand button colors must never leak into the navigation, including Material
-   list-item state changes on hover/focus. */
-.nav-item:hover {
+.primary-sidenav .nav-item.mat-mdc-button:hover,
+.primary-sidenav .nav-item.mat-mdc-button:focus-visible {
   background: var(--shell-nav-hover-bg);
   color: var(--shell-nav-text);
-  --mdc-list-list-item-label-text-color: var(--shell-nav-text);
-  --mdc-list-list-item-leading-icon-color: var(--shell-nav-text);
-  --mdc-list-list-item-trailing-icon-color: var(--shell-nav-text);
+  --mdc-text-button-label-text-color: var(--shell-nav-text);
 }
 
-.nav-item:focus-visible {
-  background: var(--shell-nav-hover-bg);
-  color: var(--shell-nav-text);
-  --mdc-list-list-item-label-text-color: var(--shell-nav-text);
-  --mdc-list-list-item-leading-icon-color: var(--shell-nav-text);
-  --mdc-list-list-item-trailing-icon-color: var(--shell-nav-text);
+.primary-sidenav .nav-item.mat-mdc-button:focus-visible {
+  outline: 2px solid var(--shell-nav-focus-ring);
+  outline-offset: -2px;
 }
 
-.nav-item:focus-visible {
-  outline: 3px solid var(--shell-nav-focus-ring);
-  outline-offset: 2px;
+.primary-sidenav .nav-item.mat-mdc-button.nav-parent {
+  font-weight: 600;
 }
 
-.nav-parent[aria-expanded='true'] {
+.primary-sidenav .nav-item.mat-mdc-button.nav-parent[aria-expanded='true'] {
   background: var(--shell-nav-expanded-bg);
+  color: var(--shell-nav-text);
+  --mdc-text-button-label-text-color: var(--shell-nav-text);
 }
 
+/* Un ancestro activo no debe aparentar ser otra página seleccionada. */
+.primary-sidenav .nav-item.mat-mdc-button.nav-parent.active {
+  color: var(--shell-nav-text);
+  --mdc-text-button-label-text-color: var(--shell-nav-text);
+}
 
-
-.nav-item.active,
-.nav-parent.active {
+.primary-sidenav .nav-item.mat-mdc-button.nav-link.active,
+.primary-sidenav .nav-item.mat-mdc-button.nav-destination.active {
   border-color: var(--shell-nav-active-border);
   background: var(--shell-nav-active-bg);
   color: var(--shell-nav-text);
-  --mdc-list-list-item-label-text-color: var(--shell-nav-text);
-  --mdc-list-list-item-leading-icon-color: var(--shell-nav-text);
-  --mdc-list-list-item-trailing-icon-color: var(--shell-nav-text);
+  font-weight: 650;
+  --mdc-text-button-label-text-color: var(--shell-nav-text);
 }
 
-.nav-item.active::before,
-.nav-parent.active::before {
+.nav-link.active::before,
+.nav-destination.active::before {
   content: '';
   position: absolute;
-  inset-block: 8px;
   inset-inline-start: 0;
+  inset-block: 7px;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: var(--shell-nav-active-indicator);
+  background: var(--shell-nav-text);
 }
 
 .nav-label {
-  display: -webkit-box;
+  display: block;
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  color: var(--shell-nav-text-secondary);
+  color: inherit;
   overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-height: 1.25;
+  line-height: 1.35;
   white-space: normal;
 }
 
+.nav-icon,
 .nav-item .nav-icon {
-  color: var(--shell-nav-icon);
-  font-size: 1.2rem;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  font-size: 20px;
+  color: inherit;
 }
 
 .expand-icon {
-  width: 0.55rem;
-  height: 0.55rem;
-  margin-inline-end: 0.35rem;
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  margin-inline: auto 0.3rem;
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
-  color: var(--shell-nav-text-secondary);
-  transform: rotate(45deg);
-  transition: transform 180ms ease;
+  color: inherit;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 150ms ease;
 }
 
 .expand-icon.expanded {
-  transform: rotate(225deg);
-}
-
-
-
-.nav-item:hover .nav-label,
-.nav-item:hover .nav-icon,
-.nav-item:hover .expand-icon,
-.nav-item:focus-visible .nav-label,
-.nav-item:focus-visible .nav-icon,
-.nav-item:focus-visible .expand-icon,
-.nav-item.active .nav-label,
-.nav-item.active .nav-icon,
-.nav-item.active .expand-icon,
-.nav-parent.active .nav-label,
-.nav-parent.active .nav-icon,
-.nav-parent.active .expand-icon,
-.nav-parent-destination.active mat-icon {
-  color: var(--shell-nav-text);
+  transform: translateY(2px) rotate(225deg);
 }
 
 .nav-children {
-  margin: 0.3rem 0 0.45rem 0.9rem;
-  padding: 0.2rem 0 0.2rem 0.55rem;
-  border-left: 1px solid color-mix(in srgb, var(--color-on-sidebar) 24%, transparent);
-  background: var(--shell-nav-child-bg);
-  border-radius: 0 8px 8px 0;
+  margin: 0.12rem 0 0.5rem 0.86rem;
+  padding: 0.12rem 0 0.12rem 0.48rem;
+  border-left: 1px solid color-mix(in srgb, var(--shell-nav-text) 24%, transparent);
 }
 
-.nav-children .nav-item {
-  min-height: 44px;
+.nav-children .nav-item.mat-mdc-button {
+  font-size: 0.83rem;
+  font-weight: 400;
 }
 
+.nav-children .nav-destination.mat-mdc-button {
+  color: var(--shell-nav-secondary);
+  font-weight: 550;
+}
+
+.navigation-empty,
 .navigation-status {
   display: flex;
   align-items: flex-start;
   gap: 0.55rem;
-  margin: 0.75rem 0.25rem;
+  margin: 0.75rem 0.15rem;
   padding: 0.7rem;
-  border: 1px solid color-mix(in srgb, var(--color-warning) 55%, transparent);
-  border-radius: var(--radius-lg);
-  color: var(--color-warning-surface);
+  border: 1px solid color-mix(in srgb, var(--shell-nav-text) 25%, transparent);
+  border-radius: 10px;
+  color: var(--shell-nav-text);
   font-size: 0.8rem;
-  line-height: 1.35;
+  line-height: 1.4;
+}
+
+.navigation-status mat-icon {
+  flex: 0 0 22px;
 }
 
 .primary-sidenav.compact .sidenav-panel {
@@ -353,32 +363,20 @@ button.nav-item {
 .primary-sidenav.compact .brand-copy,
 .primary-sidenav.compact .nav-label,
 .primary-sidenav.compact .nav-parent .expand-icon,
+.primary-sidenav.compact .navigation-search,
 .primary-sidenav.compact .navigation-status span {
   display: none;
 }
 
-.primary-sidenav.compact .nav-item {
-  display: flex;
+.primary-sidenav.compact .nav-item.mat-mdc-button {
   justify-content: center;
-  padding-inline: 0;
-}
-
-.primary-sidenav.compact .nav-parent-actions {
   gap: 0;
-}
-
-.primary-sidenav.compact .nav-parent-destination {
-  display: none;
+  padding-inline: 0;
 }
 
 .primary-sidenav.compact .navigation-status {
   justify-content: center;
   padding-inline: 0.25rem;
-}
-
-.primary-sidenav.compact .nav-item.active::before,
-.primary-sidenav.compact .nav-parent.active::before {
-  inset-block: 7px;
 }
 
 .shell-main {

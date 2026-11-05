@@ -34,7 +34,7 @@ test('sidebar labels retain WCAG AA contrast on hover, focus and expanded/active
     await expect(parent).toHaveAttribute('aria-expanded', 'true');
     await expectLabelContrast(parent, `grupo expandido tema ${theme.name}`);
 
-    const child = sidebar.locator('.nav-children a.nav-item').first();
+    const child = sidebar.locator('.nav-children a.nav-link').first();
     await expect(child).toBeVisible();
     await child.hover();
     await expectLabelContrast(child, `subopción hover tema ${theme.name}`);
@@ -105,3 +105,46 @@ async function expectLabelContrast(item: Locator, message: string): Promise<void
   });
   expect(contrast, `${message}: contraste real ${contrast.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
 }
+
+test('sidebar search is keyboard accessible and never creates unauthorized options', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await login(page);
+
+  const sidebar = page.locator('mat-sidenav.primary-sidenav');
+  const initialMenuIds = await sidebar.locator('[data-menu-item-id]').evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('data-menu-item-id'))
+  );
+  const search = sidebar.getByRole('searchbox', { name: 'Buscar una opción en el menú' });
+  await search.fill('zzzz_ninguna_opcion');
+  await expect(sidebar.getByText('No hay opciones que coincidan con tu búsqueda.')).toBeVisible();
+  await expect(sidebar.locator('[data-menu-item-id]')).toHaveCount(0);
+  await expect(search).toBeFocused();
+
+  await sidebar.getByRole('button', { name: 'Limpiar búsqueda del menú' }).click();
+  const restoredMenuIds = await sidebar.locator('[data-menu-item-id]').evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('data-menu-item-id'))
+  );
+  expect(restoredMenuIds).toEqual(initialMenuIds);
+});
+
+test('compact navigation and mobile drawer keep controls accessible', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await login(page);
+
+  const sidebar = page.locator('mat-sidenav.primary-sidenav');
+  await expect(sidebar.locator('.nav-parent-destination')).toHaveCount(0);
+  const toggle = page.getByRole('button', { name: 'Contraer navegación' });
+  await toggle.click();
+  await expect(sidebar).toHaveClass(/compact/);
+  await expect(sidebar.getByRole('searchbox', { name: 'Buscar una opción en el menú' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Expandir navegación' }).click();
+  await expect(sidebar.getByRole('searchbox', { name: 'Buscar una opción en el menú' })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(sidebar).not.toBeVisible();
+  await page.getByRole('button', { name: 'Abrir navegación' }).click();
+  await expect(sidebar).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(sidebar).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir navegación' })).toBeFocused();
+});

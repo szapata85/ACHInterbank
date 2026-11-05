@@ -13,7 +13,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatListModule } from '@angular/material/list';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -60,7 +59,6 @@ const SUBSET_ROUTE_MATCH: IsActiveMatchOptions = {
     RouterModule,
     MatButtonModule,
     MatIconModule,
-    MatListModule,
     MatSidenavModule,
     MatToolbarModule,
     MatTooltipModule
@@ -89,6 +87,8 @@ export class MainLayoutComponent implements OnInit {
   readonly subsetRouteMatch = SUBSET_ROUTE_MATCH;
 
   menuItems: MenuItem[] = [];
+  menuSearchQuery = '';
+  searchCollapsedIds = new Set<number>();
   expandedItems = new Set<number>();
   activeItemIds = new Set<number>();
   navigableParentIds = new Set<number>();
@@ -99,6 +99,25 @@ export class MainLayoutComponent implements OnInit {
   isMobileViewport = false;
   isMobileDrawerOpen = false;
   isDesktopCompact = false;
+
+  // La fuente de verdad (orden, etiquetas, permisos y jerarquía) continúa siendo
+  // el árbol autorizado del backend. La búsqueda nunca modifica ese árbol.
+  get visibleMenuItems(): MenuItem[] {
+    const query = this.normalizeMenuSearch(this.menuSearchQuery);
+    if (!query) {
+      return this.menuItems;
+    }
+
+    const filterTree = (items: MenuItem[]): MenuItem[] => items.flatMap((item) => {
+      if (this.normalizeMenuSearch(item.label).includes(query)) {
+        return [item];
+      }
+      const children = item.children?.length ? filterTree(item.children) : [];
+      return children.length ? [{ ...item, children }] : [];
+    });
+
+    return filterTree(this.menuItems);
+  }
 
   get drawerOpened(): boolean {
     return this.isMobileViewport ? this.isMobileDrawerOpen : true;
@@ -178,11 +197,26 @@ export class MainLayoutComponent implements OnInit {
     this.authService.logout();
   }
 
+  onMenuSearchInput(query: string): void {
+    this.menuSearchQuery = query;
+    this.searchCollapsedIds.clear();
+    this.cdr.markForCheck();
+  }
+
+  clearMenuSearch(): void {
+    this.menuSearchQuery = '';
+    this.searchCollapsedIds.clear();
+    this.cdr.markForCheck();
+  }
+
   toggleNavigation(): void {
     if (this.isMobileViewport) {
       this.isMobileDrawerOpen = !this.isMobileDrawerOpen;
     } else {
       this.isDesktopCompact = !this.isDesktopCompact;
+      if (this.isDesktopCompact) {
+        this.menuSearchQuery = '';
+      }
     }
 
     this.cdr.markForCheck();
@@ -234,6 +268,18 @@ export class MainLayoutComponent implements OnInit {
       return;
     }
 
+    if (this.menuSearchQuery.trim()) {
+      // La búsqueda expande coincidencias sin alterar la expansión original.
+      // El usuario puede contraer o volver a abrir los resultados filtrados.
+      if (this.searchCollapsedIds.has(item.id)) {
+        this.searchCollapsedIds.delete(item.id);
+      } else {
+        this.searchCollapsedIds.add(item.id);
+      }
+      this.cdr.markForCheck();
+      return;
+    }
+
     if (this.expandedItems.has(item.id)) {
       this.expandedItems.delete(item.id);
     } else {
@@ -246,7 +292,13 @@ export class MainLayoutComponent implements OnInit {
   isItemExpanded(item: MenuItem): boolean {
     // Compact desktop hides the subtree, even when its expansion is retained
     // for restoration. Accessibility state must describe the visible UI.
-    return this.expandedItems.has(item.id) && (this.isMobileViewport || !this.isDesktopCompact);
+    const visible = this.isMobileViewport || !this.isDesktopCompact;
+    if (!visible) {
+      return false;
+    }
+    return this.menuSearchQuery.trim()
+      ? !this.searchCollapsedIds.has(item.id)
+      : this.expandedItems.has(item.id);
   }
 
   isNavigableParent(item: MenuItem): boolean {
@@ -254,6 +306,7 @@ export class MainLayoutComponent implements OnInit {
   }
 
   onNavItemSelected(): void {
+    this.menuSearchQuery = '';
     if (this.isMobileViewport) {
       this.closeMobileNavigation();
     }
@@ -313,6 +366,7 @@ export class MainLayoutComponent implements OnInit {
   }
 
   private handleNavigation(): void {
+    this.menuSearchQuery = '';
     if (this.isMobileViewport) {
       this.closeMobileNavigation();
     }
@@ -362,6 +416,14 @@ export class MainLayoutComponent implements OnInit {
     markActiveItems(this.menuItems);
     this.activeItemIds = activeIds;
     this.expandedItems = validExpandedIds;
+  }
+
+  private normalizeMenuSearch(value: string): string {
+    return (value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('es-CO')
+      .trim();
   }
 
   private isRouteActive(item: MenuItem): boolean {

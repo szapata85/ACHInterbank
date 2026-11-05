@@ -265,18 +265,14 @@ describe('MainLayoutComponent', () => {
     flushMicrotasks();
     fixture.detectChanges();
 
-    const link = fixture.nativeElement.querySelector(
-      'a[data-menu-destination-id="40"]'
-    ) as HTMLAnchorElement;
+    expect(fixture.nativeElement.querySelector('a[data-menu-destination-id="40"]')).toBeNull();
     const toggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="40"]'
     ) as HTMLButtonElement;
 
     expect(component.navigableParentIds.has(40)).toBeTrue();
     expect(fixture.nativeElement.querySelector('button[data-menu-item-id="40"]')).toBe(toggle);
-    expect(link.getAttribute('aria-label')).toBe('Abrir página de Parent futuro');
     expect(component.menuItems[0]).toEqual(futureFunctionalParent);
-    expect(link).not.toBeNull();
     expect(toggle.textContent).toContain('Parent futuro');
     expect(toggle).not.toBeNull();
     expect(toggle.type).toBe('button');
@@ -295,6 +291,12 @@ describe('MainLayoutComponent', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(fixture.nativeElement.querySelectorAll('#submenu-40 [data-menu-item-id]').length).toBe(2);
 
+    const link = fixture.nativeElement.querySelector(
+      '#submenu-40 a[data-menu-destination-id="40"]'
+    ) as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('aria-label')).toBe('Abrir página de Parent futuro');
+    expect(link.textContent).toContain('Ver Parent futuro');
     link.click();
     tick();
     fixture.detectChanges();
@@ -314,14 +316,11 @@ describe('MainLayoutComponent', () => {
     fixture.detectChanges();
     expect(component.isDesktopCompact).toBeTrue();
 
-    const link = fixture.nativeElement.querySelector(
-      'a[data-menu-destination-id="40"]'
-    ) as HTMLAnchorElement;
+    expect(fixture.nativeElement.querySelector('a[data-menu-destination-id="40"]')).toBeNull();
     const toggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="40"]'
     ) as HTMLButtonElement;
 
-    expect(link).not.toBeNull();
     expect(toggle).not.toBeNull();
 
     const urlBeforeToggle = router.url;
@@ -331,6 +330,7 @@ describe('MainLayoutComponent', () => {
     expect(router.url).toBe(urlBeforeToggle);
     expect(component.isDesktopCompact).toBeFalse();
     expect(component.expandedItems.has(40)).toBeTrue();
+    expect(fixture.nativeElement.querySelector('#submenu-40 a[data-menu-destination-id="40"]')).not.toBeNull();
   }));
 
   it('does not announce hidden children as expanded in desktop compact mode', fakeAsync(() => {
@@ -375,9 +375,7 @@ describe('MainLayoutComponent', () => {
     tick();
     expect(component.isMobileDrawerOpen).toBeTrue();
 
-    const link = fixture.nativeElement.querySelector(
-      'a[data-menu-destination-id="40"]'
-    ) as HTMLAnchorElement;
+    expect(fixture.nativeElement.querySelector('a[data-menu-destination-id="40"]')).toBeNull();
     const toggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="40"]'
     ) as HTMLButtonElement;
@@ -389,6 +387,10 @@ describe('MainLayoutComponent', () => {
     expect(component.expandedItems.has(40)).toBeTrue();
     expect(fixture.nativeElement.querySelectorAll('#submenu-40 [data-menu-item-id]').length).toBe(2);
 
+    const link = fixture.nativeElement.querySelector(
+      '#submenu-40 a[data-menu-destination-id="40"]'
+    ) as HTMLAnchorElement;
+    expect(link).not.toBeNull();
     link.click();
     tick();
     fixture.detectChanges();
@@ -437,20 +439,23 @@ describe('MainLayoutComponent', () => {
     flushMicrotasks();
     fixture.detectChanges();
 
-    const reportLink = fixture.nativeElement.querySelector(
-      'a[data-menu-destination-id="70"]'
-    ) as HTMLAnchorElement;
+    expect(fixture.nativeElement.querySelector('a[data-menu-destination-id="70"]')).toBeNull();
     const reportToggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="70"]'
     ) as HTMLButtonElement;
 
     expect(component.navigableParentIds.has(70)).toBeTrue();
     expect(fixture.nativeElement.querySelector('button[data-menu-item-id="70"]')).toBe(reportToggle);
-    expect(reportLink).not.toBeNull();
     expect(reportToggle).not.toBeNull();
 
     reportToggle.click();
     fixture.detectChanges();
+
+    const reportLink = fixture.nativeElement.querySelector(
+      '#submenu-70 a[data-menu-destination-id="70"]'
+    ) as HTMLAnchorElement;
+    expect(reportLink).not.toBeNull();
+    expect(reportLink.textContent).toContain('Ver Reportes');
 
     const reportChildren = fixture.nativeElement.querySelectorAll(
       '#submenu-70 a[data-menu-item-id]'
@@ -499,20 +504,22 @@ describe('MainLayoutComponent', () => {
     flushMicrotasks();
     fixture.detectChanges();
 
-    const link = fixture.nativeElement.querySelector(
-      'a[data-menu-destination-id="50"]'
-    ) as HTMLAnchorElement;
+    expect(fixture.nativeElement.querySelector('a[data-menu-destination-id="50"]')).toBeNull();
     const toggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="50"]'
     ) as HTMLButtonElement;
 
     expect(component.navigableParentIds.has(50)).toBeTrue();
     expect(fixture.nativeElement.querySelector('button[data-menu-item-id="50"]')).toBe(toggle);
-    expect(link).not.toBeNull();
     expect(toggle).not.toBeNull();
 
     toggle.click();
     fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector(
+      '#submenu-50 a[data-menu-destination-id="50"]'
+    ) as HTMLAnchorElement;
+    expect(link).not.toBeNull();
 
     const children = fixture.nativeElement.querySelectorAll(
       '#submenu-50 a[data-menu-item-id]'
@@ -573,18 +580,16 @@ describe('MainLayoutComponent', () => {
     flushMicrotasks();
     fixture.detectChanges();
 
-    const catalogsLink = fixture.nativeElement.querySelector(
-      'a[data-menu-destination-id="3"]'
-    ) as HTMLAnchorElement;
+    expect(fixture.nativeElement.querySelector('a[data-menu-destination-id="3"]')).toBeNull();
     const catalogsToggle = fixture.nativeElement.querySelector(
       'button[data-menu-toggle-id="3"]'
     ) as HTMLButtonElement;
-    expect(catalogsLink).not.toBeNull();
     expect(catalogsToggle).not.toBeNull();
 
     catalogsToggle.click();
     fixture.detectChanges();
 
+    expect(fixture.nativeElement.querySelector('#submenu-3 a[data-menu-destination-id="3"]')).not.toBeNull();
     const restrictions = fixture.nativeElement.querySelector(
       'a[data-menu-item-id="31"]'
     ) as HTMLAnchorElement;
@@ -833,6 +838,70 @@ describe('MainLayoutComponent', () => {
     expect(status.textContent).toContain('No fue posible cargar el menú principal');
     expect(status.textContent).not.toContain('backend details');
   });
+
+  it('filters authorized menu options ignoring accents without changing the backend tree', fakeAsync(() => {
+    const initialTree = [menu[0], menu[1], menu[2]];
+    menuSource.next(initialTree);
+    fixture.detectChanges();
+    flushMicrotasks();
+    fixture.detectChanges();
+
+    component.onMenuSearchInput('AUDITORIA');
+    fixture.detectChanges();
+
+    const visibleLinks = fixture.nativeElement.querySelectorAll('.menu-list a[data-menu-item-id]') as NodeListOf<HTMLAnchorElement>;
+    expect(Array.from(visibleLinks).map((link) => link.textContent?.trim())).toEqual(['Auditoría']);
+    expect(fixture.nativeElement.querySelector('button[data-menu-item-id="2"]')).not.toBeNull();
+    expect(component.menuItems).toEqual(initialTree);
+    expect(navigationService.getMenu).toHaveBeenCalledTimes(1);
+
+    component.clearMenuSearch();
+    fixture.detectChanges();
+    expect(component.menuSearchQuery).toBe('');
+    expect(fixture.nativeElement.querySelector('a[data-menu-item-id="1"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('a[data-menu-item-id="22"]')).toBeNull();
+  }));
+
+  it('allows collapsing a filtered group and restores the original expansion state', () => {
+    fixture.detectChanges();
+    component.onMenuSearchInput('detalle');
+    fixture.detectChanges();
+    const toggle = fixture.nativeElement.querySelector('button[data-menu-item-id="2"]') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(component.expandedItems.has(2)).toBeFalse();
+    component.clearMenuSearch();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('shows a localized empty result without inventing or exposing menu destinations', () => {
+    fixture.detectChanges();
+    component.onMenuSearchInput('no existe esta opción');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.menu-list [data-menu-item-id]').length).toBe(0);
+    expect(fixture.nativeElement.querySelector('.navigation-empty')?.textContent).toContain('No hay opciones');
+    expect(component.menuItems.length).toBe(3);
+  });
+
+  it('uses Material buttons and puts group destinations inside their expanded section', fakeAsync(() => {
+    menuSource.next([reportsMenu]);
+    fixture.detectChanges();
+    flushMicrotasks();
+    fixture.detectChanges();
+    const toggle = fixture.nativeElement.querySelector('button.nav-parent') as HTMLButtonElement;
+    expect(toggle.hasAttribute('mat-button')).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.nav-parent-destination')).toBeNull();
+    expect(fixture.nativeElement.querySelector('a[data-menu-destination-id="70"]')).toBeNull();
+    toggle.click();
+    fixture.detectChanges();
+    const destination = fixture.nativeElement.querySelector('#submenu-70 a[data-menu-destination-id="70"]') as HTMLAnchorElement;
+    expect(destination).not.toBeNull();
+    expect(destination.hasAttribute('mat-button')).toBeTrue();
+    expect(destination.textContent).toContain('Ver Reportes');
+  }));
 
   function setMobile(matches: boolean): void {
     breakpointSource.next({
