@@ -1,6 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { provideRouter } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { OperationalConfirmDialogComponent } from '../../shared/components/operational-confirm-dialog.component';
+import { RetireTransferDialogComponent } from './retire-transfer-dialog.component';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AchColombiaFileExchangeComponent } from './ach-colombia-file-exchange.component';
@@ -12,6 +16,7 @@ describe('AchColombiaFileExchangeComponent', () => {
   let component: AchColombiaFileExchangeComponent;
   let api: jasmine.SpyObj<AchColombiaFileExchangeService>;
   let auth: jasmine.SpyObj<AuthService>;
+  let dialog: jasmine.SpyObj<MatDialog>;
   const row: TransferSummary = {
     id: '7a4c3c48-92bd-4fd2-a8f1-3d16e2745d71', fileName: 'transfer.out', direction: 'Outbound', operationalDate: '2026-09-02',
     status: 'Failed', executionOrigin: 'Manual', attemptCount: 1, updatedAtUtc: '2026-09-02T12:00:00Z', archived: false, retired: false
@@ -23,17 +28,20 @@ describe('AchColombiaFileExchangeComponent', () => {
     api = jasmine.createSpyObj<AchColombiaFileExchangeService>('AchColombiaFileExchangeService',
       ['list', 'detail', 'executeOutbound', 'executeInbound', 'retry', 'reprocess', 'archive', 'retire', 'download']);
     auth = jasmine.createSpyObj<AuthService>('AuthService', ['hasPermission']);
+    dialog = jasmine.createSpyObj<MatDialog>('MatDialog', ['open']);
+    dialog.open.and.returnValue({ afterClosed: () => of(true) } as any);
     auth.hasPermission.and.returnValue(true);
     api.list.and.returnValue(of([row]));
     api.detail.and.returnValue(of(detail));
     api.retry.and.returnValue(of(detail));
 
     await TestBed.configureTestingModule({
-      imports: [AchColombiaFileExchangeComponent],
+      imports: [AchColombiaFileExchangeComponent, NoopAnimationsModule],
       providers: [
         provideRouter([]),
         { provide: AchColombiaFileExchangeService, useValue: api },
         { provide: AuthService, useValue: auth },
+        { provide: MatDialog, useValue: dialog },
         { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) }
       ]
     }).compileComponents();
@@ -78,8 +86,8 @@ describe('AchColombiaFileExchangeComponent', () => {
     expect(api.retry).not.toHaveBeenCalled();
     expect(api.download).not.toHaveBeenCalled();
     const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
-    expect(buttons.find(x => x.textContent === 'Reintentar')!.disabled).toBeTrue();
-    expect(buttons.find(x => x.textContent === 'Descargar')!.disabled).toBeTrue();
+    expect(buttons.find(x => x.textContent?.trim() === 'Reintentar')!.disabled).toBeTrue();
+    expect(buttons.find(x => x.textContent?.trim() === 'Descargar')!.disabled).toBeTrue();
   });
 
   it('does not render or invoke management actions without CanManageAch', () => {
@@ -96,7 +104,6 @@ describe('AchColombiaFileExchangeComponent', () => {
   });
 
   it('retries through the API and refreshes the transfer list', () => {
-    spyOn(window, 'confirm').and.returnValue(true);
     fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
     component = fixture.componentInstance;
     component.selected = detail;
@@ -104,12 +111,12 @@ describe('AchColombiaFileExchangeComponent', () => {
 
     component.retry();
 
+    expect(dialog.open).toHaveBeenCalled();
     expect(api.retry).toHaveBeenCalledWith(detail.id);
     expect(api.list).toHaveBeenCalledTimes(2);
   });
 
   it('releases the busy state when an operation fails', () => {
-    spyOn(window, 'confirm').and.returnValue(true);
     api.retry.and.returnValue(throwError(() => ({ error: { detail: 'Rejected by server' } })));
     fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
     component = fixture.componentInstance;
@@ -118,7 +125,7 @@ describe('AchColombiaFileExchangeComponent', () => {
     component.retry();
 
     expect(component.busy).toBeFalse();
-    expect(component.error).toBe('No fue posible completar la operación. Revise el estado y vuelva a intentar.');
+    expect(component.error).toBe('No fue posible completar la operación. Revisa el estado y vuelve a intentar.');
   });
 
   it('presents Transferred as published for sending and never as ACH Colombia acceptance', () => {
@@ -205,4 +212,118 @@ describe('AchColombiaFileExchangeComponent', () => {
     expect(text).not.toContain('task:internal');
     expect(text).toContain('No se pudo publicar en la frontera CFA.');
   });
+
+  it('keeps advanced filters available while showing only the essential ones initially', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Más filtros');
+    expect(fixture.nativeElement.textContent).toContain('Buscar archivos');
+    expect(fixture.nativeElement.querySelectorAll('mat-form-field').length).toBeGreaterThan(4);
+    expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(1);
+    expect(fixture.nativeElement.querySelectorAll('thead th').length).toBe(6);
+  });
+
+  it('prevents invalid date ranges from triggering a request', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    component.filter.from = '2026-11-30';
+    component.filter.to = '2026-11-01';
+    component.search();
+
+    expect(component.invalidDateRange).toBeTrue();
+    expect(api.list).toHaveBeenCalledTimes(1);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('fecha inicial no puede ser posterior');
+  });
+
+  it('clears all filters and preserves the server-side page contract', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    component.filter.fileName = 'pago.out';
+    component.filter.status = 'Failed';
+    component.filter.pageNumber = 3;
+    component.clearFilters();
+
+    expect(component.filter.fileName).toBe('');
+    expect(component.filter.status).toBe('');
+    expect(component.filter.pageNumber).toBe(1);
+    expect(component.filter.pageSize).toBe(50);
+    expect(api.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('requires a cycle before requesting outbound confirmation', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    component.cycleId = '  ';
+    component.executeOutbound();
+
+    expect(component.manualCycleError).toContain('identificador del ciclo');
+    expect(dialog.open).not.toHaveBeenCalled();
+    expect(api.executeOutbound).not.toHaveBeenCalled();
+  });
+
+  it('cancels outbound execution when the confirmation dialog is declined', () => {
+    dialog.open.and.returnValue({ afterClosed: () => of(false) } as any);
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    component.cycleId = 'C-2';
+    component.executeOutbound();
+
+    expect(dialog.open.calls.mostRecent().args[0]).toBe(OperationalConfirmDialogComponent);
+    expect(api.executeOutbound).not.toHaveBeenCalled();
+  });
+
+  it('confirms outbound execution with the unchanged cycle identifier', () => {
+    api.executeOutbound.and.returnValue(of({}));
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    component.cycleId = ' C-3 ';
+    component.executeOutbound();
+
+    expect(api.executeOutbound).toHaveBeenCalledOnceWith('C-3');
+  });
+
+  it('requires an explicit retirement reason and preserves it in the API call', () => {
+    dialog.open.and.returnValue({ afterClosed: () => of('  duplicado confirmado  ') } as any);
+    api.retire.and.returnValue(of({ ...detail, retired: true }));
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    component.selected = detail;
+    fixture.detectChanges();
+    component.retire();
+
+    expect(dialog.open.calls.mostRecent().args[0]).toBe(RetireTransferDialogComponent);
+    expect(api.retire).toHaveBeenCalledOnceWith(detail.id, 'duplicado confirmado');
+  });
+
+  it('does not retire when the reason dialog is dismissed', () => {
+    dialog.open.and.returnValue({ afterClosed: () => of(undefined) } as any);
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    component.selected = detail;
+    fixture.detectChanges();
+    component.retire();
+    expect(api.retire).not.toHaveBeenCalled();
+  });
+
+  it('keeps management actions hidden for read-only users and permits download', () => {
+    auth.hasPermission.and.returnValue(false);
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    component.selected = detail;
+    fixture.detectChanges();
+    const text: string = fixture.nativeElement.textContent;
+
+    expect(text).toContain('Descargar');
+    expect(text).not.toContain('Operaciones manuales');
+    expect(text).not.toContain('Retirar archivo');
+  });
+
 });
