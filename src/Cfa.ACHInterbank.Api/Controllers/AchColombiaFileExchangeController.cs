@@ -90,9 +90,14 @@ public sealed class AchColombiaFileExchangeController(
     [OpenApiResponseExample(StatusCodes.Status200OK, typeof(AchManagedFileExecutionSuccessResponseExampleProvider))]
     [Authorize(Policy = "CanManageAch")]
     [ProducesResponseType(typeof(AchManagedFileExecutionResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [OpenApiResponseDescription(StatusCodes.Status200OK, "Resultado de la ejecución saliente con cantidades procesadas, exitosas, fallidas e identificadores de transferencia involucrados.")]
+    [OpenApiResponseDescription(StatusCodes.Status409Conflict, "El intercambio administrado ACH Colombia está deshabilitado; se devuelve un problema de configuración sin ejecutar el envío.")]
     public async Task<ActionResult<AchManagedFileExecutionResult>> ExecuteOutbound(ExecuteOutboundRequest request, CancellationToken ct)
-        => Ok(await executionService.ExecuteOutboundAsync(request.CycleId, AchManagedFileExecutionOrigin.Manual, Actor(), Idempotency(), ct, request.CorrectedFromTransferId));
+    {
+        try { return Ok(await executionService.ExecuteOutboundAsync(request.CycleId, AchManagedFileExecutionOrigin.Manual, Actor(), Idempotency(), ct, request.CorrectedFromTransferId)); }
+        catch (InvalidOperationException ex) when (ex.Message == "ACHCOL_MFT_DISABLED") { return MftDisabledProblem(); }
+    }
 
     /// <summary>Ejecuta manualmente el flujo de intercambio entrante ACH Colombia.</summary>
     /// <param name="ct">Token de cancelación de la solicitud.</param>
@@ -102,9 +107,14 @@ public sealed class AchColombiaFileExchangeController(
     [OpenApiResponseExample(StatusCodes.Status200OK, typeof(AchManagedFileExecutionSuccessResponseExampleProvider))]
     [Authorize(Policy = "CanManageAch")]
     [ProducesResponseType(typeof(AchManagedFileExecutionResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [OpenApiResponseDescription(StatusCodes.Status200OK, "Resultado de la ejecución entrante con cantidades procesadas, exitosas, fallidas e identificadores de transferencia involucrados.")]
+    [OpenApiResponseDescription(StatusCodes.Status409Conflict, "El intercambio administrado ACH Colombia está deshabilitado; se devuelve un problema de configuración sin ejecutar la recepción.")]
     public async Task<ActionResult<AchManagedFileExecutionResult>> ExecuteInbound(CancellationToken ct)
-        => Ok(await executionService.ExecuteInboundAsync(AchManagedFileExecutionOrigin.Manual, Actor(), Idempotency(), ct));
+    {
+        try { return Ok(await executionService.ExecuteInboundAsync(AchManagedFileExecutionOrigin.Manual, Actor(), Idempotency(), ct)); }
+        catch (InvalidOperationException ex) when (ex.Message == "ACHCOL_MFT_DISABLED") { return MftDisabledProblem(); }
+    }
 
     /// <summary>Reintenta manualmente una transferencia saliente pendiente o incierta.</summary>
     /// <param name="id">Identificador de la transferencia a reintentar.</param>
@@ -114,9 +124,14 @@ public sealed class AchColombiaFileExchangeController(
     [HttpPost("transfers/{id:guid}/retry")]
     [Authorize(Policy = "CanManageAch")]
     [ProducesResponseType(typeof(AchManagedFileTransferDetail), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [OpenApiResponseDescription(StatusCodes.Status200OK, "Detalle actualizado de la transferencia después del reintento completado por el servicio.")]
+    [OpenApiResponseDescription(StatusCodes.Status409Conflict, "El intercambio administrado ACH Colombia está deshabilitado; no se realiza el reintento.")]
     public async Task<ActionResult<AchManagedFileTransferDetail>> Retry(Guid id, CancellationToken ct)
-        => Ok(await operationsService.RetryAsync(id, Actor(), Idempotency(), ct));
+    {
+        try { return Ok(await operationsService.RetryAsync(id, Actor(), Idempotency(), ct)); }
+        catch (InvalidOperationException ex) when (ex.Message == "ACHCOL_MFT_DISABLED") { return MftDisabledProblem(); }
+    }
 
     /// <summary>Reprocesa una transferencia entrante elegible.</summary>
     /// <param name="id">Identificador de la transferencia a reprocesar.</param>
@@ -242,6 +257,20 @@ public sealed class AchColombiaFileExchangeController(
     [ProducesResponseType(typeof(AchManagedMftConnectionTestResult), StatusCodes.Status200OK)]
     public async Task<ActionResult<AchManagedMftConnectionTestResult>> TestConnection(CancellationToken ct)
         => Ok(await operationsService.TestConnectionAsync(ct));
+
+    // Solo esta precondición operativa conocida se traduce a 409.
+    // Otras InvalidOperationException permanecen visibles para el diagnóstico del servidor.
+    private ConflictObjectResult MftDisabledProblem()
+    {
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status409Conflict,
+            Title = "Intercambio de archivos no disponible",
+            Detail = "La integración de archivos de ACH Colombia está deshabilitada. Solicita a un administrador revisar su configuración."
+        };
+        problem.Extensions["code"] = "ACHCOL_MFT_DISABLED";
+        return Conflict(problem);
+    }
 
     private string Actor() => User.Identity?.Name ?? "usuario-api";
     private string Idempotency() => Request.Headers.TryGetValue("Idempotency-Key", out var value) && !string.IsNullOrWhiteSpace(value)

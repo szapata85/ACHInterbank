@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { provideRouter } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
@@ -126,6 +127,41 @@ describe('AchColombiaFileExchangeComponent', () => {
 
     expect(component.busy).toBeFalse();
     expect(component.error).toBe('No fue posible completar la operación. Revisa el estado y vuelve a intentar.');
+  });
+
+  it('muestra un aviso útil y enlace de configuración para el conflicto MFT deshabilitado', () => {
+    api.executeInbound.and.returnValue(throwError(() => new HttpErrorResponse({
+      status: 409, error: { status: 409, code: 'ACHCOL_MFT_DISABLED', detail: 'La integración está deshabilitada.' }
+    })));
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    component.executeInbound();
+
+    expect(api.executeInbound).toHaveBeenCalledTimes(1);
+    expect(component.busy).toBeFalse();
+    expect(component.mftDisabled).toBeTrue();
+    fixture.detectChanges();
+    const alert = fixture.nativeElement.querySelector('.mft-alert') as HTMLElement;
+    expect(alert.textContent).toContain('Intercambio de archivos no disponible');
+    expect(alert.textContent).not.toContain('ACHCOL_MFT_DISABLED');
+    expect(fixture.nativeElement.querySelector('a[href="/administracion/mft-ach"]')).not.toBeNull();
+  });
+
+  it('no inventa mensajes de configuración ante otros errores 409 o fallas 500', () => {
+    api.executeInbound.and.returnValues(
+      throwError(() => new HttpErrorResponse({ status: 409, error: { code: 'OTHER_CONFLICT' } })),
+      throwError(() => new HttpErrorResponse({ status: 500, error: { message: 'System.Exception: secreto' } }))
+    );
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    component.executeInbound();
+    expect(component.mftDisabled).toBeFalse();
+    expect(component.error).toBe('No fue posible completar la operación. Revisa el estado y vuelve a intentar.');
+    component.executeInbound();
+    expect(component.mftDisabled).toBeFalse();
+    expect(component.error).not.toContain('secreto');
   });
 
   it('presents Transferred as published for sending and never as ACH Colombia acceptance', () => {

@@ -26,6 +26,13 @@ mat-form-field { min-width: 0; width: 100%; }
 .inline-validation { color: var(--color-error-text); font-size: .84rem; margin: .5rem 0; }
 .feedback { border-radius: var(--radius-md); padding: .85rem 1rem; margin-bottom: 1rem; line-height: 1.5; }
 .feedback.error { color: var(--color-error-text); background: var(--color-error-surface); border: 1px solid var(--color-error-border); }
+.mft-alert { border: 1px solid var(--color-warning-border, var(--color-border)) !important; background: var(--color-warning-surface) !important; }
+.mft-alert-content { display: flex; align-items: flex-start; gap: .85rem; }
+.mft-alert-content > mat-icon { color: var(--color-warning-text); flex-shrink: 0; }
+.mft-alert-content strong { display: block; font-size: 1rem; color: var(--color-text); }
+.mft-alert-content p { margin: .4rem 0 .8rem; color: var(--color-text); line-height: 1.5; }
+.mft-alert-content a { color: var(--color-text); }
+
 .results-heading { align-items: center; }
 .page-indicator { font-size: .8rem; color: var(--color-text-muted); white-space: nowrap; }
 .table-wrap { max-width: 100%; overflow-x: auto; }

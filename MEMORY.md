@@ -1199,3 +1199,9 @@ STATUS: IMPLEMENTED_UNVERIFIED_ENVIRONMENT (R10 RECERTIFICATION EXECUTED; CLOSUR
 - `EVID-SPA-NACHA-UX-001`: Source changed in one Angular component (TS/HTML/SCSS/spec); static checker `scripts/validate-nacha-upload-ux-static.py` passed 11/11, TypeScript syntax parsed, isolated classification cases passed 9/9. See `docs/ai/SPA-NACHA-UPLOAD-MATERIAL-BRANDING-2026-11-05.md`.
 - `GAP-SPA-NACHA-UX-001`: Angular build, Karma and browser UAT remain **unverified** because npm registry DNS fails (`EAI_AGAIN`) and dependencies are absent. Source completion is not a deployment or release certification.
 - `NEXT-SPA-NACHA-UX-001`: On the target workstation run npm ci, Angular build and focal specs, then visual UAT at desktop/mobile with dynamic brand variants and authorized local fixture loading before claiming production UX completion.
+
+## ACHCOL-MFT-CONTROLLED-ERROR-2026-11-05 — Controlled disabled-profile response
+
+- `DEC-ACHCOL-MFT-ERROR-001`: Map the known `ACHCOL_MFT_DISABLED` precondition only to HTTP 409 ProblemDetails with a stable `code` for manual inbound/outbound/retry; preserve unexpected exceptions, existing execution services, and ACH/MFT security controls. The SPA renders an accessible, permission-aware Material notice without internal diagnostics.
+- `EVID-ACHCOL-MFT-ERROR-001`: `scripts/validate-mft-disabled-response-static.py` passed 22/22 and TypeScript syntax parsed; xUnit/OpenAPI/Jasmine regression tests added but not executed. See `docs/ai/SPA-ACHCOL-MFT-DISABLED-CONTROLLED-ERROR-2026-11-05.md`.
+- `GAP-ACHCOL-MFT-ERROR-001`: .NET/Angular compile/tests, Docker rebuild, configuration persistence verification, and UAT remain pending. Historical `ACHCOL_MFT_DISABLED` exception is proven by local crash log; no live MFT action was performed.

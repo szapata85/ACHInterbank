@@ -2812,7 +2812,8 @@ public sealed class OpenApiDocumentGenerationTests
             RequestProperties: ["cycleId", "correctedFromTransferId"],
             Responses:
             [
-                new("200", "Resultado de la ejecución saliente con cantidades procesadas, exitosas, fallidas e identificadores de transferencia involucrados.", Qg2ResponseShape.Schema, "AchManagedFileExecutionResult")
+                new("200", "Resultado de la ejecución saliente con cantidades procesadas, exitosas, fallidas e identificadores de transferencia involucrados.", Qg2ResponseShape.Schema, "AchManagedFileExecutionResult"),
+                new("409", "El intercambio administrado ACH Colombia está deshabilitado; se devuelve un problema de configuración sin ejecutar el envío.", Qg2ResponseShape.ProblemDetails, "ProblemDetails")
             ],
             SuccessContentTypes: [],
             SuccessDescriptionFragments: [],
@@ -2830,7 +2831,8 @@ public sealed class OpenApiDocumentGenerationTests
             RequestProperties: [],
             Responses:
             [
-                new("200", "Resultado de la ejecución entrante con cantidades procesadas, exitosas, fallidas e identificadores de transferencia involucrados.", Qg2ResponseShape.Schema, "AchManagedFileExecutionResult")
+                new("200", "Resultado de la ejecución entrante con cantidades procesadas, exitosas, fallidas e identificadores de transferencia involucrados.", Qg2ResponseShape.Schema, "AchManagedFileExecutionResult"),
+                new("409", "El intercambio administrado ACH Colombia está deshabilitado; se devuelve un problema de configuración sin ejecutar la recepción.", Qg2ResponseShape.ProblemDetails, "ProblemDetails")
             ],
             SuccessContentTypes: [],
             SuccessDescriptionFragments: [],
@@ -2848,7 +2850,8 @@ public sealed class OpenApiDocumentGenerationTests
             RequestProperties: [],
             Responses:
             [
-                new("200", "Detalle actualizado de la transferencia después del reintento completado por el servicio.", Qg2ResponseShape.Schema, "AchManagedFileTransferDetail")
+                new("200", "Detalle actualizado de la transferencia después del reintento completado por el servicio.", Qg2ResponseShape.Schema, "AchManagedFileTransferDetail"),
+                new("409", "El intercambio administrado ACH Colombia está deshabilitado; no se realiza el reintento.", Qg2ResponseShape.ProblemDetails, "ProblemDetails")
             ],
             SuccessContentTypes: [],
             SuccessDescriptionFragments: [],

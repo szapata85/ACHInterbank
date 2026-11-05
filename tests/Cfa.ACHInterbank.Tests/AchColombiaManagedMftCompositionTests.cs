@@ -16,6 +16,8 @@ using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -45,6 +47,74 @@ public sealed class AchColombiaManagedMftCompositionTests
         foreach (var methodName in new[] { nameof(controller.Query), nameof(controller.Get) })
             Assert.Contains(typeof(AchColombiaFileExchangeController).GetMethod(methodName)!
                 .GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>(), x => x.Policy == "CanReadAch");
+    }
+
+    [Fact]
+    public async Task ExecuteInbound_DisabledProfile_ReturnsControlledConflictWithoutLeakingException()
+    {
+        var service = new Mock<IAchColombiaManagedFileExchangeService>();
+        service.Setup(x => x.ExecuteInboundAsync(AchManagedFileExecutionOrigin.Manual,
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("ACHCOL_MFT_DISABLED"));
+        var controller = new AchColombiaFileExchangeController(
+            service.Object, service.Object, service.Object, service.Object, service.Object)
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+
+        var response = await controller.ExecuteInbound(default);
+        var conflict = Assert.IsType<ConflictObjectResult>(response.Result);
+        var problem = Assert.IsType<ProblemDetails>(conflict.Value);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.Status);
+        Assert.Equal("ACHCOL_MFT_DISABLED", problem.Extensions["code"]);
+        Assert.Contains("deshabilitada", problem.Detail);
+        Assert.DoesNotContain("InvalidOperationException", problem.Detail);
+        service.VerifyAll();
+    }
+
+    [Fact]
+    public async Task ExecuteInbound_UnexpectedException_StillPropagatesForDiagnostics()
+    {
+        var service = new Mock<IAchColombiaManagedFileExchangeService>();
+        service.Setup(x => x.ExecuteInboundAsync(AchManagedFileExecutionOrigin.Manual,
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("ACHCOL_UNEXPECTED_FAILURE"));
+        var controller = new AchColombiaFileExchangeController(
+            service.Object, service.Object, service.Object, service.Object, service.Object)
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => controller.ExecuteInbound(default));
+        Assert.Equal("ACHCOL_UNEXPECTED_FAILURE", exception.Message);
+    }
+
+    [Fact]
+    public async Task ExecuteOutbound_DisabledProfile_ReturnsSameControlledConflict()
+    {
+        var service = new Mock<IAchColombiaManagedFileExchangeService>();
+        service.Setup(x => x.ExecuteOutboundAsync("ACH-1", AchManagedFileExecutionOrigin.Manual,
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>(), null))
+            .ThrowsAsync(new InvalidOperationException("ACHCOL_MFT_DISABLED"));
+        var controller = new AchColombiaFileExchangeController(
+            service.Object, service.Object, service.Object, service.Object, service.Object)
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+
+        var response = await controller.ExecuteOutbound(new("ACH-1"), default);
+        var conflict = Assert.IsType<ConflictObjectResult>(response.Result);
+        Assert.Equal("ACHCOL_MFT_DISABLED", Assert.IsType<ProblemDetails>(conflict.Value).Extensions["code"]);
+    }
+
+    [Fact]
+    public async Task Retry_DisabledProfile_ReturnsSameControlledConflict()
+    {
+        var service = new Mock<IAchColombiaManagedFileExchangeService>();
+        service.Setup(x => x.RetryAsync(It.IsAny<Guid>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("ACHCOL_MFT_DISABLED"));
+        var controller = new AchColombiaFileExchangeController(
+            service.Object, service.Object, service.Object, service.Object, service.Object)
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+
+        var response = await controller.Retry(Guid.NewGuid(), default);
+        var conflict = Assert.IsType<ConflictObjectResult>(response.Result);
+        Assert.Equal("ACHCOL_MFT_DISABLED", Assert.IsType<ProblemDetails>(conflict.Value).Extensions["code"]);
     }
 
     [Fact]

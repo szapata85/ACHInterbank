@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -42,6 +43,7 @@ export class AchColombiaFileExchangeComponent implements OnInit {
   private readonly dialog = inject(MatDialog);
 
   readonly canManage = this.auth.hasPermission('CanManageAch');
+  readonly canViewMftSettings = this.auth.hasPermission(['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch']);
   readonly statuses: TransferStatus[] = [
     'Ready', 'InProgress', 'Transferred', 'Received', 'Processed', 'Rejected',
     'Duplicate', 'RetryPending', 'Uncertain', 'Failed', 'Retired'
@@ -60,6 +62,7 @@ export class AchColombiaFileExchangeComponent implements OnInit {
   listError = '';
   detailError = '';
   error = '';
+  mftDisabled = false;
   openedId = '';
 
   get busy(): boolean { return this.listBusy || this.detailBusy || this.operationBusy || this.downloadBusy; }
@@ -263,6 +266,7 @@ export class AchColombiaFileExchangeComponent implements OnInit {
     if (this.operationBusy) return;
     this.operationBusy = true;
     this.error = '';
+    this.mftDisabled = false;
     request().pipe(finalize(() => this.operationBusy = false)).subscribe({
       next: result => {
         onSuccess?.(result);
@@ -270,7 +274,15 @@ export class AchColombiaFileExchangeComponent implements OnInit {
         // La actualización de la lista usa su propio estado para evitar carreras entre operaciones.
         this.refresh();
       },
-      error: () => this.showError('No fue posible completar la operación. Revisa el estado y vuelve a intentar.')
+      error: (error: unknown) => {
+        if (error instanceof HttpErrorResponse && error.status === 409
+            && error.error?.code === 'ACHCOL_MFT_DISABLED') {
+          this.mftDisabled = true;
+          this.showError('La integración de archivos de ACH Colombia está deshabilitada. Solicita a un administrador revisar su configuración.');
+          return;
+        }
+        this.showError('No fue posible completar la operación. Revisa el estado y vuelve a intentar.');
+      }
     });
   }
 

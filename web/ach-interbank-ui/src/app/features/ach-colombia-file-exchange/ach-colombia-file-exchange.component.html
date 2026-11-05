@@ -10,7 +10,17 @@
     </button>
   </header>
 
-  <div *ngIf="error" class="feedback error" role="alert">{{ error }}</div>
+  <mat-card *ngIf="mftDisabled" appearance="outlined" class="mft-alert" role="alert">
+    <mat-card-content class="mft-alert-content">
+      <mat-icon aria-hidden="true">info</mat-icon>
+      <div>
+        <strong>Intercambio de archivos no disponible</strong>
+        <p>{{ error }}</p>
+        <a *ngIf="canViewMftSettings" mat-stroked-button routerLink="/administracion/mft-ach">Revisar configuración</a>
+      </div>
+    </mat-card-content>
+  </mat-card>
+  <div *ngIf="error && !mftDisabled" class="feedback error" role="alert">{{ error }}</div>
 
   <mat-card appearance="outlined" class="search-card">
     <mat-card-content>
