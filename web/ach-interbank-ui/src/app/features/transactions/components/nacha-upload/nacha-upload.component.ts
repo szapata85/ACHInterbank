@@ -5,9 +5,16 @@ import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatCardModule } from '@angular/material/card';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs/operators';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { ClearingHouseOption } from '../../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../../core/services/clearing-houses-api.service';
 import { SharedModule } from '../../../../shared/shared.module';
 import { NachaUploadRecord, NachaUploadService } from '../../services/nacha-upload.service';
 
@@ -22,7 +29,10 @@ const rejectedExtensionPattern = /\.(txt|nacha)$/i;
 @Component({
   selector: 'app-nacha-upload',
   standalone: true,
-  imports: [SharedModule, RouterModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [
+    SharedModule, RouterModule, MatButtonModule, MatCardModule, MatExpansionModule,
+    MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule
+  ],
   templateUrl: './nacha-upload.component.html',
   styleUrls: ['./nacha-upload.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -30,6 +40,7 @@ const rejectedExtensionPattern = /\.(txt|nacha)$/i;
 export class NachaUploadComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly nachaUpload = inject(NachaUploadService);
+  private readonly clearingHousesApi = inject(ClearingHousesApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -37,6 +48,11 @@ export class NachaUploadComponent implements OnInit {
 
   uploading = false;
   loadingRecords = false;
+  recordsLoadFailed = false;
+  clearingHousesLoading = false;
+  clearingHousesError = false;
+  clearingHouseOptions: ClearingHouseOption[] = [];
+  draggingFile = false;
   records: NachaUploadRecord[] = [];
   lastUploadResult: NachaUploadResultView | null = null;
   selectedFileValidation: NachaUploadFileValidation | null = null;
@@ -71,18 +87,90 @@ export class NachaUploadComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.loadClearingHouses();
     this.loadRecords();
+  }
+
+  loadClearingHouses(): void {
+    this.clearingHousesLoading = true;
+    this.clearingHousesError = false;
+    this.clearingHousesApi.list().subscribe({
+      next: (options) => {
+        this.clearingHouseOptions = options ?? [];
+        this.clearingHousesLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.clearingHouseOptions = [];
+        this.clearingHousesLoading = false;
+        this.clearingHousesError = true;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   get fileName(): string {
     return this.form.get('file')?.value?.name ?? '';
   }
 
+  get selectedFileSize(): string {
+    const size = this.form.get('file')?.value?.size;
+    if (size === undefined) {
+      return '';
+    }
+    return size >= 1024 * 1024
+      ? `${(size / (1024 * 1024)).toFixed(2)} MB`
+      : `${(size / 1024).toFixed(1)} KB`;
+  }
+
   onFileSelected(event: Event): void {
+    if (this.uploading) {
+      return;
+    }
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
+    this.setSelectedFile(input.files?.[0] ?? null);
+  }
+
+  onFileDragOver(event: DragEvent): void {
+    event.preventDefault();
+    if (!this.uploading) {
+      this.draggingFile = true;
+    }
+  }
+
+  onFileDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    this.draggingFile = false;
+  }
+
+  onFileDropped(event: DragEvent): void {
+    event.preventDefault();
+    this.draggingFile = false;
+    if (this.uploading) {
+      return;
+    }
+    const file = event.dataTransfer?.files?.[0] ?? null;
+    if (file) {
+      this.setSelectedFile(file);
+      if (this.fileInput) {
+        this.fileInput.nativeElement.value = '';
+      }
+    }
+  }
+
+  clearSelectedFile(): void {
+    if (this.uploading) {
+      return;
+    }
+    this.setSelectedFile(null);
+    if (this.fileInput) {
+      this.fileInput.nativeElement.value = '';
+    }
+  }
+
+  private setSelectedFile(file: File | null): void {
     this.form.patchValue({ file });
-    this.form.markAsTouched();
+    this.form.get('file')?.markAsTouched();
     this.selectedFileValidation = file ? classifyNachaUploadFile(file.name) : null;
     this.lastUploadResult = null;
     this.cdr.markForCheck();
@@ -192,6 +280,7 @@ export class NachaUploadComponent implements OnInit {
 
   private loadRecords(): void {
     this.loadingRecords = true;
+    this.recordsLoadFailed = false;
     const filters = this.filtersForm.getRawValue();
 
     this.nachaUpload
@@ -209,6 +298,7 @@ export class NachaUploadComponent implements OnInit {
         },
         error: () => {
           this.records = [];
+          this.recordsLoadFailed = true;
           this.notifications.error('No fue posible consultar el detalle de archivos NACHA-M cargados.');
           this.cdr.markForCheck();
         }

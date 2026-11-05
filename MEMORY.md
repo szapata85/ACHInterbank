@@ -1192,3 +1192,10 @@ STATUS: IMPLEMENTED_UNVERIFIED_ENVIRONMENT (R10 RECERTIFICATION EXECUTED; CLOSUR
 - `last_completed_increment=I07-A` **preparation only**; `next_increment=I07-B` **blocked by prerequisites**. Do not infer `VERIFIED_LOCAL`, `UAT_READY`, `UAT_APPROVED`, `GAUNTLET_PASSED` or Live authorization.
 - Open gates: .NET/xUnit/build, P8.3 incomplete, P8.4 dual-provider/parity/gauntlet, functional bank mapping for I02/I03, execution environment authorization and configuration effective-mode review (`Development` overrides `DryRun` with `Live` for monetary services).
 - Canonical scope/evidence: `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/I07A_PREPARACION_UAT_SOAP.md`, `I07A_MATRIZ_CASOS_SOAP.md`, `I07A_EVIDENCIA_Y_BLOQUEOS.md`, `MEMORY_STATE.md`. Historical UAT evidence does not certify this artifact.
+
+## SPA-NACHA-UPLOAD-UX-2026-11-05 — Angular Material and runtime branding follow-up
+
+- `DEC-SPA-NACHA-UX-001`: Modernize `/transactions/nacha-upload` on the November 5 full ZIP, retaining existing NACHA upload/list/reprocess service contracts, route permissions, classification, and backend behavior. Angular Material components consume existing runtime branding tokens; no new branding persistence or endpoint.
+- `EVID-SPA-NACHA-UX-001`: Source changed in one Angular component (TS/HTML/SCSS/spec); static checker `scripts/validate-nacha-upload-ux-static.py` passed 11/11, TypeScript syntax parsed, isolated classification cases passed 9/9. See `docs/ai/SPA-NACHA-UPLOAD-MATERIAL-BRANDING-2026-11-05.md`.
+- `GAP-SPA-NACHA-UX-001`: Angular build, Karma and browser UAT remain **unverified** because npm registry DNS fails (`EAI_AGAIN`) and dependencies are absent. Source completion is not a deployment or release certification.
+- `NEXT-SPA-NACHA-UX-001`: On the target workstation run npm ci, Angular build and focal specs, then visual UAT at desktop/mobile with dynamic brand variants and authorized local fixture loading before claiming production UX completion.

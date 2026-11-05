@@ -1,7 +1,7 @@
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { ClearingHousesApiService } from '../../../../core/services/clearing-houses-api.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { NachaUploadRecord, NachaUploadService } from '../../services/nacha-upload.service';
@@ -345,8 +345,9 @@ describe('NachaUploadComponent behavior', () => {
     const root: HTMLElement = fixture.nativeElement;
     expect(root.querySelector('app-page-header')).not.toBeNull();
     expect(root.querySelector('ui-grilla-empresarial')).not.toBeNull();
-    expect(root.querySelector('ui-estado-carga')).not.toBeNull();
-    expect(root.querySelector('app-clearing-house-select[formControlName="clearingHouseId"]')).not.toBeNull();
+    expect(root.querySelector('mat-progress-bar')).not.toBeNull();
+    expect(root.querySelector('mat-select[formControlName="clearingHouseId"]')).not.toBeNull();
+    expect(root.querySelectorAll('mat-card').length).toBe(3);
     expect(root.querySelector('input[type="file"]')).not.toBeNull();
     expect(root.querySelectorAll('button[mat-flat-button], button[mat-stroked-button]').length).toBeGreaterThan(0);
     expect(root.querySelector('ui-boton')).toBeNull();
@@ -359,4 +360,73 @@ describe('NachaUploadComponent behavior', () => {
     expect(root.textContent).toContain('Entradas: 2');
     expect(root.textContent).toContain('Adendas: 1');
   });
+  it('loads the existing clearing-house catalog into Angular Material select', () => {
+    expect(clearingHouses.list).toHaveBeenCalledTimes(1);
+    expect(component.clearingHouseOptions).toEqual([{ id: 1, code: 'ACHCOL', name: 'ACH Colombia' }]);
+    expect(component.clearingHousesError).toBeFalse();
+    expect(fixture.nativeElement.querySelector('mat-select')).not.toBeNull();
+  });
+
+  it('accepts a dropped file, reuses existing classification and keeps the clearing house selected', () => {
+    const file = new File(['test'], '0001283.002.20250331.1');
+    component.form.patchValue({ clearingHouseId: 1 });
+    const event = {
+      preventDefault: jasmine.createSpy('preventDefault'),
+      dataTransfer: { files: [file] }
+    } as unknown as DragEvent;
+
+    component.onFileDragOver(event);
+    expect(component.draggingFile).toBeTrue();
+    component.onFileDropped(event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(component.draggingFile).toBeFalse();
+    expect(component.fileName).toBe(file.name);
+    expect(component.selectedFileValidation?.kind).toBe('production-reference-cenit');
+    expect(component.form.get('clearingHouseId')?.value).toBe(1);
+
+    component.clearSelectedFile();
+    expect(component.form.get('file')?.value).toBeNull();
+    expect(component.form.get('clearingHouseId')?.value).toBe(1);
+  });
+
+  it('disables the upload action for a rejected file and exposes an accessible reason', () => {
+    const file = new File(['bad'], 'rechazo.txt');
+    component.form.patchValue({ clearingHouseId: 1 });
+    const input = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+
+    component.onFileSelected({ target: input } as unknown as Event);
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector('[data-testid="nacha-upload-submit"]') as HTMLButtonElement;
+    const reason = fixture.nativeElement.querySelector('[data-testid="nacha-upload-selected-error"]') as HTMLElement;
+    expect(button.disabled).toBeTrue();
+    expect(reason.textContent).toContain('no se admiten');
+    expect(reason.closest('[role="alert"]')).not.toBeNull();
+    expect(api.upload).not.toHaveBeenCalled();
+  });
+
+  it('exposes a retry action when the clearing-house catalog is unavailable', () => {
+    clearingHouses.list.and.returnValue(throwError(() => new Error('network unavailable')));
+
+    component.loadClearingHouses();
+    fixture.detectChanges();
+
+    expect(component.clearingHousesError).toBeTrue();
+    expect(fixture.nativeElement.textContent).toContain('No fue posible cargar las cámaras compensadoras.');
+    expect(api.upload).not.toHaveBeenCalled();
+  });
+
+  it('shows a retryable error instead of an empty record grid when loading fails', () => {
+    api.listRecords.and.returnValue(throwError(() => new Error('network unavailable')));
+
+    component.searchRecords();
+    fixture.detectChanges();
+
+    expect(component.recordsLoadFailed).toBeTrue();
+    expect(fixture.nativeElement.querySelector('[data-testid="nacha-upload-records-error"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('ui-grilla-empresarial')).toBeNull();
+  });
+
 });

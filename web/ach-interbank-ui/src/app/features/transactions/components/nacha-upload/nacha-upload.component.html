@@ -1,178 +1,254 @@
 <app-page-header
   title="Cargar archivo NACHA-M"
-  description="Sube archivos NACHA-M de cámaras compensadoras y consulta el detalle cargado."
+  description="Carga archivos de ACH Colombia o CENIT y consulta el resultado de su ingesta."
 ></app-page-header>
 
-<section class="upload-card" data-testid="nacha-upload-form">
-  <form [formGroup]="form" (ngSubmit)="upload()" novalidate>
-    <label class="clearing-house-field">
-      Cámara compensadora *
-      <app-clearing-house-select
-        formControlName="clearingHouseId"
-        placeholder="Seleccione la cámara de origen"
-      ></app-clearing-house-select>
-      <app-error-message [control]="form.get('clearingHouseId')"></app-error-message>
-    </label>
+<div class="nacha-upload-page">
+  <mat-card appearance="outlined" class="upload-card" data-testid="nacha-upload-form">
+    <mat-card-header>
+      <mat-icon mat-card-avatar aria-hidden="true" class="card-icon">upload_file</mat-icon>
+      <mat-card-title>Nueva carga de archivo</mat-card-title>
+      <mat-card-subtitle>Selecciona la cámara y revisa el archivo antes de procesarlo.</mat-card-subtitle>
+    </mat-card-header>
 
-    <label class="file-input">
-      <span>Archivo NACHA-M *</span>
-      <input #fileInput type="file" (change)="onFileSelected($event)" />
-      <small class="muted" *ngIf="fileName; else emptyFile">Archivo seleccionado: {{ fileName }}</small>
-      <small class="file-kind" *ngIf="selectedFileValidation as validation" data-testid="nacha-upload-selected-kind">
-        {{ validation.label }} · {{ validation.detail }}
-      </small>
-      <small class="file-error" *ngIf="selectedFileValidation && !selectedFileValidation.allowed" data-testid="nacha-upload-selected-error">
-        {{ selectedFileValidation.rejectionMessage }}
-      </small>
-      <small class="muted file-help" data-testid="nacha-upload-help">
-        Formatos permitidos: ACHCOL RRRRTTT.ZZZ.YYYYMMDD.N.OUT, CENIT RRRRTTT.ZZZ.YYYYMMDD.N,
-        RRRRTTT.ZZZ.RET, sobre digital ACH Colombia .ENV y fixture UAT/golden interno .ach.
-        CENIT se carga descifrado; ACH Colombia .ENV conserva el sobre digital hasta el backend.
-        Se rechazan .txt y .nacha.
-      </small>
-      <ng-template #emptyFile>
-        <small class="muted">Selecciona el archivo NACHA-M a cargar.</small>
-      </ng-template>
-      <app-error-message [control]="form.get('file')"></app-error-message>
-    </label>
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="upload()" novalidate>
+        <div class="upload-fields">
+          <mat-form-field appearance="outline" class="clearing-house-field">
+            <mat-label>Cámara compensadora</mat-label>
+            <mat-select formControlName="clearingHouseId" required [disabled]="uploading || clearingHousesLoading" data-testid="nacha-upload-clearing-house">
+              <mat-option [value]="null" disabled>Selecciona la cámara de origen</mat-option>
+              <mat-option *ngFor="let option of clearingHouseOptions" [value]="option.id">
+                {{ option.name }}{{ option.code ? ' (' + option.code + ')' : '' }}
+              </mat-option>
+            </mat-select>
+            <mat-hint>La cámara debe corresponder al archivo que vas a enviar.</mat-hint>
+            <mat-error *ngIf="form.get('clearingHouseId')?.hasError('required')">Selecciona una cámara compensadora.</mat-error>
+          </mat-form-field>
 
-    <ui-estado-carga
-      *ngIf="uploading"
-      mensaje="Procesando archivo NACHA-M…"
-    ></ui-estado-carga>
+          <div *ngIf="clearingHousesLoading" class="catalog-feedback" role="status">
+            Consultando cámaras disponibles…
+          </div>
+          <div *ngIf="clearingHousesError" class="catalog-feedback catalog-error" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon>
+            <span>No fue posible cargar las cámaras compensadoras.</span>
+            <button mat-stroked-button type="button" (click)="loadClearingHouses()">Reintentar</button>
+          </div>
 
-    <div class="actions">
-      <button mat-flat-button type="submit" [disabled]="uploading">
-        {{ uploading ? 'Cargando...' : 'Cargar archivo' }}
-      </button>
-      <button mat-stroked-button type="button" routerLink="/transactions">Cancelar</button>
-    </div>
-  </form>
-</section>
+          <div class="file-field">
+            <div class="field-label">Archivo NACHA-M <span aria-hidden="true">*</span></div>
+            <div class="file-dropzone"
+              [class.file-dropzone--active]="draggingFile"
+              [class.file-dropzone--invalid]="selectedFileValidation && !selectedFileValidation.allowed"
+              (dragover)="onFileDragOver($event)"
+              (dragleave)="onFileDragLeave($event)"
+              (drop)="onFileDropped($event)"
+              data-testid="nacha-upload-dropzone">
+              <input #fileInput class="file-picker-native" type="file" tabindex="-1"
+                aria-label="Archivo NACHA-M" (change)="onFileSelected($event)" />
+              <mat-icon aria-hidden="true" class="dropzone-icon">{{ fileName ? 'description' : 'cloud_upload' }}</mat-icon>
+              <div class="dropzone-title">{{ fileName ? 'Archivo listo para revisar' : 'Selecciona o arrastra tu archivo aquí' }}</div>
+              <p class="muted dropzone-subtitle">
+                {{ fileName ? 'Confirma la clasificación del archivo antes de cargarlo.' : 'Se comprobará el nombre del archivo antes de enviarlo al servidor.' }}
+              </p>
+              <div class="file-picker-actions">
+                <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading">
+                  <mat-icon aria-hidden="true">folder_open</mat-icon>
+                  {{ fileName ? 'Cambiar archivo' : 'Elegir archivo' }}
+                </button>
+              </div>
+            </div>
 
-<section class="upload-card upload-result-card" *ngIf="lastUploadResult as result" data-testid="nacha-upload-result">
-  <div class="upload-result-header">
-    <div>
-      <h3>Resultado de la carga</h3>
-      <p class="muted">La respuesta del API queda visible para la validación funcional controlada.</p>
-    </div>
-    <span class="upload-result-badge" [attr.data-kind]="result.success && !result.partial ? 'success' : result.statusCode >= 500 ? 'error' : 'warning'">
-      {{ result.statusLabel }}
-    </span>
-  </div>
+            <div *ngIf="fileName" class="selected-file" data-testid="nacha-upload-selected-file">
+              <mat-icon aria-hidden="true">insert_drive_file</mat-icon>
+              <div class="selected-file-description">
+                <strong>{{ fileName }}</strong>
+                <small class="muted">{{ selectedFileSize }}</small>
+              </div>
+              <button mat-icon-button type="button" [disabled]="uploading"
+                (click)="clearSelectedFile()" aria-label="Quitar archivo seleccionado">
+                <mat-icon aria-hidden="true">close</mat-icon>
+              </button>
+            </div>
 
-  <dl class="upload-result-grid">
-    <div>
-      <dt>Mensaje</dt>
-      <dd data-testid="nacha-upload-result-message">{{ result.message || 'Sin mensaje de respuesta.' }}</dd>
-    </div>
-    <div>
-      <dt>Trace ID</dt>
-      <dd>{{ result.traceId || 'No disponible' }}</dd>
-    </div>
-    <div>
-      <dt>ID de ingesta</dt>
-      <dd data-testid="nacha-upload-ingestion-id">{{ result.ingestionId || 'No disponible' }}</dd>
-    </div>
-    <div>
-      <dt>Estado de ingesta</dt>
-      <dd>{{ result.ingestionStatus || 'No disponible' }}</dd>
-    </div>
-    <div>
-      <dt>Estado de ciclo</dt>
-      <dd>{{ result.cycleResolutionStatus || 'No disponible' }}</dd>
-    </div>
-    <div>
-      <dt>Estado de parseo</dt>
-      <dd>{{ result.parsingStatus || 'No disponible' }}</dd>
-    </div>
-    <div>
-      <dt>Cámara</dt>
-      <dd>
-        Seleccionada: {{ result.selectedClearingHouseId }} |
-        Detectada/resuelta: {{ result.resolvedClearingHouseId ?? result.detectedClearingHouseId ?? 'Pendiente' }}
-      </dd>
-    </div>
-    <div>
-      <dt>Totales</dt>
-      <dd>
-        Lotes: {{ result.totalBatches ?? 0 }} | Entradas: {{ result.totalEntries ?? 0 }} | Adendas: {{ result.totalAddendas ?? 0 }}
-      </dd>
-    </div>
-  </dl>
+            <div *ngIf="selectedFileValidation as validation"
+              class="file-validation" [class.file-validation--invalid]="!validation.allowed"
+              [attr.role]="validation.allowed ? 'status' : 'alert'"
+              data-testid="nacha-upload-selected-kind">
+              <mat-icon aria-hidden="true">{{ validation.allowed ? 'check_circle' : 'error_outline' }}</mat-icon>
+              <div>
+                <strong>{{ validation.label }}</strong>
+                <span>{{ validation.detail }}</span>
+                <span *ngIf="!validation.allowed" data-testid="nacha-upload-selected-error">{{ validation.rejectionMessage }}</span>
+              </div>
+            </div>
+            <p *ngIf="form.get('file')?.invalid && form.get('file')?.touched" class="field-error" role="alert">
+              Selecciona un archivo NACHA-M para continuar.
+            </p>
+          </div>
+        </div>
 
-  <div class="upload-result-errors" *ngIf="result.errors.length > 0">
-    <strong>Errores controlados</strong>
-    <ul>
-      <li *ngFor="let error of result.errors">{{ error }}</li>
-    </ul>
-  </div>
+        <mat-expansion-panel class="format-help" data-testid="nacha-upload-help">
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              <mat-icon aria-hidden="true">info_outline</mat-icon>
+              Formatos y recomendaciones de carga
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <p>Se admiten archivos ACH Colombia con nombre <code>RRRRTTT.ZZZ.YYYYMMDD.N.OUT</code>,
+            CENIT <code>RRRRTTT.ZZZ.YYYYMMDD.N</code>,
+            operativos ACH Colombia <code>RRRRTTT.ZZZ.N</code>, devoluciones <code>RRRRTTT.ZZZ.RET</code>,
+            sobres digitales ACH Colombia <code>.ENV</code> y fixtures internos UAT/golden <code>.ach</code>.</p>
+          <p>CENIT debe cargarse descifrado. El sobre digital ACH Colombia se conserva hasta el backend.
+            No se admiten extensiones <code>.txt</code> ni <code>.nacha</code>.</p>
+        </mat-expansion-panel>
 
-  <div class="actions" *ngIf="result.canReprocess">
-    <button
-      mat-flat-button
-      type="button"
-      data-testid="nacha-reprocess-button"
-      [disabled]="uploading"
-      (click)="reprocess()"
-    >
-      {{ uploading ? 'Reprocesando...' : 'Reprocesar ingesta fallida' }}
-    </button>
-    <small class="muted">
-      Reutiliza el mismo archivo seleccionado. El backend bloquea el reproceso si ya existe persistencia canónica o despacho.
-    </small>
-  </div>
-</section>
+        <mat-progress-bar *ngIf="uploading" mode="indeterminate" aria-label="Procesando archivo NACHA-M"></mat-progress-bar>
+        <p *ngIf="uploading" class="progress-caption" role="status">Procesando archivo NACHA-M. No cierres esta pantalla hasta recibir el resultado.</p>
 
-<section class="upload-card records-card" data-testid="nacha-upload-records">
-  <div class="records-header">
-    <h3>Información cargada de archivos NACHA-M</h3>
-    <small class="muted">Filtra y visualiza los registros persistidos en la base de datos.</small>
-  </div>
+        <div class="actions upload-actions">
+          <button mat-flat-button type="submit" [disabled]="uploading || form.invalid || !selectedFileValidation?.allowed" data-testid="nacha-upload-submit">
+            <mat-icon aria-hidden="true">upload</mat-icon>
+            {{ uploading ? 'Procesando…' : 'Cargar archivo' }}
+          </button>
+          <button mat-stroked-button type="button" routerLink="/transactions" [disabled]="uploading">Cancelar</button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
 
-  <form class="filters-grid" [formGroup]="filtersForm" (ngSubmit)="searchRecords()">
-    <mat-form-field appearance="outline">
-      <mat-label>Origen inmediato</mat-label>
-      <input matInput type="text" formControlName="immediateOrigin" placeholder="Ej: 02100002" />
-    </mat-form-field>
+  <mat-card appearance="outlined" class="upload-result-card" *ngIf="lastUploadResult as result"
+    data-testid="nacha-upload-result" aria-live="polite">
+    <mat-card-content>
+      <div class="upload-result-header">
+        <div class="section-heading">
+          <mat-icon aria-hidden="true">assignment_turned_in</mat-icon>
+          <div>
+            <h2>Resultado de la carga</h2>
+            <p class="muted">Detalle devuelto por el servicio de ingesta.</p>
+          </div>
+        </div>
+        <span class="upload-result-badge" [attr.data-kind]="result.success && !result.partial ? 'success' : result.statusCode >= 500 ? 'error' : 'warning'">
+          {{ result.statusLabel }}
+        </span>
+      </div>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Destino inmediato</mat-label>
-      <input matInput type="text" formControlName="immediateDestination" placeholder="Ej: 02100001" />
-    </mat-form-field>
+      <dl class="upload-result-grid">
+        <div class="result-message">
+          <dt>Mensaje</dt>
+          <dd data-testid="nacha-upload-result-message">{{ result.message || 'Sin mensaje de respuesta.' }}</dd>
+        </div>
+        <div>
+          <dt>ID de ingesta</dt>
+          <dd data-testid="nacha-upload-ingestion-id">{{ result.ingestionId || 'No disponible' }}</dd>
+        </div>
+        <div>
+          <dt>Trace ID</dt>
+          <dd>{{ result.traceId || 'No disponible' }}</dd>
+        </div>
+        <div>
+          <dt>Estado de ingesta</dt>
+          <dd>{{ result.ingestionStatus || 'No disponible' }}</dd>
+        </div>
+        <div>
+          <dt>Estado de ciclo</dt>
+          <dd>{{ result.cycleResolutionStatus || 'No disponible' }}</dd>
+        </div>
+        <div>
+          <dt>Estado de parseo</dt>
+          <dd>{{ result.parsingStatus || 'No disponible' }}</dd>
+        </div>
+        <div>
+          <dt>Cámara</dt>
+          <dd>Seleccionada: {{ result.selectedClearingHouseId }} · Detectada/resuelta:
+            {{ result.resolvedClearingHouseId ?? result.detectedClearingHouseId ?? 'Pendiente' }}</dd>
+        </div>
+        <div>
+          <dt>Totales</dt>
+          <dd>Lotes: {{ result.totalBatches ?? 0 }} · Entradas: {{ result.totalEntries ?? 0 }} · Adendas: {{ result.totalAddendas ?? 0 }}</dd>
+        </div>
+      </dl>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Referencia</mat-label>
-      <input matInput type="text" formControlName="referenceCode" placeholder="Código de referencia" />
-    </mat-form-field>
+      <div class="upload-result-errors" *ngIf="result.errors.length > 0" role="alert">
+        <strong>Errores controlados</strong>
+        <ul>
+          <li *ngFor="let error of result.errors">{{ error }}</li>
+        </ul>
+      </div>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Ciclo ACH</mat-label>
-      <input matInput type="text" formControlName="achCycleId" placeholder="Ej: CH01-20260108-C1" />
-    </mat-form-field>
+      <div class="reprocess-panel" *ngIf="result.canReprocess">
+        <mat-icon aria-hidden="true">restart_alt</mat-icon>
+        <div>
+          <strong>Reproceso controlado disponible</strong>
+          <p class="muted">Se reutiliza el archivo seleccionado. El backend impide el reproceso cuando existe persistencia canónica o despacho.</p>
+          <button mat-stroked-button type="button" data-testid="nacha-reprocess-button"
+            [disabled]="uploading" (click)="reprocess()">
+            <mat-icon aria-hidden="true">refresh</mat-icon>
+            {{ uploading ? 'Reprocesando…' : 'Reprocesar ingesta fallida' }}
+          </button>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Fecha de creación del archivo</mat-label>
-      <input matInput type="date" formControlName="fileCreationDate" />
-    </mat-form-field>
+  <mat-card appearance="outlined" class="records-card" data-testid="nacha-upload-records">
+    <mat-card-content>
+      <div class="records-header">
+        <div class="section-heading">
+          <mat-icon aria-hidden="true">table_view</mat-icon>
+          <div>
+            <h2>Archivos NACHA-M cargados</h2>
+            <p class="muted">Consulta los registros persistidos utilizando los filtros.</p>
+          </div>
+        </div>
+        <span class="records-count" *ngIf="!loadingRecords && !recordsLoadFailed">{{ records.length }} registros</span>
+      </div>
 
-    <div class="actions filter-actions">
-      <button mat-flat-button type="submit" [disabled]="loadingRecords">
-        {{ loadingRecords ? 'Buscando...' : 'Buscar' }}
-      </button>
-      <button mat-stroked-button type="button" (click)="clearFilters()">Limpiar filtros</button>
-    </div>
-  </form>
+      <form class="filters-grid" [formGroup]="filtersForm" (ngSubmit)="searchRecords()">
+        <mat-form-field appearance="outline">
+          <mat-label>Origen inmediato</mat-label>
+          <input matInput type="text" formControlName="immediateOrigin" placeholder="Ej.: 02100002" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Destino inmediato</mat-label>
+          <input matInput type="text" formControlName="immediateDestination" placeholder="Ej.: 02100001" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Referencia</mat-label>
+          <input matInput type="text" formControlName="referenceCode" placeholder="Código de referencia" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Ciclo ACH</mat-label>
+          <input matInput type="text" formControlName="achCycleId" placeholder="Ej.: CH01-20260108-C1" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha de creación del archivo</mat-label>
+          <input matInput type="date" formControlName="fileCreationDate" />
+        </mat-form-field>
+        <div class="actions filter-actions">
+          <button mat-flat-button type="submit" [disabled]="loadingRecords">
+            <mat-icon aria-hidden="true">search</mat-icon>{{ loadingRecords ? 'Buscando…' : 'Buscar' }}
+          </button>
+          <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="loadingRecords">
+            <mat-icon aria-hidden="true">filter_alt_off</mat-icon>Limpiar filtros
+          </button>
+        </div>
+      </form>
 
-  <ui-grilla-empresarial
-    [columnas]="columnDefs"
-    [datos]="records"
-    [cargando]="loadingRecords"
-    [paginacion]="true"
-    [tamanoPagina]="10"
-    [tituloVacio]="'Sin registros NACHA-M'"
-    [mensajeVacio]="'No se encontraron registros NACHA-M con los filtros seleccionados.'"
-    [mensajeCargando]="'Cargando información...'"
-    [seleccionFilas]="{ mode: 'singleRow' }"
-  ></ui-grilla-empresarial>
-</section>
+      <mat-progress-bar *ngIf="loadingRecords" mode="indeterminate" aria-label="Consultando archivos NACHA-M"></mat-progress-bar>
+      <div *ngIf="recordsLoadFailed" class="records-error" role="alert" data-testid="nacha-upload-records-error">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <span>No fue posible consultar los archivos NACHA-M cargados.</span>
+        <button mat-stroked-button type="button" (click)="searchRecords()">Reintentar</button>
+      </div>
+      <ui-grilla-empresarial *ngIf="!recordsLoadFailed"
+        [columnas]="columnDefs" [datos]="records" [cargando]="loadingRecords"
+        [paginacion]="true" [tamanoPagina]="10"
+        [tituloVacio]="'Sin registros NACHA-M'"
+        [mensajeVacio]="'No se encontraron registros NACHA-M con los filtros seleccionados.'"
+        [mensajeCargando]="'Cargando información...'"
+        [seleccionFilas]="{ mode: 'singleRow' }">
+      </ui-grilla-empresarial>
+    </mat-card-content>
+  </mat-card>
+</div>
