@@ -89,3 +89,8 @@ Programa incremental documentado para reorganizar el menú del SPA por seed, con
 | `docs/security/NAVIGATION_MENU_SECURITY_MODEL.md` | Roles/permisos, incluidas herramientas de prueba. |
 | `docs/operations/NAVIGATION_MENU_NO_GIT_ZIP_WORKFLOW.md` | Handoff por ZIP full sin Git. |
 
+
+
+## Inventario y empaquetado liviano — 2026-11-04
+
+El diagnóstico de tamaño, las categorías retiradas y los duplicados exactos están en `docs/DEPURACION_ARCHIVOS_2026-11-04.md`; el inventario documental completo está en `docs/INVENTARIO_DOCUMENTACION_DEPURACION_2026-11-04.csv`. Para generar un ZIP liviano sin eliminar evidencia documental, ejecutar `python scripts/empaquetar_ACHInterbank_liviano.py --source . --output ../ACHInterbank_liviano.zip`.
