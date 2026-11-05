@@ -5,16 +5,21 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef, RowSelectionOptions } from 'ag-grid-community';
-import { finalize } from 'rxjs';
+import { debounceTime, distinctUntilChanged, finalize } from 'rxjs';
 import { SharedModule } from '../../../../shared/shared.module';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionListItem } from '../../transactions.models';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { TransactionTypeEnum } from '../../../../core/models/transaction-types.model';
 import { ClearingHouseOption } from '../../../../core/models/clearing-house.model';
 import { ClearingHousesApiService } from '../../../../core/services/clearing-houses-api.service';
@@ -35,7 +40,22 @@ interface TransactionGroup {
   batchId: number;
   batchLabel: string;
   batchDate: string;
+  batchDateKey: string;
+  cycleName: string;
+  clearingHouseName: string;
+  registrationTime: string;
+  latestRegistrationTimestamp: number;
+  totalAmount: string;
   items: TransactionListRow[];
+}
+
+interface TransactionSection {
+  key: string;
+  date: string;
+  cycleName: string;
+  clearingHouseName: string;
+  transactionCount: number;
+  batches: TransactionGroup[];
 }
 
 interface AchCycleOption {
@@ -83,10 +103,14 @@ const validOptionalDate: ValidatorFn = (control: AbstractControl): ValidationErr
     MatButtonModule,
     MatDatepickerModule,
     MatFormFieldModule,
+    MatExpansionModule,
+    MatMenuModule,
+    MatButtonToggleModule,
     MatIconModule,
     MatInputModule,
     MatNativeDateModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     TransactionIntegrationResultComponent
   ],
   templateUrl: './transaction-list.component.html',
@@ -100,6 +124,10 @@ export class TransactionListComponent implements OnInit {
   private readonly achCyclesApi = inject(AchCyclesApiService);
   private readonly clearingHousesApi = inject(ClearingHousesApiService);
   private readonly notifications = inject(NotificationService);
+  private readonly auth = inject(AuthService);
+  readonly canCreate = this.auth.hasPermission(['Transactions.Create', 'CanManageAch']);
+  readonly canBulkUpload = this.auth.hasPermission(['BulkIngestion.Upload', 'CanManageAch']);
+  readonly canTrackLoads = this.auth.hasPermission(['BulkIngestion.Read', 'CanReadAch']);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly currencyFormatter = new Intl.NumberFormat('es-CO', {
@@ -114,55 +142,56 @@ export class TransactionListComponent implements OnInit {
   });
 
   private readonly allColumnDefs: ColDef<TransactionListRow>[] = [
-    { field: 'id', headerName: 'ID', width: 90, maxWidth: 120, sortable: true },
-    { field: 'transactionExternalId', headerName: 'ID de operación', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
-    { field: 'reference', headerName: 'Referencia heredada', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'id', headerName: 'N.º', width: 90, maxWidth: 120, sortable: true },
+    { field: 'transactionExternalId', headerName: 'Identificador', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'reference', headerName: 'Referencia anterior', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
     { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agTextColumnFilter' },
     { field: 'transactionNatureLabel', headerName: 'Naturaleza', width: 170, filter: 'agTextColumnFilter' },
     { field: 'returnManagementLabel', headerName: 'Gestión de devolución', width: 220, filter: 'agTextColumnFilter' },
     { field: 'achCycleName', headerName: 'Ciclo', width: 200, filter: 'agTextColumnFilter' },
     { field: 'clearingHouseName', headerName: 'Cámara', width: 200, filter: 'agTextColumnFilter' },
-    { field: 'amountText', headerName: 'Monto', width: 140, maxWidth: 180, cellClass: 'text-end' },
+    { field: 'amountText', headerName: 'Valor', width: 140, maxWidth: 180, cellClass: 'text-end' },
     { field: 'sourceAccountNumber', headerName: 'Cuenta de origen', filter: 'agTextColumnFilter' },
     { field: 'destinationAccountNumber', headerName: 'Cuenta de destino', filter: 'agTextColumnFilter' },
     { field: 'destinationInstitutionName', headerName: 'Institución de destino', filter: 'agTextColumnFilter', flex: 1 },
-    { field: 'effectiveEntryDateText', headerName: 'Fecha efectiva', width: 160 }
+    { field: 'effectiveEntryDateText', headerName: 'Fecha de aplicación', width: 160 }
   ];
 
   readonly columnOptions: ColumnOption[] = [
-    { field: 'transactionExternalId', label: 'ID de operación' },
-    { field: 'reference', label: 'Referencia heredada' },
+    { field: 'transactionExternalId', label: 'Identificador' },
+    { field: 'reference', label: 'Referencia anterior' },
     { field: 'typeLabel', label: 'Tipo' },
     { field: 'transactionNatureLabel', label: 'Naturaleza' },
     { field: 'returnManagementLabel', label: 'Gestión de devolución' },
     { field: 'achCycleName', label: 'Ciclo' },
     { field: 'clearingHouseName', label: 'Cámara' },
-    { field: 'amountText', label: 'Monto' },
+    { field: 'amountText', label: 'Valor' },
     { field: 'sourceAccountNumber', label: 'Cuenta de origen' },
     { field: 'destinationAccountNumber', label: 'Cuenta de destino' },
     { field: 'destinationInstitutionName', label: 'Institución de destino' },
-    { field: 'effectiveEntryDateText', label: 'Fecha efectiva' }
+    { field: 'effectiveEntryDateText', label: 'Fecha de aplicación' }
   ];
 
   readonly mandatoryColumnFields = new Set<keyof TransactionListRow>(['id']);
   visibleColumnFields = new Set<keyof TransactionListRow>([
     'id',
     'transactionExternalId',
-    'reference',
-    'transactionNatureLabel',
     'typeLabel',
-    'returnManagementLabel',
     'amountText',
-    'sourceAccountNumber',
     'destinationAccountNumber',
     'effectiveEntryDateText'
   ]);
 
+  private cachedColumnDefs: ColDef<TransactionListRow>[] | null = null;
+
   get columnDefs(): ColDef<TransactionListRow>[] {
-    return this.allColumnDefs.filter((column) => {
-      const field = column.field as keyof TransactionListRow | undefined;
-      return !field || this.visibleColumnFields.has(field);
-    });
+    if (!this.cachedColumnDefs) {
+      this.cachedColumnDefs = this.allColumnDefs.filter((column) => {
+        const field = column.field as keyof TransactionListRow | undefined;
+        return !field || this.visibleColumnFields.has(field);
+      });
+    }
+    return this.cachedColumnDefs;
   }
 
   readonly defaultColDef: ColDef<TransactionListRow> = {
@@ -178,11 +207,22 @@ export class TransactionListComponent implements OnInit {
   } satisfies RowSelectionOptions;
 
   readonly noRowsTemplate = 'No hay transacciones registradas.';
-  readonly loadingTemplate = 'Cargando transacciones...';
+  readonly loadingTemplate = 'Consultando transacciones…';
+  readonly batchPageSize = 12;
 
   loading = false;
   returnView: 'all' | 'received' | 'sent' = 'all';
   groups: TransactionGroup[] = [];
+  sections: TransactionSection[] = [];
+  private allTransactions: TransactionListRow[] = [];
+  visibleBatchCount = this.batchPageSize;
+  expandedBatchId: number | null = null;
+  readonly quickSearchControl = new FormControl('', { nonNullable: true });
+  private cyclesRequestId = 0;
+  private integrationRequestId = 0;
+  private readonly timeFormatter = new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true
+  });
   cycles: AchCycleOption[] = [];
   clearingHouses: ClearingHouseOption[] = [];
   filteredClearingHouseOptions: ClearingHouseSearchOption[] = [
@@ -211,10 +251,49 @@ export class TransactionListComponent implements OnInit {
     return this.groups.reduce((total, group) => total + group.items.length, 0);
   }
 
+  get visibleBatchTotal(): number {
+    return Math.min(this.groups.length, this.visibleBatchCount);
+  }
+
+  get hasMoreBatches(): boolean {
+    return this.groups.length > this.visibleBatchCount;
+  }
+
+  get hasLocalFilter(): boolean {
+    return this.returnView !== 'all' || this.quickSearchControl.value.trim().length > 0;
+  }
+
+  showMoreBatches(): void {
+    this.visibleBatchCount += this.batchPageSize;
+    this.buildSections();
+    this.cdr.markForCheck();
+  }
+
+  expandBatch(id: number): void {
+    this.expandedBatchId = id;
+    this.cdr.markForCheck();
+  }
+
+  collapseBatch(id: number): void {
+    if (this.expandedBatchId === id) {
+      this.expandedBatchId = null;
+      this.cdr.markForCheck();
+    }
+  }
+
+  trackSection(_index: number, section: TransactionSection): string { return section.key; }
+  trackBatch(_index: number, group: TransactionGroup): number { return group.batchId; }
+
+  clearQuickSearch(): void {
+    this.quickSearchControl.setValue('');
+  }
+
   ngOnInit(): void {
     this.filtrosForm.controls.selectedClearingHouseId.valueChanges.subscribe(() => this.onClearingHouseChange());
     this.clearingHouseSearchControl.valueChanges.subscribe((value) => this.filterClearingHouseOptions(value));
     this.cycleSearchControl.valueChanges.subscribe((value) => this.filterCycleOptions(value));
+    this.quickSearchControl.valueChanges.pipe(debounceTime(200), distinctUntilChanged())
+      .subscribe(() => this.updateView());
     this.loadClearingHouses();
     this.loadCycles();
   }
@@ -265,6 +344,7 @@ export class TransactionListComponent implements OnInit {
     this.filtrosForm.markAsPristine();
     this.filtrosForm.markAsUntouched();
     this.searchAttempted = false;
+    this.quickSearchControl.setValue('', { emitEvent: false });
     this.returnView = 'all';
     this.selectedIntegrationResult = null;
     this.loadError = false;
@@ -371,6 +451,7 @@ export class TransactionListComponent implements OnInit {
 
     if (checked) {
       this.visibleColumnFields.add(field);
+      this.cachedColumnDefs = null;
       this.cdr.markForCheck();
       return;
     }
@@ -379,11 +460,12 @@ export class TransactionListComponent implements OnInit {
       .filter((visibleField) => !this.mandatoryColumnFields.has(visibleField)).length;
 
     if (optionalVisibleCount <= 1) {
-      this.notifications.warning('Debe quedar al menos una columna visible además del ID.');
+      this.notifications.warning('Conserva al menos una columna de información además del número.');
       return;
     }
 
     this.visibleColumnFields.delete(field);
+    this.cachedColumnDefs = null;
     this.cdr.markForCheck();
   }
 
@@ -402,6 +484,7 @@ export class TransactionListComponent implements OnInit {
   }
 
   private loadCycles(autoLoadTransactions = true, restoreSearchText = true): void {
+    const requestId = ++this.cyclesRequestId;
     if (this.filtrosForm.controls.selectedDate.invalid) {
       return;
     }
@@ -417,6 +500,7 @@ export class TransactionListComponent implements OnInit {
       })
       .subscribe({
         next: (response) => {
+          if (requestId !== this.cyclesRequestId) { return; }
           const mapped = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
           const distinct = this.distinctCycles(mapped);
           const selectedClearingHouseId = this.filtrosForm.controls.selectedClearingHouseId.value;
@@ -424,7 +508,7 @@ export class TransactionListComponent implements OnInit {
             ? distinct.map((option) => ({ ...option, id: option.name }))
             : distinct;
 
-          if (!this.filtrosForm.controls.selectedCycleId.value && this.cycles.length > 0) {
+          if (autoLoadTransactions && !this.filtrosForm.controls.selectedCycleId.value && this.cycles.length > 0) {
             this.filtrosForm.patchValue({ selectedCycleId: this.cycles[0].id }, { emitEvent: false });
           }
 
@@ -444,7 +528,8 @@ export class TransactionListComponent implements OnInit {
           this.cdr.markForCheck();
         },
         error: () => {
-          this.notifications.error('No fue posible cargar los ciclos ACH');
+          if (requestId !== this.cyclesRequestId) { return; }
+          this.notifications.error('No fue posible cargar los ciclos de compensación');
           this.cdr.markForCheck();
         }
       });
@@ -457,6 +542,9 @@ export class TransactionListComponent implements OnInit {
 
     this.loading = true;
     this.loadError = false;
+    this.selectedIntegrationResult = null;
+    this.loadingIntegrationResult = false;
+    this.integrationRequestId++;
     this.cdr.markForCheck();
     const selectedClearingHouseId = this.filtrosForm.controls.selectedClearingHouseId.value;
     const selectedCycleId = this.filtrosForm.controls.selectedCycleId.value;
@@ -477,34 +565,120 @@ export class TransactionListComponent implements OnInit {
       )
       .subscribe({
         next: (items) => {
-          const normalized = (items ?? []).map((item) => this.mapRow(item));
-          const filtered = normalized.filter((item) => this.matchesReturnView(item));
-          const grouped = new Map<number, TransactionGroup>();
-
-          filtered.forEach((item) => {
-            const current = grouped.get(item.achBatchId);
-            if (!current) {
-              grouped.set(item.achBatchId, {
-                batchId: item.achBatchId,
-                batchLabel: this.buildBatchLabel(item),
-                batchDate: this.formatDate(item.effectiveEntryDate),
-                items: [item]
-              });
-            } else {
-              current.items.push(item);
-            }
-          });
-
-          this.groups = Array.from(grouped.values()).sort((a, b) => b.batchId - a.batchId);
-          this.cdr.markForCheck();
+          this.allTransactions = (items ?? []).map((item) => this.mapRow(item));
+          this.updateView();
         },
         error: () => {
+          this.allTransactions = [];
           this.groups = [];
+          this.sections = [];
           this.loadError = true;
           this.notifications.error('No fue posible cargar las transacciones');
           this.cdr.markForCheck();
         }
       });
+  }
+
+  /** Resultados ya recibidos: filtrar localmente evita solicitar la misma consulta al servidor. */
+  private updateView(): void {
+    const search = this.normalizeSearchText(this.quickSearchControl.value);
+    const filtered = this.allTransactions.filter((item) => this.matchesReturnView(item) && (
+      !search || [
+        item.id, item.transactionExternalId, item.reference, item.traceNumber,
+        item.sourceAccountNumber, item.destinationAccountNumber, item.destinationInstitutionName,
+        item.batchCompanyName, item.batchSequenceNumber, item.achCycleName,
+        item.clearingHouseName
+      ].some((value) => this.normalizeSearchText(String(value ?? '')).includes(search))
+    ));
+
+    const grouped = new Map<number, TransactionGroup>();
+    for (const item of filtered) {
+      let group = grouped.get(item.achBatchId);
+      if (!group) {
+        const effectiveDate = item.batchEffectiveEntryDate || item.effectiveEntryDate;
+        group = {
+          batchId: item.achBatchId,
+          batchLabel: this.buildBatchLabel(item),
+          batchDate: this.formatDate(effectiveDate),
+          batchDateKey: this.dateKey(effectiveDate),
+          clearingHouseName: item.clearingHouseName || 'Cámara sin identificar',
+          cycleName: item.achCycleName || 'Ciclo sin identificar',
+          registrationTime: '',
+          latestRegistrationTimestamp: 0,
+          totalAmount: '',
+          items: []
+        };
+        grouped.set(item.achBatchId, group);
+      }
+      group.items.push(item);
+    }
+
+    this.groups = Array.from(grouped.values());
+    for (const group of this.groups) {
+      group.totalAmount = this.currencyFormatter.format(group.items.reduce((sum, item) => sum + (item.amount || 0), 0));
+      group.registrationTime = this.registrationRange(group.items);
+      group.latestRegistrationTimestamp = group.items.reduce((latest, item) => {
+        const time = item.createdAt ? new Date(item.createdAt).getTime() : Number.NaN;
+        return Number.isFinite(time) ? Math.max(latest, time) : latest;
+      }, 0);
+    }
+    this.groups.sort((a, b) =>
+      b.batchDateKey.localeCompare(a.batchDateKey) ||
+      a.clearingHouseName.localeCompare(b.clearingHouseName, 'es') ||
+      a.cycleName.localeCompare(b.cycleName, 'es') ||
+      b.latestRegistrationTimestamp - a.latestRegistrationTimestamp || b.batchId - a.batchId
+    );
+
+    this.visibleBatchCount = this.batchPageSize;
+    if (!this.groups.some((group) => group.batchId === this.expandedBatchId)) {
+      this.expandedBatchId = this.groups[0]?.batchId ?? null;
+    }
+    this.selectedIntegrationResult = null;
+    this.loadingIntegrationResult = false;
+    this.integrationRequestId++;
+    this.buildSections();
+    this.cdr.markForCheck();
+  }
+
+  private buildSections(): void {
+    const sections = new Map<string, TransactionSection>();
+    for (const group of this.groups.slice(0, this.visibleBatchCount)) {
+      const key = `${group.batchDateKey}|${group.clearingHouseName}|${group.cycleName}`;
+      let section = sections.get(key);
+      if (!section) {
+        section = {
+          key, date: group.batchDate, cycleName: group.cycleName,
+          clearingHouseName: group.clearingHouseName, transactionCount: 0, batches: []
+        };
+        sections.set(key, section);
+      }
+      section.batches.push(group);
+      section.transactionCount += group.items.length;
+    }
+    this.sections = Array.from(sections.values());
+  }
+
+  private dateKey(value: string | null | undefined): string {
+    if (!value) { return ''; }
+    const parsed = new Date(value);
+    return !Number.isNaN(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : value.slice(0, 10);
+  }
+
+  /** Hora del registro, derivada de createdAt; no equivale al horario de la cámara. */
+  private registrationRange(items: TransactionListRow[]): string {
+    const times = items.map((item) =>
+      item.createdAt && /[T ]\d{2}:\d{2}/.test(item.createdAt)
+        ? new Date(item.createdAt).getTime() : Number.NaN
+    ).filter((time) => Number.isFinite(time)).sort((a, b) => a - b);
+    if (!times.length) { return 'Hora de registro no disponible'; }
+    const first = this.timeFormatter.format(times[0]);
+    const last = this.timeFormatter.format(times[times.length - 1]);
+    if (first === last) { return `Registro: ${first}`; }
+    const firstDay = this.formatDate(new Date(times[0]).toISOString());
+    const lastDay = this.formatDate(new Date(times[times.length - 1]).toISOString());
+    return firstDay === lastDay
+      ? `Registros: ${first} a ${last}`
+      : `Registros: ${firstDay} ${first} a ${lastDay} ${last}`;
   }
 
   private mapCycleOption(cycle: AchCycleSummary): AchCycleOption {
@@ -540,37 +714,46 @@ export class TransactionListComponent implements OnInit {
   }
 
   setReturnView(view: 'all' | 'received' | 'sent'): void {
+    if (this.returnView === view) { return; }
     this.returnView = view;
-    this.applyFilters();
+    this.updateView();
   }
 
   onTransactionSelection(rows: TransactionListRow[]): void {
     const transaction = rows[0];
+    const requestId = ++this.integrationRequestId;
+    this.selectedIntegrationResult = null;
     if (!transaction) {
-      this.selectedIntegrationResult = null;
+      this.loadingIntegrationResult = false;
       this.cdr.markForCheck();
       return;
     }
 
     this.loadingIntegrationResult = true;
-    this.api.getIntegrationResult(transaction.id).subscribe({
-      next: (result) => {
-        this.selectedIntegrationResult = result;
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.selectedIntegrationResult = null;
-        this.notifications.error('No fue posible consultar el resultado del procesamiento interno.');
-        this.cdr.markForCheck();
-      },
-      complete: () => {
+    this.api.getIntegrationResult(transaction.id).pipe(finalize(() => {
+      if (requestId === this.integrationRequestId) {
         this.loadingIntegrationResult = false;
         this.cdr.markForCheck();
+      }
+    })).subscribe({
+      next: (result) => {
+        if (requestId === this.integrationRequestId) {
+          this.selectedIntegrationResult = result;
+          this.cdr.markForCheck();
+        }
+      },
+      error: () => {
+        if (requestId === this.integrationRequestId) {
+          this.notifications.error('No fue posible consultar el resultado del procesamiento.');
+          this.cdr.markForCheck();
+        }
       }
     });
   }
 
   closeIntegrationResult(): void {
+    this.integrationRequestId++;
+    this.loadingIntegrationResult = false;
     this.selectedIntegrationResult = null;
     this.cdr.markForCheck();
   }
@@ -690,6 +873,6 @@ export class TransactionListComponent implements OnInit {
 
   private buildBatchLabel(item: TransactionListItem): string {
     const sequence = item.batchSequenceNumber > 0 ? item.batchSequenceNumber : item.achBatchId;
-    return `Lote ${sequence} · ${item.batchCompanyName || 'Sin compañía'}`;
+    return `Lote ${sequence} · ${item.batchCompanyName || 'Empresa no informada'}`;
   }
 }

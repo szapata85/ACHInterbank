@@ -1,216 +1,231 @@
 <div class="transaction-list-page" data-testid="transaction-list-page">
-  <app-page-header title="Consultar transacciones" description="Consulta y agrupa las transacciones por lote"></app-page-header>
+  <div class="page-intro">
+    <app-page-header
+      title="Consultar transacciones"
+      description="Encuentra una operación por fecha, ciclo o lote. Abre solo el detalle que necesites."
+    ></app-page-header>
+    <div class="page-intro__action">
+      <button *ngIf="canCreate" mat-flat-button class="primary-action" type="button" (click)="createNew()">
+        <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">add</mat-icon>
+        Nueva transacción
+      </button>
+      <button *ngIf="canBulkUpload || canTrackLoads" mat-icon-button type="button" [matMenuTriggerFor]="operationalActions"
+        aria-label="Más acciones de transacciones" matTooltip="Más acciones">
+        <mat-icon fontSet="material-symbols-outlined">more_vert</mat-icon>
+      </button>
+      <mat-menu #operationalActions="matMenu">
+        <button *ngIf="canBulkUpload" mat-menu-item type="button" (click)="createBulk()">
+          <mat-icon fontSet="material-symbols-outlined">upload_file</mat-icon>
+          <span>Cargar archivo de transacciones</span>
+        </button>
+        <button *ngIf="canTrackLoads" mat-menu-item type="button" (click)="openBulkTracking()">
+          <mat-icon fontSet="material-symbols-outlined">fact_check</mat-icon>
+          <span>Seguimiento de cargas</span>
+        </button>
+      </mat-menu>
+    </div>
+  </div>
 
   <section class="filter-panel" aria-labelledby="transaction-filter-title" data-testid="transaction-filter-panel">
-    <header class="filter-panel__header">
-      <span class="filter-panel__icon" aria-hidden="true">
-        <mat-icon fontSet="material-symbols-outlined">filter_alt</mat-icon>
-      </span>
-      <div>
-        <h2 id="transaction-filter-title">Filtros de consulta</h2>
-        <p>Acota los resultados por fecha efectiva, cámara compensadora y ciclo ACH.</p>
-      </div>
-    </header>
-
+    <div class="filter-panel__heading">
+      <h2 id="transaction-filter-title">¿Qué necesitas consultar?</h2>
+      <p>Selecciona los datos que conozcas. Puedes dejar filtros sin completar.</p>
+    </div>
     <form class="filters" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()" novalidate>
-      <mat-form-field appearance="outline">
-        <mat-label>Fecha efectiva</mat-label>
-        <input
-          #selectedDateInput
-          matInput
-          formControlName="selectedDate"
-          [matDatepicker]="effectiveDatePicker"
-          (dateChange)="onDateChange()"
-          data-testid="transaction-filter-date"
-        />
-        <mat-datepicker-toggle matIconSuffix [for]="effectiveDatePicker" aria-label="Abrir calendario de fecha efectiva"></mat-datepicker-toggle>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Fecha de aplicación</mat-label>
+        <input #selectedDateInput matInput formControlName="selectedDate"
+          [matDatepicker]="effectiveDatePicker" (dateChange)="onDateChange()"
+          data-testid="transaction-filter-date" />
+        <mat-datepicker-toggle matIconSuffix [for]="effectiveDatePicker"
+          aria-label="Elegir fecha de aplicación"></mat-datepicker-toggle>
         <mat-datepicker #effectiveDatePicker></mat-datepicker>
-        <mat-hint>Selecciona una fecha o déjala vacía.</mat-hint>
         <mat-error *ngIf="shouldShowDateError()">Ingresa una fecha válida.</mat-error>
       </mat-form-field>
 
-      <mat-form-field appearance="outline">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
         <mat-label>Cámara compensadora</mat-label>
-        <input
-          matInput
-          type="text"
-          [formControl]="clearingHouseSearchControl"
-          [matAutocomplete]="clearingHouseAutocomplete"
-          autocomplete="off"
-          aria-label="Cámara compensadora"
-          aria-autocomplete="list"
-          data-testid="transaction-filter-clearing-house"
-        />
-        <button
-          *ngIf="clearingHouseSearchControl.value"
-          mat-icon-button
-          matSuffix
-          type="button"
-          aria-label="Limpiar búsqueda de cámara compensadora"
-          (click)="clearClearingHouseSearch()"
-          data-testid="transaction-filter-clearing-house-clear"
-        >
+        <input matInput type="text" [formControl]="clearingHouseSearchControl"
+          [matAutocomplete]="clearingHouseAutocomplete" autocomplete="off"
+          aria-label="Cámara compensadora" aria-autocomplete="list"
+          data-testid="transaction-filter-clearing-house" />
+        <button *ngIf="clearingHouseSearchControl.value" mat-icon-button matSuffix type="button"
+          aria-label="Limpiar cámara compensadora" (click)="clearClearingHouseSearch()"
+          data-testid="transaction-filter-clearing-house-clear">
           <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
         </button>
-        <mat-autocomplete
-          #clearingHouseAutocomplete="matAutocomplete"
+        <mat-autocomplete #clearingHouseAutocomplete="matAutocomplete"
           [displayWith]="displayClearingHouseOption"
-          (optionSelected)="selectClearingHouse($event.option.value)"
-        >
+          (optionSelected)="selectClearingHouse($event.option.value)">
           <mat-option *ngFor="let option of filteredClearingHouseOptions" [value]="option">
             {{ option.label }}
           </mat-option>
         </mat-autocomplete>
-        <mat-hint>Escribe para buscar; la selección actualiza los ciclos.</mat-hint>
       </mat-form-field>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Ciclo ACH</mat-label>
-        <input
-          matInput
-          type="text"
-          [formControl]="cycleSearchControl"
-          [matAutocomplete]="cycleAutocomplete"
-          autocomplete="off"
-          aria-label="Ciclo ACH"
-          aria-autocomplete="list"
-          data-testid="transaction-filter-cycle"
-        />
-        <button
-          *ngIf="cycleSearchControl.value"
-          mat-icon-button
-          matSuffix
-          type="button"
-          aria-label="Limpiar búsqueda de ciclo ACH"
-          (click)="clearCycleSearch()"
-          data-testid="transaction-filter-cycle-clear"
-        >
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Ciclo de compensación</mat-label>
+        <input matInput type="text" [formControl]="cycleSearchControl"
+          [matAutocomplete]="cycleAutocomplete" autocomplete="off"
+          aria-label="Ciclo de compensación" aria-autocomplete="list"
+          data-testid="transaction-filter-cycle" />
+        <button *ngIf="cycleSearchControl.value" mat-icon-button matSuffix type="button"
+          aria-label="Limpiar ciclo" (click)="clearCycleSearch()"
+          data-testid="transaction-filter-cycle-clear">
           <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
         </button>
-        <mat-autocomplete
-          #cycleAutocomplete="matAutocomplete"
-          [displayWith]="displayCycleOption"
-          (optionSelected)="selectCycle($event.option.value)"
-        >
-          <mat-option *ngFor="let option of filteredCycleOptions" [value]="option">
-            {{ option.label }}
-          </mat-option>
+        <mat-autocomplete #cycleAutocomplete="matAutocomplete" [displayWith]="displayCycleOption"
+          (optionSelected)="selectCycle($event.option.value)">
+          <mat-option *ngFor="let option of filteredCycleOptions" [value]="option">{{ option.label }}</mat-option>
         </mat-autocomplete>
-        <mat-hint>{{ cycles.length ? cycles.length + ' ciclos disponibles.' : 'No hay ciclos disponibles.' }}</mat-hint>
       </mat-form-field>
 
       <div class="filter-actions">
-        <button
-          mat-flat-button
-          type="submit"
-          class="search-button"
-          [disabled]="loading"
-          data-testid="transaction-search"
-        >
+        <button mat-flat-button type="submit" class="primary-action"
+          [disabled]="loading" data-testid="transaction-search">
           <mat-spinner *ngIf="loading" diameter="18" aria-hidden="true"></mat-spinner>
           <mat-icon *ngIf="!loading" fontSet="material-symbols-outlined" aria-hidden="true">search</mat-icon>
-          {{ loading ? 'Consultando…' : 'Buscar' }}
+          {{ loading ? 'Consultando…' : 'Consultar' }}
         </button>
-        <button
-          mat-stroked-button
-          type="button"
-          [disabled]="loading"
-          (click)="clearFilters()"
-          data-testid="transaction-clear"
-        >
-          <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">filter_alt_off</mat-icon>
-          Limpiar filtros
-        </button>
+        <button mat-button type="button" [disabled]="loading" (click)="clearFilters()"
+          data-testid="transaction-clear">Limpiar filtros</button>
       </div>
     </form>
   </section>
 
-  <div class="page-actions">
-    <div class="return-filters" aria-label="Vista de devoluciones">
-      <button mat-stroked-button type="button" [disabled]="loading || filtrosForm.invalid || returnView === 'all'" (click)="setReturnView('all')">Todas</button>
-      <button mat-stroked-button type="button" [disabled]="loading || filtrosForm.invalid || returnView === 'received'" (click)="setReturnView('received')">Devoluciones recibidas</button>
-      <button mat-stroked-button type="button" [disabled]="loading || filtrosForm.invalid || returnView === 'sent'" (click)="setReturnView('sent')">Devoluciones enviadas</button>
-    </div>
-
-    <div class="action-buttons">
-      <button mat-stroked-button type="button" (click)="createBulk()">Cargar transacciones desde archivo</button>
-      <button mat-stroked-button type="button" (click)="openBulkTracking()">Seguimiento de cargas</button>
-      <button mat-flat-button type="button" (click)="createNew()">Crear transacción</button>
-    </div>
-  </div>
-
-  <div class="column-manager" aria-label="Selector de columnas visibles">
-    <details>
-      <summary>Columnas visibles (útil en móvil)</summary>
-      <div class="column-manager__options">
-        <label *ngFor="let option of columnOptions" [class.disabled]="!canToggleColumn(option.field)">
-          <input
-            type="checkbox"
-            [checked]="isColumnVisible(option.field)"
-            [disabled]="!canToggleColumn(option.field)"
-            (change)="toggleColumn(option.field, $any($event.target).checked)"
-          />
-          <span>{{ option.label }}</span>
-        </label>
+  <section class="results-panel" aria-label="Resultados de la consulta">
+    <div class="results-panel__top">
+      <div>
+        <h2>Resultados</h2>
+        <p class="results-summary" role="status" aria-live="polite"
+          data-testid="transaction-results-summary">
+          <ng-container *ngIf="loading">Consultando transacciones…</ng-container>
+          <ng-container *ngIf="!loading && !loadError">
+            {{ totalTransactions }} {{ totalTransactions === 1 ? 'transacción encontrada' : 'transacciones encontradas' }}
+            en {{ groups.length }} {{ groups.length === 1 ? 'lote' : 'lotes' }}.
+            <span *ngIf="hasLocalFilter" class="local-filter-note">Se muestran solo las coincidencias.</span>
+          </ng-container>
+        </p>
       </div>
-    </details>
-  </div>
+      <button mat-stroked-button type="button" [matMenuTriggerFor]="columnOptionsMenu"
+        class="column-action" aria-label="Elegir columnas visibles">
+        <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">view_column</mat-icon>
+        Columnas
+      </button>
+      <mat-menu #columnOptionsMenu="matMenu" class="columns-menu">
+        <button mat-menu-item *ngFor="let option of columnOptions" type="button"
+          [disabled]="!canToggleColumn(option.field)"
+          role="menuitemcheckbox" [attr.aria-checked]="isColumnVisible(option.field)"
+          (click)="toggleColumn(option.field, !isColumnVisible(option.field))">
+          <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">
+            {{ isColumnVisible(option.field) ? 'check_box' : 'check_box_outline_blank' }}
+          </mat-icon>
+          <span>{{ option.label }}</span>
+        </button>
+      </mat-menu>
+    </div>
 
-  <p class="results-summary" role="status" aria-live="polite" data-testid="transaction-results-summary">
-    <ng-container *ngIf="loading">Consultando transacciones…</ng-container>
+    <div class="results-tools" *ngIf="!loadError">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="quick-search">
+        <mat-label>Buscar en los resultados</mat-label>
+        <mat-icon matPrefix fontSet="material-symbols-outlined" aria-hidden="true">search</mat-icon>
+        <input matInput [formControl]="quickSearchControl"
+          placeholder="Referencia, cuenta, identificador o lote"
+          aria-label="Buscar entre las transacciones consultadas"
+          data-testid="transaction-quick-search" />
+        <button *ngIf="quickSearchControl.value" mat-icon-button type="button" matSuffix
+          (click)="clearQuickSearch()" aria-label="Limpiar búsqueda en resultados">
+          <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-button-toggle-group class="return-switch" [value]="returnView"
+        (change)="setReturnView($event.value)" aria-label="Tipo de transacciones">
+        <mat-button-toggle value="all">Todas</mat-button-toggle>
+        <mat-button-toggle value="received">Recibidas</mat-button-toggle>
+        <mat-button-toggle value="sent">Enviadas</mat-button-toggle>
+      </mat-button-toggle-group>
+    </div>
+    <p class="results-note" *ngIf="!loadError">
+      «Recibidas» y «Enviadas» muestran devoluciones. La búsqueda rápida funciona sobre los resultados ya consultados.
+    </p>
+
+    <ui-estado-error *ngIf="loadError" data-testid="transactions-error"
+      titulo="No pudimos consultar las transacciones"
+      mensaje="Revisa la conexión e intenta nuevamente. Conservaremos los filtros elegidos."
+      (reintentar)="applyFilters()"></ui-estado-error>
+
+    <ui-estado-carga *ngIf="loading" mensaje="Consultando transacciones…"></ui-estado-carga>
+
     <ng-container *ngIf="!loading && !loadError">
-      {{ totalTransactions }} {{ totalTransactions === 1 ? 'transacción encontrada' : 'transacciones encontradas' }}
-      en {{ groups.length }} {{ groups.length === 1 ? 'lote' : 'lotes' }}.
-    </ng-container>
-  </p>
+      <ui-estado-vacio *ngIf="groups.length === 0" data-testid="transactions-empty"
+        [titulo]="hasLocalFilter ? 'No hay coincidencias' : 'No hay transacciones para esta consulta'"
+        [mensaje]="hasLocalFilter ? 'Prueba con otra referencia o cambia el tipo de devolución.' : 'Modifica la fecha, la cámara o el ciclo y vuelve a consultar.'">
+      </ui-estado-vacio>
 
-  <ui-estado-error
-    *ngIf="loadError"
-    data-testid="transactions-error"
-    titulo="No fue posible cargar las transacciones"
-    mensaje="Verifica la conexión e intenta nuevamente. Los filtros se conservaron."
-    (reintentar)="applyFilters()"
-  ></ui-estado-error>
-
-  <div class="group-list" *ngIf="groups.length > 0 && !loadError; else emptyState">
-    <p class="selection-help">Seleccione una transacción para consultar su resultado en el core.</p>
-    <ui-estado-carga *ngIf="loadingIntegrationResult" mensaje="Consultando resultado del procesamiento..."></ui-estado-carga>
-    <app-transaction-integration-result
-      *ngIf="selectedIntegrationResult"
-      [result]="selectedIntegrationResult"
-      (closePanel)="closeIntegrationResult()"
-    ></app-transaction-integration-result>
-    <section class="batch" *ngFor="let group of groups">
-      <header class="batch__header">
-        <div class="batch__titles">
-          <p class="batch__eyebrow">{{ group.batchLabel }}</p>
-          <h3>Fecha efectiva: {{ group.batchDate }}</h3>
+      <ng-container *ngIf="groups.length > 0">
+        <div class="selection-result" *ngIf="loadingIntegrationResult || selectedIntegrationResult">
+          <ui-estado-carga *ngIf="loadingIntegrationResult"
+            mensaje="Consultando el resultado de la transacción…"></ui-estado-carga>
+          <app-transaction-integration-result *ngIf="selectedIntegrationResult"
+            [result]="selectedIntegrationResult" (closePanel)="closeIntegrationResult()">
+          </app-transaction-integration-result>
         </div>
-        <span class="badge">{{ group.items.length }} transacciones</span>
-      </header>
 
-      <ui-grilla-empresarial
-        [columnas]="columnDefs"
-        [datos]="group.items"
-        [cargando]="loading"
-        [error]="false"
-        [paginacion]="true"
-        [tamanoPagina]="10"
-        [seleccionFilas]="rowSelection"
-        [mensajeVacio]="'No hay transacciones para este lote.'"
-        [placeholderBusqueda]="'Buscar por cualquier campo del lote...'"
-        (seleccionCambio)="onTransactionSelection($event)"
-      ></ui-grilla-empresarial>
-    </section>
-  </div>
+        <div class="day-cycle-list" data-testid="transaction-group-list">
+          <section class="cycle-section" *ngFor="let section of sections; trackBy: trackSection">
+            <header class="cycle-section__header">
+              <span class="cycle-section__date">
+                <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">event</mat-icon>
+                {{ section.date }}
+              </span>
+              <span class="cycle-section__context">{{ section.clearingHouseName }} · {{ section.cycleName }}</span>
+              <span class="cycle-section__count">
+                {{ section.batches.length }} {{ section.batches.length === 1 ? 'lote' : 'lotes' }}
+                · {{ section.transactionCount }} transacciones
+              </span>
+            </header>
 
-  <ng-template #emptyState>
-    <ui-estado-vacio
-      *ngIf="!loading && !loadError"
-      data-testid="transactions-empty"
-      titulo="Sin transacciones"
-      mensaje="No se encontraron transacciones con los filtros aplicados."
-    ></ui-estado-vacio>
-    <ui-estado-carga *ngIf="loading" mensaje="Cargando transacciones…"></ui-estado-carga>
-  </ng-template>
+            <mat-expansion-panel class="batch-panel" *ngFor="let group of section.batches; trackBy: trackBatch"
+              [expanded]="expandedBatchId === group.batchId"
+              (opened)="expandBatch(group.batchId)" (closed)="collapseBatch(group.batchId)"
+              [attr.data-testid]="'transaction-batch-' + group.batchId">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <span class="batch-panel__name">{{ group.batchLabel }}</span>
+                </mat-panel-title>
+                <mat-panel-description>
+                  <span class="batch-panel__time">{{ group.registrationTime }}</span>
+                  <span class="batch-panel__number">{{ group.items.length }} operaciones</span>
+                  <span class="batch-panel__amount">{{ group.totalAmount }}</span>
+                </mat-panel-description>
+              </mat-expansion-panel-header>
+
+              <ng-template matExpansionPanelContent>
+                <div class="batch-panel__content" *ngIf="expandedBatchId === group.batchId">
+                  <p class="batch-panel__help">Selecciona una operación para consultar su resultado de procesamiento.</p>
+                  <ui-grilla-empresarial [columnas]="columnDefs" [datos]="group.items"
+                    [cargando]="false" [error]="false" [paginacion]="true"
+                    [tamanoPagina]="10" [seleccionFilas]="rowSelection"
+                    [mensajeVacio]="'Este lote no contiene operaciones que coincidan con los filtros.'"
+                    [placeholderBusqueda]="'Buscar dentro de este lote'"
+                    (seleccionCambio)="onTransactionSelection($event)">
+                  </ui-grilla-empresarial>
+                </div>
+              </ng-template>
+            </mat-expansion-panel>
+          </section>
+        </div>
+
+        <div class="more-batches" *ngIf="hasMoreBatches">
+          <span>Mostrando {{ visibleBatchTotal }} de {{ groups.length }} lotes.</span>
+          <button mat-stroked-button type="button" (click)="showMoreBatches()"
+            data-testid="transaction-more-batches">
+            Mostrar más lotes
+            <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">expand_more</mat-icon>
+          </button>
+        </div>
+        <p class="time-disclaimer">Las horas corresponden al registro de las transacciones (hora de Colombia), no a la apertura ni al cierre oficial de cada ciclo.</p>
+      </ng-container>
+    </ng-container>
+  </section>
 </div>

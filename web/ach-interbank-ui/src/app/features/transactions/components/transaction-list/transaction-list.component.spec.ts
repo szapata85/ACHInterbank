@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { ClearingHousesApiService } from '../../../../core/services/clearing-houses-api.service';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { AchCyclesApiService } from '../../../../core/services/ach-cycles-api.service';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionIntegrationResult, TransactionListItem } from '../../transactions.models';
@@ -18,6 +19,7 @@ describe('TransactionListComponent', () => {
   let clearingHousesApi: jasmine.SpyObj<ClearingHousesApiService>;
   let notifications: jasmine.SpyObj<NotificationService>;
   let router: jasmine.SpyObj<Router>;
+  let auth: jasmine.SpyObj<AuthService>;
 
   const cycleResponse = {
     items: [
@@ -38,6 +40,8 @@ describe('TransactionListComponent', () => {
     clearingHousesApi = jasmine.createSpyObj<ClearingHousesApiService>('ClearingHousesApiService', ['list']);
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['error', 'warning']);
     router = jasmine.createSpyObj<Router>('Router', ['navigate']);
+    auth = jasmine.createSpyObj<AuthService>('AuthService', ['hasPermission']);
+    auth.hasPermission.and.returnValue(true);
 
     transactionsApi.getAll.and.returnValue(of([]));
     cyclesApi.search.and.returnValue(of(cycleResponse as any));
@@ -53,7 +57,8 @@ describe('TransactionListComponent', () => {
         { provide: AchCyclesApiService, useValue: cyclesApi },
         { provide: ClearingHousesApiService, useValue: clearingHousesApi },
         { provide: NotificationService, useValue: notifications },
-        { provide: Router, useValue: router }
+        { provide: Router, useValue: router },
+        { provide: AuthService, useValue: auth }
       ]
     }).compileComponents();
 
@@ -186,12 +191,12 @@ describe('TransactionListComponent', () => {
   it('renderiza los filtros con Angular Material y acciones accesibles', () => {
     const element = fixture.nativeElement as HTMLElement;
 
-    expect(element.querySelectorAll('mat-form-field').length).toBe(3);
+    expect(element.querySelectorAll('mat-form-field').length).toBe(4);
     expect(element.querySelectorAll('mat-autocomplete').length).toBe(2);
     expect(element.querySelector('input[data-testid="transaction-filter-clearing-house"]')).not.toBeNull();
     expect(element.querySelector('input[data-testid="transaction-filter-cycle"]')).not.toBeNull();
     expect(element.querySelector('input[formcontrolname="selectedDate"]')).not.toBeNull();
-    expect(element.querySelector('[data-testid="transaction-search"]')?.textContent).toContain('Buscar');
+    expect(element.querySelector('[data-testid="transaction-search"]')?.textContent).toContain('Consultar');
     expect(element.querySelector('[data-testid="transaction-clear"]')?.textContent).toContain('Limpiar filtros');
   });
 
@@ -219,6 +224,8 @@ describe('TransactionListComponent', () => {
       transaction({ id: 99, transactionCode: '22', achBatchId: 3 })
     ]));
 
+    component.applyFilters();
+    transactionsApi.getAll.calls.reset();
     component.setReturnView('received');
     expect(component.groups.flatMap((group) => group.items).map((item) => item.id)).toEqual([21, 31, 51]);
     expect(component.groups.flatMap((group) => group.items).every((item) => item.returnManagementLabel === 'Devolución recibida')).toBeTrue();
@@ -226,6 +233,7 @@ describe('TransactionListComponent', () => {
     component.setReturnView('sent');
     expect(component.groups.flatMap((group) => group.items).map((item) => item.id)).toEqual([26, 36, 56]);
     expect(component.groups.flatMap((group) => group.items).every((item) => item.returnManagementLabel === 'Devolución enviada')).toBeTrue();
+    expect(transactionsApi.getAll).not.toHaveBeenCalled();
   });
 
   it('consulta getIntegrationResult al seleccionar una transacción', () => {
@@ -243,14 +251,105 @@ describe('TransactionListComponent', () => {
     expect(component.loadingIntegrationResult).toBeFalse();
   });
 
-  it('retira ui-boton y conserva UiGrillaEmpresarial en la superficie', () => {
+  it('mantiene la grilla Material dentro del lote desplegado', fakeAsync(() => {
     transactionsApi.getAll.and.returnValue(of([transaction()]));
     component.applyFilters();
+    fixture.detectChanges();
+    tick(500);
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
 
     expect(element.querySelector('ui-boton')).toBeNull();
+    expect(component.expandedBatchId).toBe(1);
+    expect(element.querySelector('mat-expansion-panel')).not.toBeNull();
     expect(element.querySelector('ui-grilla-empresarial')).not.toBeNull();
+  }));
+
+
+  it('agrupa por fecha de aplicación, cámara, ciclo y lote sin mezclar operaciones', () => {
+    transactionsApi.getAll.and.returnValue(of([
+      transaction({ id: 1, achBatchId: 100, achCycleName: 'Ciclo mañana', clearingHouseName: 'ACH Colombia' }),
+      transaction({ id: 2, achBatchId: 100, achCycleName: 'Ciclo mañana', clearingHouseName: 'ACH Colombia' }),
+      transaction({ id: 3, achBatchId: 101, achCycleName: 'Ciclo tarde', clearingHouseName: 'CENIT' }),
+      transaction({ id: 4, achBatchId: 102, achCycleName: 'Ciclo mañana', clearingHouseName: 'ACH Colombia',
+        batchEffectiveEntryDate: '2026-07-28', effectiveEntryDate: '2026-07-28T00:00:00Z' })
+    ]));
+
+    component.applyFilters();
+
+    expect(component.totalTransactions).toBe(4);
+    expect(component.groups.length).toBe(3);
+    expect(component.sections.length).toBe(3);
+    expect(component.groups.find(group => group.batchId === 100)?.items.length).toBe(2);
+    expect(component.sections.map(section => section.clearingHouseName)).toContain('CENIT');
+    expect(component.sections[0].date).toContain('28');
+  });
+
+  it('busca localmente en las operaciones recuperadas, sin nuevas llamadas HTTP', fakeAsync(() => {
+    transactionsApi.getAll.and.returnValue(of([
+      transaction({ id: 1, achBatchId: 10, reference: 'ABONO-UNO' }),
+      transaction({ id: 2, achBatchId: 11, reference: 'PAGO-DOS' })
+    ]));
+    component.applyFilters();
+    transactionsApi.getAll.calls.reset();
+
+    component.quickSearchControl.setValue('abono');
+    tick(201);
+
+    expect(component.totalTransactions).toBe(1);
+    expect(component.groups[0].items[0].id).toBe(1);
+    expect(transactionsApi.getAll).not.toHaveBeenCalled();
+    component.clearQuickSearch();
+    tick(201);
+    expect(component.totalTransactions).toBe(2);
+  }));
+
+  it('muestra los lotes por bloques de doce para evitar grillas masivas', () => {
+    transactionsApi.getAll.and.returnValue(of(Array.from({ length: 25 }, (_, index) =>
+      transaction({ id: index + 1, achBatchId: index + 1, batchSequenceNumber: index + 1 }))));
+
+    component.applyFilters();
+    expect(component.groups.length).toBe(25);
+    expect(component.sections.reduce((sum, section) => sum + section.batches.length, 0)).toBe(12);
+    expect(component.hasMoreBatches).toBeTrue();
+
+    component.showMoreBatches();
+    expect(component.sections.reduce((sum, section) => sum + section.batches.length, 0)).toBe(24);
+    component.showMoreBatches();
+    expect(component.hasMoreBatches).toBeFalse();
+    expect(component.visibleBatchTotal).toBe(25);
+  });
+
+  it('deriva la hora de registro de createdAt, sin atribuirla al horario de cierre de ciclo', () => {
+    transactionsApi.getAll.and.returnValue(of([
+      transaction({ id: 1, achBatchId: 7, createdAt: '2026-07-27T13:00:00Z' }),
+      transaction({ id: 2, achBatchId: 7, createdAt: '2026-07-27T14:00:00Z' })
+    ]));
+    component.applyFilters();
+    expect(component.groups[0].registrationTime).toContain('Registros:');
+    expect(component.groups[0].registrationTime).not.toContain('cierre');
+  });
+
+  it('apaga el indicador de carga si falla la consulta del resultado de integración', () => {
+    transactionsApi.getIntegrationResult.and.returnValue(throwError(() => new Error('fallo')));
+    component.onTransactionSelection([transaction({ id: 44 }) as any]);
+    expect(component.loadingIntegrationResult).toBeFalse();
+    expect(component.selectedIntegrationResult).toBeNull();
+    expect(notifications.error).toHaveBeenCalledWith('No fue posible consultar el resultado del procesamiento.');
+  });
+
+  it('no muestra ciclos obsoletos cuando dos búsquedas terminan fuera de orden', () => {
+    const first = new Subject<any>();
+    const second = new Subject<any>();
+    cyclesApi.search.and.returnValues(first, second);
+    component.onDateChange();
+    component.onDateChange();
+    second.next({ items: [{ id: 'nuevo', cycleName: 'Ciclo vigente' }] });
+    second.complete();
+    first.next({ items: [{ id: 'antiguo', cycleName: 'Ciclo anterior' }] });
+    first.complete();
+    expect(component.cycles.some(c => c.name === 'Ciclo vigente')).toBeTrue();
+    expect(component.cycles.some(c => c.name === 'Ciclo anterior')).toBeFalse();
   });
 
   it('presenta un error controlado y permite reintentar sin perder filtros', () => {

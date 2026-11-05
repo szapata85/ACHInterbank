@@ -38,10 +38,10 @@ test('LIVE con datos: valida grilla, acciones, filtros y resultados reales', asy
   await expect(page).toHaveURL(/\/transactions\/list(?:\?.*)?$/);
   await expect(page.getByTestId('transaction-list-page')).toBeVisible();
   await expect(
-    page.getByTestId('transaction-list-page').getByRole('heading', { name: 'Transacciones', exact: true })
+    page.getByTestId('transaction-list-page').getByRole('heading', { name: 'Consultar transacciones', exact: true })
   ).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Filtros de consulta', exact: true })).toBeVisible();
-  await expect(page.locator('mat-form-field')).toHaveCount(3);
+  await expect(page.getByRole('heading', { name: '¿Qué necesitas consultar?', exact: true })).toBeVisible();
+  await expect(page.getByTestId('transaction-filter-panel').locator('mat-form-field')).toHaveCount(3);
   await expect(page.getByTestId('transaction-search')).toBeVisible();
   await expect(page.getByTestId('transaction-clear')).toBeVisible();
   await expect(page.getByTestId('transaction-results-summary')).toContainText(/transacciones encontradas/);
@@ -215,7 +215,7 @@ for (const viewport of [
     await authenticate(page);
     await page.goto(`${ui}/transactions/list`);
     await expect(page.getByTestId('transaction-list-page')).toBeVisible();
-    await expect(page.locator('mat-form-field')).toHaveCount(3);
+    await expect(page.getByTestId('transaction-filter-panel').locator('mat-form-field')).toHaveCount(3);
     await expect(page.getByTestId('transaction-search')).toBeVisible();
     await expect(page.getByTestId('transaction-clear')).toBeVisible();
     await expect(page.getByTestId('transaction-results-summary')).toContainText(/transacciones encontradas/);
@@ -239,6 +239,56 @@ for (const viewport of [
       `Errores no controlados en ${viewport.name}: ${browserErrors.join(' | ')}`
     ).toEqual([]);
   });
+}
+
+
+
+test('bandeja compacta: búsqueda y devoluciones se filtran sin nuevas consultas HTTP', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await authenticate(page);
+  let transactionRequests = 0;
+  await page.route(/\/api\/transactions(?:\?.*)?$/i, async route => {
+    if (route.request().method() !== 'GET') { await route.continue(); return; }
+    transactionRequests += 1;
+    const operations = [
+      makeTransaction(1, 100, 'PAGO-ALFA', '21', 'Ciclo 1'),
+      makeTransaction(2, 100, 'PAGO-BETA', '26', 'Ciclo 1'),
+      makeTransaction(3, 101, 'PAGO-GAMMA', '22', 'Ciclo 2')
+    ];
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(operations) });
+  });
+  await page.goto(`${ui}/transactions/list`);
+  await expect(page.getByTestId('transaction-results-summary')).toContainText('3 transacciones encontradas');
+  await expect(page.locator('mat-expansion-panel')).toHaveCount(2);
+  await expect(page.locator('ui-grilla-empresarial')).toHaveCount(1);
+  const before = transactionRequests;
+
+  await page.getByTestId('transaction-quick-search').fill('PAGO-GAMMA');
+  await expect(page.getByTestId('transaction-results-summary')).toContainText('1 transacción encontrada');
+  expect(transactionRequests).toBe(before);
+  await expect(page.locator('mat-expansion-panel')).toHaveCount(1);
+  await page.getByLabel('Limpiar búsqueda en resultados').click();
+  await expect(page.getByTestId('transaction-results-summary')).toContainText('3 transacciones encontradas');
+
+  await page.getByRole('radio', { name: 'Recibidas' }).click();
+  await expect(page.getByTestId('transaction-results-summary')).toContainText('1 transacción encontrada');
+  expect(transactionRequests).toBe(before);
+  await page.getByRole('radio', { name: 'Todas' }).click();
+  await expect(page.getByTestId('transaction-results-summary')).toContainText('3 transacciones encontradas');
+});
+
+function makeTransaction(id: number, batchId: number, reference: string, transactionCode: string, cycle: string) {
+  return {
+    id, amount: 12000, transactionExternalId: `OPER-${id}`, reference,
+    type: 1, traceNumber: String(id).padStart(15, '0'),
+    effectiveEntryDate: '2026-07-27T00:00:00Z', createdAt: '2026-07-27T13:05:00Z',
+    sourceAccountNumber: '00000001', destinationAccountNumber: '00000002',
+    sourceInstitutionName: 'Origen', destinationInstitutionName: 'Destino',
+    isPrenotification: false, transactionCode,
+    achBatchId: batchId, batchSequenceNumber: batchId,
+    batchCompanyName: 'Empresa de prueba', batchEffectiveEntryDate: '2026-07-27',
+    achCycleId: cycle, achCycleName: cycle, clearingHouseName: 'ACH Colombia'
+  };
 }
 
 async function authenticate(page: Page): Promise<void> {
