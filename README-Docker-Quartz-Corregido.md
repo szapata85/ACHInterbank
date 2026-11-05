@@ -1,3 +1,5 @@
+> **Actualización Quartz.NET 4.7.1 (2026-11-05):** además de los ajustes de este documento, el proyecto incluye la migración no destructiva del esquema SQL Server dentro de `artifacts/sql/quartz/sqlserver-qrtz-schema.sql`. La guía operativa vigente es **`CORRECCION_DOCKER_QUARTZ_SCHEMA.md`**; incluye instrucciones para una base SQL existente y para el primer arranque.
+
 # ACHInterbank NAV6 — corrección de Quartz y Docker CMD
 
 ## Cambios incluidos

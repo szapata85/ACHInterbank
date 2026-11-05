@@ -55,6 +55,14 @@ BenchmarkDotNet.Artifacts/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+# SQL de inicializacion Quartz: indispensable para Docker (no es artefacto generado).
+!artifacts/
+artifacts/*
+!artifacts/sql/
+artifacts/sql/*
+!artifacts/sql/quartz/
+artifacts/sql/quartz/*
+!artifacts/sql/quartz/sqlserver-qrtz-schema.sql
 
 # StyleCop
 StyleCopReport.xml

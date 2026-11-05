@@ -156,7 +156,11 @@ static int Execute(string[] args)
 
 static void EnsureQuartz(string root, IReadOnlyDictionary<string, string> env)
 {
-    Compose(root, env, "up", "-d", "sqlserver", "quartz-schema");
+    // "up" puede reutilizar un contenedor quartz-schema Exited(0) anterior.
+    // Garantizar que el SQL montado actualizado se ejecute en cada "infra"/"migrate".
+    // --wait espera que SQL Server pase su healthcheck; --no-deps evita recrear SQL.
+    Compose(root, env, "up", "-d", "--wait", "sqlserver");
+    Compose(root, env, "up", "-d", "--no-deps", "--force-recreate", "quartz-schema");
     Compose(root, env, "wait", "quartz-schema");
     string containerId = Capture(root, env, "docker", "compose", "-f", "docker-compose.yml", "ps", "-a", "-q", "quartz-schema").Trim();
     if (string.IsNullOrEmpty(containerId))
