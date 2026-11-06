@@ -9,9 +9,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Tests;
 
 /// <summary>
-/// NAV1 characterization tests. These assertions intentionally freeze the current
-/// navigation baseline, including known order collisions and the duplicated /ach-cycles
-/// parent/child route. NAV2 may change these expectations deliberately.
+/// NAV1 functional-seeder characterization. Known unrelated collisions are retained;
+/// the file-security root now uses its canonical position even before final NAV2 reconciliation.
 /// </summary>
 public sealed class NavigationMenuNav1BaselineTests
 {
@@ -43,10 +42,10 @@ public sealed class NavigationMenuNav1BaselineTests
             ("/transactions", 6),
             ("/navigation/menu-items", 7),
             ("/reports", 7),
-            ("/nacha-security", 8),
             ("/scheduler", 9),
             ("/logs", 10),
-            ("/uat", 11)
+            ("/uat", 11),
+            ("/nacha-security", 60)
         ];
         Assert.Equal(expectedRoots, roots.Select(item => (item.Route, item.Order)).ToArray());
 

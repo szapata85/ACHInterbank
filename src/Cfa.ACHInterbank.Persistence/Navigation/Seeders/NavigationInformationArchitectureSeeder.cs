@@ -28,6 +28,7 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
 
     public const string HomeRoute = "/dashboard";
     public const string HomeLabel = "Inicio";
+    public const int HomeRootOrder = 10;
     public const string OperationRoute = "/transactions";
     public const string OperationLabel = "Operación";
     public const string CustomersRoute = "/customers";
@@ -40,6 +41,7 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
     public const string ParametersAdministrationLabel = "Administración de parámetros";
     public const string FileSecurityRoute = "/nacha-security";
     public const string FileSecurityLabel = "Seguridad de archivos";
+    public const int FileSecurityRootOrder = 60;
     public const string ReportsRoute = "/reports";
     public const string ReportsLabel = "Reportes";
     public const string AdministrationRoute = "/administracion";
@@ -167,7 +169,7 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
 
         // NAV2.10A only makes the already-existing dashboard entry canonical as the first
         // root domain. Route and authorization links remain untouched.
-        Reconcile(home, HomeLabel, parentId: null, order: 10);
+        Reconcile(home, HomeLabel, parentId: null, order: HomeRootOrder);
     }
 
     private async Task ReconcileOperationAsync()
@@ -445,7 +447,7 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
         // active state. Routes and authorization links are deliberately left untouched.
         var fileSecurity = await context.MenuItems
             .SingleAsync(item => item.Id == MenuItemConfiguration.NachaSecurityId);
-        Reconcile(fileSecurity, FileSecurityLabel, parentId: null, order: 60);
+        Reconcile(fileSecurity, FileSecurityLabel, parentId: null, order: FileSecurityRootOrder);
 
         await ReconcileExistingAsync(
             DigitalCertificatesRoute,

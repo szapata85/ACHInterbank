@@ -148,3 +148,60 @@ test('compact navigation and mobile drawer keep controls accessible', async ({ p
   await expect(sidebar).not.toBeVisible();
   await expect(page.getByRole('button', { name: 'Abrir navegación' })).toBeFocused();
 });
+
+// Prevent regression from .mdc-button__label: Angular Material wraps ng-content,
+// so styling the button host as flex does NOT lay out icon/label/chevron directly.
+test('sidebar entries render as compact horizontal rows with no icon-label stacking', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await login(page);
+  const sidebar = page.locator('mat-sidenav.primary-sidenav');
+  const rows = sidebar.locator('.menu-list > .nav-node > .nav-item');
+  await expect(rows.first()).toBeVisible();
+
+  const geometry = await rows.evaluateAll((nodes) => nodes.map((node) => {
+    const row = node as HTMLElement;
+    const content = row.querySelector('.nav-item-content');
+    const icon = content?.querySelector('.nav-icon');
+    const label = content?.querySelector('.nav-label');
+    const arrow = content?.querySelector('.expand-icon');
+    const position = (el: Element | null | undefined) => {
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top,
+        bottom: rect.bottom, midY: (rect.top + rect.bottom) / 2 };
+    };
+    return { row: position(row), content: position(content), icon: position(icon),
+      label: position(label), arrow: position(arrow),
+      materialLabelWidth: row.querySelector('.mdc-button__label')?.getBoundingClientRect().width ?? 0 };
+  }));
+
+  expect(geometry.length).toBeGreaterThan(2);
+  for (const [index, item] of geometry.entries()) {
+    expect(item.content, `fila ${index}: contenedor horizontal`).not.toBeNull();
+    expect(item.icon, `fila ${index}: ícono`).not.toBeNull();
+    expect(item.label, `fila ${index}: etiqueta`).not.toBeNull();
+    expect(item.row, `fila ${index}: fila`).not.toBeNull();
+    if (!item.row || !item.icon || !item.label || !item.content) continue;
+    expect(item.row.bottom - item.row.top, `fila ${index}: altura compacta`).toBeLessThan(78);
+    expect(item.label.left, `fila ${index}: texto a la derecha del ícono`).toBeGreaterThan(item.icon.right);
+    expect(Math.abs(item.label.midY - item.icon.midY), `fila ${index}: alineación vertical`).toBeLessThan(9);
+    expect(item.materialLabelWidth, `fila ${index}: ancho Material`).toBeGreaterThan(180);
+    expect(item.content.right, `fila ${index}: sin desbordar`).toBeLessThanOrEqual(item.row.right + 1);
+    if (item.arrow) {
+      expect(item.arrow.left, `fila ${index}: flecha a la derecha del texto`).toBeGreaterThan(item.label.right - 1);
+      expect(Math.abs(item.arrow.midY - item.icon.midY), `fila ${index}: flecha alineada`).toBeLessThan(9);
+    }
+  }
+
+  // Compact mode keeps icons centered, without exposing off-row labels.
+  await page.getByRole('button', { name: 'Contraer navegación' }).click();
+  const compactRows = sidebar.locator('.menu-list > .nav-node > .nav-item');
+  const positions = await compactRows.first().evaluate((node) => {
+    const row = node.getBoundingClientRect();
+    const icon = node.querySelector('.nav-icon')!.getBoundingClientRect();
+    return { delta: Math.abs((row.left + row.right) / 2 - (icon.left + icon.right) / 2),
+      height: row.height };
+  });
+  expect(positions.delta).toBeLessThan(5);
+  expect(positions.height).toBeLessThan(65);
+});

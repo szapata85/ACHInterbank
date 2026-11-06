@@ -57,3 +57,14 @@ mat-icon.mat-icon {
   font-family: 'Material Symbols Outlined', sans-serif;
   font-feature-settings: 'liga';
 }
+
+// Angular Material wraps projected mat-button content in .mdc-button__label.
+// Scope the internal width adjustment strictly to sidebar rows; all other
+// Material buttons in the SPA retain the standard styling and dimensions.
+.primary-sidenav .nav-item.mat-mdc-button > .mdc-button__label {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  text-align: start;
+}

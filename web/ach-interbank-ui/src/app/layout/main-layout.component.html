@@ -162,15 +162,17 @@
           matTooltipPosition="after"
           (click)="toggleSubmenu(item)"
         >
-          <app-ui-icon
-            *ngIf="item.icon"
-            class="nav-icon"
-            [name]="item.icon"
-            fallbackIcon="folder"
-          ></app-ui-icon>
-          <mat-icon *ngIf="!item.icon" class="nav-icon" aria-hidden="true">folder</mat-icon>
-          <span class="nav-label">{{ item.label }}</span>
-          <span class="expand-icon" [class.expanded]="isItemExpanded(item)" aria-hidden="true"></span>
+          <span class="nav-item-content">
+            <app-ui-icon
+              *ngIf="item.icon"
+              class="nav-icon"
+              [name]="item.icon"
+              fallbackIcon="folder"
+            ></app-ui-icon>
+            <mat-icon *ngIf="!item.icon" class="nav-icon" aria-hidden="true">folder</mat-icon>
+            <span class="nav-label">{{ item.label }}</span>
+            <span class="expand-icon" [class.expanded]="isItemExpanded(item)" aria-hidden="true"></span>
+          </span>
         </button>
 
         <div
@@ -194,8 +196,10 @@
             [matTooltipDisabled]="!isDesktopCompact || isMobileViewport"
             (click)="onNavItemSelected()"
           >
-            <mat-icon class="nav-icon" aria-hidden="true">article</mat-icon>
-            <span class="nav-label">Ver {{ item.label }}</span>
+            <span class="nav-item-content">
+              <mat-icon class="nav-icon" aria-hidden="true">article</mat-icon>
+              <span class="nav-label">Ver {{ item.label }}</span>
+            </span>
           </a>
           <ng-container
             *ngTemplateOutlet="menuTree; context: { $implicit: item.children }"
@@ -217,14 +221,16 @@
           matTooltipPosition="after"
           (click)="onNavItemSelected()"
         >
-          <app-ui-icon
-            *ngIf="item.icon"
-            class="nav-icon"
-            [name]="item.icon"
-            fallbackIcon="list"
-          ></app-ui-icon>
-          <mat-icon *ngIf="!item.icon" class="nav-icon" aria-hidden="true">article</mat-icon>
-          <span class="nav-label">{{ item.label }}</span>
+          <span class="nav-item-content">
+            <app-ui-icon
+              *ngIf="item.icon"
+              class="nav-icon"
+              [name]="item.icon"
+              fallbackIcon="list"
+            ></app-ui-icon>
+            <mat-icon *ngIf="!item.icon" class="nav-icon" aria-hidden="true">article</mat-icon>
+            <span class="nav-label">{{ item.label }}</span>
+          </span>
         </a>
       </ng-template>
     </div>

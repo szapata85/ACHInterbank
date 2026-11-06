@@ -41,6 +41,21 @@ checks = {
     'Strong focus indication': ':focus-visible' in scss and 'outline: 2px solid var(--shell-nav-focus-ring)' in scss,
     'Menu icon fallback for unknown keys': 'fallbackIcon' in icon and 'fallbackIcon="folder"' in html and 'fallbackIcon="list"' in html,
     'No broad changes to global Material controls': 'MatListModule' not in ts,
+    'Material projected content explicitly wrapped': html.count('class="nav-item-content"') == 3,
+    'Parent row groups label and chevron in same flex item':
+        re.search(r'class="nav-item-content">\s*<app-ui-icon.*?<span class="nav-label">\{\{ item.label \}\}</span>\s*<span class="expand-icon"', html, re.S) is not None,
+    'Each leaf and destination uses projected row wrapper':
+        re.search(r'class="nav-item nav-destination".*?class="nav-item-content"', html, re.S) is not None
+        and re.search(r'class="nav-item nav-link".*?class="nav-item-content"', html, re.S) is not None,
+    'Projected row uses horizontal flex with width':
+        '.nav-item-content {' in scss and 'display: flex;' in scss[scss.index('.nav-item-content {'):scss.index('.nav-label {')]
+        and 'width: 100%;' in scss[scss.index('.nav-item-content {'):scss.index('.nav-label {')],
+    'MDC inner label width override is sidebar-scoped':
+        '.primary-sidenav .nav-item.mat-mdc-button > .mdc-button__label' in (root / 'web/ach-interbank-ui/src/styles.scss').read_text(encoding='utf-8'),
+    'Geometry-based browser regression added':
+        'sidebar entries render as compact horizontal rows' in e2e and 'Math.abs(item.label.midY - item.icon.midY)' in e2e,
+    'Unit test asserts projected children share Material label':
+        'keeps icon, label and disclosure together inside the Material projected content' in spec,
     'Canonical seed labels untouched': 'FileSecurityLabel = "Seguridad de archivos"' in seed and 'Reconcile(home, HomeLabel, parentId: null, order: 10)' in seed,
     'Unit regression for live authorized menu': "renders the authorized dynamic source" in spec,
     'Unit regression for search and expand': 'filters authorized menu options ignoring accents' in spec and 'allows collapsing a filtered group' in spec,

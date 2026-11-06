@@ -65,6 +65,31 @@ public sealed class NavigationMenuNav26FileSecurityInformationArchitectureTests
     }
 
     [Fact]
+    public async Task FunctionalSeeder_AfterCanonicalReconciliation_DoesNotRestoreLegacyLabelOrOrder()
+    {
+        await using var fixture = CreateFixture();
+        await SeedFunctionalNavigationAsync(fixture.Context);
+        await new NavigationInformationArchitectureSeeder(fixture.Context).SeedAsync();
+        fixture.Context.ChangeTracker.Clear();
+
+        var root = await fixture.Context.MenuItems.AsNoTracking()
+            .SingleAsync(item => item.Id == MenuItemConfiguration.NachaSecurityId);
+        var rolesBefore = await ReadRoleLinksAsync(fixture.Context, [root.Id]);
+        var permissionsBefore = await ReadPermissionLinksAsync(fixture.Context, [root.Id]);
+
+        await new NachaSecurityMenuSeeder(fixture.Context).SeedAsync();
+        fixture.Context.ChangeTracker.Clear();
+
+        var after = await fixture.Context.MenuItems.AsNoTracking()
+            .SingleAsync(item => item.Id == MenuItemConfiguration.NachaSecurityId);
+        Assert.Equal(NavigationInformationArchitectureSeeder.FileSecurityLabel, after.Label);
+        Assert.Equal(NavigationInformationArchitectureSeeder.FileSecurityRootOrder, after.Order);
+        Assert.Equal(NavigationInformationArchitectureSeeder.FileSecurityRoute, after.Route);
+        Assert.Equal(rolesBefore, await ReadRoleLinksAsync(fixture.Context, [root.Id]));
+        Assert.Equal(permissionsBefore, await ReadPermissionLinksAsync(fixture.Context, [root.Id]));
+    }
+
+    [Fact]
     public async Task CanonicalSeeder_PreservesExistingFileSecurityAuthorizationAndDoesNotChangeSecurityRoutes()
     {
         await using var fixture = CreateFixture();

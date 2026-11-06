@@ -903,6 +903,39 @@ describe('MainLayoutComponent', () => {
     expect(destination.textContent).toContain('Ver Reportes');
   }));
 
+  it('keeps icon, label and disclosure together inside the Material projected content', fakeAsync(() => {
+    menuSource.next([menu[0], menu[1], reportsMenu]);
+    fixture.detectChanges();
+    flushMicrotasks();
+    fixture.detectChanges();
+
+    const leaf = fixture.nativeElement.querySelector('a.nav-link[data-menu-item-id="1"]') as HTMLElement;
+    const parent = fixture.nativeElement.querySelector('button.nav-parent[data-menu-item-id="2"]') as HTMLElement;
+    expect(leaf).not.toBeNull();
+    expect(parent).not.toBeNull();
+
+    for (const row of [leaf, parent]) {
+      const materialLabel = row.querySelector('.mdc-button__label') as HTMLElement;
+      const content = row.querySelector('.nav-item-content') as HTMLElement;
+      expect(materialLabel).withContext('Angular Material must retain the projected label wrapper').not.toBeNull();
+      expect(materialLabel.contains(content)).toBeTrue();
+      expect(content.querySelector('.nav-icon')).not.toBeNull();
+      expect(content.querySelector('.nav-label')).not.toBeNull();
+      expect(content.children.length).toBe(row === parent ? 3 : 2);
+    }
+    expect(parent.querySelector('.nav-item-content > .expand-icon')).not.toBeNull();
+    parent.click();
+    fixture.detectChanges();
+    const destination = fixture.nativeElement.querySelector('#submenu-2 .nav-destination');
+    expect(destination).toBeNull(); // Structural parent has no destination.
+
+    const reports = fixture.nativeElement.querySelector('button.nav-parent[data-menu-item-id="70"]') as HTMLElement;
+    reports.click();
+    fixture.detectChanges();
+    const reportDestination = fixture.nativeElement.querySelector('#submenu-70 .nav-destination') as HTMLElement;
+    expect(reportDestination.querySelector('.mdc-button__label > .nav-item-content')).not.toBeNull();
+  }));
+
   function setMobile(matches: boolean): void {
     breakpointSource.next({
       matches,

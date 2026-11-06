@@ -18,7 +18,7 @@ public sealed class OutgoingTransactionMonitoringSeeder : IDbSeeder
     public const string CanonicalLabel = "Transacciones de salida";
     public const string CanonicalIcon = "monitoring";
     public const int CanonicalOrder = 6;
-    public const string CanonicalDashboardLabel = "Panel principal";
+    public const string CanonicalDashboardLabel = NavigationInformationArchitectureSeeder.HomeLabel;
 
     private const string ParentRoute = "/transactions";
     private const string DisabledDuplicateRoutePrefix = "/navigation/disabled/outgoing-monitoring";

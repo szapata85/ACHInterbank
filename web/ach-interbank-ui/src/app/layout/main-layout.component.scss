@@ -282,6 +282,18 @@
   background: var(--shell-nav-text);
 }
 
+/* Angular Material projects button content inside .mdc-button__label.
+   Always layout the actual projected children in one explicit row. */
+.nav-item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  text-align: start;
+}
+
 .nav-label {
   display: block;
   flex: 1 1 auto;
@@ -305,7 +317,7 @@
   flex: 0 0 8px;
   width: 8px;
   height: 8px;
-  margin-inline: auto 0.3rem;
+  margin-inline: auto 0.15rem;
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   color: inherit;
@@ -373,6 +385,12 @@
   gap: 0;
   padding-inline: 0;
 }
+
+.primary-sidenav.compact .nav-item-content {
+  justify-content: center;
+  gap: 0;
+}
+
 
 .primary-sidenav.compact .navigation-status {
   justify-content: center;
