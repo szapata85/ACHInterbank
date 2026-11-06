@@ -15,6 +15,7 @@ namespace Cfa.ACHInterbank.External.Connections;
 public class WscfaachSoapClient : IWscfaachSoapClient
 {
     private readonly ILoggerManager _logger;
+    private readonly SoapEnvelopeJournal? _envelopeJournal;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
@@ -25,9 +26,11 @@ public class WscfaachSoapClient : IWscfaachSoapClient
         ISoapIntegrationSettingsService soapSettingsService,
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
-        IOptions<ControlledLocalSoapTransportOptions>? controlledLocalTransport = null)
+        IOptions<ControlledLocalSoapTransportOptions>? controlledLocalTransport = null,
+        SoapEnvelopeJournal? envelopeJournal = null)
     {
         _logger = logger;
+        _envelopeJournal = envelopeJournal;
         _soapSettingsService = soapSettingsService;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
@@ -144,6 +147,9 @@ public class WscfaachSoapClient : IWscfaachSoapClient
         }
 
         var started = Stopwatch.GetTimestamp();
+        var correlationId = Guid.NewGuid().ToString("N");
+        _envelopeJournal?.Request(action, correlationId, envelope);
+        var receivedResponse = false;
         _logger.LogInfo(
             $"SOAP request {action}; endpoint={ExternalLogSanitizer.Endpoint(logicalEndpoint)}; " +
             $"transport={ExternalLogSanitizer.Endpoint(transport.TransportEndpoint)}; retry=disabled.");
@@ -155,6 +161,8 @@ public class WscfaachSoapClient : IWscfaachSoapClient
 
             var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            receivedResponse = true;
+            _envelopeJournal?.Response(action, correlationId, (int)response.StatusCode, elapsedMs, responseContent);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -171,12 +179,22 @@ public class WscfaachSoapClient : IWscfaachSoapClient
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            if (!receivedResponse)
+            {
+                _envelopeJournal?.Failure(action, correlationId, "CALLER_CANCELLED",
+                    Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            }
             _logger.LogWarn($"SOAP {action} cancelled by caller; retry=disabled.");
             throw;
         }
         catch (Exception ex)
         {
             var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            if (!receivedResponse)
+            {
+                _envelopeJournal?.Failure(action, correlationId, ex is OperationCanceledException
+                    ? "TIMEOUT" : "TRANSPORT_FAILURE", elapsedMs);
+            }
             _logger.LogError(
                 $"SOAP {action} transport failure; elapsedMs={elapsedMs:F0}; exception={ex.GetType().Name}; " +
                 $"outcome=uncertain; retry=disabled.");
