@@ -5,6 +5,25 @@ import { ApiService } from './api.service';
 import { NavigationService } from './navigation.service';
 
 describe('NavigationService', () => {
+  it('excludes retired capabilities from nested menus even when the API returns them as active', (done) => {
+    const { service } = createService([
+      {
+        id: 10, label: 'Administración', route: '/administracion', order: 80,
+        children: [
+          { id: 11, label: 'Usuarios y acceso', route: '/users', order: 10 },
+          { id: 12, label: 'Capacidades de la plataforma', route: ' /PAYMENT-RAIL-CAPABILITY-REGISTRY/ ', order: 50 }
+        ]
+      },
+      { id: 20, label: 'Inicio', route: '/dashboard', order: 10 },
+      { id: 30, label: 'Capacidades duplicadas', route: '/payment-rail-capability-registry', order: 30 }
+    ]);
+
+    service.getMenu().subscribe((menu) => {
+      expect(flattenRoutes(menu)).toEqual(['/dashboard', '/administracion', '/users']);
+      expect(menu[1].children?.map((item) => item.label)).toEqual(['Usuarios y acceso']);
+      done();
+    });
+  });
   it('uses an empty backend menu without injecting local entries', (done) => {
     const { api, service } = createService([]);
 

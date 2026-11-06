@@ -14,6 +14,25 @@ namespace Cfa.ACHInterbank.Tests;
 public class NavigationMenuNachaConfigTests
 {
     [Fact]
+    public async Task NavigationMenu_ShouldNeverExposeRetiredPaymentRailRegistry_WhenPersistedMenuIsStillActive()
+    {
+        var readAch = new Permission { Id = PermissionConfiguration.ReadAchPermissionId, Name = "CanReadAch" };
+        var repo = new FakeMenuQueryRepository([
+            MenuItem(1, "Administración", "/administracion", readAch),
+            MenuItem(2, "Capacidades de la plataforma", "/payment-rail-capability-registry", readAch, 1),
+            MenuItem(3, "Capacidades duplicadas", " /PAYMENT-RAIL-CAPABILITY-REGISTRY/ ", readAch, 1),
+            MenuItem(4, "Organización del menú", "/navigation/menu-items", readAch, 1)
+        ]);
+        var currentUser = new TestCurrentUserContext([new Claim("permission", "CanReadAch")]);
+
+        var menu = await new GetMenuForCurrentUserHandler(repo, currentUser)
+            .Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
+        var routes = FlattenRoutes(menu).ToArray();
+
+        Assert.Equal(new[] { "/administracion", "/navigation/menu-items" }, routes);
+    }
+
+    [Fact]
     public async Task NavigationMenu_ShouldUsePersistedSourceWithoutInjectingMissingRoutes()
     {
         var readAch = new Permission { Id = PermissionConfiguration.ReadAchPermissionId, Name = "CanReadAch" };

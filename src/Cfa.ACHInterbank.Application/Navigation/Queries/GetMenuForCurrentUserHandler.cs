@@ -16,6 +16,13 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
         "/nacha-record-definitions"
     };
 
+    // Menú despublicado: conservar la ruta técnica y sus permisos, pero nunca
+    // proyectarla en el árbol de navegación, aun cuando una BD antigua tenga IsActive=true.
+    private const string RetiredPlatformCapabilitiesRoute = "/payment-rail-capability-registry";
+
+    private static bool IsRetiredMenuRoute(string? route) =>
+        string.Equals(route?.Trim().TrimEnd('/'), RetiredPlatformCapabilitiesRoute, StringComparison.OrdinalIgnoreCase);
+
     private readonly IMenuQueryRepository _menuRepository;
     private readonly ICurrentUserContext _currentUserContext;
 
@@ -38,6 +45,7 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
 
         var visibleItems = menuItems
             .Where(mi => !LegacyNachaRoutes.Contains(mi.Route))
+            .Where(mi => !IsRetiredMenuRoute(mi.Route))
             .Where(mi => ShouldInclude(mi, userRoles, userPermissions))
             .ToList();
 

@@ -3,14 +3,31 @@ import { map, Observable } from 'rxjs';
 import { MenuItem } from '../models/menu.model';
 import { ApiService } from './api.service';
 
+const RETIRED_NAVIGATION_ROUTES = new Set(['/payment-rail-capability-registry']);
+
 @Injectable({ providedIn: 'root' })
 export class NavigationService {
   private readonly api = inject(ApiService);
 
   getMenu(): Observable<MenuItem[]> {
     return this.api.get<MenuItem[]>('api/navigation/menu').pipe(
-      map((items) => this.sortMenu(items ?? []))
+      map((items) => this.sortMenu(this.excludeRetiredRoutes(items ?? [])))
     );
+  }
+
+  // Defensa de presentación: elimina una ruta retirada incluso si una instalación
+  // devuelve un menú antiguo mientras se reconcilia el seed canónico en SQL Server.
+  private excludeRetiredRoutes(items: MenuItem[]): MenuItem[] {
+    return items
+      .filter((item) => !RETIRED_NAVIGATION_ROUTES.has(
+        (item.route ?? '').trim().toLowerCase().replace(/\/+$/, '')
+      ))
+      .map((item) => ({
+        ...item,
+        ...(item.children === undefined
+          ? {}
+          : { children: this.excludeRetiredRoutes(item.children) })
+      }));
   }
 
   private sortMenu(items: MenuItem[]): MenuItem[] {
