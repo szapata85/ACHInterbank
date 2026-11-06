@@ -15,7 +15,7 @@ namespace Cfa.ACHInterbank.Persistence.Navigation.Seeders;
 /// "Usuarios y acceso" group, NAV2.8B adds the existing scheduled-tasks surface,
 /// NAV2.8C canonicalizes the existing system-records surfaces, NAV2.8D moves the
 /// existing navigation-structure administration surface under Administración, NAV2.8E
-/// publishes the existing read-only payment-rail capability registry as platform administration,
+/// retains the existing read-only payment-rail capability registry as an inactive administration entry,
 /// NAV2.9 canonicalizes the existing technical test-tool domain without changing its security model,
 /// NAV2.10A normalizes the final backend tree (root orders and known legacy duplicates), and
 /// NAV2.10B completes the canonical Catalogs group using only existing SPA administration routes.
@@ -516,9 +516,10 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
         // /scheduler/tasks MenuItem directly under Administración. NAV2.8C reuses the legacy
         // /logs group plus its audit/authentication children and publishes the existing
         // /navigation-logs SPA surface. NAV2.8D additionally reuses the existing
-        // /navigation/menu-items administration entry. NAV2.8E publishes the existing
-        // read-only /payment-rail-capability-registry surface. Existing identities, routes
-        // and authorization links are preserved; the legacy /scheduler menu group remains
+        // /navigation/menu-items administration entry. NAV2.8E preserves the existing
+        // read-only /payment-rail-capability-registry surface without displaying it in
+        // the menu. Existing identities, routes and authorization links are preserved;
+        // the legacy /scheduler menu group remains
         // hidden because the SPA already redirects it to /scheduler/tasks.
         var administration = await UpsertAsync(
             AdministrationRoute,
@@ -651,6 +652,13 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
             order: 50,
             icon: "hub",
             exact: true);
+
+        // The registry is retained for technical use but must not appear in the SPA menu.
+        // UpsertWithCreationStateAsync activates rows by default; deactivate both the
+        // newly created item (not yet persisted) and any pre-existing route entries.
+        // This also repairs a previously active row when the seed is rerun.
+        platformCapabilities.IsActive = false;
+        await DeactivateMenuRouteAsync(PlatformCapabilitiesRoute);
 
         await context.SaveChangesAsync();
 

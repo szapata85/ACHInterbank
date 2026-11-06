@@ -83,8 +83,7 @@ public sealed class NavigationMenuNav29TestToolsInformationArchitectureTests
                 (Route: "/users", Order: 10),
                 (Route: "/scheduler/tasks", Order: 20),
                 (Route: "/logs", Order: 30),
-                (Route: "/navigation/menu-items", Order: 40),
-                (Route: "/payment-rail-capability-registry", Order: 50)
+                (Route: "/navigation/menu-items", Order: 40)
             },
             administrationChildren.Select(item => (item.Route, item.Order)).ToArray());
     }

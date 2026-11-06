@@ -164,8 +164,9 @@ public sealed class NavigationMenuNav210AStructuralNormalizationTests
             .SingleAsync(item => item.IsActive && item.Route == NavigationInformationArchitectureSeeder.AdministrationRoute);
         var platformCapabilities = await fixture.Context.MenuItems
             .AsNoTracking()
-            .SingleAsync(item => item.IsActive && item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute);
+            .SingleAsync(item => item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute);
         Assert.Equal(administration.Id, platformCapabilities.ParentId);
+        Assert.False(platformCapabilities.IsActive);
 
         var operation = await fixture.Context.MenuItems
             .AsNoTracking()

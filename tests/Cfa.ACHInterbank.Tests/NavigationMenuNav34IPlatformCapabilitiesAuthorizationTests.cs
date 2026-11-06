@@ -102,7 +102,7 @@ public sealed class NavigationMenuNav34IPlatformCapabilitiesAuthorizationTests
         Assert.Equal(NavigationInformationArchitectureSeeder.PlatformCapabilitiesLabel, item.Label);
         Assert.Equal(administration.Id, item.ParentId);
         Assert.Equal(50, item.Order);
-        Assert.True(item.IsActive);
+        Assert.False(item.IsActive); // The registry remains available by direct route, not in the SPA menu.
 
         var permissions = await context.MenuItemPermissions.AsNoTracking()
             .Where(link => link.MenuItemId == item.Id)
@@ -225,6 +225,7 @@ public sealed class NavigationMenuNav34IPlatformCapabilitiesAuthorizationTests
 
         Assert.Contains("Reconcile(menuOrganization, MenuOrganizationLabel, administration.Id, order: 40);", ia);
         Assert.Contains("order: 50", Slice(ia, "PlatformCapabilitiesRoute", "ReconcileTestToolsAsync"));
+        Assert.Contains("await DeactivateMenuRouteAsync(PlatformCapabilitiesRoute);", ia);
         Assert.Contains("permissions: ['NavigationMenu.Manage', 'CanManageUsers']", appRouting);
         Assert.Contains("permissions: ['NavigationLogs.Read', 'CanReadAch']", appRouting);
         Assert.Contains("NavigationMenuPermissionSeeder.PermissionId", navigationMenuSeeder);

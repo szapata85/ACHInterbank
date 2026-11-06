@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Persistence.Configuration;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.DataBase.Repositories.Navigation;
 using Cfa.ACHInterbank.Persistence.Navigation.Seeders;
 using Cfa.ACHInterbank.Persistence.Security.Seeders;
 using Microsoft.Data.Sqlite;
@@ -12,7 +13,7 @@ namespace Cfa.ACHInterbank.Tests;
 public sealed class NavigationMenuNav28EAdministrationPlatformCapabilitiesInformationArchitectureTests
 {
     [Fact]
-    public async Task CanonicalSeeder_PublishesPlatformCapabilitiesUnderAdministrationWithApprovedOrderAndRoute()
+    public async Task CanonicalSeeder_KeepsPlatformCapabilitiesInactiveUnderAdministrationWithApprovedOrderAndRoute()
     {
         await using var fixture = CreateFixture();
         await SeedFunctionalNavigationAsync(fixture.Context);
@@ -34,7 +35,10 @@ public sealed class NavigationMenuNav28EAdministrationPlatformCapabilitiesInform
 
         var platformCapabilities = await fixture.Context.MenuItems
             .AsNoTracking()
-            .SingleAsync(item => item.IsActive && item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute);
+            .SingleAsync(item => item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute);
+        Assert.False(platformCapabilities.IsActive);
+        Assert.False(await fixture.Context.MenuItems.AsNoTracking()
+            .AnyAsync(item => item.IsActive && item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute));
         Assert.Equal(NavigationInformationArchitectureSeeder.PlatformCapabilitiesLabel, platformCapabilities.Label);
         Assert.Equal(administration.Id, platformCapabilities.ParentId);
         Assert.Equal(50, platformCapabilities.Order);
@@ -53,10 +57,39 @@ public sealed class NavigationMenuNav28EAdministrationPlatformCapabilitiesInform
                 (Route: "/users", Label: "Usuarios y acceso", Order: 10),
                 (Route: "/scheduler/tasks", Label: "Tareas programadas", Order: 20),
                 (Route: "/logs", Label: "Registros del sistema", Order: 30),
-                (Route: "/navigation/menu-items", Label: "Organización del menú", Order: 40),
-                (Route: "/payment-rail-capability-registry", Label: "Capacidades de la plataforma", Order: 50)
+                (Route: "/navigation/menu-items", Label: "Organización del menú", Order: 40)
             },
             administrationChildren.Select(item => (item.Route, item.Label, item.Order)).ToArray());
+
+        // The same active-menu repository consumed by the SPA excludes the inactive item.
+        var visibleMenuItems = await new MenuQueryRepository(fixture.Context).GetActiveMenuItemsAsync();
+        Assert.DoesNotContain(visibleMenuItems,
+            item => item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute);
+    }
+
+    [Fact]
+    public async Task CanonicalSeeder_DeactivatesPlatformCapabilitiesAgainWhenItWasPreviouslyEnabled()
+    {
+        await using var fixture = CreateFixture();
+        await SeedFunctionalNavigationAsync(fixture.Context);
+        var seeder = new NavigationInformationArchitectureSeeder(fixture.Context);
+        await seeder.SeedAsync();
+
+        var previouslyActive = await fixture.Context.MenuItems.SingleAsync(
+            item => item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute);
+        previouslyActive.IsActive = true; // Simulates a legacy seed or operator change.
+        await fixture.Context.SaveChangesAsync();
+        fixture.Context.ChangeTracker.Clear();
+
+        await seeder.SeedAsync();
+        fixture.Context.ChangeTracker.Clear();
+
+        var menuItem = await fixture.Context.MenuItems.AsNoTracking().SingleAsync(
+            item => item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute);
+        Assert.False(menuItem.IsActive);
+        Assert.DoesNotContain(
+            await new MenuQueryRepository(fixture.Context).GetActiveMenuItemsAsync(),
+            item => item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute);
     }
 
     [Fact]
@@ -79,6 +112,7 @@ public sealed class NavigationMenuNav28EAdministrationPlatformCapabilitiesInform
         var platformCapabilities = await fixture.Context.MenuItems
             .AsNoTracking()
             .SingleAsync(item => item.Route == NavigationInformationArchitectureSeeder.PlatformCapabilitiesRoute);
+        Assert.False(platformCapabilities.IsActive);
 
         Assert.Equal(
             new[] { $"{platformCapabilities.Id}|{PermissionConfiguration.ReadAchPermissionId}" },
