@@ -17,6 +17,7 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         new(["localhost", "127.0.0.1", "host.docker.internal"], StringComparer.OrdinalIgnoreCase);
 
     private readonly ILoggerManager _logger;
+    private readonly SoapEnvelopeJournal? _envelopeJournal;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly WsAxonEndpointSecurityOptions _endpointSecurity;
     private readonly ControlledLocalSoapTransportOptions _controlledLocalTransport;
@@ -27,9 +28,11 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         ISoapIntegrationSettingsService soapSettingsService,
         IOptions<WsAxonEndpointSecurityOptions> endpointSecurity,
         IHttpClientFactory httpClientFactory,
-        IOptions<ControlledLocalSoapTransportOptions>? controlledLocalTransport = null)
+        IOptions<ControlledLocalSoapTransportOptions>? controlledLocalTransport = null,
+        SoapEnvelopeJournal? envelopeJournal = null)
     {
         _logger = logger;
+        _envelopeJournal = envelopeJournal;
         _soapSettingsService = soapSettingsService;
         _endpointSecurity = endpointSecurity.Value;
         _httpClientFactory = httpClientFactory;
@@ -132,6 +135,9 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
 
         var started = Stopwatch.GetTimestamp();
+        var correlationId = Guid.NewGuid().ToString("N");
+        _envelopeJournal?.Request("RegistrarRespuestaTransaccion", correlationId, envelope);
+        var receivedResponse = false;
         _logger.LogInfo(
             $"SOAP request RegistrarRespuestaTransaccion; endpoint={ExternalLogSanitizer.Endpoint(logicalEndpoint)}; " +
             $"transport={ExternalLogSanitizer.Endpoint(transport.TransportEndpoint)}; retry=disabled.");
@@ -143,6 +149,8 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
 
             var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            receivedResponse = true;
+            _envelopeJournal?.Response("RegistrarRespuestaTransaccion", correlationId, (int)response.StatusCode, elapsedMs, responseContent);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -161,12 +169,22 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            if (!receivedResponse)
+            {
+                _envelopeJournal?.Failure("RegistrarRespuestaTransaccion", correlationId, "CALLER_CANCELLED",
+                    Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            }
             _logger.LogWarn("SOAP RegistrarRespuestaTransaccion cancelled by caller; retry=disabled.");
             throw;
         }
         catch (Exception ex)
         {
             var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            if (!receivedResponse)
+            {
+                _envelopeJournal?.Failure("RegistrarRespuestaTransaccion", correlationId,
+                    ex is OperationCanceledException ? "TIMEOUT" : "TRANSPORT_FAILURE", elapsedMs);
+            }
             _logger.LogError(
                 $"SOAP RegistrarRespuestaTransaccion transport failure; elapsedMs={elapsedMs:F0}; " +
                 $"exception={ex.GetType().Name}; outcome=uncertain; retry=disabled.");

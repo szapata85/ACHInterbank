@@ -63,6 +63,9 @@ public static class DependencyInjectionService
             });
         services.AddOptions<WcfAuthorizationOptions>()
             .Configure(options => options.TimeoutMinutes = configuration["appSettings:prueba"]);
+        services.AddOptions<SoapEnvelopeLoggingOptions>()
+            .Bind(configuration.GetSection(SoapEnvelopeLoggingOptions.SectionName));
+        services.AddSingleton<SoapEnvelopeJournal>();
         services.Configure<WsAxonEndpointSecurityOptions>(
             configuration.GetSection(WsAxonEndpointSecurityOptions.SectionName));
         services.Configure<RegistrarRespuestaDispatchOptions>(
