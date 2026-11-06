@@ -5,14 +5,47 @@ using Cfa.ACHInterbank.Persistence;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Api.Encryption;
+using NLog;
 using NLog.Web;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configuracion temprana: tambien registra errores ocurridos antes de builder.Build().
+LogManager.Setup().LoadConfigurationFromFile(Path.Combine(builder.Environment.ContentRootPath, "NLog.config"));
+var runtimeLogger = LogManager.GetLogger("ACHInterbank.Runtime");
 
+// Un proveedor de registro y un solo destino NLog; evita duplicados de AddNLog().
+builder.Logging.ClearProviders();
 builder.Host.UseNLog();
-// Evitar divulgar la versión del servidor Kestrel en respuestas directas.
+
+AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+{
+    if (args.ExceptionObject is Exception exception)
+    {
+        runtimeLogger.Fatal(exception, "UnhandledException. IsTerminating={IsTerminating}", args.IsTerminating);
+    }
+    else
+    {
+        runtimeLogger.Fatal("UnhandledException. NonExceptionObjectType={ErrorType}", args.ExceptionObject?.GetType().FullName);
+    }
+
+    // Intentar vaciar los registros antes de la finalizacion forzosa del proceso.
+    LogManager.Flush(TimeSpan.FromSeconds(2));
+};
+TaskScheduler.UnobservedTaskException += (_, args) =>
+{
+    runtimeLogger.Error(args.Exception, "UnobservedTaskException");
+    args.SetObserved();
+};
+AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+{
+    runtimeLogger.Info("ProcessExit. ExitCode={ExitCode}", Environment.ExitCode);
+    LogManager.Flush(TimeSpan.FromSeconds(2));
+};
+Console.CancelKeyPress += (_, args) =>
+    runtimeLogger.Info("CancelKeyPress. SpecialKey={SpecialKey}", args.SpecialKey);
+
+// Evitar divulgar la version del servidor Kestrel en respuestas directas.
 builder.WebHost.ConfigureKestrel(option => option.AddServerHeader = false);
 builder.Services.Configure<DigitalEnvelopeOptions>(builder.Configuration.GetSection("DigitalEnvelope"));
 builder.Services.Configure<DigitalEnvelopeCertificateOptions>(builder.Configuration.GetSection("DigitalEnvelope:CertificateResolver"));
@@ -23,86 +56,21 @@ builder.Services.AddWebApi(builder.Configuration)
                 .AddPersistence(builder.Configuration, builder.Environment)
                 .AddExternal(builder.Configuration);
 
-var crashLogPath = Path.Combine(builder.Environment.ContentRootPath, "crash.log");
-var traceLogPath = Path.Combine(builder.Environment.ContentRootPath, "trace.log");
-AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-{
-    LogCrash(crashLogPath, args.ExceptionObject as Exception, "UnhandledException");
-};
-TaskScheduler.UnobservedTaskException += (_, args) =>
-{
-    LogCrash(crashLogPath, args.Exception, "UnobservedTaskException");
-    args.SetObserved();
-};
-AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-{
-    LogTrace(traceLogPath, $"ProcessExit (ExitCode={Environment.ExitCode})");
-};
-Console.CancelKeyPress += (_, args) =>
-{
-    LogTrace(traceLogPath, $"CancelKeyPress (SpecialKey={args.SpecialKey})");
-};
-
 // Add services to the container.
 builder.WebHost.UseIISIntegration();
 var app = builder.Build();
 
-app.Lifetime.ApplicationStarted.Register(() => LogTrace(traceLogPath, "ApplicationStarted"));
-app.Lifetime.ApplicationStopping.Register(() => LogTrace(traceLogPath, "ApplicationStopping"));
-app.Lifetime.ApplicationStopped.Register(() => LogTrace(traceLogPath, "ApplicationStopped"));
+app.Lifetime.ApplicationStarted.Register(() => runtimeLogger.Info("ApplicationStarted"));
+app.Lifetime.ApplicationStopping.Register(() => runtimeLogger.Info("ApplicationStopping"));
+app.Lifetime.ApplicationStopped.Register(() => runtimeLogger.Info("ApplicationStopped"));
 
 app.ConfigureHandler();
-app.Run();
-
-static void LogCrash(string logPath, Exception? exception, string source)
+try
 {
-    if (exception is null)
-    {
-        return;
-    }
-
-    try
-    {
-        var directory = Path.GetDirectoryName(logPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var message = new StringBuilder()
-            .AppendLine($"[{DateTimeOffset.UtcNow:O}] {source}")
-            .AppendLine($"Message: {exception.Message}")
-            .AppendLine(exception.StackTrace)
-            .AppendLine(new string('-', 80))
-            .ToString();
-
-        File.AppendAllText(logPath, message);
-    }
-    catch
-    {
-        // Avoid throwing from crash logging.
-    }
+    app.Run();
 }
-
-static void LogTrace(string logPath, string message)
+finally
 {
-    try
-    {
-        var directory = Path.GetDirectoryName(logPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var payload = new StringBuilder()
-            .AppendLine($"[{DateTimeOffset.UtcNow:O}] {message}")
-            .AppendLine(new string('-', 80))
-            .ToString();
-
-        File.AppendAllText(logPath, payload);
-    }
-    catch
-    {
-        // Avoid throwing from trace logging.
-    }
+    // Garantiza el vaciado de la cola asincrona durante una detencion normal.
+    LogManager.Shutdown();
 }

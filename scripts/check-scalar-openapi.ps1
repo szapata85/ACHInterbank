@@ -40,7 +40,7 @@ try {
         } catch {
             Write-Host "No fue posible consultar /openapi/_schema-diagnostics: $($_.Exception.Message)"
         }
-        throw "OpenAPI no respondió 2xx. Revise también src/Cfa.ACHInterbank.Api/crash.log."
+        throw "OpenAPI no respondió 2xx. Revise también src/Cfa.ACHInterbank.Api/bin/<configuracion>/net10.0/logs/ACHInterbank.log (o /app/logs/ACHInterbank.log en Docker)."
     }
 
     try {

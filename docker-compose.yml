@@ -82,6 +82,13 @@ services:
       # Montaje solo para ejecución local; la conexión SQL se sobreescribe por ambiente.
       - ./src/Cfa.ACHInterbank.Api/appsettings.Development.json:/app/appsettings.Development.json:ro
       - ./.runtime/cenit:/var/ach/cenit
+      # Registros NLog persistentes; no montar entre réplicas.
+      - ./.runtime/logs:/app/logs
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
     ports:
       - "127.0.0.1:${API_HOST_PORT:-843}:8080"
     depends_on:

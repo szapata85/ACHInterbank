@@ -18,7 +18,6 @@ using Microsoft.Extensions.Options;
 using System.Text.Json.Schema;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
-using NLog.Extensions.Logging;
 using Npgsql;
 using Scalar.AspNetCore;
 using System.Text.Json;
@@ -97,7 +96,6 @@ public static class DependencyInjectionService
         {
             loggingBuilder.SetMinimumLevel(LogLevel.Debug);
             loggingBuilder.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.Information);
-            loggingBuilder.AddNLog();
         });
 
         services.AddRateLimiter(options =>
