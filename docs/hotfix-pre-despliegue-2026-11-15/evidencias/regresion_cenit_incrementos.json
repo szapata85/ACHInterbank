@@ -1,0 +1,62 @@
+[
+  {
+    "file": "cenit_i01_queue_static_check.py",
+    "exit_code": 0,
+    "summary": "I01 STATIC RESULT 15/15. NO se ejecutaron xUnit, DB, Quartz ni CENIT real."
+  },
+  {
+    "file": "cenit_i02_ror_static_check.py",
+    "exit_code": 0,
+    "summary": "I02 SOURCE-CHECK: 26/26 PASS. No C# compilation, DB or official operator verification."
+  },
+  {
+    "file": "cenit_i03_netting_static_check.py",
+    "exit_code": 0,
+    "summary": "I03 SOURCE-CHECK: 22/22. NO ejecuta compilacion, tests C# ni CUD."
+  },
+  {
+    "file": "cenit_i04_r23_static_check.py",
+    "exit_code": 0,
+    "summary": "I04 STATIC: 24/24; NO xUnit, DB, NACHA-M or operator ACK executed"
+  },
+  {
+    "file": "cenit_i05_priority_static_check.py",
+    "exit_code": 0,
+    "summary": "I05 STATIC: 32/32; no .NET compilation, xUnit, SQL engine or operator ACK executed"
+  },
+  {
+    "file": "cenit_i06_official_liquidity_static_check.py",
+    "exit_code": 0,
+    "summary": "I06 STATIC: 32/32. No equivale a compilación, xUnit o verificación con CENIT/CUD."
+  },
+  {
+    "file": "cenit_i07_r06_cycle5_static_check.py",
+    "exit_code": 0,
+    "summary": "I07: 37/37 static assertions; runtime tests, DB, output file and CENIT ACK NOT EXECUTED"
+  },
+  {
+    "file": "cenit_i08_r74_static_check.py",
+    "exit_code": 0,
+    "summary": "I08 STATIC: 44/44. xUnit, build, relational DB and bank operator NOT EXECUTED."
+  },
+  {
+    "file": "cenit_i09_r23_deadlines_static_check.py",
+    "exit_code": 0,
+    "summary": "I09 STATIC: 58/58; no .NET, DB, bank operator or UAT executed."
+  },
+  {
+    "file": "cenit_i10_alphabet_static_check.py",
+    "exit_code": 0,
+    "summary": "RESULT: 27/27 PASS"
+  },
+  {
+    "file": "cenit_i12_adv280_static_check.py",
+    "exit_code": 0,
+    "summary": "41/41 source-contract checks (not C# execution)"
+  },
+  {
+    "file": "cenit_i13_nack_static_check.py",
+    "exit_code": 0,
+    "summary": "33/33 source-contract checks (C# not executed)"
+  }
+]

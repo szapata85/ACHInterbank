@@ -129,7 +129,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         const string requestXml = "<Proc_Transacciones><IDTRAN>1</IDTRAN></Proc_Transacciones>";
         mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>())).Returns(requestXml);
 
-        const string responseXml = "<Envelope><Body><Proc_TransaccionesResponse><RTAACH>R96</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>";
+        const string responseXml = "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><tem:Proc_TransaccionesResponse xmlns:tem=\"http://tempuri.org/\"><tem:RTAACH>R96</tem:RTAACH><tem:RTALOC>OK</tem:RTALOC></tem:Proc_TransaccionesResponse></s:Body></s:Envelope>";
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(responseXml);
         var operationResolver = BuildProcTransaccionesOperationResolver();
@@ -782,7 +782,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
             responseCatalogResolver: Catalog(Success("00", "Crédito aplicado")));
 
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+            .ReturnsAsync("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><tem:Proc_TransaccionesResponse xmlns:tem=\"http://tempuri.org/\"><tem:RTAACH>00</tem:RTAACH><tem:RTALOC>OK</tem:RTALOC></tem:Proc_TransaccionesResponse></s:Body></s:Envelope>");
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -862,7 +862,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>R17</RTAACH><RTALOC>Codigo funcional observado</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+            .ReturnsAsync("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><tem:Proc_TransaccionesResponse xmlns:tem=\"http://tempuri.org/\"><tem:RTAACH>R17</tem:RTAACH><tem:RTALOC>Codigo funcional observado</tem:RTALOC></tem:Proc_TransaccionesResponse></s:Body></s:Envelope>");
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
@@ -986,7 +986,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+            .ReturnsAsync("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><tem:Proc_TransaccionesResponse xmlns:tem=\"http://tempuri.org/\"><tem:RTAACH>00</tem:RTAACH><tem:RTALOC>OK</tem:RTALOC></tem:Proc_TransaccionesResponse></s:Body></s:Envelope>");
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
@@ -1034,7 +1034,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(client => client.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+            .ReturnsAsync("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><tem:Proc_TransaccionesResponse xmlns:tem=\"http://tempuri.org/\"><tem:RTAACH>00</tem:RTAACH><tem:RTALOC>OK</tem:RTALOC></tem:Proc_TransaccionesResponse></s:Body></s:Envelope>");
 
         var sut = CreateOrchestrator(
             context,
@@ -1084,7 +1084,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(client => client.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+            .ReturnsAsync("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><tem:Proc_TransaccionesResponse xmlns:tem=\"http://tempuri.org/\"><tem:RTAACH>00</tem:RTAACH><tem:RTALOC>OK</tem:RTALOC></tem:Proc_TransaccionesResponse></s:Body></s:Envelope>");
         var sut = CreateOrchestrator(
             context,
             mapper.Object,

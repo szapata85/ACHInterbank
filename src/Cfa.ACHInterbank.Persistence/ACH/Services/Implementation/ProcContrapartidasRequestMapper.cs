@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Contracts;
 using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -135,10 +136,13 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
                 "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
                 resolved.OperationName, resolved.TargetNamespace, resolved.SoapAction,
                 BuildLegacySoapBody(request), xml);
+            OfficialSoapContracts.ValidateTransportRequest(xml, OfficialSoapContracts.Operation.ProcContrapartidasRequest);
             return xml;
         }
 
-        return BuildLegacySoapBody(request);
+        var legacyXml = BuildLegacySoapBody(request);
+        OfficialSoapContracts.ValidateTransportRequest(legacyXml, OfficialSoapContracts.Operation.ProcContrapartidasRequest);
+        return legacyXml;
     }
 
     private static string BuildLegacySoapBody(ProcContrapartidasRequestContract request)

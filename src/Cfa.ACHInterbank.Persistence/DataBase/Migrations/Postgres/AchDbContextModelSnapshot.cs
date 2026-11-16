@@ -4039,6 +4039,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("ClaimToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("LeaseExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("TransportStartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("EstadoNotificacion")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -4082,6 +4092,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EstadoNotificacion", "LeaseExpiresAtUtc")
+                        .HasDatabaseName("IX_AxonNotification_ClaimRecovery");
 
                     b.HasIndex("EstadoNotificacion")
                         .HasDatabaseName("IX_AchRespAttempts_Estado");
@@ -5047,6 +5060,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("RequestFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("RecipientIdNumber")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -5126,6 +5143,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("DestinationInstitutionId");
 
                     b.HasIndex("SourceInstitutionId");
+
+                    b.HasIndex("SourceInstitutionId", "TransactionExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AchTransactions_SourceInstitution_ExternalId")
+                        .HasFilter("\"TransactionExternalId\" IS NOT NULL AND \"TransactionExternalId\" <> ''");
 
                     b.HasIndex("TransactionExternalId")
                         .HasDatabaseName("IX_AchTransactions_TransactionExternalId");
@@ -8913,6 +8935,29 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<int>("ClearingHouseId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("DispatchCorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime?>("DispatchIntentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DispatchSoapEndpoint")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("DispatchExecutionMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("RequestPayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -9026,6 +9071,60 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("DispatchIntentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DispatchIntentCorrelationId")
+                        .IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
+
+                    b.Property<string>("DispatchIntentPayloadHash")
+                        .IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+
+                    b.Property<string>("DispatchIntentPayloadXml")
+                        .IsRequired().HasColumnType("text");
+
+                    b.Property<Guid?>("DispatchIntentMappingSetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("DispatchIntentMappingVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DispatchIntentMappingSnapshotHash")
+                        .IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+
+                    b.Property<string>("DispatchIntentSoapEndpoint")
+                        .IsRequired().HasMaxLength(500).HasColumnType("character varying(500)");
+
+                    b.Property<string>("DispatchIntentExecutionMode")
+                        .IsRequired().HasMaxLength(20).HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("DispatchLeaseExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DispatchLeasePhase")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("DispatchLeaseToken")
+                        .IsRequired()
+                        .IsConcurrencyToken()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<bool>("RequiresReconciliation")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("LastReassignedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastReassignedFromCycleId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<DateTime?>("LastAttemptAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -9078,6 +9177,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsUnique();
 
                     b.HasIndex("State", "NextAttemptAtUtc");
+
+                    b.HasIndex("State", "DispatchLeaseExpiresAtUtc");
 
                     b.HasIndex("ClearingHouseId", "AchCycleId", "State");
 
@@ -10266,6 +10367,21 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DispatchClaimToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("DispatchLeaseExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("TransportStartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("RequiresReconciliation")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("IdempotencyDispatchKey")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -10334,6 +10450,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("IncomingNachaFileIngestionId");
 
                     b.HasIndex("IncomingNachaTransactionLinkId");
+
+                    b.HasIndex("QueueStatus", "DispatchLeaseExpiresAtUtc")
+                        .HasDatabaseName("IX_IncomingNachaDispatchQueue_ClaimRecovery");
 
                     b.HasIndex("QueueStatus", "NextAttemptAtUtc", "Priority");
 

@@ -21,6 +21,9 @@ public sealed class CenitReturnOfReturnService(
     IOperationalCalendarService operationalCalendarService,
     ICycleNumberResolver? cycleNumberResolver = null) : ICenitReturnOfReturnService
 {
+    // DSP-152, Anexo 2, §§4.3 y 4.6: CENIT opera cinco sesiones; el último ciclo ordinario es C5.
+    // No deducirlo de AchCycles.Max(): una jornada cargada parcialmente no autoriza un ROR en C4.
+    private const int CenitLastRegularCycleNumber = 5;
     private readonly ICycleNumberResolver _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
 
     public async Task<CenitReturnOfReturnResult> CreateOutgoingAsync(CenitReturnOfReturnOutRequest request, CancellationToken ct = default)
@@ -57,20 +60,16 @@ public sealed class CenitReturnOfReturnService(
         if (existing is not null)
             return new(true, true, existing.Id, existing.ReturnOfReturnTransactionId, "ROR_ALREADY_REGISTERED", "La devolución de devolución ya estaba registrada.");
 
-        var sourceArtifact = await context.IncomingNachaTransactionLinks
-            .Include(x => x.EntryDetail).ThenInclude(x => x!.BatchHeader)
-            .Include(x => x.AddendaRecord)
-            .Where(x => x.AchTransactionId == original.Id
-                        && x.AddendaRecord != null
-                        && x.AddendaRecord.ReturnReasonCode == parentEvent.ReasonCode)
-            .OrderByDescending(x => x.LinkedAtUtc)
-            .FirstOrDefaultAsync(ct);
-        if (sourceArtifact?.EntryDetail?.BatchHeader is null || sourceArtifact.AddendaRecord is null)
-            return Failure("PARENT_INCOMING_RETURN_RAW_NOT_FOUND", "No existe evidencia NACHA raw correlacionada para la devolución padre.");
+        var evidence = await CenitParentReturnEvidenceResolver.ResolveAsync(context, parentEvent, original, ct);
+        if (!evidence.IsResolved)
+            return Failure(evidence.Code!, evidence.Message!);
+        var sourceArtifact = evidence.Artifact!;
+        if (sourceArtifact.EntryDetail?.BatchHeader is null || sourceArtifact.AddendaRecord is null)
+            return Failure("PARENT_INCOMING_RETURN_RAW_NOT_FOUND", "No existe lote NACHA raw correlacionado para la devolución padre.");
         if (!string.Equals(sourceArtifact.EntryDetail.BatchHeader.StandardEntryClassCode?.Trim(), "PPD", StringComparison.OrdinalIgnoreCase))
             return Failure(CenitReturnOfReturn2026Layout.CcdScopeStatus, "El contrato específico vigente de ROR CENIT está definido para PPD.");
 
-        if (reason == "R74" && !await HasR74OriginalCreditEvidenceAsync(original, ct))
+        if (reason == "R74" && !await CenitR74OriginalCreditEvidence.ExistsAsync(context, original, ct))
             return Failure("CENIT_R74_R32_CREDIT_ADDENDA_REQUIRED", "R74 exige devolución R32 de crédito monetario con información original en el campo 3 de la adenda.");
 
         var parentCycleId = await context.NachaHeaders.AsNoTracking()
@@ -99,6 +98,10 @@ public sealed class CenitReturnOfReturnService(
                 .Take(2).ToListAsync(ct);
         if (sourceReturns.Count > 1)
             return Failure("CENIT_ROR_SOURCE_RETURN_AMBIGUOUS", "Existen múltiples devoluciones para la traza raw del evento padre.");
+        if (sourceReturns.Count == 1
+            && !string.IsNullOrWhiteSpace(sourceReturns[0].OriginalTraceRef)
+            && !string.Equals(sourceReturns[0].OriginalTraceRef.Trim(), original.TraceNumber, StringComparison.Ordinal))
+            return Failure("CENIT_ROR_SOURCE_RETURN_CORRELATION_INVALID", "La devolución persistida apunta a otra transacción original.");
         var sourceReturnId = sourceReturns.SingleOrDefault()?.Id;
         if (_cycleNumberResolver.Resolve(targetCycle.CycleName) == 1
             && (string.IsNullOrWhiteSpace(parentReturnTrace)
@@ -175,7 +178,7 @@ public sealed class CenitReturnOfReturnService(
             ct,
             allowReturnedByEpr: true);
         if (policyFailure is not null) return policyFailure;
-        if (reason == "R74" && !await HasR74OriginalCreditEvidenceAsync(parent.OriginalTransaction, ct))
+        if (reason == "R74" && !await CenitR74OriginalCreditEvidence.ExistsAsync(context, parent.OriginalTransaction, ct))
             return Failure("CENIT_R74_R32_CREDIT_ADDENDA_REQUIRED", "R74 exige devolución R32 de crédito monetario con información original en el campo 3 de la adenda.");
 
         if (!string.Equals(parent.NewSequenceNumber, request.SourceReturnTraceNumber, StringComparison.Ordinal)
@@ -253,34 +256,6 @@ public sealed class CenitReturnOfReturnService(
         return policy.IsAllowed ? null : Failure("ROR_POLICY_REJECTED", policy.Reason ?? "La policy ROR rechazó la operación.");
     }
 
-    private async Task<bool> HasR74OriginalCreditEvidenceAsync(AchTransaction original, CancellationToken ct)
-    {
-        if (original.Type != TransactionTypeEnum.Credit || original.IsPrenotification || original.Amount <= 0)
-            return false;
-
-        // Solo la adenda de la operación original; nunca la adenda 99 de la devolución R32.
-        var originals = await context.IncomingNachaTransactionLinks.AsNoTracking()
-            .Include(x => x.AddendaRecord)
-            .Where(x => x.AchTransactionId == original.Id
-                && x.AddendaRecord != null
-                && x.AddendaRecord.CodeTypeAddendumRecord == "05"
-                && (x.AddendaRecord.ReturnReasonCode == null || x.AddendaRecord.ReturnReasonCode == ""))
-            .ToListAsync(ct);
-        if (originals.Any(x => HasMeaningfulPaymentInformation(x.AddendaRecord!.IdUserOrig)
-                || HasMeaningfulPaymentInformation(x.AddendaRecord.InvoiceOrAccountNumber)
-                || HasMeaningfulPaymentInformation(x.AddendaRecord.InfofromOriginator)))
-            return true;
-
-        var ownAddendas = await context.AchTransactionAddendas.AsNoTracking()
-            .Where(x => x.AchTransactionId == original.Id && x.AddendaType == "05")
-            .ToListAsync(ct);
-        return ownAddendas.Any(x => HasMeaningfulPaymentInformation(x.Information)
-            || HasMeaningfulPaymentInformation(x.Reference));
-    }
-
-    private static bool HasMeaningfulPaymentInformation(string? value)
-        => !string.IsNullOrWhiteSpace(value) && value.Any(c => c != '0' && c != ' ');
-
     private async Task<CenitReturnOfReturnResult?> ValidateOperationalWindowAsync(
         int clearingHouseId,
         string? parentCycleId,
@@ -303,20 +278,27 @@ public sealed class CenitReturnOfReturnService(
 
         var parentNumber = _cycleNumberResolver.Resolve(parent.CycleName);
         var targetNumber = _cycleNumberResolver.Resolve(target.CycleName);
-        var lastCycleNumber = await context.AchCycles.AsNoTracking()
-            .Where(x => x.ClearingHouseId == clearingHouseId && x.ProcessingDate.Date == target.ProcessingDate.Date)
-            .Select(x => x.CycleName)
-            .ToListAsync(ct);
-        var last = lastCycleNumber.Select(_cycleNumberResolver.Resolve).Where(x => x.HasValue).Select(x => x!.Value).DefaultIfEmpty().Max();
-        if (!parentNumber.HasValue || !targetNumber.HasValue || last <= 0)
+        if (!parentNumber.HasValue || !targetNumber.HasValue)
             return Failure("CENIT_ROR_CYCLE_EVIDENCE_REQUIRED", "Los ciclos CENIT no tienen numeración normalizada suficiente.");
 
         if (target.ProcessingDate.Date == parent.ProcessingDate.Date)
         {
-            return parentNumber.Value >= 2 && parentNumber.Value < last && targetNumber.Value == last
-                ? null
-                : Failure("CENIT_ROR_SAME_DAY_CYCLE_INVALID", "ROR del mismo día debe generarse en el último ciclo para una devolución recibida entre el segundo y el penúltimo ciclo.");
+            // HC-CENIT-002: C5 es obligatorio, incluso con calendarios de ciclos incompletos.
+            if (!(parentNumber.Value >= 2 && parentNumber.Value < CenitLastRegularCycleNumber
+                && targetNumber.Value == CenitLastRegularCycleNumber))
+                return Failure("CENIT_ROR_SAME_DAY_CYCLE_INVALID", "ROR CENIT del mismo día exige destino C5 y devolución padre recibida en C2, C3 o C4.");
+
+            if (!await operationalCalendarService.IsBusinessDayAsync(
+                    DateOnly.FromDateTime(target.ProcessingDate.Date), clearingHouseId, ct))
+                return Failure("CENIT_ROR_NON_BUSINESS_DAY", "La fecha intradía ROR no es un Día Hábil Bancario CENIT.");
+            return null;
         }
+
+        // Ninguna ruta ROR puede admitir una fecha destino no operativa, aunque
+        // el siguiente día hábil se resuelva correctamente para el plazo alternativo.
+        if (!await operationalCalendarService.IsBusinessDayAsync(
+                DateOnly.FromDateTime(target.ProcessingDate.Date), clearingHouseId, ct))
+            return Failure("CENIT_ROR_NON_BUSINESS_DAY", "La fecha destino ROR no es un Día Hábil Bancario CENIT.");
 
         var nextBusinessDay = await operationalCalendarService.GetNextBusinessDayAsync(
             DateOnly.FromDateTime(parent.ProcessingDate.Date).AddDays(1),

@@ -21,6 +21,7 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
     private readonly ITransactionIntegrationOperationResolver? _operationResolver;
     private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
     private readonly IIntegrationMappingTraceWriter? _mappingTraceWriter;
+    private readonly IAxonNotificationClaimStore? _claimStore;
 
     public NotificarRespuestaAchUseCase(
         IAchResponseRepository responseRepository,
@@ -30,7 +31,8 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
         IUnitOfWork unitOfWork,
         ITransactionIntegrationOperationResolver? operationResolver = null,
         IIntegrationMappingReadinessService? mappingReadinessService = null,
-        IIntegrationMappingTraceWriter? mappingTraceWriter = null)
+        IIntegrationMappingTraceWriter? mappingTraceWriter = null,
+        IAxonNotificationClaimStore? claimStore = null)
     {
         _responseRepository = responseRepository;
         _attemptRepository = attemptRepository;
@@ -40,6 +42,7 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
         _operationResolver = operationResolver;
         _mappingReadinessService = mappingReadinessService;
         _mappingTraceWriter = mappingTraceWriter;
+        _claimStore = claimStore;
     }
 
     public async Task<NotificarRespuestaAchResult> ExecuteAsync(NotificarRespuestaAchCommand command, CancellationToken cancellationToken = default)
@@ -47,6 +50,13 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
         if (command.NotificationAttemptId <= 0)
             return new(false, false, false, false, false, null, null, null, null, null, "NotificationAttemptId inválido");
 
+        if (_claimStore is null)
+            return new(false, false, false, false, true, null, null,
+                "AXON_CLAIM_STORE_UNAVAILABLE", null, null,
+                "No existe coordinador persistente de notificaciones: transporte prohibido.");
+
+        if (_claimStore is not null)
+            await _claimStore.QuarantineExpiredAsync(DateTime.UtcNow, cancellationToken);
         var attempt = await _attemptRepository.FindByIdAsync(command.NotificationAttemptId, cancellationToken);
         if (attempt is null)
             return new(false, false, false, false, false, null, null, null, null, null, "Intento no encontrado");
@@ -68,9 +78,12 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
             attempt.EstadoNotificacion = AchResponseNotificationStatus.ErrorFuncional;
             response.EstadoProcesamiento = AchResponseProcessingStatus.ErrorFuncional;
             response.FechaActualizacion = DateTime.UtcNow;
-            await _attemptRepository.UpdateAsync(attempt, cancellationToken);
-            await _responseRepository.UpdateAsync(response, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
+            if (!await _claimStore.TryFinishPreflightAsync(attempt.Id, response.Id,
+                new AxonNotificationCompletion(attempt.EstadoNotificacion, response.EstadoProcesamiento,
+                    true, attempt.CodigoError, attempt.DescripcionError, null, null, null),
+                DateTime.UtcNow, cancellationToken))
+                return new(true, true, true, false, true, AchResponseNotificationStatus.RequiereRevisionManual,
+                    AchResponseProcessingStatus.RequiereRevisionManual, "AXON_PREFLIGHT_FENCED", null, null, null);
 
             return new(true, true, false, true, false, attempt.EstadoNotificacion, response.EstadoProcesamiento, readinessError.Value.Code, readinessError.Value.Message, null, null);
         }
@@ -85,9 +98,12 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
             attempt.EstadoNotificacion = AchResponseNotificationStatus.ErrorFuncional;
             response.EstadoProcesamiento = AchResponseProcessingStatus.ErrorFuncional;
             response.FechaActualizacion = DateTime.UtcNow;
-            await _attemptRepository.UpdateAsync(attempt, cancellationToken);
-            await _responseRepository.UpdateAsync(response, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
+            if (!await _claimStore.TryFinishPreflightAsync(attempt.Id, response.Id,
+                new AxonNotificationCompletion(attempt.EstadoNotificacion, response.EstadoProcesamiento,
+                    true, attempt.CodigoError, attempt.DescripcionError, null, null, null),
+                DateTime.UtcNow, cancellationToken))
+                return new(true, true, true, false, true, AchResponseNotificationStatus.RequiereRevisionManual,
+                    AchResponseProcessingStatus.RequiereRevisionManual, "AXON_PREFLIGHT_FENCED", null, null, null);
 
             return new(true, true, false, true, false, attempt.EstadoNotificacion,
                 response.EstadoProcesamiento, attempt.CodigoError, attempt.DescripcionError, null, null);
@@ -104,9 +120,11 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
             descripcionCausal = cmd.DescripcionCausal
         });
 
-        // Once the gateway is entered, a failure cannot prove that the bank did not apply the notification.
-        // Do not automatically replay an uncertain external effect.
+        // No automatic replay after the transport boundary. The token is scoped to
+        // this attempt and is required again for atomic completion.
         var gatewayInvoked = false;
+        var transportIntentMarked = false;
+        string? claimToken = null;
         try
         {
             var traceError = await WriteDifferentialResponseTraceAsync(cmd, response.IdTransaccion, command.CorrelationId ?? response.CorrelationId, cancellationToken);
@@ -119,13 +137,31 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
                 attempt.EstadoNotificacion = AchResponseNotificationStatus.ErrorFuncional;
                 response.EstadoProcesamiento = AchResponseProcessingStatus.ErrorFuncional;
                 response.FechaActualizacion = DateTime.UtcNow;
-                await _attemptRepository.UpdateAsync(attempt, cancellationToken);
-                await _responseRepository.UpdateAsync(response, cancellationToken);
-                await _unitOfWork.CommitAsync(cancellationToken);
+                if (!await _claimStore.TryFinishPreflightAsync(attempt.Id, response.Id,
+                    new AxonNotificationCompletion(attempt.EstadoNotificacion, response.EstadoProcesamiento,
+                        true, attempt.CodigoError, attempt.DescripcionError, null, null, null),
+                    DateTime.UtcNow, cancellationToken))
+                    return new(true, true, true, false, true, AchResponseNotificationStatus.RequiereRevisionManual,
+                        AchResponseProcessingStatus.RequiereRevisionManual, "AXON_PREFLIGHT_FENCED", null, null, null);
 
                 return new(true, true, false, true, false, attempt.EstadoNotificacion, response.EstadoProcesamiento, traceError.Value.Code, traceError.Value.Message, null, null);
             }
 
+            if (_claimStore is not null)
+            {
+                claimToken = Guid.NewGuid().ToString("N");
+                var claimAtUtc = DateTime.UtcNow;
+                if (!await _claimStore.TryClaimAsync(attempt.Id, claimToken, claimAtUtc, cancellationToken))
+                    return new(true, true, true, false, false, attempt.EstadoNotificacion,
+                        response.EstadoProcesamiento, "AXON_CLAIM_ALREADY_TAKEN", "El intento pertenece a otro worker.", null, null);
+                attempt.EstadoNotificacion = AchResponseNotificationStatus.InFlight;
+                attempt.ClaimToken = claimToken;
+                attempt.LeaseExpiresAtUtc = claimAtUtc.AddMinutes(30);
+                if (!await _claimStore.MarkTransportIntentAsync(attempt.Id, claimToken, DateTime.UtcNow, cancellationToken))
+                    throw new InvalidOperationException("AXON_CLAIM_FENCE_FAILED: no invocar SOAP sin lease vigente.");
+                attempt.TransportStartedAtUtc = DateTime.UtcNow;
+                transportIntentMarked = true;
+            }
             gatewayInvoked = true;
             var result = await _gateway.RegistrarRespuestaAsync(cmd, cancellationToken);
             attempt.ResponsePayload = JsonSerializer.Serialize(new
@@ -151,19 +187,45 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
             }
 
             response.FechaActualizacion = DateTime.UtcNow;
-            await _attemptRepository.UpdateAsync(attempt, cancellationToken);
-            await _responseRepository.UpdateAsync(response, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
-
+            var completed = await _claimStore.TryFinalizeAsync(attempt.Id, response.Id, claimToken!,
+                new AxonNotificationCompletion(attempt.EstadoNotificacion, response.EstadoProcesamiento,
+                    result.ExisteError, result.CodigoError, result.DescripcionError, null,
+                    attempt.RequestPayload, attempt.ResponsePayload), DateTime.UtcNow, CancellationToken.None);
+            if (!completed)
+            {
+                await _claimStore.RecordLateEvidenceAsync(attempt.Id, response.Id, claimToken!,
+                    "AXON_LATE_RESULT_FENCED", attempt.ResponsePayload, CancellationToken.None);
+                return new(true, true, false, false, true, AchResponseNotificationStatus.RequiereRevisionManual,
+                    AchResponseProcessingStatus.RequiereRevisionManual, "AXON_LATE_RESULT_FENCED",
+                    "Resultado tardio archivado, sin modificar estado.", null, null);
+            }
             return new(true, true, false, result.ExisteError, false, attempt.EstadoNotificacion, response.EstadoProcesamiento, result.CodigoError, result.DescripcionError, null, null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            if (gatewayInvoked)
+            {
+                // Persist with an independent token: the original caller has cancelled.
+                attempt.EstadoNotificacion = AchResponseNotificationStatus.RequiereRevisionManual;
+                attempt.CodigoError = "AXON_CANCELLED_OUTCOME_UNKNOWN";
+                attempt.DescripcionError = "Cancelacion despues de iniciar transporte: resultado requiere conciliacion.";
+                attempt.FechaEnvio = DateTime.UtcNow;
+                response.EstadoProcesamiento = AchResponseProcessingStatus.RequiereRevisionManual;
+                response.FechaActualizacion = DateTime.UtcNow;
+                var completed = await _claimStore.TryFinalizeAsync(attempt.Id, response.Id, claimToken!,
+                    new AxonNotificationCompletion(attempt.EstadoNotificacion, response.EstadoProcesamiento,
+                        true, attempt.CodigoError, attempt.DescripcionError, null,
+                        attempt.RequestPayload, attempt.ResponsePayload), DateTime.UtcNow, CancellationToken.None);
+                if (!completed)
+                    await _claimStore.RecordLateEvidenceAsync(attempt.Id, response.Id, claimToken!,
+                        "AXON_CANCELLED_LATE_FENCED", null, CancellationToken.None);
+            }
             throw;
         }
         catch (Exception ex)
         {
-            var deliveryOutcomeUnknown = gatewayInvoked || ex is TimeoutException or TaskCanceledException;
+            var deliveryOutcomeUnknown = gatewayInvoked || transportIntentMarked
+                || ex is TimeoutException or TaskCanceledException;
             attempt.ResponsePayload = JsonSerializer.Serialize(new
             {
                 technicalStatus = deliveryOutcomeUnknown ? "ResultadoDesconocido" : "ErrorTecnico",
@@ -178,11 +240,34 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
                 ? AchResponseProcessingStatus.RequiereRevisionManual
                 : AchResponseProcessingStatus.PendienteReintento;
             response.FechaActualizacion = DateTime.UtcNow;
-            await _attemptRepository.UpdateAsync(attempt, cancellationToken);
-            await _responseRepository.UpdateAsync(response, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
-
-            return new(true, true, false, false, true, attempt.EstadoNotificacion, response.EstadoProcesamiento, null, null, ex.Message, null);
+            if (claimToken is not null)
+            {
+                var completed = await _claimStore.TryFinalizeAsync(attempt.Id, response.Id, claimToken,
+                    new AxonNotificationCompletion(attempt.EstadoNotificacion, response.EstadoProcesamiento,
+                        true, deliveryOutcomeUnknown ? "AXON_OUTCOME_UNKNOWN_RECONCILE" : "AXON_PRETRANSPORT_TECHNICAL",
+                        "Error tecnico; consultar la evidencia antes de reintentar.", ex.GetType().Name,
+                        attempt.RequestPayload, attempt.ResponsePayload), DateTime.UtcNow, CancellationToken.None);
+                if (!completed)
+                {
+                    await _claimStore.RecordLateEvidenceAsync(attempt.Id, response.Id, claimToken,
+                        "AXON_EXCEPTION_LATE_FENCED", attempt.ResponsePayload, CancellationToken.None);
+                    return new(true, true, false, false, true, AchResponseNotificationStatus.RequiereRevisionManual,
+                        AchResponseProcessingStatus.RequiereRevisionManual, "AXON_LATE_RESULT_FENCED", null, null, null);
+                }
+            }
+            else
+            {
+                // A pre-SOAP exception can race with another worker's claim.
+                // Never let an unconditional unit-of-work save overwrite InFlight.
+                var preflightDone = await _claimStore.TryFinishPreflightAsync(attempt.Id, response.Id,
+                    new AxonNotificationCompletion(attempt.EstadoNotificacion, response.EstadoProcesamiento,
+                        true, "AXON_PRETRANSPORT_TECHNICAL", "Fallo antes del transporte.", ex.GetType().Name,
+                        null, null), DateTime.UtcNow, CancellationToken.None);
+                if (!preflightDone)
+                    return new(true, true, false, false, true, AchResponseNotificationStatus.RequiereRevisionManual,
+                        AchResponseProcessingStatus.RequiereRevisionManual, "AXON_PREFLIGHT_FENCED", null, null, null);
+            }
+            return new(true, true, false, false, true, attempt.EstadoNotificacion, response.EstadoProcesamiento, null, null, ex.GetType().Name, null);
         }
     }
 

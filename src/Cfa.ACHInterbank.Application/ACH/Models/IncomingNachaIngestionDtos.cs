@@ -85,6 +85,9 @@ public sealed class NachaParseResult
     public IReadOnlyList<NachaValidationFailure> Failures { get; init; } = [];
     public int TotalBatches { get; init; }
     public int TotalEntries { get; init; }
+    // TotalEntries is the number of physical T6 records; these are final disposition counts.
+    public int ValidEntries { get; init; }
+    public int InvalidEntries { get; init; }
     public int TotalAddendas { get; init; }
     public int WarningCount { get; init; }
     public int ErrorCount { get; init; }

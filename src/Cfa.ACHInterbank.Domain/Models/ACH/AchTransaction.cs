@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 
@@ -16,6 +16,8 @@ public class AchTransaction : AuditableEntity
     /// Identificador operativo/idempotencia canónico de la instrucción.
     /// </summary>
     public string TransactionExternalId { get; set; } = string.Empty;
+    /// <summary>SHA-256 de la instrucción de creación; nulo en transacciones históricas o de otras rutas.</summary>
+    public string? RequestFingerprint { get; set; }
     /// <summary>
     /// Referencia histórica legada o transicional; no es el identificador operativo principal cuando existe TransactionExternalId.
     /// </summary>

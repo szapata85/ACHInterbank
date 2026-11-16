@@ -13,6 +13,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -100,6 +101,9 @@ internal sealed class IncomingNachaPostProcessingPipeline
         var nowUtc = nowUtcOffset.UtcDateTime;
         var nowLocal = TimeZoneInfo.ConvertTime(nowUtcOffset, _timeProvider.LocalTimeZone).DateTime;
 
+        // NPT-04: recovery is conservative. A lease expiring NEVER authorizes replay.
+        await RecoverExpiredClaimsAsync(nowUtc, ct);
+
         // F4.2: process the bounded NACHA file-based preflight independently of
         // the cycle-bound dispatch selector. This NEVER calls the SOAP client.
         var fileBasedPreflight = await _fileBasedPreparation.PrepareAsync(
@@ -180,6 +184,10 @@ internal sealed class IncomingNachaPostProcessingPipeline
 
             if (correlation.PriorSuccessfulExecution)
             {
+                // Even a stale pre-dispatch read may not overwrite a concurrent
+                // Dispatching claim or a reconciliation quarantine.
+                if (!await TryFinishUnclaimedAsync(queue, IncomingNachaDispatchQueueStatus.Confirmed, ct))
+                    continue;
                 IncomingNachaStateTransitionStage.MarkAlreadyConfirmed(queue);
                 _auditEvents.AddAutomaticEvent(
                     queue,
@@ -197,6 +205,9 @@ internal sealed class IncomingNachaPostProcessingPipeline
                 ct);
             if (!eligibility.CanProceed)
             {
+                if (!await TryFinishUnclaimedAsync(queue, eligibility.QueueStatus
+                    ?? IncomingNachaDispatchQueueStatus.Blocked, ct))
+                    continue;
                 _stateTransition.ApplyEligibilityDecision(queue, eligibility);
                 _auditEvents.AddAutomaticEvent(
                     queue,
@@ -215,11 +226,29 @@ internal sealed class IncomingNachaPostProcessingPipeline
                 continue;
             }
 
-            IncomingNachaStateTransitionStage.MarkDispatching(queue, nowUtc);
-            _auditEvents.AddAutomaticEvent(queue, "DispatchStarted", "Applied", "Dispatch automático iniciado.");
+            // NPT-03: conditional database UPDATE is the cross-node arbiter. A stale
+            // selector loses and may not reach either mapper or SOAP.
+            if (!await TryClaimAsync(queue, nowUtc, ct))
+                continue;
+            _auditEvents.AddAutomaticEvent(queue, "DispatchStarted", "Applied", "Claim persistente obtenido.");
 
             var correlationId = $"in-nacha-{queue.Id:N}-{queue.AttemptCount}";
-            var plan = await _dispatchPlanning.PlanAsync(queue, ct);
+            IncomingNachaDispatchPlan plan;
+            try
+            {
+                plan = await _dispatchPlanning.PlanAsync(queue, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // NPT-04: a planning failure after the persisted CAS cannot leave
+                // Dispatching indefinitely or authorize a monetary replay.
+                IncomingNachaStateTransitionStage.BlockControlledFailure(
+                    queue, "NPT_DISPATCH_PLANNING_FAILED", "No se pudo resolver el plan; revision manual antes de liberar el claim.");
+                _auditEvents.AddAutomaticEvent(queue, "DispatchPlanningFailed", "Blocked", "El plan no pudo completarse; no hubo transporte.");
+                await FinalizeClaimAsync(queue, null, CancellationToken.None);
+                blocked++;
+                continue;
+            }
             if (plan.DelegateToContrapartidas)
             {
                 _stateTransition.MarkContrapartidasDelegated(queue);
@@ -229,6 +258,8 @@ internal sealed class IncomingNachaPostProcessingPipeline
                     "Applied",
                     "Proc_Contrapartidas delegado al job de contrapartida en dry-run.",
                     IntegrationGuaranteeConstants.ProcContrapartidas);
+                if (!await FinalizeClaimAsync(queue, null, ct))
+                    continue;
                 contrapartidaDispatchTargets.Add((queue.AchTransaction.AchCycleId, queue.AchTransaction.AchCycle.ClearingHouseId));
                 confirmed++;
                 continue;
@@ -251,6 +282,7 @@ internal sealed class IncomingNachaPostProcessingPipeline
                         "Blocked",
                         queue.LastErrorMessage,
                         queue.LastErrorCode);
+                    await FinalizeClaimAsync(queue, execution, CancellationToken.None);
                     blocked++;
                     continue;
                 }
@@ -260,15 +292,20 @@ internal sealed class IncomingNachaPostProcessingPipeline
                     correlation.Ingestion!,
                     correlation.Classification!,
                     ct);
-                await _auditEvents.RecordPreparedRequestAsync(
-                    execution,
-                    preparation,
-                    queue,
-                    correlationId,
-                    procTransaccionesRuntime.Endpoint,
-                    procTransaccionesRuntime.OperatingMode,
-                    ct);
+                // IntegrationMappingTraceWriter itself calls SaveChanges. Fence BEFORE
+                // that write and commit the request hash/audit in a short transaction,
+                // so a crash during SOAP has durable reconciliation evidence.
+                if (!await PersistPreparedRequestFencedAsync(
+                        queue, execution, preparation, correlationId,
+                        procTransaccionesRuntime.Endpoint, procTransaccionesRuntime.OperatingMode, ct))
+                {
+                    blocked++;
+                    continue;
+                }
 
+                // Mark the transport boundary durably BEFORE any possible external effect.
+                // A crash after this point is ambiguous until bank reconciliation.
+                await MarkTransportIntentAsync(queue, procTransaccionesRuntime.OperatingMode, ct);
                 var sendResult = await _externalDispatch.SendAsync(
                     preparation.RequestXml,
                     queue,
@@ -325,6 +362,14 @@ internal sealed class IncomingNachaPostProcessingPipeline
                         "La detección pasiva no pudo finalizar; revisar la respuesta funcional antes de gestionar una devolución.");
                 }
 
+                // NPT-03/04: commit the result graph ONLY while we still own
+                // an unexpired lease; quarantine and keep a late-evidence record otherwise.
+                if (!await FinalizeClaimAsync(queue, execution, CancellationToken.None))
+                {
+                    blocked++;
+                    continue;
+                }
+
                 switch (outcome.Counter)
                 {
                     case IncomingNachaPostProcessingCounter.Confirmed:
@@ -341,12 +386,37 @@ internal sealed class IncomingNachaPostProcessingPipeline
                         break;
                 }
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // The caller's cancelled token must never cancel persistence of uncertainty.
+                IncomingNachaStateTransitionStage.BlockUncertainFailure(
+                    queue, "NPT_CANCELLED_OUTCOME_UNKNOWN", "Cancelacion durante preparacion o transporte; conciliar antes de cualquier replay.");
+                queue.RequiresReconciliation = queue.TransportStartedAtUtc.HasValue;
+                await FinalizeClaimAsync(queue, execution, CancellationToken.None);
+                throw;
+            }
             catch (InvalidOperationException ex)
             {
                 var errorCode = IncomingNachaAuditEventsStage.ResolveControlledErrorCode(ex);
-                IncomingNachaStateTransitionStage.BlockControlledFailure(queue, errorCode, ex.Message);
-                _auditEvents.RecordControlledFailure(execution, queue, ex);
-                _auditEvents.AddAutomaticEvent(queue, "DispatchBlockedByMapping", "Blocked", ex.Message, queue.LastErrorCode);
+                // InvalidOperationException AFTER marking the SOAP boundary is not a
+                // provably safe mapping failure. The bank outcome may be unknown.
+                if (queue.TransportStartedAtUtc.HasValue)
+                {
+                    IncomingNachaStateTransitionStage.BlockUncertainFailure(queue,
+                        "NPT_POST_TRANSPORT_UNCERTAIN", "Error tras iniciar transporte; conciliacion obligatoria.");
+                    queue.RequiresReconciliation = true;
+                    _auditEvents.RecordUncertainFailure(execution, queue, ex);
+                    _auditEvents.AddAutomaticEvent(queue, "IntegrationOutcomeUncertain", "RevisionManual",
+                        "No reenviar sin conciliacion.", queue.LastErrorCode);
+                }
+                else
+                {
+                    IncomingNachaStateTransitionStage.BlockControlledFailure(queue, errorCode, "Fallo anterior al transporte.");
+                    _auditEvents.RecordControlledFailure(execution, queue, ex);
+                    _auditEvents.AddAutomaticEvent(queue, "DispatchBlockedByMapping", "Blocked",
+                        "Fallo previo al transporte; revision segura requerida.", queue.LastErrorCode);
+                }
+                await FinalizeClaimAsync(queue, execution, CancellationToken.None);
                 blocked++;
             }
             catch (Exception ex)
@@ -355,7 +425,8 @@ internal sealed class IncomingNachaPostProcessingPipeline
                     "TECHNICAL_ERROR",
                     ex.Message,
                     integrationCodePolicies);
-                IncomingNachaStateTransitionStage.BlockUncertainFailure(queue, errorCode, ex.Message);
+                IncomingNachaStateTransitionStage.BlockUncertainFailure(queue, errorCode, "Excepcion de integracion; revisar evidencia.");
+                queue.RequiresReconciliation = queue.TransportStartedAtUtc.HasValue;
                 _auditEvents.RecordUncertainFailure(execution, queue, ex);
                 _auditEvents.AddAutomaticEvent(
                     queue,
@@ -363,6 +434,7 @@ internal sealed class IncomingNachaPostProcessingPipeline
                     "Blocked",
                     "La respuesta del servicio es incierta y requiere conciliación antes de reenviar.",
                     queue.LastErrorCode);
+                await FinalizeClaimAsync(queue, execution, CancellationToken.None);
                 blocked++;
             }
         }
@@ -395,6 +467,296 @@ internal sealed class IncomingNachaPostProcessingPipeline
             WaitingWindow: waitingWindow,
             Summary: summary);
     }
+    private async Task<bool> PersistPreparedRequestFencedAsync(
+        IncomingNachaDispatchQueue queue, IncomingNachaIntegrationExecution execution,
+        IncomingNachaPreparedDispatch preparation, string correlationId, string endpoint, string mode,
+        CancellationToken ct)
+    {
+        if (!_context.Database.IsRelational())
+        {
+            await _auditEvents.RecordPreparedRequestAsync(execution, preparation, queue,
+                correlationId, endpoint, mode, ct);
+            await _context.SaveChangesAsync(ct);
+            return true;
+        }
+
+        await using var trx = await _context.Database.BeginTransactionAsync(ct);
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        var ownsClaim = await _context.IncomingNachaDispatchQueue
+            .Where(x => x.Id == queue.Id && x.QueueStatus == IncomingNachaDispatchQueueStatus.Dispatching
+                && x.DispatchClaimToken == queue.DispatchClaimToken
+                && x.DispatchLeaseExpiresAtUtc > nowUtc && !x.RequiresReconciliation)
+            .ExecuteUpdateAsync(set => set.SetProperty(x => x.QueueStatus, IncomingNachaDispatchQueueStatus.Dispatching), ct);
+        if (ownsClaim != 1)
+        {
+            await trx.RollbackAsync(CancellationToken.None);
+            _context.ChangeTracker.Clear();
+            await PreserveLateEvidenceAsync(queue, execution);
+            return false;
+        }
+
+        await _auditEvents.RecordPreparedRequestAsync(execution, preparation, queue,
+            correlationId, endpoint, mode, ct);
+        await _context.SaveChangesAsync(ct);
+        await trx.CommitAsync(ct);
+        return true;
+    }
+
+    // Pre-SOAP decisions must also respect a competing node's claim.
+    private async Task<bool> TryFinishUnclaimedAsync(
+        IncomingNachaDispatchQueue queue, IncomingNachaDispatchQueueStatus status, CancellationToken ct)
+    {
+        if (!_context.Database.IsRelational()) return true;
+        var affected = await _context.IncomingNachaDispatchQueue
+            .Where(x => x.Id == queue.Id && !x.RequiresReconciliation
+                && (x.QueueStatus == IncomingNachaDispatchQueueStatus.Queued
+                    || x.QueueStatus == IncomingNachaDispatchQueueStatus.RetryPending))
+            .ExecuteUpdateAsync(set => set.SetProperty(x => x.QueueStatus, status), ct);
+        return affected == 1;
+    }
+
+    // Complete the queue/transaction/execution/event graph in one short transaction.
+    // No transaction spans the SOAP request. ExecuteUpdate acts as the SQL fencing check
+    // on both PostgreSQL and SQL Server. All tracked mutations are committed only if
+    // the exact claim still owns a live lease and has not been quarantined.
+    internal async Task<bool> FinalizeClaimAsync(
+        IncomingNachaDispatchQueue queue, IncomingNachaIntegrationExecution? execution, CancellationToken ct)
+    {
+        if (!_context.Database.IsRelational())
+        {
+            await _context.SaveChangesAsync(ct);
+            return true;
+        }
+
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        var claimedToken = queue.DispatchClaimToken;
+        if (string.IsNullOrWhiteSpace(claimedToken))
+            throw new InvalidOperationException("NPT_FINISH_REQUIRES_CLAIM_TOKEN");
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+        var fenced = await _context.IncomingNachaDispatchQueue
+            .Where(x => x.Id == queue.Id && x.SourceKind == IncomingNachaDispatchSourceKinds.CycleBound
+                && x.QueueStatus == IncomingNachaDispatchQueueStatus.Dispatching
+                && x.DispatchClaimToken == claimedToken
+                && x.DispatchLeaseExpiresAtUtc > nowUtc && !x.RequiresReconciliation)
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(x => x.QueueStatus, queue.QueueStatus), ct);
+        if (fenced == 1)
+        {
+            await _context.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return true;
+        }
+
+        await transaction.RollbackAsync(CancellationToken.None);
+        // A delayed worker must not flush a tracked transaction state or an old
+        // successful response after the independent watchdog has quarantined it.
+        _context.ChangeTracker.Clear();
+        await PreserveLateEvidenceAsync(queue, execution);
+        return false;
+    }
+
+    private async Task PreserveLateEvidenceAsync(
+        IncomingNachaDispatchQueue queue, IncomingNachaIntegrationExecution? execution)
+    {
+        // NPT-CFA-LATE-01: the original attempt is already persisted (and has a
+        // unique EntryDetailId/AttemptNumber). Never insert a second execution or
+        // update its existing response: another worker may own its final state.
+        // Persist each distinct late outcome in the existing append-only audit table.
+        var options = _context.GetService<IDbContextOptions>() as DbContextOptions<AchDbContext>
+            ?? throw new InvalidOperationException("NPT_CFA_EVIDENCE_CONTEXT_OPTIONS_MISSING");
+        await using var evidenceDb = new AchDbContext(options, timeProvider: _timeProvider);
+        // Stable semantic identity excludes timestamps and variable descriptions,
+        // so repeated delivery of one SOAP result remains idempotent.
+        var identityJson = JsonSerializer.Serialize(new
+        {
+            queueId = queue.Id,
+            claimToken = queue.DispatchClaimToken,
+            executionId = execution?.Id,
+            correlationId = execution?.CorrelationId,
+            requestHash = execution?.RequestHash,
+            responsePayloadXml = execution?.ResponsePayloadXml,
+            responseCode = execution?.ResponseCode,
+            soapResponseCode = execution?.SoapResponseCode,
+            resultCode = execution?.ResultCode,
+            externalTransactionId = execution?.ExternalTransactionId,
+            transportStatus = execution?.TransportStatus,
+            businessStatus = execution?.BusinessStatus,
+            processingStatus = execution?.ProcessingStatus,
+            businessOutcome = execution?.BusinessOutcome,
+            technicalErrorCode = execution?.TechnicalErrorCode,
+            technicalErrorMessage = execution?.TechnicalErrorMessage
+        });
+        var fingerprint = SHA256.HashData(Encoding.UTF8.GetBytes(identityJson));
+        var evidenceKey = Convert.ToHexString(fingerprint);
+        var evidenceJson = JsonSerializer.Serialize(new
+        {
+            schema = "NPT-CFA-LATE-01/v1",
+            evidenceKey,
+            queueId = queue.Id,
+            claimToken = queue.DispatchClaimToken,
+            executionId = execution?.Id,
+            entryDetailId = execution?.EntryDetailId,
+            attemptNumber = execution?.AttemptNumber,
+            clearingHouseId = queue.ClearingHouseId,
+            correlationId = execution?.CorrelationId,
+            soapMethod = execution?.SoapMethodName,
+            executionMode = execution?.ExecutionMode,
+            requestHash = execution?.RequestHash,
+            requestPayloadXml = execution?.RequestPayloadXml,
+            responseHash = execution?.ResponseHash,
+            responsePayloadXml = execution?.ResponsePayloadXml,
+            soapResponseCode = execution?.SoapResponseCode,
+            soapResponseDescription = execution?.SoapResponseDescription,
+            responseCode = execution?.ResponseCode,
+            responseMessage = execution?.ResponseMessage,
+            resultCode = execution?.ResultCode,
+            resultDescription = execution?.ResultDescription,
+            resultSource = execution?.ResultSource,
+            externalTransactionId = execution?.ExternalTransactionId,
+            transportStatus = execution?.TransportStatus,
+            businessStatus = execution?.BusinessStatus,
+            processingStatus = execution?.ProcessingStatus,
+            businessOutcome = execution?.BusinessOutcome,
+            technicalErrorCode = execution?.TechnicalErrorCode,
+            technicalErrorMessage = execution?.TechnicalErrorMessage,
+            startedAtUtc = execution?.StartedAtUtc,
+            finishedAtUtc = execution?.FinishedAtUtc
+        });
+
+        // A stable event primary key is a database-enforced idempotency key, also
+        // across nodes. Different SOAP outcomes for the same attempt remain separate.
+        // Never use wall-clock time or a random Guid to identify the same evidence.
+        var evidenceId = new Guid(fingerprint.AsSpan(0, 16));
+        evidenceDb.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+        {
+            Id = evidenceId,
+            IncomingNachaFileIngestionId = queue.IncomingNachaFileIngestionId,
+            AchTransactionId = queue.AchTransactionId,
+            EntryDetailId = execution?.EntryDetailId,
+            EventType = "NptLateOutcomeFenced",
+            EventStatus = "RevisionManual",
+            Message = "Resultado CFA tardio archivado; no cambia conciliacion ni autoriza reenvio.",
+            EvidenceJson = evidenceJson,
+            OccurredAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
+            RaisedBy = "inbound.dispatch.fence"
+        });
+        try
+        {
+            // One INSERT is atomic on PostgreSQL and SQL Server. No bank operation
+            // or modification of queue/execution is part of this transaction.
+            await evidenceDb.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent writer can win the PK race. Suppress only an exact
+            // duplicate, never an FK/connection/other persistence failure.
+            evidenceDb.ChangeTracker.Clear();
+            var storedEvidence = await evidenceDb.IncomingNachaProcessingEvents.AsNoTracking()
+                .Where(x => x.Id == evidenceId && x.EventType == "NptLateOutcomeFenced")
+                .Select(x => x.EvidenceJson)
+                .SingleOrDefaultAsync(CancellationToken.None);
+            if (storedEvidence is null) throw;
+            using var storedDocument = JsonDocument.Parse(storedEvidence);
+            if (!storedDocument.RootElement.TryGetProperty("evidenceKey", out var storedKey)
+                || !string.Equals(storedKey.GetString(), evidenceKey, StringComparison.Ordinal))
+                throw;
+        }
+    }
+
+    // The relational UPDATE is one statement with a status/deadline predicate.
+    // It is provider-neutral EF SQL, not a process-local lock.
+    internal async Task<bool> TryClaimAsync(IncomingNachaDispatchQueue queue, DateTime nowUtc, CancellationToken ct)
+    {
+        if (!_context.Database.IsRelational())
+        {
+            // Deterministic in-memory test runs only. Production must use a relational provider.
+            IncomingNachaStateTransitionStage.MarkDispatching(queue, nowUtc);
+            return true;
+        }
+        var token = Guid.NewGuid().ToString("N");
+        var leaseUntil = nowUtc.AddMinutes(30);
+        var affected = await _context.IncomingNachaDispatchQueue
+            .Where(x => x.Id == queue.Id && x.SourceKind == IncomingNachaDispatchSourceKinds.CycleBound
+                && (x.QueueStatus == IncomingNachaDispatchQueueStatus.Queued || x.QueueStatus == IncomingNachaDispatchQueueStatus.RetryPending)
+                && (!x.NextAttemptAtUtc.HasValue || x.NextAttemptAtUtc <= nowUtc)
+                && !x.RequiresReconciliation)
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(x => x.QueueStatus, IncomingNachaDispatchQueueStatus.Dispatching)
+                .SetProperty(x => x.DispatchClaimToken, token)
+                .SetProperty(x => x.DispatchLeaseExpiresAtUtc, leaseUntil)
+                .SetProperty(x => x.TransportStartedAtUtc, (DateTime?)null)
+                .SetProperty(x => x.LastAttemptAtUtc, nowUtc)
+                .SetProperty(x => x.AttemptCount, x => x.AttemptCount + 1), ct);
+        if (affected != 1) return false;
+        // Align the tracked instance with the atomic SQL change; a later SaveChanges
+        // must not accidentally reset the claim or attempt counter.
+        IncomingNachaStateTransitionStage.MarkDispatching(queue, nowUtc);
+        queue.DispatchClaimToken = token;
+        queue.DispatchLeaseExpiresAtUtc = leaseUntil;
+        queue.TransportStartedAtUtc = null;
+        return true;
+    }
+
+    internal async Task MarkTransportIntentAsync(IncomingNachaDispatchQueue queue, string operatingMode, CancellationToken ct)
+    {
+        if (!string.Equals(operatingMode, "Live", StringComparison.OrdinalIgnoreCase)) return;
+        if (!_context.Database.IsRelational())
+            throw new InvalidOperationException("NPT_LIVE_REQUIRES_RELATIONAL_CLAIM");
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        var affected = await _context.IncomingNachaDispatchQueue
+            .Where(x => x.Id == queue.Id && x.QueueStatus == IncomingNachaDispatchQueueStatus.Dispatching
+                && x.DispatchClaimToken == queue.DispatchClaimToken
+                && x.DispatchLeaseExpiresAtUtc > now && !x.RequiresReconciliation)
+            .ExecuteUpdateAsync(set => set.SetProperty(x => x.TransportStartedAtUtc, now), ct);
+        if (affected != 1)
+            throw new InvalidOperationException("NPT_CLAIM_FENCE_FAILED: lease vencido o reclamacion perdida; transporte prohibido.");
+        queue.TransportStartedAtUtc = now;
+    }
+
+    // Independent of the currently active cycle and safe when two Quartz nodes scan.
+    // An expired claim is quarantined, NEVER placed back in the ready queue.
+    internal async Task RecoverExpiredClaimsAsync(DateTime nowUtc, CancellationToken ct)
+    {
+        if (!_context.Database.IsRelational()) return;
+        var expired = await _context.IncomingNachaDispatchQueue.AsNoTracking()
+            .Where(x => x.SourceKind == IncomingNachaDispatchSourceKinds.CycleBound
+                && x.QueueStatus == IncomingNachaDispatchQueueStatus.Dispatching
+                && (!x.DispatchLeaseExpiresAtUtc.HasValue || x.DispatchLeaseExpiresAtUtc <= nowUtc))
+            .OrderBy(x => x.LastAttemptAtUtc).Take(100)
+            .Select(x => new { x.Id, x.IncomingNachaFileIngestionId, x.AchTransactionId,
+                x.DispatchClaimToken, x.TransportStartedAtUtc }).ToListAsync(ct);
+        foreach (var item in expired)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+            var changed = await _context.IncomingNachaDispatchQueue
+                .Where(x => x.Id == item.Id && x.QueueStatus == IncomingNachaDispatchQueueStatus.Dispatching
+                    && x.DispatchClaimToken == item.DispatchClaimToken
+                    && (!x.DispatchLeaseExpiresAtUtc.HasValue || x.DispatchLeaseExpiresAtUtc <= nowUtc))
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(x => x.QueueStatus, IncomingNachaDispatchQueueStatus.Blocked)
+                    .SetProperty(x => x.RequiresReconciliation, true)
+                    .SetProperty(x => x.LastErrorCode, item.TransportStartedAtUtc.HasValue
+                        ? "NPT_TRANSPORT_OUTCOME_UNKNOWN" : "NPT_PRETRANSPORT_REVIEW")
+                    .SetProperty(x => x.NextAttemptAtUtc, (DateTime?)null), ct);
+            if (changed == 1)
+            {
+                _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+                {
+                    IncomingNachaFileIngestionId = item.IncomingNachaFileIngestionId,
+                    AchTransactionId = item.AchTransactionId,
+                    EventType = "NptDispatchLeaseExpired", EventStatus = "RevisionManual",
+                    Message = "Despacho expirado: sin reenvio; verificar el transporte antes de liberar.",
+                    EvidenceJson = JsonSerializer.Serialize(new { queueId = item.Id,
+                        claimToken = item.DispatchClaimToken, transportWasPossible = item.TransportStartedAtUtc.HasValue }),
+                    OccurredAtUtc = nowUtc, RaisedBy = "inbound.dispatch.watchdog"
+                });
+                await _context.SaveChangesAsync(ct);
+            }
+            await transaction.CommitAsync(ct);
+        }
+    }
+
     private async Task TryPrepareAchColombiaReturnsAsync(int maxItems, CancellationToken ct)
     {
         try
@@ -923,6 +1285,41 @@ internal sealed class IncomingNachaStateTransitionStage
                 "Integración confirmada exitosamente.");
         }
 
+        // DryRun/Disabled cannot be classified as a real bank rejection or acceptance.
+        if (result.TransportStatus == IntegrationTransportStatus.NotExecuted)
+        {
+            queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+            queue.NextAttemptAtUtc = null;
+            queue.LastErrorCode = "NPT_BANK_TRANSPORT_NOT_EXECUTED";
+            return new IncomingNachaStateTransitionOutcome(
+                IncomingNachaPostProcessingCounter.Blocked,
+                "BankTransportNotExecuted", "Blocked",
+                "Simulacion o transporte deshabilitado: no existe respuesta bancaria.",
+                queue.LastErrorCode);
+        }
+
+        // A post-transport uncertain monetary result is NEVER a terminal rejection
+        // or an automatically retriable failure. A code is definitive only when
+        // transport, catalog and non-retryable business rejection all agree.
+        if (queue.TransportStartedAtUtc.HasValue &&
+            (result.TransportStatus != IntegrationTransportStatus.Succeeded
+             || result.CatalogResult is not { IsKnownCode: true }
+             || result.CatalogResult.RequiresManualReview
+             || result.CatalogResult.RetryAllowed
+             || result.Parsed.ResponseCode.Contains("TIMEOUT", StringComparison.OrdinalIgnoreCase)
+             || result.CatalogResult.BusinessStatus == IntegrationResponseBusinessStatus.Unknown))
+        {
+            queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+            queue.RequiresReconciliation = true;
+            queue.NextAttemptAtUtc = null;
+            queue.LastErrorCode = result.Parsed.ResponseCode;
+            return new IncomingNachaStateTransitionOutcome(
+                IncomingNachaPostProcessingCounter.Blocked,
+                "IntegrationOutcomeUnknown", "RevisionManual",
+                "Resultado externo incierto. Prohibida retransmision hasta conciliacion.",
+                result.Parsed.ResponseCode);
+        }
+
         if (result.TransportStatus == IntegrationTransportStatus.Succeeded
             && result.CatalogResult is { RequiresManualReview: true })
         {
@@ -991,6 +1388,7 @@ internal sealed class IncomingNachaStateTransitionStage
         queue.LastErrorCode = errorCode;
         queue.LastErrorMessage = message;
         queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+        queue.RequiresReconciliation |= queue.TransportStartedAtUtc.HasValue;
         queue.NextAttemptAtUtc = null;
     }
 
@@ -1193,7 +1591,7 @@ internal sealed class IncomingNachaExternalDispatchStage
     {
         if (IncomingNachaPostProcessingMode.IsLive(operatingMode))
         {
-            EnsureLiveOriginAccountHomologated(requestXml);
+            EnsureLiveOriginAccountPresent(requestXml);
             return new IncomingNachaSendResult(await _soapClient.ProcTransaccionesAsync(requestXml, ct), null);
         }
 
@@ -1219,18 +1617,33 @@ internal sealed class IncomingNachaExternalDispatchStage
             new IncomingNachaGuardrailEvent("ProcTransaccionesDryRunGuardrail", "Blocked", message, code));
     }
 
-    // NCTAORIG currently comes from the receiving EntryDetail in the published seed.
-    // It may be visualized in DryRun for diagnostics, but cannot be sent as an
-    // origin account until an independent source has been homologated with CFA.
-    internal static void EnsureLiveOriginAccountHomologated(string requestXml)
+    // XSD permits an absent or nil NCTAORIG; the functional Live policy does not.
+    // The mapper separately verifies equality to Transactions.SourceAccountNumber.
+    internal static void EnsureLiveOriginAccountPresent(string requestXml)
     {
-        var soap = System.Xml.Linq.XDocument.Parse(requestXml);
-        if (soap.Descendants().Any(element =>
-            string.Equals(element.Name.LocalName, "NCTAORIG", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(element.Value)))
+        using var reader = System.Xml.XmlReader.Create(new StringReader(requestXml),
+            new System.Xml.XmlReaderSettings
+            {
+                DtdProcessing = System.Xml.DtdProcessing.Prohibit,
+                XmlResolver = null
+            });
+        var document = System.Xml.Linq.XDocument.Load(reader);
+        var soap = System.Xml.Linq.XNamespace.Get("http://schemas.xmlsoap.org/soap/envelope/");
+        var operationNs = System.Xml.Linq.XNamespace.Get("http://tempuri.org/");
+        var xsi = System.Xml.Linq.XNamespace.Get("http://www.w3.org/2001/XMLSchema-instance");
+        var body = document.Root?.Name == soap + "Envelope"
+            ? document.Root.Element(soap + "Body") : null;
+        var operations = body?.Elements().ToList();
+        var operation = operations?.Count == 1 ? operations[0] : null;
+        var accounts = operation?.Elements(operationNs + "NCTAORIG").ToList();
+        var account = accounts?.Count == 1 ? accounts[0] : null;
+        if (operation?.Name != operationNs + "Proc_Transacciones"
+            || account is null || string.IsNullOrWhiteSpace(account.Value)
+            || string.Equals((string?)account.Attribute(xsi + "nil"), "true", StringComparison.OrdinalIgnoreCase)
+            || (string?)account.Attribute(xsi + "nil") == "1")
         {
             throw new InvalidOperationException(
-                "PROC_TRANSACCIONES_NCTAORIG_NOT_HOMOLOGATED: la cuenta origen no tiene fuente independiente aprobada; se bloquea Live.");
+                "PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID: el XML Live requiere la cuenta origen informada y no nil.");
         }
     }
 
@@ -1246,8 +1659,11 @@ internal sealed class IncomingNachaExternalDispatchStage
             ? await ResolveCoreResponseAsync(parsed.ResponseCode, finishedAtUtc, ct)
             : null;
         var businessSuccess = transportStatus == IntegrationTransportStatus.Succeeded
+            && parsed.IsSuccess
             && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
-        var retryAllowed = catalogResult is null ? parsed.IsRetryable : catalogResult.RetryAllowed;
+        // NPT-06: a response code, HTTP timeout or malformed XML never proves that
+        // a monetary instruction was not applied. No automatic bank-side replay.
+        var retryAllowed = false;
         return new IncomingNachaExternalDispatchResult(
             parsed,
             responseXml,
@@ -1375,6 +1791,9 @@ internal sealed class IncomingNachaExternalDispatchStage
         if (parsed.ResponseCode.Equals("SOAP_FAULT", StringComparison.OrdinalIgnoreCase)
             || parsed.ResponseCode.Equals("PARSER_ERROR", StringComparison.OrdinalIgnoreCase)
             || parsed.ResponseCode.Equals("EMPTY", StringComparison.OrdinalIgnoreCase)
+            || parsed.ResponseCode.StartsWith("INVALID_SOAP", StringComparison.OrdinalIgnoreCase)
+            || parsed.ResponseCode.Equals("WRONG_SOAP_OPERATION", StringComparison.OrdinalIgnoreCase)
+            || parsed.ResponseCode.Equals("MISSING_OR_AMBIGUOUS_RTAACH", StringComparison.OrdinalIgnoreCase)
             || parsed.RawResponse.Contains("<Fault", StringComparison.OrdinalIgnoreCase)
             || parsed.RawResponse.Contains(":Fault", StringComparison.OrdinalIgnoreCase))
         {

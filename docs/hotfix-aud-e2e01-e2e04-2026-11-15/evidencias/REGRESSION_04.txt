@@ -1,0 +1,23 @@
+COMMAND: python scripts/test/cenit_post_i13_ror_c5_static_check.py
+EXIT_CODE: 0
+01 PASS Fixed CENIT normative last cycle C5
+02 PASS No last-cycle maximum based on rows
+03 PASS Require a resolved parent cycle
+04 PASS Require same date for same-day branch
+05 PASS Require parent from C2 or later
+06 PASS Restrict parent to prior to C5
+07 PASS Require destination exactly C5
+08 PASS Keep specific same-day rejection code
+09 PASS No implicit operational-exception bypass
+10 PASS Preserve next-business-day check
+11 PASS Outgoing path invokes shared window
+12 PASS Incoming path invokes shared window
+13 PASS Fixture has five sessions C1 to C5
+14 PASS Missing C5 four-cycle negative
+15 PASS Configured C5 still rejects C4
+16 PASS Positive and negative parent-cycle matrix
+17 PASS Incoming path rejects incomplete day
+18 PASS Previously positive outgoing now targets C5
+19 PASS Previously positive incoming now targets C5
+20 PASS Next-day C1 tests retained
+TOTAL 20/20 STATIC SOURCE-CHECK ONLY

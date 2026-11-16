@@ -1,0 +1,91 @@
+{
+  "kind": "lxml_xsd_plus_source_characterization_not_dotnet",
+  "total": 21,
+  "passed": 21,
+  "checks": [
+    {
+      "test": "CFA valid canonical origin element",
+      "pass": true
+    },
+    {
+      "test": "CFA absent origin still XSD-valid",
+      "pass": true
+    },
+    {
+      "test": "CFA nil origin still XSD-valid",
+      "pass": true
+    },
+    {
+      "test": "CFA invalid int rejected",
+      "pass": true
+    },
+    {
+      "test": "CFA duplicate rejected",
+      "pass": true
+    },
+    {
+      "test": "CFA unqualified element rejected",
+      "pass": true
+    },
+    {
+      "test": "Axon valid seven fields",
+      "pass": true
+    },
+    {
+      "test": "Axon invalid int rejected",
+      "pass": true
+    },
+    {
+      "test": "Axon duplicate rejected",
+      "pass": true
+    },
+    {
+      "test": "Shared outbound XML operation validator",
+      "pass": true
+    },
+    {
+      "test": "SOAP11 body single/last & no unexpected elements",
+      "pass": true
+    },
+    {
+      "test": "DTD and resolver disabled",
+      "pass": true
+    },
+    {
+      "test": "CFA validates raw and params at last transport boundary",
+      "pass": true
+    },
+    {
+      "test": "Axon validates raw and params at last transport boundary",
+      "pass": true
+    },
+    {
+      "test": "CFA non-affected methods remain untouched",
+      "pass": true
+    },
+    {
+      "test": "Live guard unconditional fail closed",
+      "pass": true
+    },
+    {
+      "test": "Readiness still denies unhomologated source",
+      "pass": true
+    },
+    {
+      "test": "Axon previous invalid positive test updated",
+      "pass": true
+    },
+    {
+      "test": "CFA no HTTP negative tests",
+      "pass": true
+    },
+    {
+      "test": "Live missing/empty/nil tests",
+      "pass": true
+    },
+    {
+      "test": "Contradictory readiness test corrected",
+      "pass": true
+    }
+  ]
+}

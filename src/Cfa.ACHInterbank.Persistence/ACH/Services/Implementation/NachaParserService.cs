@@ -33,7 +33,6 @@ public class NachaParserService : INachaParserService
     private readonly IAchRegulatoryCatalogService? _catalogService;
     private readonly IConfiguration? _configuration;
     private readonly NachaInboundPersistenceCoordinator _persistenceCoordinator;
-    private Dictionary<string, AchFileRejectionCode> _rejectionCatalog = new(StringComparer.OrdinalIgnoreCase);
 
     public NachaParserService(
         AchDbContext context,
@@ -61,6 +60,7 @@ public class NachaParserService : INachaParserService
         var failures = new List<NachaValidationFailure>();
         int totalBatches = 0;
         int totalEntries = 0;
+        int validEntriesCount = 0;
         int totalAddendas = 0;
         string? parsedNachaId = null;
         var originalAutoDetectChangesEnabled = _context.ChangeTracker.AutoDetectChangesEnabled;
@@ -68,11 +68,6 @@ public class NachaParserService : INachaParserService
         try
         {
             _context.ChangeTracker.AutoDetectChangesEnabled = false;
-            _rejectionCatalog = await _context.AchFileRejectionCodes
-                .AsNoTracking()
-                .Where(x => x.IsActive)
-                .ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase, ct);
-
             var selectedPublication = request?.SelectedProfileId is int publishedProfileId
                 && request.RequirePublishedProfileSnapshot
                     ? await NachaProfileRecordReader.LoadPublishedSnapshotAsync(_context, publishedProfileId, ct)
@@ -88,8 +83,32 @@ public class NachaParserService : INachaParserService
             {
                 throw new InvalidOperationException("NACHA_PROFILE_SNAPSHOT_MISMATCH: la identidad del perfil seleccionado cambió antes del parser.");
             }
-            var inboundValidator = new NachaInboundValidator(_rejectionCatalog);
-            var validationContext = inboundValidator.CreateContext(selectedPublication, request, profileReader);
+            // Resolve chamber identity before reading any regulatory rejection catalogue.
+            // The CENIT STA D01-D06 catalogue is not the NACHA-M fatal/formal catalogue.
+            var resolvedHouseId = request?.ResolvedClearingHouseId;
+            var resolvedHouseCode = resolvedHouseId is int houseId
+                ? await _context.ClearingHouses.AsNoTracking()
+                    .Where(house => house.Id == houseId)
+                    .Select(house => house.Code)
+                    .SingleOrDefaultAsync(ct)
+                : null;
+            var validationContext = new NachaInboundValidator(
+                new Dictionary<string, AchFileRejectionCode>(StringComparer.OrdinalIgnoreCase))
+                .CreateContext(selectedPublication, request, profileReader);
+            NachaInboundRejectionCatalogSelector.EnsureNachaProfileMatchesChamber(
+                resolvedHouseId, resolvedHouseCode, validationContext.IsCenitNachaProfile);
+
+            // For CENIT NACHA-M, no STA rejection entries may cross this boundary.
+            // For ACH Colombia, resolve only chamber-scoped/legacy catalogue entries.
+            var rejectionRows = validationContext.IsCenitNachaProfile
+                ? new List<AchFileRejectionCode>()
+                : await _context.AchFileRejectionCodes.AsNoTracking()
+                    .Where(row => row.IsActive && (row.ClearingHouseId == null
+                        || row.ClearingHouseId == resolvedHouseId))
+                    .ToListAsync(ct);
+            var rejectionCatalog = NachaInboundRejectionCatalogSelector.SelectForNacha(
+                rejectionRows, resolvedHouseId, validationContext.IsCenitNachaProfile);
+            var inboundValidator = new NachaInboundValidator(rejectionCatalog);
             inboundValidator.SelectNachaErrorDomain(validationContext.IsCenitNachaProfile);
             var databaseValidator = new NachaInboundDatabaseValidator(
                 _context,
@@ -98,6 +117,14 @@ public class NachaParserService : INachaParserService
             var publishedAuthority = validationContext.PublishedAuthority;
             var isCenitInboundProfile = validationContext.IsCenitInboundProfile;
             var isCenitCtxInboundProfile = validationContext.IsCenitCtxInboundProfile;
+            // An ACHCOL file-based ingestion has a resolved operational date but
+            // deliberately has no internal AchCycle. Never infer an unrelated
+            // cycle from the filename or lose the authoritative ingestion date.
+            var achColFileBasedDate = request is not null
+                && string.Equals(resolvedHouseCode, "ACHCOL", StringComparison.OrdinalIgnoreCase)
+                && request.ResolvedClearingHouseId.HasValue
+                && string.IsNullOrWhiteSpace(request.ResolvedAchCycleId)
+                && request.OperationalDate.HasValue;
 
             var physicalFile = await NachaPhysicalParser.ParseAsync(nachaStream, ct, profileReader, validationContext.IsCenitNachaProfile);
             var lines = physicalFile.Records.Select(record => record.Content).ToList();
@@ -124,6 +151,8 @@ public class NachaParserService : INachaParserService
             List<NachaHeader> headers = new();
             NachaHeader? currentHeader = null;
             BatchHeader? currentBatch = null;
+            string? currentBatchDateFailure = null;
+            DateTime? currentOperationalProcessingDate = null;
             EntryDetail? lastEntry = null;
             var lastEntryAwaitingAddenda = false;
             var lastEntryAccepted = false;
@@ -148,10 +177,32 @@ public class NachaParserService : INachaParserService
                 switch (recordType)
                 {
                     case '1':
-                        currentHeader = ParseFileHeaderLinq([line], clearingHouseMap, fileName, request, profileReader).FirstOrDefault();
+                        currentHeader = ParseFileHeaderLinq([line], clearingHouseMap, fileName, request, profileReader, achColFileBasedDate).FirstOrDefault();
                         if (currentHeader is null)
                         {
                             break;
+                        }
+                        if (achColFileBasedDate)
+                        {
+                            var actualHeaderDate = ParseNachaProcessingDate(currentHeader.FileCreationDate);
+                            if (!actualHeaderDate.HasValue
+                                || actualHeaderDate.Value.Date != request!.OperationalDate!.Value.Date
+                                || currentHeader.ClearingHouseId != request.ResolvedClearingHouseId)
+                            {
+                                NachaInboundValidator.ThrowTechnical(
+                                    "ACHCOL_OPERATIONAL_DATE_UNRESOLVED: la fecha/cámara resuelta no coincide con el encabezado físico.");
+                            }
+
+                            currentOperationalProcessingDate = request.OperationalDate.Value.Date;
+                        }
+                        else
+                        {
+                            currentOperationalProcessingDate = !string.IsNullOrWhiteSpace(currentHeader.AchCycleId)
+                                ? await _context.AchCycles.AsNoTracking()
+                                    .Where(cycle => cycle.Id == currentHeader.AchCycleId)
+                                    .Select(cycle => (DateTime?)cycle.ProcessingDate)
+                                    .SingleOrDefaultAsync(ct)
+                                : null;
                         }
                         currentHeader.Batches = new List<BatchHeader>();
                         currentHeader.EntryDetails = new List<EntryDetail>();
@@ -171,7 +222,7 @@ public class NachaParserService : INachaParserService
                                                      .AnyAsync(x => x.Id == replayIngestionId && x.IsReprocess, ct);
                         if (NachaHeadersExists && !isAuthorizedReplay)
                         {
-                            inboundValidator.ThrowRegulatory("D01", "El Archivo NACHA ya existe!");
+                            NachaInboundValidator.ThrowTechnical("El Archivo NACHA ya existe!");
                         }
 
                         if (NachaHeadersExists && isAuthorizedReplay)
@@ -204,6 +255,15 @@ public class NachaParserService : INachaParserService
                             {
                                 NachaInboundCenitValidationRules.ValidateBatchService(profileReader!.ProfileCode, currentBatch);
                             }
+                            // D01/D02 (V35 Anexo 3) are operator-return causes,
+                            // not fatal file-format codes. Keep parsing the physical
+                            // batch, and attach the cause to each rejected T6 entry.
+                            // A missing authoritative cycle date fails closed before
+                            // issuing an unsupported D01 comparison.
+                            currentBatchDateFailure = validationContext.IsCenitNachaProfile
+                                ? null
+                                : inboundValidator.GetAchColombiaEffectiveDateFailure(
+                                    currentBatch.EffectiveEntryDate, currentOperationalProcessingDate);
                             currentBatchMetrics = new NachaInboundBatchRuntimeMetrics();
                             fileMetrics.RegisterBatch();
                             currentBatch.NachaID = currentHeader?.NachaID;
@@ -222,6 +282,9 @@ public class NachaParserService : INachaParserService
                         {
                             break;
                         }
+                        // Counts physical T6 entries, including those rejected by D01/D02
+                        // or later removed by mandatory addenda validation.
+                        totalEntries++;
 
                         entry.NachaID = currentHeader?.NachaID;
                         entry.NachaHeader = currentHeader;
@@ -255,15 +318,25 @@ public class NachaParserService : INachaParserService
                         var isReturnEntry = profileReader is not null
                                             && lineIndex + 1 < lines.Count
                                             && profileReader.IsReturnAddenda(lines[lineIndex + 1]);
-                        var (isValid, failureReason) = await databaseValidator.ValidateEntryAsync(
-                            entry,
-                            currentBatch,
-                            isReturnEntry,
-                            failures,
-                            optionalAddenda,
-                            publishedRule,
-                            publishedAuthority,
-                            ct);
+                        // A regulatory date failure affects each entry in this
+                        // batch without converting the entire physical file into
+                        // an operator return or suppressing structural controls.
+                        bool isValid;
+                        string? failureReason;
+                        if (currentBatchDateFailure is not null)
+                        {
+                            failureReason = currentBatchDateFailure;
+                            failures.Add(new NachaValidationFailure("6",
+                                currentBatch?.BatchNumber.ToString(CultureInfo.InvariantCulture),
+                                entry.SequenceNumber, entry.TransactionCode, failureReason));
+                            isValid = false;
+                        }
+                        else
+                        {
+                            (isValid, failureReason) = await databaseValidator.ValidateEntryAsync(
+                                entry, currentBatch, isReturnEntry, failures, optionalAddenda,
+                                publishedRule, publishedAuthority, ct);
+                        }
                         lastEntry = entry;
                         lastEntryAccepted = isValid;
                         expectedAddendaCount = inboundValidator.ResolveExpectedAddendaCount(profileReader, line, entry,
@@ -277,7 +350,6 @@ public class NachaParserService : INachaParserService
                             {
                                 optionalAddendaEntries.Add(entry.SequenceNumber);
                             }
-                            totalEntries++;
                         }
 
                         break;
@@ -350,13 +422,14 @@ public class NachaParserService : INachaParserService
                         }
                         else if (!NachaInboundValidator.IsPaddingRecord(line))
                         {
-                            inboundValidator.ThrowRegulatory("D02", "Los registros de relleno después del Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones.");
+                            NachaInboundValidator.ThrowTechnical("Los registros de relleno después del Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones.");
                         }
                         break;
                 }
             }
 
             var validEntries = inboundValidator.EnforceAddendaRequirements(entryDetails, addendaRecords, failures, optionalAddendaEntries);
+            validEntriesCount = validEntries.Count; // Final accepted T6 entries, after all entry/addenda validations.
             inboundValidator.ValidateBatchSequenceAndControlConsistency(headers.SelectMany(h => h.Batches ?? []), batchControls);
             inboundValidator.ValidateFileControlConsistency(headers.SelectMany(h => h.Batches ?? []), batchControls, fileControls, fileMetrics, lines, fileControlLineIndex);
 
@@ -395,8 +468,11 @@ public class NachaParserService : INachaParserService
             Failures = failures,
             TotalBatches = totalBatches,
             TotalEntries = totalEntries,
+            ValidEntries = validEntriesCount,
+            InvalidEntries = totalEntries - validEntriesCount,
             TotalAddendas = totalAddendas,
-            WarningCount = failures.Count,
+            // Parser has an error list, not a severity-classified warning list.
+            WarningCount = 0,
             ErrorCount = failures.Count,
             NachaId = parsedNachaId
         };
@@ -407,7 +483,8 @@ public class NachaParserService : INachaParserService
         Dictionary<string, int> clearingHouseMap,
         string FileName,
         NachaParseRequest? request,
-        NachaProfileRecordReader? profileReader)
+        NachaProfileRecordReader? profileReader,
+        bool achColFileBasedDate)
     {
         int? cycleNumber = CenitOfficialFileNameParser.ExtractCycleNumberFromFileName(FileName);
 
@@ -432,7 +509,7 @@ public class NachaParserService : INachaParserService
             }
 
             string? achCycleId = request?.ResolvedAchCycleId;
-            if (achCycleId is null)
+            if (achCycleId is null && !achColFileBasedDate)
             {
                 if (string.Equals(_context.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.OrdinalIgnoreCase))
                 {

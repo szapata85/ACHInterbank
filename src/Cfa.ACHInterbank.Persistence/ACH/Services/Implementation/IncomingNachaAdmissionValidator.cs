@@ -58,7 +58,18 @@ public sealed class IncomingNachaAdmissionValidator : IIncomingNachaAdmissionVal
 
         var headerDate = DateOnly.FromDateTime(request.Resolution.OperationalDate.Value);
         var fileNameDate = ParseFileNameDate(request.FileName);
-        var effectiveDate = ParseEffectiveDate(request.Records, cycleIndependentAchCol);
+        // Operator D01/D02 belong to ACH Colombia T6 entries, not to physical
+        // admission. Verify the chamber against the database before allowing
+        // its distinct semantics (never trust a caller-supplied resolution mode).
+        var resolvedHouse = request.Resolution.ClearingHouseId is int resolvedHouseId
+            ? await _context.ClearingHouses.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == resolvedHouseId, ct)
+            : null;
+        var isVerifiedAchColombia = request.Resolution.IsResolved
+            && !request.Resolution.IsAmbiguous
+            && resolvedHouse?.IsActive == true
+            && string.Equals(resolvedHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase);
+        var effectiveDate = ParseEffectiveDate(request.Records, isVerifiedAchColombia);
         var parsedAchColName = cycleIndependentAchCol
             && AchColInboundFileNameParser.TryParse(request.FileName, out var achColName, out _)
                 ? achColName
@@ -86,7 +97,11 @@ public sealed class IncomingNachaAdmissionValidator : IIncomingNachaAdmissionVal
                 Format(headerDate), Format(fileNameDate.Value));
         }
 
-        if (effectiveDate.HasValue && effectiveDate.Value != headerDate)
+        // Retain the historical date-admission control for CENIT/other rails.
+        // For verified ACH Colombia, do not reject the entire file based on
+        // its FIRST T5 date: every T5 is evaluated by the parser and yields
+        // D01/D02 against its own T6 entries, while physical checks still run.
+        if (!isVerifiedAchColombia && effectiveDate.HasValue && effectiveDate.Value != headerDate)
         {
             return Reject(preview, fileNameDate, effectiveDate, cycleNumber,
                 "EFFECTIVE_DATE_MISMATCH",
@@ -125,11 +140,7 @@ public sealed class IncomingNachaAdmissionValidator : IIncomingNachaAdmissionVal
         {
             // Only an ACTIVE, explicitly identified ACHCOL camera can use this
             // path. Do not infer approval merely from a resolution DTO or suffix.
-            var achColClearingHouse = await _context.ClearingHouses.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == clearingHouseId, ct);
-            if (achColClearingHouse is null
-                || !achColClearingHouse.IsActive
-                || !string.Equals(achColClearingHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+            if (!isVerifiedAchColombia)
             {
                 return Reject(preview, fileNameDate, effectiveDate, cycleNumber,
                     "ACHCOL_CLEARING_HOUSE_NOT_AUTHORIZED",
@@ -161,17 +172,9 @@ public sealed class IncomingNachaAdmissionValidator : IIncomingNachaAdmissionVal
                     "Corrija la hora del encabezado antes de reprocesar.");
             }
 
-            // ACH Colombia V35 defines an eight-digit yyyyMMdd effective date.
-            // Unlike the legacy six-digit reader, do not silently overlook an
-            // invalid present batch date on the file-based path.
-            if (request.Records.Any(x => x.Length == 106 && x[0] == '5') && !effectiveDate.HasValue)
-            {
-                return Reject(preview, fileNameDate, effectiveDate, cycleNumber,
-                    "ACHCOL_EFFECTIVE_DATE_INVALID",
-                    "Fecha efectiva inválida en el lote",
-                    "El registro de lote no contiene una fecha efectiva yyyyMMdd válida.",
-                    "Verifique la fecha efectiva de los lotes del archivo.");
-            }
+            // Even a missing/invalid T5 date is not a physical-file rejection:
+            // the parser assigns operator D02 to each affected transaction.
+            // Byte framing, header identity and calendar checks remain fatal.
 
             // No cycle lookup, cycle status or cycle reception-window check is
             // permitted here. Validations common to all cameras already ran.

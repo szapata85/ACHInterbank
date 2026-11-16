@@ -191,22 +191,28 @@ public sealed class IntegrationMappingBootstrapper
         var rules = BuildDefaultValidRules(methodId, mappingSetId, parameters);
 
         AddPathRule("OFNIT", IntegrationSourceKindEnum.Transaction, "transaction.companyidentification", null);
-        AddPathRule("OFEMP", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.code", null);
         AddPathRule("OFCTA", IntegrationSourceKindEnum.Transaction, "transaction.sourceAccountNumber", null);
         AddPathRule("OFDD", IntegrationSourceKindEnum.Transaction, "transaction.debitCreditIndicator", null);
         AddPathRule("OFFECHEFEC", IntegrationSourceKindEnum.Transaction, "transaction.effectiveEntryDate", null);
         AddPathRule("OFMONDEB", IntegrationSourceKindEnum.Transaction, "transaction.amount", null);
         AddConstantRule("OFMONCRE", "0");
-        AddPathRule("OFIDARCH", IntegrationSourceKindEnum.Batch, "batch.id", null);
         AddPathRule("OFIDLOT", IntegrationSourceKindEnum.Batch, "batch.id", null);
         AddConstantRule("OFST", "OO");
         AddPathRule("OFIDTX", IntegrationSourceKindEnum.Transaction, "transaction.reference", null);
         AddConstantRule("OFIDREVER", "0");
         AddPathRule("OFIDEBAPLI", IntegrationSourceKindEnum.Transaction, "transaction.id", null);
         AddPathRule("OFIDCAMCOMPE", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.id", null);
-        AddPathRule("OFDIRECCIONIP", IntegrationSourceKindEnum.Constant, "constant.value", "0.0.0.0");
         AddPathRule("OFLIBRE", IntegrationSourceKindEnum.Transaction, "transaction.reference", null);
         AddPathRule("OFLIBRE1", IntegrationSourceKindEnum.Transaction, "transaction.id", null);
+
+        // No contractual equivalence for company code, outbound file ID or a real origin IP.
+        // Remove bootstrap placeholders as well: mandatory mappings must fail closed until sourced.
+        foreach (var missingSource in new[] { "OFEMP", "OFIDARCH", "OFDIRECCIONIP" })
+        {
+            var parameter = parameters.FirstOrDefault(p => p.ParameterPath == missingSource);
+            if (parameter is not null)
+                rules.RemoveAll(r => r.ParameterId == parameter.Id);
+        }
 
         return rules;
 
@@ -736,12 +742,12 @@ public sealed class IntegrationMappingBootstrapper
             "TIPTRAN" => "transaction.transactionCode",
             "BCORECEP" => "destinationInstitution.transitCodeNormalized",
             "BCOORIG" => "sourceInstitution.transitCodeNormalized",
-            "NORIG" => "sourceInstitution.name",
-            "NCTAORIG" => "entrydetails.accountnumber",
-            "IDORIG" => "transaction.companyIdentification",
+            "NORIG" => "batchHeaders.companyName",
+            "NCTAORIG" => "transaction.sourceAccountNumber",
+            "IDORIG" => "batchHeaders.companyId",
             "DESTRAN" => "procTransacciones.paymentInformation",
             "FECEFEC" => "transaction.effectiveEntryDate",
-            "NCTARECEP" => "transaction.destinationAccountNumber",
+            "NCTARECEP" => "entrydetails.accountnumber",
             "MONTO" => "transaction.amount",
             "NRECEP" => "entryDetails.recipUserName",
             "IDRECEP" => "entryDetails.recipIdNumber",

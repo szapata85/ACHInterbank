@@ -1,0 +1,16 @@
+PASS no insertion of duplicate execution
+PASS uses existing append-only processing events
+PASS semantic deterministic fingerprint
+PASS stored XML plus correlation and response
+PASS no queue changes or monetary dispatch in evidence method
+PASS duplicate only confirmed after reading DB evidence key
+PASS C# regression exercises real persisted execution
+PASS C# regression covers concurrency and rollback
+PASS C# regression preserves prior nonempty SOAP evidence
+PASS SQLite model reproduces original unique-index failure
+PASS concurrent identical SOAP outcomes yield one event
+PASS different late response archived separately
+PASS evidence keeps XML/correlation/request payload
+PASS original attempt and quarantine untouched
+PASS failed event insertion rolls back, old evidence remains
+RESULT 15/15 source checks + SQLite model; no .NET build/test was executed by this script

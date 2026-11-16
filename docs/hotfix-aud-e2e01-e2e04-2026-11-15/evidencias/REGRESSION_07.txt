@@ -1,0 +1,36 @@
+COMMAND: python scripts/test/cenit_i13_nack_static_check.py
+EXIT_CODE: 0
+PASS parse XML FileNack by FileErrorHandling items
+PASS physical trace comes from error item
+PASS item-level NACK and file-level NACK remain separate
+PASS official item trace not overridden by request
+PASS file correlation is scoped to CENIT
+PASS correlation requires file identifier
+PASS trace matches uniquely within export
+PASS trace mismatch fails closed
+PASS trace mismatch does not expose wrong associated transaction
+PASS conflicting codes for same trace detected before writes
+PASS conflicts grouped by canonical trace
+PASS conflicts require multiple distinct reasons
+PASS conflicts annotate only affected trace
+PASS conflicting trace stored under controlled code
+PASS conflicting item correlation cannot mutate
+PASS item NACK branch precedes file branch
+PASS item event is operator-originated
+PASS unique response source and item sequence
+PASS unique per-item idempotency key
+PASS only pending, tacit and certified monetary states eligible
+PASS already rejected does not emit second event
+PASS single relational transaction for receipt and state change
+PASS DB insert conflict rechecks source content hash
+PASS conflicting source identity reports controlled conflict
+PASS one import write for all item rows
+PASS pickup keeps using response service
+PASS PT14 3 item ACK and NACK test exists
+PASS PT14 2 item NACK in single source
+PASS PT15 conflicting reasons fail-closed test exists
+PASS PT15 stale export membership negative exists
+PASS PT15 duplicate source conflict test exists
+PASS SQLite reload replay in PT14
+PASS no ACH Colombia file changed in focal source
+33/33 source-contract checks (C# not executed)

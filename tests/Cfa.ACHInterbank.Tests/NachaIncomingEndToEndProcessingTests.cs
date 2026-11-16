@@ -440,9 +440,9 @@ public class NachaIncomingEndToEndProcessingTests
         });
 
         context.AchFileRejectionCodes.AddRange(
-            new AchFileRejectionCode { Code = "D01", Description = "Duplicado", IsActive = true },
-            new AchFileRejectionCode { Code = "D02", Description = "Padding invalido", IsActive = true },
-            new AchFileRejectionCode { Code = "D04", Description = "Conteo invalido", IsActive = true },
+            new AchFileRejectionCode { Code = "D01", Description = "Fecha efectiva menor a fecha proceso", IsActive = true },
+            new AchFileRejectionCode { Code = "D02", Description = "Fecha efectiva no valida", IsActive = true },
+            new AchFileRejectionCode { Code = "D04", Description = "Prenotificacion con valor no cero", IsActive = true },
             new AchFileRejectionCode { Code = "D05", Description = "Hash invalido", IsActive = true });
 
         context.SaveChanges();

@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Api.OpenApi;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -191,6 +192,7 @@ public class TransactionsController : ControllerBase
     [Authorize(Policy = P0Policies.TransactionsCreate)]
     [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     [OpenApiResponseDescription(StatusCodes.Status201Created, "Transacción registrada correctamente.")]
     [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "La solicitud incumple una validación de entrada o una regla de negocio capturada por la acción.")]
@@ -238,6 +240,16 @@ public class TransactionsController : ControllerBase
 
             _logger.LogInformation("Transacción ACH creada: {Id}", tx.Id);
             return CreatedAtAction(nameof(GetById), new { id = tx.Id }, tx);
+        }
+        catch (TransactionIdempotencyConflictException ex)
+        {
+            _logger.LogWarning("E2E01 conflicto de identificador en registro de transacción");
+            return Conflict(new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Identificador externo en conflicto",
+                Detail = ex.Message
+            });
         }
         catch (ArgumentException ex)
         {

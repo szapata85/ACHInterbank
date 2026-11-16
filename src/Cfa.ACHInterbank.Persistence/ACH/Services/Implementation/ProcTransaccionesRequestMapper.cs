@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Xml.Linq;
+using Cfa.ACHInterbank.Application.Integrations.Contracts;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
@@ -259,11 +260,47 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         // Preserve the legacy functional guards before resolving the contract-driven request.
         // The scoped resolver is also consumed by Proc_Transacciones source strategies, so this
         // validation result is reused without introducing a service-specific switch in the engine.
-        _ = await _functionalSourceResolver.ResolveAsync(
+        var physical = await _functionalSourceResolver.ResolveAsync(
             queueItem, ingestion, classification, transaction, cycle, ct);
 
         var genericRequest = await _requestResolver.ResolveAsync(executionContext, ct);
         var parity = _parityPolicy.Apply(genericRequest);
+        foreach (var binding in parity.ContractDrivenRequest.Contract.Parameters
+            .Where(x => x.Direction == IntegrationParameterDirectionEnum.Input))
+        {
+            if (IsPhysicalNachaField(binding.ParameterPath))
+            {
+                var ruleError = AssessPhysicalNachaRule(binding.ParameterPath, new IntegrationMappingRule
+                {
+                    SourceKind = binding.Source.SourceKind,
+                    SourceFieldPath = binding.Source.SourceKey,
+                    FixedValue = binding.Source.ConstantValue,
+                    DefaultValue = binding.DefaultValue,
+                    TransformationCode = binding.TransformationCode,
+                    FormatMask = binding.FormatMask
+                });
+                if (ruleError is not null) throw new InvalidOperationException(ruleError);
+            }
+        }
+        EnsurePhysicalNachaValues(parity.Parameters, physical.BatchOriginatorName,
+            physical.BatchOriginatorId, physical.EntryAccountNumber);
+        var originBinding = parity.ContractDrivenRequest.Contract.Parameters.FirstOrDefault(x =>
+            x.Direction == IntegrationParameterDirectionEnum.Input
+            && string.Equals(x.ParameterPath, "NCTAORIG", StringComparison.OrdinalIgnoreCase));
+        // ConditionExpression is deliberately not carried in the generic binding.
+        // Read the selected published rule so this mapper enforces all three metadata guards.
+        var originCondition = originBinding is null ? null : await _context.IntegrationMappingRules
+            .AsNoTracking()
+            .Where(x => x.MappingSetId == genericRequest.Contract.MappingSetId
+                && x.ParameterId == originBinding.ParameterId && x.Enabled)
+            .OrderBy(x => x.Priority).ThenBy(x => x.Id)
+            .Select(x => x.ConditionExpression)
+            .FirstOrDefaultAsync(ct);
+        EnsureNctaOrigSource(parity.Parameters, transaction.SourceAccountNumber,
+            originBinding is null ? default : (originBinding.Source.SourceKind,
+                originBinding.Source.SourceKey, originBinding.Source.ConstantValue,
+                originBinding.DefaultValue, originBinding.TransformationCode,
+                originBinding.FormatMask, originCondition));
         ValidateHomologatedIds(parity.ContractDrivenRequest.Contract, parity.Parameters);
         var snapshot = await _snapshotBuilder.BuildAsync(parity.ContractDrivenRequest.MappingSetId, ct);
 
@@ -336,8 +373,14 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             var rule = rules.FirstOrDefault(x => x.ParameterId == parameter.Id);
             if (rule is null)
             {
+                if (IsPhysicalNachaField(parameter.ParameterPath))
+                    throw new InvalidOperationException($"PROC_TRANSACCIONES_NACHA_SOURCE_INVALID: {parameter.ParameterPath} no tiene regla publicada.");
                 continue;
             }
+
+            var physicalRuleError = AssessPhysicalNachaRule(parameter.ParameterPath, rule);
+            if (physicalRuleError is not null)
+                throw new InvalidOperationException(physicalRuleError);
 
             var value = ResolveValue(rule, queueItem, ingestion, classification, transaction, cycle, executionDateTime, nachaSource, functionalSource);
             if (!parameter.Required && IsPlaceholder(value))
@@ -355,6 +398,16 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
                 sourceValues[rule.SourceFieldPath] = value ?? string.Empty;
             }
         }
+
+        EnsurePhysicalNachaValues(resolved, nachaSource.BatchHeader?.CompanyName,
+            nachaSource.BatchHeader?.CompanyId, nachaSource.EntryDetail?.AccountNumber);
+
+        var originParameter = parameters.FirstOrDefault(x => string.Equals(x.ParameterPath, "NCTAORIG", StringComparison.OrdinalIgnoreCase));
+        var originRule = originParameter is null ? null : rules.FirstOrDefault(x => x.ParameterId == originParameter.Id);
+        EnsureNctaOrigSource(resolved, transaction.SourceAccountNumber,
+            originRule is null ? default : (originRule.SourceKind, originRule.SourceFieldPath,
+                originRule.FixedValue, originRule.DefaultValue, originRule.TransformationCode,
+                originRule.FormatMask, originRule.ConditionExpression));
 
         var hasHomologatedIdLoteSource = rules.Any(x =>
             parameters.Any(p => p.Id == x.ParameterId
@@ -386,6 +439,73 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             MappingSnapshotHash: snapshot.SnapshotHash);
     }
 
+    internal static bool IsPhysicalNachaField(string parameterPath)
+        => parameterPath.ToUpperInvariant() is "NORIG" or "IDORIG" or "NCTARECEP";
+
+    internal static string? AssessPhysicalNachaRule(string parameterPath, IntegrationMappingRule rule)
+    {
+        var expected = parameterPath.ToUpperInvariant() switch
+        {
+            "NORIG" => (IntegrationSourceKindEnum.BatchHeader, "batchHeaders.companyName"),
+            "IDORIG" => (IntegrationSourceKindEnum.BatchHeader, "batchHeaders.companyId"),
+            "NCTARECEP" => (IntegrationSourceKindEnum.EntryDetail, "entrydetails.accountnumber"),
+            _ => ((IntegrationSourceKindEnum)0, string.Empty)
+        };
+        if (string.IsNullOrEmpty(expected.Item2)) return null;
+        if (rule.SourceKind != expected.Item1
+            || !string.Equals(rule.SourceFieldPath, expected.Item2, StringComparison.OrdinalIgnoreCase)
+            || rule.FixedValue is not null
+            || rule.DefaultValue is not null
+            || !string.IsNullOrWhiteSpace(rule.TransformationCode)
+            || !string.IsNullOrWhiteSpace(rule.FormatMask)
+            || !string.IsNullOrWhiteSpace(rule.ConditionExpression))
+            return $"PROC_TRANSACCIONES_NACHA_SOURCE_INVALID: {parameterPath} requiere {expected.Item2} sin sustitutos.";
+        return null;
+    }
+
+    internal static void EnsurePhysicalNachaValues(
+        IReadOnlyDictionary<string, string> resolved,
+        string? originName, string? originId, string? receiverAccount)
+    {
+        foreach (var (field, physical) in new[] {
+            ("NORIG", originName), ("IDORIG", originId), ("NCTARECEP", receiverAccount) })
+        {
+            if (string.IsNullOrWhiteSpace(physical)
+                || !resolved.TryGetValue(field, out var value)
+                || !string.Equals(value, physical, StringComparison.Ordinal))
+                throw new InvalidOperationException($"PROC_TRANSACCIONES_NACHA_VALUE_MISMATCH: {field} no coincide con el registro fisico NACHA-M.");
+        }
+    }
+
+    // NCTAORIG is optional in the WSDL and is absent from receiving EntryDetail.
+    // Only a present value may be mapped, and only from its exact, non-default source.
+    // Live continues to require independent validation at its outbound guard.
+    private static void EnsureNctaOrigSource(
+        IReadOnlyDictionary<string, string> resolved,
+        string? transactionSourceAccount,
+        (IntegrationSourceKindEnum SourceKind, string? SourceKey, string? Fixed, string? Default,
+            string? TransformationCode, string? FormatMask, string? ConditionExpression) source)
+    {
+        if (!string.IsNullOrWhiteSpace(source.TransformationCode)
+            || !string.IsNullOrWhiteSpace(source.FormatMask)
+            || !string.IsNullOrWhiteSpace(source.ConditionExpression))
+            throw new InvalidOperationException("PROC_TRANSACCIONES_NCTAORIG_SOURCE_UNVERIFIED: NCTAORIG no admite transformaciones, formatos ni condiciones.");
+
+        if ((!resolved.TryGetValue("NCTAORIG", out var account) || string.IsNullOrWhiteSpace(account))
+            && string.IsNullOrWhiteSpace(transactionSourceAccount))
+            return; // No fabricated source: omit the optional element, never substitute the receiver.
+
+        if (!resolved.TryGetValue("NCTAORIG", out account)
+            || string.IsNullOrWhiteSpace(account)
+            || string.IsNullOrWhiteSpace(transactionSourceAccount)
+            || source.SourceKind != IntegrationSourceKindEnum.Transaction
+            || !string.Equals(source.SourceKey, "transaction.sourceAccountNumber", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrWhiteSpace(source.Fixed)
+            || !string.IsNullOrWhiteSpace(source.Default)
+            || !string.Equals(account, transactionSourceAccount, StringComparison.Ordinal))
+            throw new InvalidOperationException("PROC_TRANSACCIONES_NCTAORIG_SOURCE_UNVERIFIED: NCTAORIG debe ser exactamente Transactions.SourceAccountNumber, sin sustitutos.");
+    }
+
     public string BuildSoapBody(ProcTransaccionesRequestContract request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -400,13 +520,26 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
                 .Write(resolved);
             CfaSoapOperationParityGuard.EnsureEquivalent(
                 "PROC_TRANSACCIONES", "Proc_Transacciones",
-                "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
+                OfficialSoapContracts.CfaSoapAction,
                 resolved.OperationName, resolved.TargetNamespace, resolved.SoapAction,
                 BuildLegacySoapBody(request), xml);
+            ValidateGeneratedRequest(xml);
             return xml;
         }
 
-        return BuildLegacySoapBody(request);
+        var legacyXml = BuildLegacySoapBody(request);
+        ValidateGeneratedRequest(legacyXml);
+        return legacyXml;
+    }
+
+    private static void ValidateGeneratedRequest(string xml)
+    {
+        // Serialized here by a trusted writer, never from an untrusted network.
+        var document = XDocument.Parse(xml, LoadOptions.None);
+        XNamespace soap = "http://schemas.xmlsoap.org/soap/envelope/";
+        var operation = document.Root?.Element(soap + "Body")?.Elements().SingleOrDefault()
+            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_SOAP_BODY_INVALID");
+        OfficialSoapContracts.ValidateElement(operation, OfficialSoapContracts.Operation.ProcTransaccionesRequest);
     }
 
     private static string BuildLegacySoapBody(ProcTransaccionesRequestContract request)
@@ -416,6 +549,7 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
                 .Where(x => !string.IsNullOrWhiteSpace(x.Value)
                     && !string.Equals(x.Key, "METODO", StringComparison.OrdinalIgnoreCase)
                     && !string.Equals(x.Key, "ILR", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(x => IndexOfCfaField(x.Key))
                 .Select(x => new XElement(ActionNamespace + x.Key, x.Value)));
         var envelope = new XDocument(
             new XElement(XName.Get("Envelope", "http://schemas.xmlsoap.org/soap/envelope/"),
@@ -423,6 +557,16 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
                 new XAttribute(XNamespace.Xmlns + "tem", ActionNamespace.NamespaceName),
                 new XElement(XName.Get("Body", "http://schemas.xmlsoap.org/soap/envelope/"), operation)));
         return envelope.ToString(SaveOptions.DisableFormatting);
+    }
+
+    private static int IndexOfCfaField(string field)
+    {
+        var declared = OfficialSoapContracts.ProcTransaccionesFieldOrder;
+        for (var index = 0; index < declared.Count; index++)
+            if (string.Equals(declared[index], field, StringComparison.Ordinal))
+                return index;
+        // Unknown elements still reach XSD validation and will fail closed.
+        return int.MaxValue;
     }
 
     private static string? ResolveValue(

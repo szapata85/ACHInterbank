@@ -101,10 +101,18 @@ public class AchRegulatoryCatalogService : IAchRegulatoryCatalogService
             return (false, $"La política del tipo {mappedType} exige addenda para devoluciones.");
         }
 
+        // CENIT R23 credit has its own 15-calendar-day receiver-claim window.
+        // Its generic Credit policy is capped at one day for ordinary returns.
+        // Do not broaden any other CENIT cause or ACH Colombia credit returns.
+        var isCenitCreditR23 = transactionType == TransactionTypeEnum.Credit
+            && string.Equals(returnCode.Trim(), "R23", StringComparison.OrdinalIgnoreCase)
+            && await _context.ClearingHouses.AsNoTracking()
+                .AnyAsync(x => x.Id == clearingHouseId && x.Code == "CENIT", ct);
+        var maxDays = isCenitCreditR23 ? 15 : policy.MaxDays;
         var days = (currentDate.Date - originalDate.Date).Days;
-        if (days > policy.MaxDays)
+        if (days > maxDays)
         {
-            return (false, $"La política del tipo {mappedType} permite máximo {policy.MaxDays} días para devolución.");
+            return (false, $"La política del tipo {mappedType} permite máximo {maxDays} días para devolución.");
         }
 
         if (!string.IsNullOrWhiteSpace(policy.RequiredOriginalTransactionState)

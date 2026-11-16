@@ -1,0 +1,30 @@
+COMMAND: python scripts/test/cenit_i10_alphabet_static_check.py
+EXIT_CODE: 0
+01 PASS CENIT profile select keeps explicit and known code routes
+02 PASS CENIT input rejects unapproved bytes before decode
+03 PASS CENIT input rejects CR/LF
+04 PASS CENIT input rejects BOM
+05 PASS CENIT input keeps own fatal reason
+06 PASS ACH input preserves legacy Ñ/ñ
+07 PASS source has uppercase A-Z range
+08 PASS source has lowercase a-z range
+09 PASS source has numeric 0-9 range
+10 PASS source has ASCII-only outbound gate
+11 PASS source punctuation exact profile text
+12 PASS CENIT outbound guard isolated by chamber
+13 PASS CENIT outbound guard has safe error
+14 PASS return-out validated before audit/hash
+15 PASS legacy export validated before audit
+16 PASS official export validated before hash
+17 PASS CENIT generated output validates original Unicode codepoints
+18 PASS same input byte matrix tested by xUnit source
+19 PASS ACH differential tests written
+20 PASS CENIT generation guard negative cases written
+21 PASS CENIT valid alphabet generator cases written
+22 PASS CENIT golden case written
+23 PASS ACH generation unchanged test written
+24 PASS pre-existing ACH Ñ/ñ cases preserved
+25 PASS golden CENIT physical fixture 10x106 (line endings excluded)
+26 PASS golden CENIT repertoire matches published §4.1
+27 PASS explicit binary alphabet size matches spec
+RESULT: 27/27 PASS

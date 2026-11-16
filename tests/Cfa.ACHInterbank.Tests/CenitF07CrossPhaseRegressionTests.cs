@@ -76,7 +76,8 @@ public sealed class CenitF07CrossPhaseRegressionTests
             TransactionTypeEnum.Credit, "R06", ValueDate, ValueDate, sourceCycle, 5, 5,
             100m, 100m, ReturnRequestDate: ValueDate,
             ImmediateReturnCycleConfirmed: true, FundsAvailabilityRequired: true,
-            FundsAvailabilityConfirmed: true, ConfirmationToOriginatorRecorded: true);
+            FundsAvailabilityConfirmed: true, ConfirmationToOriginatorRecorded: true,
+            OriginalReceivedDate: ValueDate, ReturnOperationalDate: ValueDate);
         var result = new CenitIncomingReturnPolicy().Evaluate(request);
         Assert.Equal(expected, result.Code);
     }

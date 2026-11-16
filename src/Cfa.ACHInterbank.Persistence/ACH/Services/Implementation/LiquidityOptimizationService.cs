@@ -57,6 +57,16 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
 
     private async Task<IReadOnlyCollection<LiquidityOptimizationDecision>> OptimizeCycleCoreAsync(CenitCycleExecution execution, CancellationToken ct)
     {
+        // La optimización local es únicamente informativa para CENIT.
+        // No devolver snapshots de otra cámara ni simular un resultado oficial.
+        var cycle = await _context.AchCycles
+            .AsNoTracking()
+            .Include(x => x.ClearingHouse)
+                .ThenInclude(x => x!.ClearingHouseConfig)
+            .FirstAsync(x => x.Id == execution.AchCycleId, ct);
+        if (!string.Equals(cycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("La simulación de prioridad solo aplica a ciclos CENIT.");
+
         var existing = await _context.LiquidityOptimizationDecisions
             .AsNoTracking()
             .Where(x => x.CenitCycleExecutionId == execution.Id)
@@ -67,11 +77,6 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
             return existing;
         }
 
-        var cycle = await _context.AchCycles
-            .AsNoTracking()
-            .Include(x => x.ClearingHouse)
-                .ThenInclude(x => x!.ClearingHouseConfig)
-            .FirstAsync(x => x.Id == execution.AchCycleId, ct);
         var transactions = await _context.AchTransactions
             .AsNoTracking()
             .Where(x => x.AchCycleId == execution.AchCycleId)
@@ -110,17 +115,22 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
             priorityMap[transaction.Id] = await _priorityPolicy.ResolvePriorityAsync(transaction, ct);
         }
 
-        // Análisis informativo: no modifica AchTransaction, AchBatch, dispatch,
-        // colas, eventos ni liquida fondos. Los resultados oficiales llegan por
-        // CenitChamberResponseService, no por este simulador.
-        foreach (var tx in transactions.OrderBy(t => priorityMap[t.Id]).ThenByDescending(t => t.Amount))
+        // DSP-152 Anexo 2, §5.1: nivel 10 tiene MAYOR prioridad; nivel 1
+        // es el primero candidato a traslado/rechazo por el operador.
+        // Para estimar candidatos con liquidez limitada, priorizar 10 -> 1,
+        // montos descendentes y finalmente ID para empates reproducibles.
+        // Esta no es la optimización oficial ni debe producir movimientos.
+        foreach (var tx in transactions
+            .OrderByDescending(t => priorityMap[t.Id])
+            .ThenByDescending(t => t.Amount)
+            .ThenBy(t => t.Id))
         {
+            var priority = priorityMap[tx.Id];
+            var classified = priority is >= 1 and <= 10;
             balances.TryGetValue(tx.SourceInstitutionId, out var liquidity);
-            var hasLiquidity = liquidity >= tx.Amount;
+            var hasLiquidity = classified && liquidity >= tx.Amount;
             if (hasLiquidity)
-            {
                 balances[tx.SourceInstitutionId] = liquidity - tx.Amount;
-            }
 
             decisions.Add(new LiquidityOptimizationDecision
             {
@@ -131,10 +141,12 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
                 ClearingHouseId = cycle.ClearingHouseId,
                 ClearingHouseCode = cycle.ClearingHouse?.Code ?? string.Empty,
                 SourceFileReference = sourceFileByTransaction.GetValueOrDefault(tx.Id) ?? string.Empty,
-                DecisionType = hasLiquidity ? "SimulatedCandidate" : "SimulatedInsufficientLiquidity",
-                DecisionReason = hasLiquidity ? "InternalEstimateOnly" : "UnverifiedInternalLiquidity_NoOperatorRejection",
+                DecisionType = !classified ? "SimulatedUnclassified"
+                    : hasLiquidity ? "SimulatedCandidate" : "SimulatedInsufficientLiquidity",
+                DecisionReason = !classified ? "UnverifiedSecOrTransactionCode_NoLiquidityConsumption"
+                    : hasLiquidity ? "InternalEstimateOnly" : "UnverifiedInternalLiquidity_NoOperatorRejection",
                 LiquidityModelUsed = "Simulated",
-                Priority = priorityMap[tx.Id],
+                Priority = priority,
                 FromCycleId = cycle.Id,
                 ToCycleId = null,
                 DecidedAtUtc = DateTime.UtcNow

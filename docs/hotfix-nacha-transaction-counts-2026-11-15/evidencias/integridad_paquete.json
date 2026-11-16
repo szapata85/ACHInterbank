@@ -1,0 +1,49 @@
+{
+  "date": "2026-11-15",
+  "source_zip": "ACHInterbank_PROYECTO_COMPLETO_I13_HOTFIX_ACHCOL_FRONTERA_ADMISION_D01_D02_2026-11-15.zip",
+  "source_sha256": "77dbc0ec87151836e054c7c4df9eac2f99734c1927eab7bb9ca9b9e491ef62a2",
+  "source_member_count": 5639,
+  "unchanged_original_members": 5627,
+  "modified_original_members": 12,
+  "modified_original_paths": [
+    "ACHInterbank_ajustado/MEMORY_STATE.md",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/IncomingNachaIngestionDtos.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaIngestionAppService.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaParserService.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchTransactionNachaTests.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/CenitOrdinaryInbound2026ParserTests.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/IncomingNachaIngestionAppServiceTests.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaFunctionalValidationTests.cs",
+    "LEER_PRIMERO.md",
+    "PLAN_IMPLEMENTACION_13_CASOS/MEMORY_STATE.json",
+    "PLAN_IMPLEMENTACION_13_CASOS/MEMORY_STATE.md",
+    "PLAN_IMPLEMENTACION_13_CASOS/PLAN_IMPLEMENTACION_13_CASOS.md"
+  ],
+  "new_member_count": 6,
+  "new_member_paths": [
+    "ACHInterbank_ajustado/docs/hotfix-nacha-transaction-counts-2026-11-15/INFORME_CONTEOS_TRANSACCIONES.md",
+    "ACHInterbank_ajustado/docs/hotfix-nacha-transaction-counts-2026-11-15/evidencias/conteos_source_check.log",
+    "ACHInterbank_ajustado/docs/hotfix-nacha-transaction-counts-2026-11-15/evidencias/integridad_paquete.json",
+    "ACHInterbank_ajustado/docs/hotfix-nacha-transaction-counts-2026-11-15/evidencias/proyectos_solucion.json",
+    "ACHInterbank_ajustado/docs/hotfix-nacha-transaction-counts-2026-11-15/evidencias/regresion_scripts.json",
+    "ACHInterbank_ajustado/scripts/test/achcol_nacha_transaction_counts_static_check.py"
+  ],
+  "all_original_files_retained": true,
+  "unexpected_original_changes": [],
+  "normative_document_copies_added": 0,
+  "static_checks_executed": {
+    "nacha_counts": {
+      "passed": 28,
+      "total": 28
+    },
+    "regression_scripts": {
+      "passed": 15,
+      "total": 15
+    }
+  },
+  "runtime_build_executed": false,
+  "xunit_executed": false,
+  "uat_executed": false,
+  "no_new_nuget_dependencies": true,
+  "method": "SHA256 comparison against original member bytes, plus archive CRC test and member set equality after packaging"
+}

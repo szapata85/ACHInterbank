@@ -55,6 +55,21 @@ public sealed class CenitChamberResponseService(
         }
 
         var parsedItems = Parse(command.MessageType, content);
+        // I13: one official trace with conflicting reasons in the same response
+        // is ambiguous. Preserve each item as review evidence but apply neither
+        // version to the transaction; unrelated traces remain independently valid.
+        var conflictingTraces = parsedItems
+            .Where(x => x.Type == CenitChamberResponseType.OperatorRejected
+                && !string.IsNullOrWhiteSpace(x.TransactionTrace))
+            .GroupBy(x => x.TransactionTrace!, StringComparer.Ordinal)
+            .Where(group => group.Select(x => x.ReasonCode ?? string.Empty).Distinct(StringComparer.Ordinal).Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        if (conflictingTraces.Count != 0)
+            parsedItems = parsedItems.Select(x => x.Type == CenitChamberResponseType.OperatorRejected
+                && x.TransactionTrace is not null && conflictingTraces.Contains(x.TransactionTrace)
+                ? x with { ProblemCode = "CENIT_NACK_CONFLICTING_REASONS_FOR_TRACE" }
+                : x).ToArray();
         // APN-I10: a prenotification state transition may save before the
         // chamber response is persisted. Keep both within one database commit.
         await using var receiptTransaction = context.Database.IsRelational()
@@ -99,7 +114,10 @@ public sealed class CenitChamberResponseService(
                 .Where(x => x.ClearingHouseId == clearingHouseId && x.SourceResponseId == sourceId)
                 .OrderBy(x => x.ItemSequence)
                 .FirstOrDefaultAsync(CancellationToken.None);
-            if (winner is not null) return Map(winner, true);
+            if (winner is not null)
+                return string.Equals(winner.ContentSha256, contentHash, StringComparison.Ordinal)
+                    ? Map(winner, true)
+                    : MapConflict(winner, "CENIT_RESPONSE_ID_CONFLICT");
             throw;
         }
 
@@ -248,6 +266,13 @@ public sealed class CenitChamberResponseService(
             .SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, ct);
         if (duplicate is not null) return Map(duplicate, true);
 
+        // A conflicting item must never take the normal matched-transaction path.
+        if (parsed.Type == CenitChamberResponseType.OperatorRejected && parsed.ProblemCode is not null)
+        {
+            correlation = CenitChamberCorrelationOutcome.Invalid;
+            problemCode = parsed.ProblemCode;
+        }
+
         var response = new CenitChamberResponse
         {
             Id = Guid.NewGuid(),
@@ -302,6 +327,14 @@ public sealed class CenitChamberResponseService(
                 {
                     response.CorrelationOutcome = CenitChamberCorrelationOutcome.TransactionNotFound;
                     response.ProblemCode = "CENIT_TRANSACTION_CORRELATION_NOT_FOUND";
+                }
+                else if (!string.Equals(transaction.TraceNumber, transactionTrace, StringComparison.Ordinal))
+                {
+                    // The export membership alone is not authoritative: a stale or
+                    // corrupted association must never reject a different transfer.
+                    response.CorrelationOutcome = CenitChamberCorrelationOutcome.TransactionNotFound;
+                    response.AchTransactionId = null;
+                    response.ProblemCode = "CENIT_TRANSACTION_TRACE_MISMATCH";
                 }
                 else if (transaction.State == AchTransferStateEnum.ReturnedByOperator)
                 {
@@ -504,8 +537,10 @@ public sealed class CenitChamberResponseService(
         if (normalized is "RECONCILIATION" or "RECONCILIACION")
         {
             // Metadatos históricos de gateway pueden clasificar un ADV físico como conciliación.
-            var records = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            if (records.Length > 1 && records[1].TrimEnd('\r').StartsWith("5280", StringComparison.Ordinal))
+            // I12 / CE-01: the official physical file is consecutive 106-character
+            // records without line separators. Also accept the historical line-delimited
+            // gateway representation, which is validated by the same ADV reader.
+            if (LooksLikeAdv(content))
                 return ParseAdv(content);
             return [!string.IsNullOrWhiteSpace(content)
                 ? new(CenitChamberResponseType.Reconciliation, null, "Archivo de reconciliación CENIT.", null, null, null, null, null, null, null, null)
@@ -578,44 +613,95 @@ public sealed class CenitChamberResponseService(
         }
     }
 
+    // CE-01 / PT-23: recognize the batch header in either physical 106-character
+    // framing or historical CR/LF gateway representation, without trimming any fields.
+    private static bool LooksLikeAdv(string content)
+    {
+        if (content.Length < 110 || content[0] != '1') return false;
+        var secondOffset = 106;
+        if (content.Length > secondOffset && content[secondOffset] == '\r') secondOffset++;
+        if (content.Length > secondOffset && content[secondOffset] == '\n') secondOffset++;
+        // Even an invalid ADV profile must not be downgraded to an opaque
+        // reconciliation envelope: send any NACHA-like T1/T5 to the ADV validator.
+        return content.Length > secondOffset && content[secondOffset] == '5';
+    }
+
+    // The inbound ADV arrives as a string from the CENIT gateway. Its physical
+    // format, per NACHA-M §3 and §7.3.3, is consecutive 106-character records.
+    // Legacy line-delimited gateway representations remain accepted as an explicit
+    // compatibility path, but they undergo identical structural validation.
+    private static string[]? FrameAdv(string content)
+    {
+        if (string.IsNullOrEmpty(content) || content.Length > 1_000_000) return null;
+        string[] records;
+        if (content.Contains('\n'))
+        {
+            var segments = content.Split('\n');
+            if (segments.Length > 0 && segments[^1].Length == 0)
+                segments = segments[..^1];
+            records = segments.Select(segment => segment.EndsWith('\r') ? segment[..^1] : segment).ToArray();
+        }
+        else
+        {
+            if (content.Length % 106 != 0) return null;
+            records = Enumerable.Range(0, content.Length / 106)
+                .Select(index => content.Substring(index * 106, 106)).ToArray();
+        }
+        return records.Length >= 5 && records.All(record => record.Length == 106 &&
+            record.All(NachaPhysicalParser.IsCenitAcceptedCharacter))
+            ? records : null;
+    }
+
+    private static bool TryUnsigned(string record, int offset, int length, out decimal number)
+    {
+        var value = record.AsSpan(offset, length);
+        number = 0;
+        return value.IndexOfAnyExceptInRange('0', '9') == -1
+            && decimal.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out number);
+    }
+
     // Manual NACHA-M CENIT 07-may-2026 §7.3.3: lote 280/ADV y avisos 81–88.
-    // Se guarda evidencia de conciliación; NO se genera asiento ni se cambia estado financiero.
+    // Evidence only: NEVER infer CUD posting, settlement, or financial account state.
     private static IReadOnlyList<ParsedResponse> ParseAdv(string content)
     {
-        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => x.TrimEnd('\r')).ToArray();
-        if (lines.Length < 5 || lines.Any(x => x.Length != 106))
+        var records = FrameAdv(content);
+        if (records is null)
             return [ParsedResponse.Invalid("CENIT_ADV_RECORD_LENGTH_INVALID")];
-        if (lines[0][0] != '1' || lines[0].Substring(36, 3) != "106"
-            || lines[0].Substring(39, 2) != "10")
+        if (records[0][0] != '1' || records[0].Substring(36, 3) != "106"
+            || records[0].Substring(39, 2) != "10")
             return [ParsedResponse.Invalid("CENIT_ADV_FILE_HEADER_INVALID")];
 
         var output = new List<ParsedResponse>();
         var index = 1;
-        var sawBatch = false;
-        while (index < lines.Length && lines[index][0] == '5')
+        var batches = 0;
+        var totalDetails = 0;
+        decimal totalDebits = 0m, totalCredits = 0m, totalRoutes = 0m;
+        while (index < records.Length && records[index][0] == '5')
         {
-            sawBatch = true;
-            var header = lines[index++];
+            batches++;
+            var header = records[index++];
             if (header.Substring(1, 3) != "280" || header.Substring(50, 3) != "ADV"
                 || !DateTime.TryParseExact(header.Substring(71, 8), "yyyyMMdd",
                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var valueDate))
                 return [ParsedResponse.Invalid("CENIT_ADV_BATCH_PROFILE_INVALID")];
             var batchId = header.Substring(91, 7);
+            if (!batchId.All(char.IsAsciiDigit))
+                return [ParsedResponse.Invalid("CENIT_ADV_BATCH_PROFILE_INVALID")];
             var details = 0;
-            decimal debits = 0m, credits = 0m;
-            while (index < lines.Length && lines[index][0] == '6')
+            decimal debits = 0m, credits = 0m, routes = 0m;
+            while (index < records.Length && records[index][0] == '6')
             {
-                var line = lines[index++];
+                var line = records[index++];
                 var code = line.Substring(1, 2);
-                var rawAmount = line.Substring(27, 18);
                 if (code is not ("81" or "82" or "83" or "84" or "85" or "86" or "87" or "88")
-                    || !rawAmount.All(char.IsAsciiDigit)
-                    || line[84] != '0') // ADV no requiere addenda; no inventar procesamiento de adendas.
+                    || !TryUnsigned(line, 27, 18, out var rawAmount)
+                    || !TryUnsigned(line, 3, 8, out var routeValue)
+                    || line[84] != '0') // No adenda for ADV; reject any attempted T7.
                     return [ParsedResponse.Invalid("CENIT_ADV_DETAIL_INVALID")];
-                var amount = decimal.Parse(rawAmount, CultureInfo.InvariantCulture) / 100m;
-                if (code is "81" or "84" or "86" or "88") debits += amount;
-                else credits += amount;
+                var amount = rawAmount / 100m;
+                if (code is "81" or "84" or "86" or "88") debits += rawAmount;
+                else credits += rawAmount;
+                routes += routeValue;
                 var route = line.Substring(3, 8);
                 var fileId = line.Substring(54, 5).Trim();
                 var sequence = line.Substring(96, 4);
@@ -627,22 +713,39 @@ public sealed class CenitChamberResponseService(
                     null, batchId, "ADV-280", null, null));
                 details++;
             }
-            if (index >= lines.Length || lines[index][0] != '8')
+            if (details == 0 || index >= records.Length || records[index][0] != '8')
                 return [ParsedResponse.Invalid("CENIT_ADV_BATCH_CONTROL_REQUIRED")];
-            var control = lines[index++];
+            var control = records[index++];
             if (control.Substring(1, 3) != "280"
-                || !int.TryParse(control.Substring(4, 6), out var expectedCount)
-                || expectedCount != details
-                || control.Substring(99, 7) != batchId
-                || !decimal.TryParse(control.Substring(20, 18), NumberStyles.None,
-                    CultureInfo.InvariantCulture, out var rawDebits)
-                || !decimal.TryParse(control.Substring(38, 18), NumberStyles.None,
-                    CultureInfo.InvariantCulture, out var rawCredits)
-                || rawDebits != debits * 100m || rawCredits != credits * 100m)
+                || !TryUnsigned(control, 4, 6, out var expectedCount) || expectedCount != details
+                || !TryUnsigned(control, 10, 10, out var expectedRoutes)
+                || expectedRoutes != routes % 10_000_000_000m
+                || !TryUnsigned(control, 20, 18, out var expectedDebits) || expectedDebits != debits
+                || !TryUnsigned(control, 38, 18, out var expectedCredits) || expectedCredits != credits
+                || control.Substring(99, 7) != batchId)
                 return [ParsedResponse.Invalid("CENIT_ADV_BATCH_CONTROL_INVALID")];
+            totalDetails += details;
+            totalDebits += debits;
+            totalCredits += credits;
+            totalRoutes += routes;
         }
-        if (!sawBatch || output.Count == 0 || index >= lines.Length || lines[index++][0] != '9'
-            || lines.Skip(index).Any(x => x != new string('9', 106)))
+        if (batches == 0 || output.Count == 0 || index >= records.Length || records[index][0] != '9')
+            return [ParsedResponse.Invalid("CENIT_ADV_FILE_STRUCTURE_INVALID")];
+
+        var fileControl = records[index++];
+        // Verify the NACHA-M file control before returning any of the parsed items;
+        // a partial/altered ADV is not a reliable official reconciliation source.
+        if (!TryUnsigned(fileControl, 1, 6, out var expectedBatches) || expectedBatches != batches
+            || !TryUnsigned(fileControl, 7, 6, out var expectedBlocks)
+            || expectedBlocks != (decimal)Math.Ceiling(records.Length / 10m)
+            || !TryUnsigned(fileControl, 13, 8, out var expectedDetails) || expectedDetails != totalDetails
+            || !TryUnsigned(fileControl, 21, 10, out var expectedRoutesAll)
+            || expectedRoutesAll != totalRoutes % 10_000_000_000m
+            || !TryUnsigned(fileControl, 31, 18, out var expectedDebitsAll) || expectedDebitsAll != totalDebits
+            || !TryUnsigned(fileControl, 49, 18, out var expectedCreditsAll) || expectedCreditsAll != totalCredits
+            || fileControl.AsSpan(67, 39).IndexOfAnyExcept(' ') != -1)
+            return [ParsedResponse.Invalid("CENIT_ADV_FILE_CONTROL_INVALID")];
+        if (records.Length % 10 != 0 || records.Skip(index).Any(x => x != new string('9', 106)))
             return [ParsedResponse.Invalid("CENIT_ADV_FILE_STRUCTURE_INVALID")];
         return output;
     }

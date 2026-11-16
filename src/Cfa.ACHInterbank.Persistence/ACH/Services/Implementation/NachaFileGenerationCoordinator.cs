@@ -243,6 +243,7 @@ internal sealed class NachaFileGenerationCoordinator
         }
 
         var content = sb.ToString();
+        ValidateCenitOutputAlphabet(clearingHouseCode, content);
         if (recordCount != blockCount * blockingFactor
             || content.Length != recordCount * recordLength)
         {
@@ -852,6 +853,7 @@ internal sealed class NachaFileGenerationCoordinator
         }
 
         var fileContent = sb.ToString();
+        ValidateCenitOutputAlphabet(audit.ClearingHouseCode, fileContent);
         await PersistGenerationAuditAsync(audit, resolution.Profile?.Id, ct);
         if (audit.Warnings.Count > 0)
         {
@@ -1111,6 +1113,7 @@ internal sealed class NachaFileGenerationCoordinator
             throw;
         }
 
+        ValidateCenitOutputAlphabet(clearingHouseCode, fileContent);
         audit.TotalRecords = fileContent.Length / lineLength;
         audit.TotalFields = audit.FieldTraceEntries.Count;
         audit.FileHash = Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(fileContent)));
@@ -1118,6 +1121,25 @@ internal sealed class NachaFileGenerationCoordinator
         _nachaSemanticValidator.Validate(fileContent, context, resolution.SemanticContract
             ?? throw new NachaGenerationException("NACHA_SEMANTIC_CONTRACT_MISSING", "El perfil resuelto no materializó el contrato semántico ServiceClassCode."));
         return fileContent;
+    }
+
+    /// <summary>
+    /// Final CENIT NACHA-M physical alphabet gate, before hash/audit/transport.
+    /// ACH Colombia intentionally retains its own published character policy.
+    /// </summary>
+    internal static void ValidateCenitOutputAlphabet(string? clearingHouseCode, string content)
+    {
+        if (!string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (content.Any(character => !NachaPhysicalParser.IsCenitAcceptedCharacter(character)))
+        {
+            throw new NachaGenerationException(
+                "CENIT_NACHA_CHARACTER_REPERTOIRE_INVALID",
+                "El archivo CENIT contiene caracteres fuera del repertorio NACHA-M permitido; no se genera ni se registra como válido.");
+        }
     }
 
     private int AppendReturnOutOfficialRecords(

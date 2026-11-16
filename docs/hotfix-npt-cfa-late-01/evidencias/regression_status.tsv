@@ -1,0 +1,7 @@
+aud_e2e_final_static_and_sqlite_check 0
+e2e01_e2e02_source_static_check 0
+h01_h02_static_sqlite_check 0
+res_h02_soap_preflight_sqlite_check 0
+achcol_nacha_transaction_counts_static_check 0
+npt_static_guard 1
+npt_focal_sqlite_source_guard 0

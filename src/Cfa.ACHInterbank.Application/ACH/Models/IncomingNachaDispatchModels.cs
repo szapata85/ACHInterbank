@@ -35,7 +35,9 @@ public sealed record ProcTransaccionesFunctionalSourceContext(
     string PaymentInformation,
     string? EntryAccountNumber,
     string? EntryRecipientName,
-    string? EntryRecipientId)
+    string? EntryRecipientId,
+    string? BatchOriginatorName = null,
+    string? BatchOriginatorId = null)
 {
     public static ProcTransaccionesFunctionalSourceContext Empty { get; } = new(
         string.Empty,

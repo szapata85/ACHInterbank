@@ -99,6 +99,32 @@ public sealed class IncomingNachaFileBasedOrchestrationF42Tests
         soap.VerifyNoOtherCalls();
     }
 
+    [Theory]
+    [InlineData("link")]
+    [InlineData("transaction")]
+    [InlineData("header")]
+    public async Task Npt01_ForgedFileBasedQueueContext_StaysBlockedWithoutSoap(string corruption)
+    {
+        await using var context = NewContext();
+        await SeedAndPlan(context);
+        var item = await context.IncomingNachaDispatchQueue.SingleAsync();
+        if (corruption == "link") item.IncomingNachaTransactionLinkId = Guid.NewGuid();
+        if (corruption == "transaction") item.AchTransactionId = 1234;
+        if (corruption == "header")
+            (await context.NachaHeaders.SingleAsync()).IncomingNachaFileIngestionId = Guid.NewGuid();
+        await context.SaveChangesAsync();
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        await NewOrchestrator(context, mapper, soap, featureEnabled: true).ExecuteAsync(100, "npt-pre-xsd");
+        var persisted = await context.IncomingNachaDispatchQueue.SingleAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, persisted.QueueStatus);
+        Assert.Equal("ACHCOL_PREFLIGHT_REJECTED_F42", persisted.LastErrorCode);
+        Assert.Equal(0, persisted.AttemptCount);
+        Assert.Empty(await context.IncomingNachaIntegrationExecution.ToListAsync());
+        mapper.VerifyNoOtherCalls();
+        soap.VerifyNoOtherCalls();
+    }
+
     [Fact]
     public async Task FileBased_PreflightInLiveMode_RemainsLocalSimulationWithoutSoap()
     {

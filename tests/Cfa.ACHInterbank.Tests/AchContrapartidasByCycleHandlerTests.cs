@@ -174,6 +174,40 @@ public class AchContrapartidasByCycleHandlerTests
         dispatchJob.Verify(x => x.ProcessCycleAsync(It.IsAny<string>(), It.IsAny<int>(), "task:AchContrapartidasByCycle", 80, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
+    [Fact]
+    public async Task AUD_E2E_03_RestartedQuartzSkipsClosedCyclesAndDispatchesOpenCycle()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        await SembrarCicloActivoAsync(db, "cycle-closed", 1, BogotaProcessingDate, TimeSpan.FromHours(18));
+        var closed = await db.AchCycles.SingleAsync(x => x.Id == "cycle-closed");
+        closed.OperationalStatus = AchCycleOperationalStatus.Closed;
+        db.AchCycles.Add(new AchCycle
+        {
+            Id = "cycle-open", CycleName = "Ciclo 2", ProcessingDate = BogotaProcessingDate,
+            StartTime = TimeSpan.Zero, EndTime = TimeSpan.FromHours(23),
+            CutoffTime = TimeSpan.FromHours(22), ClearingHouseId = 1,
+            OperationalStatus = AchCycleOperationalStatus.Open
+        });
+        await db.SaveChangesAsync();
+        var dispatcher = new Mock<IContrapartidaDispatchJobService>(MockBehavior.Strict);
+        dispatcher.Setup(x => x.ProcessCycleAsync("cycle-open", 1,
+                "task:AchContrapartidasByCycle", It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ContrapartidaCycleDispatchResult(
+                "cycle-open", 1, 1, 1, 0, 0, 1, "retry recovered"));
+        var restarted = new AchContrapartidasByCycleHandler(db, dispatcher.Object,
+            NullLogger<AchContrapartidasByCycleHandler>.Instance, CreateFixedClock());
+        var result = await restarted.ExecuteAsync(CrearTask(), CancellationToken.None);
+        Assert.Contains("Ciclos=1", result);
+        Assert.Contains("retry recovered", result);
+        dispatcher.Verify(x => x.ProcessCycleAsync("cycle-closed", It.IsAny<int>(),
+            It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        dispatcher.VerifyAll();
+    }
+
     private static TaskDefinition CrearTask(Dictionary<string, string>? parametros = null)
     {
         var task = new TaskDefinition

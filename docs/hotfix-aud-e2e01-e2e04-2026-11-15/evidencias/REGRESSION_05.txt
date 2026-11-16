@@ -1,0 +1,18 @@
+COMMAND: python scripts/test/cenit_i01_queue_static_check.py
+EXIT_CODE: 0
+PASS I01 alcance CENIT en coordinador
+PASS I01 incorpora antes de materializar transacciones NACHA
+PASS I01 ciclo físico resuelto desde CycleName
+PASS I01 falla cerrado con sesión ambigua
+PASS I01 C5 sujeto a política reutilizada
+PASS I01 C5 clase explícita Return/ReturnOfReturn
+PASS I01 C5 política denegada bloquea
+PASS I01 control pre-commit antes de mover/consumir/evento
+PASS I01 commit transaccional serializable
+PASS I01 captura y limpia contexto ante fallo
+PASS I01 la fecha valor no se reescribe
+PASS I01 estado financiero no se cambia
+PASS I01 cola conserva status Queued o Consumed
+PASS I01 tests C4-C5, replay, mixto, y sesión inválida
+PASS I01 regresión previa DB/rollback conservada
+I01 STATIC RESULT 15/15. NO se ejecutaron xUnit, DB, Quartz ni CENIT real.

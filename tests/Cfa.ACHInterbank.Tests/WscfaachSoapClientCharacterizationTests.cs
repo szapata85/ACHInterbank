@@ -45,7 +45,7 @@ public class WscfaachSoapClientCharacterizationTests
         using var server = await LocalSoapServer.StartAsync((_, _) =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>R96</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>")
+                Content = new StringContent("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><tem:Proc_TransaccionesResponse xmlns:tem=\"http://tempuri.org/\"><tem:RTAACH>R96</tem:RTAACH><tem:RTALOC>OK</tem:RTALOC></tem:Proc_TransaccionesResponse></s:Body></s:Envelope>")
             });
 
         var sut = BuildClient(server.Url);
@@ -75,6 +75,54 @@ public class WscfaachSoapClientCharacterizationTests
     }
 
     [Fact]
+    public async Task Npt14_ProcTransacciones_WhenSoapActionDiffersFromWsdl_FailsBeforeTransport()
+    {
+        var configured = new Mock<ISoapIntegrationSettingsService>();
+        configured.Setup(x => x.GetAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new SoapIntegrationSettingsDto
+        {
+            WscfaachMappings =
+            [
+                new SoapEndpointMethodMappingDto
+                {
+                    MethodName = "Proc_Transacciones",
+                    Enabled = true,
+                    OperatingMode = "Live",
+                    Endpoint = "http://127.0.0.1:1/WSCFAACH.svc",
+                    SoapAction = "http://tempuri.org/IWSCFAACH/WRONG_ACTION",
+                    TimeoutSeconds = 15
+                }
+            ]
+        });
+        var sut = new WscfaachSoapClient(Mock.Of<ILoggerManager>(), configured.Object,
+            new StaticHttpClientFactory(), new ConfigurationBuilder().Build());
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.ProcTransaccionesAsync("<Proc_Transacciones xmlns='http://tempuri.org/'/>"));
+        Assert.Contains("SOAPACTION_XSD_MISMATCH", ex.Message);
+    }
+
+    [Fact]
+    public async Task Npt06_HttpGatewayTimeout_DoesNotDuplicatePhysicalPost()
+    {
+        // Deterministic local HTTP server counts physical requests. This is NOT a bank test.
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.GatewayTimeout)
+            {
+                Content = new StringContent("<fault>synthetic timeout</fault>")
+            });
+        var sut = BuildClient(server.Url);
+        const string envelope = "<s:Envelope xmlns:s='http://schemas.xmlsoap.org/soap/envelope/'><s:Body><t:Proc_Transacciones xmlns:t='http://tempuri.org/' /></s:Body></s:Envelope>";
+        try
+        {
+            await sut.ProcTransaccionesAsync(envelope);
+        }
+        catch (InvalidOperationException)
+        {
+            // HTTP 504 is classified as uncertain; no automatic replay.
+        }
+        Assert.Single(server.Requests);
+    }
+
+    [Fact]
     public async Task ProcTransaccionesAsync_WithActionBody_WrapsOnceAsSoap11Envelope()
     {
         using var server = await LocalSoapServer.StartAsync((_, _) =>
@@ -91,45 +139,76 @@ public class WscfaachSoapClientCharacterizationTests
         Assert.Contains(body, request.Body);
     }
 
-    [Fact]
-    public async Task ProcContrapartidasAsync_SendsOnlyExpectedMethodWithoutMetodo()
+    [Theory]
+    [InlineData("<Proc_Transacciones/>")]
+    [InlineData("<Proc_Transacciones xmlns='http://tempuri.org/'><TIPTRAN>not-int</TIPTRAN></Proc_Transacciones>")]
+    [InlineData("<Proc_Transacciones xmlns='http://tempuri.org/'><TIPTRAN>22</TIPTRAN><TIPTRAN>22</TIPTRAN></Proc_Transacciones>")]
+    [InlineData("<Proc_Transacciones xmlns='http://tempuri.org/'><IDTRAN>bad-long</IDTRAN></Proc_Transacciones>")]
+    [InlineData("<Proc_Transacciones xmlns='http://tempuri.org/'><unknown>value</unknown></Proc_Transacciones>")]
+    [InlineData("<s:Envelope xmlns:s='http://www.w3.org/2003/05/soap-envelope'><s:Body><Proc_Transacciones xmlns='http://tempuri.org/'/></s:Body></s:Envelope>")]
+    [InlineData("<!DOCTYPE doc [<!ENTITY e SYSTEM 'file:///etc/passwd'>]><Proc_Transacciones xmlns='http://tempuri.org/'> &e; </Proc_Transacciones>")]
+    public async Task NptH01_Cfa_PublicXmlOverload_RejectsInvalidBodyBeforeHttp(string invalidBody)
     {
         using var server = await LocalSoapServer.StartAsync((_, _) =>
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
-        var settings = Settings(server.Url, "Proc_Contrapartidas");
-        var sut = new WscfaachSoapClient(
-            Mock.Of<ILoggerManager>(), settings.Object, new StaticHttpClientFactory(), new ConfigurationBuilder().Build());
-
-        await sut.ProcContrapartidasAsync("<Proc_Contrapartidas xmlns=\"http://tempuri.org/\"><OFIDTX>1</OFIDTX></Proc_Contrapartidas>");
-
-        var request = Assert.Single(server.Requests);
-        Assert.Contains("Proc_Contrapartidas", request.Body);
-        Assert.DoesNotContain("<METODO>", request.Body, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Proc_Transacciones", request.Body, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("RegistrarRespuestaTransaccion", request.Body, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("PLValidarUsuarioBV", request.Body, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("http://tempuri.org/IWSCFAACH/Proc_Contrapartidas", request.SoapAction);
+        var sut = BuildClient(server.Url);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.ProcTransaccionesAsync(invalidBody));
+        Assert.Empty(server.Requests);
     }
 
     [Fact]
-    public async Task SoapHttpError_DoesNotWriteResponseBodyToLogOrException()
+    public async Task NptH01_Cfa_ParameterOverload_RejectsInvalidTypeBeforeHttp()
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var sut = BuildClient(server.Url);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.ProcTransaccionesAsync(
+            new Dictionary<string, object?> { ["TIPTRAN"] = "not-int" }));
+        Assert.Empty(server.Requests);
+    }
+
+    [Fact]
+    public async Task ProcContrapartidasAsync_BlocksRawXmlBeforePost()
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var sut = new WscfaachSoapClient(
+            Mock.Of<ILoggerManager>(), Settings(server.Url, "Proc_Contrapartidas").Object,
+            new StaticHttpClientFactory(), new ConfigurationBuilder().Build());
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.ProcContrapartidasAsync("<Proc_Contrapartidas xmlns=\"http://tempuri.org/\"><OFIDTX>1</OFIDTX></Proc_Contrapartidas>"));
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
+        Assert.Empty(server.Requests);
+    }
+
+    [Fact]
+    public async Task ProcContrapartidasAsync_RejectsInvalidXmlBeforePost()
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var sut = new WscfaachSoapClient(
+            Mock.Of<ILoggerManager>(), Settings(server.Url, "Proc_Contrapartidas").Object,
+            new StaticHttpClientFactory(), new ConfigurationBuilder().Build());
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.ProcContrapartidasAsync("<Proc_Contrapartidas xmlns=\"http://tempuri.org/\"><OFIDARCH>NaN</OFIDARCH></Proc_Contrapartidas>"));
+        Assert.Contains("SOAP_XSD", error.Message);
+        Assert.Empty(server.Requests);
+    }
+
+    [Fact]
+    public async Task ProcContrapartidasBlockedBeforePost_NeverExposesResponseBody()
     {
         const string sensitiveResponse = "SENSITIVE-FINANCIAL-PAYLOAD";
         using var server = await LocalSoapServer.StartAsync((_, _) =>
             new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent(sensitiveResponse) });
-        var logger = new Mock<ILoggerManager>();
         var sut = new WscfaachSoapClient(
-            logger.Object, Settings(server.Url, "Proc_Contrapartidas").Object,
+            Mock.Of<ILoggerManager>(), Settings(server.Url, "Proc_Contrapartidas").Object,
             new StaticHttpClientFactory(), new ConfigurationBuilder().Build());
-
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             sut.ProcContrapartidasAsync("<Proc_Contrapartidas xmlns=\"http://tempuri.org/\"/>"));
-
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
         Assert.DoesNotContain(sensitiveResponse, error.Message);
-        logger.Verify(x => x.LogError(It.Is<string>(message =>
-            message.Contains("responseBody=redacted", StringComparison.Ordinal)
-            && !message.Contains(sensitiveResponse, StringComparison.Ordinal))), Times.Once);
-        Assert.Single(server.Requests);
+        Assert.Empty(server.Requests);
     }
 
     [Fact]
@@ -170,7 +249,7 @@ public class WscfaachSoapClientCharacterizationTests
                 HostHeader = $"localhost:{logicalUri.Port}"
             }));
 
-        await sut.ProcTransaccionesAsync("<Proc_Transacciones/>");
+        await sut.ProcTransaccionesAsync("<Proc_Transacciones xmlns=\"http://tempuri.org/\"/>");
 
         var request = Assert.Single(server.Requests);
         Assert.Equal($"localhost:{logicalUri.Port}", request.Host);

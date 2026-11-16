@@ -1,0 +1,46 @@
+[
+  {
+    "source_attachment": "WSCFAACH.wsdl (1).xml",
+    "sha256": "39496a9dbb149f00d2329e854fd6df7bc9272f27c57e8b4146405bfd4bdc66a2",
+    "imports_not_available": [
+      {
+        "schemaLocation": "http://esparta/WSCFAACH/WSCFAACH.svc?xsd=xsd0",
+        "namespace": "http://tempuri.org/"
+      },
+      {
+        "schemaLocation": "http://esparta/WSCFAACH/WSCFAACH.svc?xsd=xsd1",
+        "namespace": "http://schemas.microsoft.com/2003/10/Serialization/"
+      }
+    ],
+    "soap_actions": [
+      "http://tempuri.org/IWSCFAACH/PLValidarUsuarioBV",
+      "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
+      "http://tempuri.org/IWSCFAACH/Proc_Transacciones"
+    ],
+    "verified_without_xsd": true,
+    "contract_homologated": false
+  },
+  {
+    "source_attachment": "WSAxonRespuestaTransacciones.wsdl (1).xml",
+    "sha256": "7c6a8b15ea18b32b0becc3f7a93115c0212a0ec600fc1cf7c7c31569461e96cb",
+    "imports_not_available": [
+      {
+        "schemaLocation": "http://esparta/WSCFAACH/WSAxonRespuestaTransacciones.svc?xsd=xsd0",
+        "namespace": "http://tempuri.org/"
+      },
+      {
+        "schemaLocation": "http://esparta/WSCFAACH/WSAxonRespuestaTransacciones.svc?xsd=xsd1",
+        "namespace": "http://schemas.microsoft.com/2003/10/Serialization/"
+      },
+      {
+        "schemaLocation": "http://esparta/WSCFAACH/WSAxonRespuestaTransacciones.svc?xsd=xsd2",
+        "namespace": "http://schemas.datacontract.org/2004/07/WSCFAACH"
+      }
+    ],
+    "soap_actions": [
+      "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion"
+    ],
+    "verified_without_xsd": true,
+    "contract_homologated": false
+  }
+]

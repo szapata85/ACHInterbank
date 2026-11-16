@@ -119,6 +119,17 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
                 continue;
             }
 
+            // Reject unaccredited contract identities and protected account/reference overrides.
+            // Published custom mappings remain stored unchanged and fail closed.
+            var sourcePath = !string.IsNullOrWhiteSpace(winner.SourceFieldPath)
+                ? winner.SourceFieldPath
+                : (winner.SourceCatalogFieldId.HasValue
+                    && sourceCatalog.TryGetValue(winner.SourceCatalogFieldId.Value, out var sourceField)
+                        ? sourceField.FieldPath : string.Empty);
+            var safetyError = AssessProtectedRule(parameter.ParameterPath, winner, sourcePath);
+            if (safetyError is not null)
+                throw new InvalidOperationException(safetyError);
+
             var ruleResolution = ResolveValue(winner, sourceCatalog, cycle, tx, executionDateTime);
             if (parameter.Required && ruleResolution.UsedDefault)
             {
@@ -176,6 +187,8 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
                 "PROC_CONTRAPARTIDAS_MONETARY_MISMATCH: OFDD/OFMONDEB/OFMONCRE no corresponden al debito de origen.");
         }
 
+        EnsureProtectedResolvedValues(debit, contract.OFCTA, contract.OFIDTX);
+
         var snapshotHash = await _context.Set<IntegrationMappingSetHistory>()
             .AsNoTracking()
             .Where(x => x.MappingSetId == published.Id)
@@ -219,6 +232,53 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
                 && decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
                     ? parsed
                     : throw new InvalidOperationException($"INTEGRATION_MAPPING_CONVERSION_FAILED: {key} no produjo un decimal valido.");
+    }
+
+    // No accredited application source exists yet for these three CFA identifiers.
+    // This policy is shared by readiness and runtime; no guessed alternate source is accepted.
+    internal static bool IsProtectedParameter(string parameterPath)
+        => parameterPath.ToUpperInvariant() is "OFEMP" or "OFIDARCH" or "OFDIRECCIONIP" or "OFCTA" or "OFIDTX";
+
+    internal static string? AssessProtectedRule(
+        string parameterPath,
+        IntegrationMappingRule rule,
+        string? effectiveSourcePath)
+    {
+        parameterPath = parameterPath.ToUpperInvariant();
+        if (parameterPath is "OFEMP" or "OFIDARCH" or "OFDIRECCIONIP")
+            return $"PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED: {parameterPath} no tiene fuente funcional acreditada.";
+
+        var expected = parameterPath switch
+        {
+            "OFCTA" => "transaction.sourceAccountNumber",
+            "OFIDTX" => "transaction.reference",
+            _ => null
+        };
+        if (expected is null)
+            return null;
+
+        if (rule.SourceKind != IntegrationSourceKindEnum.Transaction
+            || !string.Equals(effectiveSourcePath, expected, StringComparison.OrdinalIgnoreCase)
+            || rule.FixedValue is not null
+            || rule.DefaultValue is not null
+            || !string.IsNullOrWhiteSpace(rule.TransformationCode)
+            || !string.IsNullOrWhiteSpace(rule.FormatMask)
+            || !string.IsNullOrWhiteSpace(rule.ConditionExpression))
+            return $"PROC_CONTRAPARTIDAS_PROTECTED_SOURCE_INVALID: {parameterPath} requiere {expected} sin FixedValue, DefaultValue, expresiones ni transformaciones.";
+
+        return null;
+    }
+
+    internal static void EnsureProtectedResolvedValues(AchTransaction transaction, string? account, string? reference)
+    {
+        if (string.IsNullOrWhiteSpace(transaction.SourceAccountNumber)
+            || !string.Equals(account, transaction.SourceAccountNumber, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "PROC_CONTRAPARTIDAS_PROTECTED_VALUE_MISMATCH: OFCTA difiere de Transactions.SourceAccountNumber.");
+        if (string.IsNullOrWhiteSpace(transaction.Reference)
+            || !string.Equals(reference, transaction.Reference, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "PROC_CONTRAPARTIDAS_PROTECTED_VALUE_MISMATCH: OFIDTX difiere de Transactions.Reference.");
     }
 
     private static RuleResolution ResolveValue(

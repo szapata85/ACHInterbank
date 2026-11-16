@@ -765,6 +765,1218 @@ public class ContrapartidaDispatchJobServiceTests
         parser.Verify(x => x.Parse(It.IsAny<string>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData("Preparing", false)]
+    [InlineData("InFlight", true)]
+    public async Task E2E02_ExpiredLease_SeparatesPreSendFromUnknownAfterRestart(
+        string phase, bool expectReconciliation)
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await context.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        var txId = await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+        var item = await context.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+        var nowUtc = new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc);
+        item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+        item.DispatchLeaseToken = "worker:abandoned";
+        item.DispatchLeasePhase = phase;
+        item.DispatchLeaseExpiresAtUtc = nowUtc.AddSeconds(-1);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        Assert.Equal(1, await ContrapartidaDispatchRecovery.RecoverStaleAsync(context, nowUtc));
+        Assert.Equal(0, await ContrapartidaDispatchRecovery.RecoverStaleAsync(context, nowUtc));
+        var recovered = await context.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(expectReconciliation, recovered.RequiresReconciliation);
+        Assert.Equal(expectReconciliation
+            ? ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed
+            : ContrapartidaDispatchItemStateEnum.RetryPending, recovered.State);
+        Assert.Equal(0, recovered.AttemptCount); // Lease recovery is not an additional SOAP attempt.
+        Assert.Null(recovered.DispatchLeaseExpiresAtUtc);
+        Assert.Equal(expectReconciliation ? (DateTime?)null : nowUtc, recovered.NextAttemptAtUtc);
+        var audit = await context.ContrapartidaDispatchAttempts.SingleAsync();
+        Assert.Equal(expectReconciliation, audit.RequiresManualReview);
+        Assert.Equal(!expectReconciliation, audit.RetryEligible);
+        Assert.Contains("recovery:e2e02", audit.TriggeredBy);
+        Assert.Equal(-1, audit.AttemptNumber); // Recovery-only audit numbering cannot consume a SOAP sequence.
+    }
+
+    [Fact]
+    public async Task E2E02_RepeatedRecoveryClaimsOnce_AndOldWorkerCannotStartSoap()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await context.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        var txId = await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+        var item = await context.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+        var nowUtc = new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc);
+        item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.InFlight;
+        item.DispatchLeaseToken = "old-worker";
+        item.DispatchLeaseExpiresAtUtc = nowUtc.AddMinutes(-1);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        // Serial recovery calls simulate overlapping Quartz instances after the same claim.
+        Assert.Equal(1, await ContrapartidaDispatchRecovery.RecoverStaleAsync(context, nowUtc));
+        Assert.Equal(0, await ContrapartidaDispatchRecovery.RecoverStaleAsync(context, nowUtc));
+        Assert.Single(await context.ContrapartidaDispatchAttempts.ToListAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ContrapartidaDispatchRecovery.MarkBeforeTransportAsync(
+                context, [item.Id], "old-worker", nowUtc, CancellationToken.None));
+        Assert.True((await context.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).RequiresReconciliation);
+    }
+
+    [Fact]
+    public async Task E2E02_TwoQuartzWorkers_CannotClaimSameExpiredDispatch()
+    {
+        var dbFile = Path.Combine(Path.GetTempPath(), $"ach-e2e02-{Guid.NewGuid():N}.sqlite");
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite($"Data Source={dbFile};Cache=Shared;Default Timeout=30;Pooling=False").Options;
+        var nowUtc = new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc);
+        try
+        {
+            await using (var seed = new AchDbContext(options))
+            {
+                await seed.Database.EnsureCreatedAsync();
+                var cycleId = await SembrarEstructuraBaseAsync(seed);
+                var txId = await SembrarTransaccionYItemPendienteAsync(seed, cycleId);
+                var item = await seed.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+                item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+                item.DispatchLeasePhase = ContrapartidaDispatchRecovery.InFlight;
+                item.DispatchLeaseToken = "abandoned-worker";
+                item.DispatchLeaseExpiresAtUtc = nowUtc.AddMinutes(-1);
+                await seed.SaveChangesAsync();
+            }
+
+            async Task<int> RecoverAsync()
+            {
+                await using var db = new AchDbContext(options);
+                try { return await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, nowUtc); }
+                catch (SqliteException ex) when (ex.SqliteErrorCode is 5 or 6)
+                {
+                    // SQLite's coarse writer locks can reject one contender; SQL Server/PG use CAS.
+                    return 0;
+                }
+            }
+            var results = await Task.WhenAll(RecoverAsync(), RecoverAsync());
+            Assert.Equal(1, results.Sum());
+            await using var verify = new AchDbContext(options);
+            Assert.Single(await verify.ContrapartidaDispatchAttempts.ToListAsync());
+            var recovered = await verify.ContrapartidaDispatchItems.SingleAsync();
+            Assert.Equal(ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed, recovered.State);
+            Assert.True(recovered.RequiresReconciliation);
+            Assert.Equal(0, recovered.AttemptCount);
+        }
+        finally
+        {
+            try { File.Delete(dbFile); } catch (IOException) { /* Windows may retain SQLite handles. */ }
+        }
+    }
+
+    [Fact]
+    public async Task E2E02_ActiveLease_PreventsPrematureRecovery_AndAdvancesBoundaryOnce()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await context.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        var txId = await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+        var item = await context.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+        var nowUtc = new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc);
+        item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Preparing;
+        item.DispatchLeaseToken = "live-worker";
+        item.DispatchLeaseExpiresAtUtc = nowUtc.AddMinutes(15);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        Assert.Equal(0, await ContrapartidaDispatchRecovery.RecoverStaleAsync(context, nowUtc));
+        await ContrapartidaDispatchRecovery.MarkBeforeTransportAsync(
+            context, [item.Id], "live-worker", nowUtc, CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ContrapartidaDispatchRecovery.MarkBeforeTransportAsync(
+                context, [item.Id], "live-worker", nowUtc, CancellationToken.None));
+        Assert.Equal(ContrapartidaDispatchRecovery.InFlight,
+            (await context.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).DispatchLeasePhase);
+    }
+
+    [Fact]
+    public async Task AUD_E2E_02_PhasePromotedBeforeExpiredRecovery_NeverReturnsToRetryPending()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options;
+        await using var db = new AchDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        var txId = await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var item = await db.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+        var now = new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc);
+        item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+        item.DispatchLeaseToken = "worker:phase-race";
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Preparing;
+        item.DispatchLeaseExpiresAtUtc = now.AddMinutes(1);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        // A competing worker crosses the transport fence; recovery cannot treat the claim as NotSent.
+        await ContrapartidaDispatchRecovery.MarkBeforeTransportAsync(
+            db, [item.Id], "worker:phase-race", now, CancellationToken.None);
+        await db.ContrapartidaDispatchItems.Where(x => x.Id == item.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.DispatchLeaseExpiresAtUtc, now.AddSeconds(-1)));
+        Assert.Equal(1, await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, now));
+        var result = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed, result.State);
+        Assert.True(result.RequiresReconciliation);
+        Assert.False((await db.ContrapartidaDispatchAttempts.SingleAsync()).RetryAllowed);
+    }
+
+    [Fact]
+    public async Task AUD_E2E_04_IntentCommittedBeforeSoap_RestartPreservesCorrelationHashAndMapper()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options;
+        await using var db = new AchDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        var txId = await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var item = await db.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+        var batch = new ContrapartidaDispatchBatch
+        {
+            AchCycleId = cycleId, ClearingHouseId = 1,
+            Status = ContrapartidaDispatchBatchStatusEnum.Processing
+        };
+        db.ContrapartidaDispatchBatches.Add(batch);
+        var now = new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc);
+        item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+        item.DispatchLeaseToken = $"scheduled:{batch.Id:N}";
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Preparing;
+        item.DispatchLeaseExpiresAtUtc = now.AddMinutes(1);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var mapperId = Guid.NewGuid();
+        const string payload = "<soap><debit>1</debit></soap>";
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(payload)));
+
+        await ContrapartidaDispatchRecovery.PersistIntentBeforeTransportAsync(
+            db, [item.Id], $"scheduled:{batch.Id:N}", batch.Id, now,
+            payload, hash, mapperId, 7, "mapping-snapshot", "https://core.invalid/soap", "Live",
+            CancellationToken.None);
+
+        // Simulate process crash: reconstruct evidence using fresh tracking state, without a SOAP invocation.
+        db.ChangeTracker.Clear();
+        var stored = await db.ContrapartidaDispatchBatches.AsNoTracking().SingleAsync();
+        Assert.Equal($"scheduled:{batch.Id:N}", stored.DispatchCorrelationId);
+        Assert.Equal(hash, stored.RequestPayloadHash);
+        Assert.Equal(payload, stored.RequestPayloadXml);
+        Assert.Equal(mapperId, stored.MappingSetId);
+        Assert.Equal(7, stored.MappingVersion);
+        Assert.Equal("mapping-snapshot", stored.MappingSnapshotHash);
+        Assert.Equal("Live", stored.DispatchExecutionMode);
+        Assert.Equal("https://core.invalid/soap", stored.DispatchSoapEndpoint);
+        Assert.Equal(now, stored.DispatchIntentAtUtc);
+        Assert.Equal(ContrapartidaDispatchRecovery.InFlight,
+            (await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).DispatchLeasePhase);
+
+        // A repeated worker cannot create a second intent or re-enter SOAP.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ContrapartidaDispatchRecovery.PersistIntentBeforeTransportAsync(
+                db, [item.Id], $"scheduled:{batch.Id:N}", batch.Id, now,
+                payload, hash, mapperId, 7, "mapping-snapshot", "https://core.invalid/soap", "Live",
+                CancellationToken.None));
+        db.ChangeTracker.Clear();
+        Assert.Equal(hash, (await db.ContrapartidaDispatchBatches.AsNoTracking().SingleAsync()).RequestPayloadHash);
+
+        await db.ContrapartidaDispatchItems.Where(x => x.Id == item.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.DispatchLeaseExpiresAtUtc, now.AddSeconds(-1)));
+        Assert.Equal(1, await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, now));
+        Assert.True((await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).RequiresReconciliation);
+        Assert.Equal(hash, (await db.ContrapartidaDispatchBatches.AsNoTracking().SingleAsync()).RequestPayloadHash);
+    }
+
+    [Fact]
+    public async Task AUD_E2E_04_ManualMultiItemBatch_WritesIndependentDurableIntents()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        var tx1 = await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var tx2 = await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var batch = new ContrapartidaDispatchBatch
+        {
+            AchCycleId = cycleId, ClearingHouseId = 1, TotalItems = 2,
+            Status = ContrapartidaDispatchBatchStatusEnum.Processing
+        };
+        db.ContrapartidaDispatchBatches.Add(batch);
+        var now = new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc);
+        var items = await db.ContrapartidaDispatchItems.OrderBy(x => x.Id).ToListAsync();
+        var token = $"manual-retry:{batch.Id:N}";
+        foreach (var item in items)
+        {
+            item.State = ContrapartidaDispatchItemStateEnum.Retrying;
+            item.DispatchLeaseToken = token;
+            item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Preparing;
+            item.DispatchLeaseExpiresAtUtc = now.AddMinutes(1);
+        }
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var mapperId = Guid.NewGuid();
+        foreach (var item in items)
+        {
+            var xml = $"<debit id=\"{item.AchTransactionId}\"/>";
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(xml)));
+            await ContrapartidaDispatchRecovery.PersistIntentBeforeTransportAsync(
+                db, [item.Id], token, batch.Id, now,
+                xml, hash, mapperId, 2, "mapping-2", "https://core.invalid/soap", "Live",
+                CancellationToken.None);
+        }
+        db.ChangeTracker.Clear();
+        var persisted = await db.ContrapartidaDispatchItems.AsNoTracking().OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, persisted.Count);
+        Assert.All(persisted, x =>
+        {
+            Assert.Equal(ContrapartidaDispatchRecovery.InFlight, x.DispatchLeasePhase);
+            Assert.Equal(token, x.DispatchIntentCorrelationId);
+            Assert.Equal(2, x.DispatchIntentMappingVersion);
+            Assert.Equal(mapperId, x.DispatchIntentMappingSetId);
+            Assert.NotNull(x.DispatchIntentAtUtc);
+            Assert.False(string.IsNullOrWhiteSpace(x.DispatchIntentPayloadHash));
+        });
+        Assert.NotEqual(persisted[0].DispatchIntentPayloadHash, persisted[1].DispatchIntentPayloadHash);
+        Assert.Null((await db.ContrapartidaDispatchBatches.AsNoTracking().SingleAsync()).DispatchIntentAtUtc);
+    }
+
+    [Fact]
+    public async Task AUD_E2E_04_ExpiredLeaseCannotWriteDispatchIntentOrTransmit()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        var txId = await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var item = await db.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+        var batch = new ContrapartidaDispatchBatch
+        {
+            AchCycleId = cycleId, ClearingHouseId = 1,
+            Status = ContrapartidaDispatchBatchStatusEnum.Processing
+        };
+        db.ContrapartidaDispatchBatches.Add(batch);
+        var now = new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc);
+        item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+        item.DispatchLeaseToken = "expired-token";
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Preparing;
+        item.DispatchLeaseExpiresAtUtc = now.AddSeconds(-1);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ContrapartidaDispatchRecovery.PersistIntentBeforeTransportAsync(
+                db, [item.Id], "expired-token", batch.Id, now,
+                "<request/>", "validhash", null, null, "snapshot", "endpoint", "Live",
+                CancellationToken.None));
+        Assert.Null((await db.ContrapartidaDispatchBatches.AsNoTracking().SingleAsync()).DispatchIntentAtUtc);
+        Assert.Equal(ContrapartidaDispatchRecovery.Preparing,
+            (await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).DispatchLeasePhase);
+    }
+
+    [Fact]
+    public async Task AUD_E2E_03_ClosedOriginalCycle_ReassignsOnlyPreSendRecoveryToOpenCycle()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var originalCycle = await SembrarEstructuraBaseAsync(db);
+        var txId = await SembrarTransaccionYItemPendienteAsync(db, originalCycle);
+        var original = await db.AchCycles.SingleAsync(x => x.Id == originalCycle);
+        original.OperationalStatus = AchCycleOperationalStatus.Closed;
+        var newCycleId = "cccccccccccccccccccccccccccccccccccccccc";
+        db.AchCycles.Add(new AchCycle
+        {
+            Id = newCycleId, ClearingHouseId = 1, CycleName = "CICLO-QA",
+            ClearingHouseCycleConfigId = original.ClearingHouseCycleConfigId,
+            ProcessingDate = TestClock.OperationalDate,
+            StartTime = TimeSpan.Zero, EndTime = new TimeSpan(23, 59, 0),
+            CutoffTime = new TimeSpan(23, 0, 0), OutputReleaseTime = new TimeSpan(23, 59, 0),
+            OperationalStatus = AchCycleOperationalStatus.Open
+        });
+        var item = await db.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+        item.State = ContrapartidaDispatchItemStateEnum.RetryPending;
+        item.LastErrorCode = "E2E02_PRE_SEND_CRASH";
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Idle;
+        item.DispatchLeaseToken = "recovery:old";
+        item.AttemptCount = 1;
+        item.NextAttemptAtUtc = null;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        // Mapper deliberately fails: reassignment happens before request construction; no SOAP is allowed.
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var mapper = new Mock<IProcContrapartidasRequestMapper>(MockBehavior.Strict);
+        var parser = new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict);
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object, mapper.Object, parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            timeProvider: TestClock.Create());
+        await sut.ProcessCycleAsync(newCycleId, 1, "qa-restart", 1);
+        db.ChangeTracker.Clear();
+        var routed = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(newCycleId, routed.AchCycleId);
+        Assert.Equal(originalCycle, routed.LastReassignedFromCycleId);
+        Assert.NotNull(routed.LastReassignedAtUtc);
+        Assert.Equal(originalCycle,
+            (await db.AchTransactions.AsNoTracking().SingleAsync()).AchCycleId);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AUD_E2E_03_DeferredOperationalCalendar_DoesNotReassignPreSendRecovery()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var sourceId = await SembrarEstructuraBaseAsync(db);
+        var txId = await SembrarTransaccionYItemPendienteAsync(db, sourceId);
+        var source = await db.AchCycles.SingleAsync(x => x.Id == sourceId);
+        source.OperationalStatus = AchCycleOperationalStatus.Closed;
+        const string targetId = "dddddddddddddddddddddddddddddddddddddddd";
+        db.AchCycles.Add(new AchCycle
+        {
+            Id = targetId, ClearingHouseId = 1, CycleName = "CICLO-QA",
+            ClearingHouseCycleConfigId = source.ClearingHouseCycleConfigId,
+            ProcessingDate = TestClock.OperationalDate,
+            StartTime = TimeSpan.Zero, EndTime = TimeSpan.FromHours(23),
+            CutoffTime = TimeSpan.FromHours(22), OutputReleaseTime = TimeSpan.FromHours(23)
+        });
+        var item = await db.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+        item.State = ContrapartidaDispatchItemStateEnum.RetryPending;
+        item.LastErrorCode = "E2E02_PRE_SEND_CRASH";
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Idle;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var guard = new Mock<ICycleCalendarGuard>(MockBehavior.Strict);
+        guard.Setup(g => g.EnsureExecutableAsync(It.IsAny<AchCycle>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CycleCalendarGuardResult(false, true,
+                new DateOnly(2026, 7, 13), new DateOnly(2026, 7, 14), "calendario bloqueado"));
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object,
+            new Mock<IProcContrapartidasRequestMapper>(MockBehavior.Strict).Object,
+            new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict).Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions(), timeProvider: TestClock.Create(), calendarGuard: guard.Object);
+        var result = await sut.ProcessCycleAsync(targetId, 1, "qa-calendar", 1);
+        Assert.Equal(0, result.Processed);
+        Assert.Contains("diferido por calendario", result.Summary);
+        Assert.Equal(sourceId,
+            (await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).AchCycleId);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AUD_E2E_03_UnknownResult_ClosedCycleNeverReassignsOrResends()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var originalCycle = await SembrarEstructuraBaseAsync(db);
+        var txId = await SembrarTransaccionYItemPendienteAsync(db, originalCycle);
+        var original = await db.AchCycles.SingleAsync(x => x.Id == originalCycle);
+        original.OperationalStatus = AchCycleOperationalStatus.Closed;
+        var openCycleId = "cccccccccccccccccccccccccccccccccccccccc";
+        db.AchCycles.Add(new AchCycle
+        {
+            Id = openCycleId, ClearingHouseId = 1, CycleName = "CICLO-QA",
+            ClearingHouseCycleConfigId = original.ClearingHouseCycleConfigId,
+            ProcessingDate = TestClock.OperationalDate,
+            StartTime = TimeSpan.Zero, EndTime = new TimeSpan(23, 59, 0),
+            CutoffTime = new TimeSpan(23, 0, 0), OutputReleaseTime = new TimeSpan(23, 59, 0)
+        });
+        var item = await db.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == txId);
+        item.State = ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed;
+        item.RequiresReconciliation = true;
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Idle;
+        item.LastErrorCode = "E2E02_OUTCOME_UNKNOWN";
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object,
+            new Mock<IProcContrapartidasRequestMapper>(MockBehavior.Strict).Object,
+            new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict).Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            timeProvider: TestClock.Create());
+        await sut.ProcessCycleAsync(openCycleId, 1, "qa-restart", 1);
+        var after = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(originalCycle, after.AchCycleId);
+        Assert.True(after.RequiresReconciliation);
+        Assert.Empty(await db.ContrapartidaDispatchBatches.ToListAsync());
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public async Task H01_ExpiredPreparingLease_PreservesSoapCounterAndHonorsLimit(int soapAttempts)
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var item = await db.ContrapartidaDispatchItems.SingleAsync();
+        var now = TestClock.UtcNow.UtcDateTime;
+        item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+        item.AttemptCount = soapAttempts;
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Preparing;
+        item.DispatchLeaseToken = "worker:h01";
+        item.DispatchLeaseExpiresAtUtc = now.AddSeconds(-1);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        Assert.Equal(1, await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, now));
+        Assert.Equal(0, await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, now));
+        var result = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(soapAttempts, result.AttemptCount);
+        Assert.Equal(soapAttempts == 5, result.RequiresReconciliation);
+        Assert.Equal(soapAttempts == 5
+            ? ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed
+            : ContrapartidaDispatchItemStateEnum.RetryPending, result.State);
+        Assert.Equal(soapAttempts == 5 ? (DateTime?)null : now, result.NextAttemptAtUtc);
+        var audit = await db.ContrapartidaDispatchAttempts.AsNoTracking().SingleAsync();
+        Assert.Equal(-1, audit.AttemptNumber);
+        Assert.Equal(IntegrationTransportStatus.NotExecuted, audit.TransportStatus);
+        Assert.Null(result.DispatchLeaseExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task H01_LegacyRetryPendingAtLimit_QuartzRecoveryMovesToReconciliationWithoutSoap()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var item = await db.ContrapartidaDispatchItems.SingleAsync();
+        item.State = ContrapartidaDispatchItemStateEnum.RetryPending;
+        item.AttemptCount = 5; // Legacy Preparing recovery incorrectly consumed the last slot.
+        item.LastErrorCode = "E2E02_PRE_SEND_CRASH";
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Idle;
+        item.DispatchLeaseToken = "recovery:legacy";
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        Assert.Equal(1, await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, TestClock.UtcNow.UtcDateTime));
+        Assert.Equal(0, await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, TestClock.UtcNow.UtcDateTime));
+        var after = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed, after.State);
+        Assert.True(after.RequiresReconciliation);
+        Assert.Null(after.NextAttemptAtUtc);
+        Assert.Equal(5, after.AttemptCount);
+        Assert.Equal("H01_RETRY_LIMIT_RECONCILIATION", after.LastErrorCode);
+        var audit = await db.ContrapartidaDispatchAttempts.AsNoTracking().SingleAsync();
+        Assert.Equal(-1, audit.AttemptNumber);
+        Assert.Equal("recovery:h01", audit.TriggeredBy);
+    }
+
+    [Fact]
+    public async Task H01_RepeatedRestart_RecoveryAuditsCannotConsumeSoapAttemptsOrCollide()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var now = TestClock.UtcNow.UtcDateTime;
+        var item = await db.ContrapartidaDispatchItems.SingleAsync();
+        item.AttemptCount = 4;
+        item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Preparing;
+        item.DispatchLeaseToken = "worker:first";
+        item.DispatchLeaseExpiresAtUtc = now.AddSeconds(-2);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        Assert.Equal(1, await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, now));
+        // A new Quartz worker claims Preparation but crashes before the InFlight fence.
+        await db.ContrapartidaDispatchItems.Where(x => x.AchCycleId == cycleId)
+            .ExecuteUpdateAsync(u => u
+                .SetProperty(x => x.State, ContrapartidaDispatchItemStateEnum.ReportingContrapartida)
+                .SetProperty(x => x.DispatchLeasePhase, ContrapartidaDispatchRecovery.Preparing)
+                .SetProperty(x => x.DispatchLeaseToken, "worker:second")
+                .SetProperty(x => x.DispatchLeaseExpiresAtUtc, now.AddSeconds(-1)));
+        Assert.Equal(1, await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, now));
+        Assert.Equal(4, (await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).AttemptCount);
+        var events = await db.ContrapartidaDispatchAttempts.AsNoTracking().ToListAsync();
+        Assert.Equal(2, events.Count);
+        Assert.Equal(new[] { -2, -1 }, events.Select(x => x.AttemptNumber).OrderBy(x => x).ToArray());
+    }
+
+    [Fact]
+    public async Task H02_ManualRetry_ClosedSourceUsesOpenPermittedCycleAndPersistsAudit()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var sourceId = await SembrarEstructuraBaseAsync(db);
+        var txId = await SembrarTransaccionYItemPendienteAsync(db, sourceId);
+        var source = await db.AchCycles.SingleAsync(x => x.Id == sourceId);
+        source.OperationalStatus = AchCycleOperationalStatus.Closed;
+        const string targetId = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+        db.AchCycles.Add(new AchCycle
+        {
+            Id = targetId, ClearingHouseId = 1, CycleName = "CICLO-QA",
+            ClearingHouseCycleConfigId = source.ClearingHouseCycleConfigId,
+            ProcessingDate = TestClock.OperationalDate,
+            StartTime = TimeSpan.Zero, EndTime = TimeSpan.FromHours(23),
+            CutoffTime = TimeSpan.FromHours(22), OutputReleaseTime = TimeSpan.FromHours(23),
+            OperationalStatus = AchCycleOperationalStatus.Open
+        });
+        var sourceBatch = await SeedManualRetrySourceAsync(db, sourceId);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper.Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(),
+            It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(), MappingSetId = Guid.NewGuid(),
+                MappingVersion = 2, MappingSnapshotHash = "h02-qa", UsedFallback = false
+            });
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>())).Returns("<manual/>");
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        soap.Setup(x => x.ProcContrapartidasAsync("<manual/>", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<response/>");
+        var parser = new Mock<IProcContrapartidasResponseParser>();
+        parser.Setup(x => x.Parse("<response/>"))
+            .Returns(new ProcContrapartidasParsedResponse(
+                true, false, false, false, string.Empty, string.Empty, "<response/>", "R96",
+                new Dictionary<int, ProcContrapartidasParsedItemResponse>
+                { [txId] = new(txId, true, false, "R96", "Aplicado") }));
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object, mapper.Object, parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+            responseCatalogResolver: Catalog(Success("R96", "Aplicado")),
+            timeProvider: TestClock.Create());
+        var result = await sut.RetryBatchAsync(new ContrapartidaDispatchRetryRequest(
+            sourceBatch.Id, ContrapartidaDispatchRetryScope.FailedOnly, "qa-h02"));
+        Assert.Equal(targetId, result.CycleId);
+        Assert.Equal(1, result.Processed);
+        Assert.Equal(1, result.Succeeded);
+        var after = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(targetId, after.AchCycleId);
+        Assert.Equal(sourceId, after.LastReassignedFromCycleId);
+        Assert.NotNull(after.LastReassignedAtUtc);
+        Assert.Equal(sourceId, (await db.AchTransactions.AsNoTracking().SingleAsync()).AchCycleId);
+        Assert.Equal(targetId, (await db.ContrapartidaDispatchBatches.AsNoTracking()
+            .SingleAsync(x => x.Id == result.NewBatchId)).AchCycleId);
+        Assert.Equal(2, after.AttemptCount);
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ReportedToContrapartida, after.State);
+        soap.Verify(x => x.ProcContrapartidasAsync("<manual/>", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task H02_ManualRetry_NoOpenCycle_DefersWithoutSoap()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var sourceId = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, sourceId);
+        var sourceBatch = await SeedManualRetrySourceAsync(db, sourceId);
+        var source = await db.AchCycles.SingleAsync(x => x.Id == sourceId);
+        source.OperationalStatus = AchCycleOperationalStatus.Closed;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object,
+            new Mock<IProcContrapartidasRequestMapper>(MockBehavior.Strict).Object,
+            new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict).Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            timeProvider: TestClock.Create());
+        var noCycle = await sut.RetryBatchAsync(new ContrapartidaDispatchRetryRequest(
+            sourceBatch.Id, ContrapartidaDispatchRetryScope.FailedOnly, "qa-no-cycle"));
+        Assert.Equal(0, noCycle.Processed);
+        Assert.Contains("SOAP no invocado", noCycle.Summary);
+        Assert.Single(await db.ContrapartidaDispatchBatches.ToListAsync());
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.RetryPending,
+            (await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).State);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task H02_ManualRetry_UnknownOutcomeNeverRetransmitsEvenWithOpenCycle()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var sourceId = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, sourceId);
+        var sourceBatch = await SeedManualRetrySourceAsync(db, sourceId);
+        var item = await db.ContrapartidaDispatchItems.SingleAsync();
+        item.RequiresReconciliation = true;
+        item.State = ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object,
+            new Mock<IProcContrapartidasRequestMapper>(MockBehavior.Strict).Object,
+            new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict).Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            timeProvider: TestClock.Create());
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RetryBatchAsync(
+            new ContrapartidaDispatchRetryRequest(sourceBatch.Id,
+                ContrapartidaDispatchRetryScope.Full, "qa-unknown")));
+        Assert.Contains("No existen items elegibles", exception.Message);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task H01_FourActualAttempts_RecoveryThenFinalSoapUsesFifthSlotOnce()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        var txId = await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var item = await db.ContrapartidaDispatchItems.SingleAsync();
+        var now = TestClock.UtcNow.UtcDateTime;
+        item.State = ContrapartidaDispatchItemStateEnum.ReportingContrapartida;
+        item.AttemptCount = 4;
+        item.DispatchLeaseToken = "worker:pre-send-crash";
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Preparing;
+        item.DispatchLeaseExpiresAtUtc = now.AddSeconds(-1);
+        for (var n = 1; n <= 4; n++)
+        {
+            db.ContrapartidaDispatchAttempts.Add(new ContrapartidaDispatchAttempt
+            {
+                DispatchItemId = item.Id, AttemptNumber = n,
+                StartedAtUtc = now.AddMinutes(-30 - n), FinishedAtUtc = now.AddMinutes(-29 - n),
+                Result = ContrapartidaDispatchAttemptResultEnum.Failed,
+                CorrelationId = $"previous-soap-{n}", TriggeredBy = "previous:worker",
+                TransportStatus = IntegrationTransportStatus.Succeeded,
+                BusinessStatus = IntegrationResponseBusinessStatus.Rejected
+            });
+        }
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        Assert.Equal(1, await ContrapartidaDispatchRecovery.RecoverStaleAsync(db, now));
+        Assert.Equal(4, (await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).AttemptCount);
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper.Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(),
+                It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(), MappingSetId = Guid.NewGuid(),
+                MappingVersion = 1, MappingSnapshotHash = "h01-fifth", UsedFallback = false
+            });
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>())).Returns("<final/>");
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        soap.Setup(x => x.ProcContrapartidasAsync("<final/>", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<response/>");
+        var parser = new Mock<IProcContrapartidasResponseParser>();
+        parser.Setup(x => x.Parse("<response/>"))
+            .Returns(new ProcContrapartidasParsedResponse(
+                true, false, false, false, string.Empty, string.Empty, "<response/>", "R96",
+                new Dictionary<int, ProcContrapartidasParsedItemResponse>
+                { [txId] = new(txId, true, false, "R96", "Aplicado") }));
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object, mapper.Object, parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+            responseCatalogResolver: Catalog(Success("R96", "Aplicado")),
+            timeProvider: TestClock.Create());
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "h01-fifth", 1);
+        Assert.Equal(1, result.Processed);
+        Assert.Equal(1, result.Succeeded);
+        Assert.Equal(5, (await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).AttemptCount);
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ReportedToContrapartida,
+            (await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).State);
+        var numbers = await db.ContrapartidaDispatchAttempts.AsNoTracking()
+            .OrderBy(x => x.AttemptNumber).Select(x => x.AttemptNumber).ToListAsync();
+        Assert.Equal(new[] { -1, 1, 2, 3, 4, 5 }, numbers);
+        Assert.Equal(0, (await sut.ProcessCycleAsync(cycleId, 1, "h01-restart", 1)).Processed);
+        soap.Verify(x => x.ProcContrapartidasAsync("<final/>", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task H02_ManualRetry_BlockedCalendarWithOpenCycle_DefersWithoutSoap()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var sourceId = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, sourceId);
+        var sourceBatch = await SeedManualRetrySourceAsync(db, sourceId);
+        db.ChangeTracker.Clear();
+        var guard = new Mock<ICycleCalendarGuard>(MockBehavior.Strict);
+        guard.Setup(x => x.EnsureExecutableAsync(It.IsAny<AchCycle>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CycleCalendarGuardResult(false, true,
+                DateOnly.FromDateTime(TestClock.OperationalDate),
+                DateOnly.FromDateTime(TestClock.OperationalDate.AddDays(3)),
+                "Calendario bancario cerrado"));
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object,
+            new Mock<IProcContrapartidasRequestMapper>(MockBehavior.Strict).Object,
+            new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict).Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            timeProvider: TestClock.Create(), calendarGuard: guard.Object);
+        var result = await sut.RetryBatchAsync(new ContrapartidaDispatchRetryRequest(
+            sourceBatch.Id, ContrapartidaDispatchRetryScope.FailedOnly, "qa-holiday"));
+        Assert.Equal(0, result.Processed);
+        Assert.Equal(Guid.Empty, result.NewBatchId);
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.RetryPending,
+            (await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync()).State);
+        Assert.Single(await db.ContrapartidaDispatchBatches.AsNoTracking().ToListAsync());
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task H02_CompetingManualWorkers_CannotBothClaimTheSameDebit()
+    {
+        var dbFile = Path.Combine(Path.GetTempPath(), $"h02-concurrency-{Guid.NewGuid():N}.sqlite");
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite($"Data Source={dbFile};Cache=Shared;Default Timeout=30;Pooling=False").Options;
+        try
+        {
+            Guid sourceBatchId;
+            await using (var seed = new AchDbContext(options))
+            {
+                await seed.Database.EnsureCreatedAsync();
+                var sourceCycleId = await SembrarEstructuraBaseAsync(seed);
+                await SembrarTransaccionYItemPendienteAsync(seed, sourceCycleId);
+                var sourceBatch = await SeedManualRetrySourceAsync(seed, sourceCycleId);
+                sourceBatchId = sourceBatch.Id;
+            }
+            var soap = new Mock<IWscfaachSoapClient>();
+            soap.Setup(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync("<response/>");
+            var mapper = new Mock<IProcContrapartidasRequestMapper>();
+            mapper.Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(),
+                    It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ProcContrapartidasRequestResolution
+                {
+                    Contract = ContratoValido(), MappingSetId = Guid.NewGuid(),
+                    MappingVersion = 1, MappingSnapshotHash = "h02-race", UsedFallback = false
+                });
+            mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+                .Returns("<concurrent/>");
+            var parser = new Mock<IProcContrapartidasResponseParser>();
+            parser.Setup(x => x.Parse("<response/>"))
+                .Returns(new ProcContrapartidasParsedResponse(
+                    false, false, false, true, string.Empty, "Rechazo funcional", "<response/>", "R01",
+                    new Dictionary<int, ProcContrapartidasParsedItemResponse>()));
+            async Task TryRetryAsync()
+            {
+                await using var db = new AchDbContext(options);
+                var sut = new ContrapartidaDispatchJobService(db, soap.Object, mapper.Object, parser.Object,
+                    NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+                    soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+                    responseCatalogResolver: Catalog(Rejected("R01", "Rechazo funcional")),
+                    timeProvider: TestClock.Create());
+                try
+                {
+                    await sut.RetryBatchAsync(new ContrapartidaDispatchRetryRequest(
+                        sourceBatchId, ContrapartidaDispatchRetryScope.FailedOnly, "qa-race"));
+                }
+                catch (InvalidOperationException) { /* Second worker lost CAS or saw active batch. */ }
+                catch (SqliteException ex) when (ex.SqliteErrorCode is 5 or 6)
+                { /* SQLite uses a database-wide writer lock instead of row-level CAS. */ }
+                catch (DbUpdateException ex) when (ex.InnerException is SqliteException sql
+                    && sql.SqliteErrorCode is 5 or 6)
+                { /* Provider-level lock outcome is an acceptable losing worker. */ }
+            }
+            await Task.WhenAll(TryRetryAsync(), TryRetryAsync());
+            await using var verify = new AchDbContext(options);
+            var finalItem = await verify.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+            Assert.Equal(2, finalItem.AttemptCount);
+            Assert.Equal(1, await verify.ContrapartidaDispatchAttempts.CountAsync(x => x.AttemptNumber == 2));
+            soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        }
+        finally
+        {
+            try { File.Delete(dbFile); } catch (IOException) { /* Windows file handle may persist. */ }
+        }
+    }
+
+    [Fact]
+    public async Task H02_ManualRetry_CycleClosesAfterFirstSoap_LeavesRemainingDebitUnsent()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var sourceId = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, sourceId);
+        await SembrarTransaccionYItemPendienteAsync(db, sourceId);
+        var source = await db.AchCycles.SingleAsync(x => x.Id == sourceId);
+        source.OperationalStatus = AchCycleOperationalStatus.Closed;
+        const string targetId = "ffffffffffffffffffffffffffffffffffffffff";
+        db.AchCycles.Add(new AchCycle
+        {
+            Id = targetId, ClearingHouseId = 1, CycleName = "CICLO-QA",
+            ClearingHouseCycleConfigId = source.ClearingHouseCycleConfigId,
+            ProcessingDate = TestClock.OperationalDate,
+            StartTime = TimeSpan.Zero, EndTime = TimeSpan.FromHours(23),
+            CutoffTime = TimeSpan.FromHours(22), OutputReleaseTime = TimeSpan.FromHours(23),
+            OperationalStatus = AchCycleOperationalStatus.Open
+        });
+        var batch = new ContrapartidaDispatchBatch
+        {
+            AchCycleId = sourceId, ClearingHouseId = 1,
+            Status = ContrapartidaDispatchBatchStatusEnum.Failed,
+            TotalItems = 2, TotalFailed = 2
+        };
+        db.ContrapartidaDispatchBatches.Add(batch);
+        var items = await db.ContrapartidaDispatchItems.OrderBy(x => x.Id).ToListAsync();
+        foreach (var item in items)
+        {
+            item.AttemptCount = 1;
+            item.State = ContrapartidaDispatchItemStateEnum.RetryPending;
+            item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Idle;
+            db.ContrapartidaDispatchAttempts.Add(new ContrapartidaDispatchAttempt
+            {
+                DispatchItemId = item.Id, DispatchBatchId = batch.Id,
+                AttemptNumber = 1, StartedAtUtc = TestClock.UtcNow.UtcDateTime.AddMinutes(-2),
+                FinishedAtUtc = TestClock.UtcNow.UtcDateTime.AddMinutes(-1),
+                Result = ContrapartidaDispatchAttemptResultEnum.Failed,
+                CorrelationId = $"previous-{item.Id}", TriggeredBy = "seed:previous",
+                RetryEligible = true, RetryAllowed = true,
+                TransportStatus = IntegrationTransportStatus.Succeeded,
+                BusinessStatus = IntegrationResponseBusinessStatus.Rejected
+            });
+        }
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper.Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(),
+            It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(), MappingSetId = Guid.NewGuid(),
+                MappingVersion = 2, MappingSnapshotHash = "h02-boundary", UsedFallback = false
+            });
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns("<one-request/>");
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap.Setup(x => x.ProcContrapartidasAsync("<one-request/>", It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                // Deterministic operational status switch while a multi-item retry runs.
+                await db.AchCycles.Where(x => x.Id == targetId)
+                    .ExecuteUpdateAsync(u => u.SetProperty(x => x.OperationalStatus,
+                        AchCycleOperationalStatus.Closed));
+                return "<response/>";
+            });
+        var parser = new Mock<IProcContrapartidasResponseParser>();
+        parser.Setup(x => x.Parse("<response/>"))
+            .Returns(new ProcContrapartidasParsedResponse(
+                true, false, false, false, string.Empty, string.Empty, "<response/>", "R96",
+                new Dictionary<int, ProcContrapartidasParsedItemResponse>()));
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object, mapper.Object, parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+            responseCatalogResolver: Catalog(Success("R96", "Aplicado")),
+            timeProvider: TestClock.Create());
+        var result = await sut.RetryBatchAsync(new ContrapartidaDispatchRetryRequest(
+            batch.Id, ContrapartidaDispatchRetryScope.FailedOnly, "qa-midbatch-close"));
+        Assert.Equal(2, result.Selected);
+        Assert.Equal(1, result.Processed);
+        Assert.Equal(1, result.Succeeded);
+        Assert.Contains("pending=1", result.Summary);
+        var all = await db.ContrapartidaDispatchItems.AsNoTracking().OrderBy(x => x.Id).ToListAsync();
+        Assert.Single(all.Where(x => x.State == ContrapartidaDispatchItemStateEnum.ReportedToContrapartida));
+        Assert.Single(all.Where(x => x.State == ContrapartidaDispatchItemStateEnum.RetryPending));
+        Assert.Equal(ContrapartidaDispatchBatchStatusEnum.CompletedWithErrors,
+            (await db.ContrapartidaDispatchBatches.AsNoTracking().SingleAsync(x => x.Id == result.NewBatchId)).Status);
+        soap.Verify(x => x.ProcContrapartidasAsync("<one-request/>", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RES_H02_ScheduledCycleClosesDuringMappingOrAfterIntent_NoSoapAndNoAttempt(bool afterIntent)
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper.Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(),
+                It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                if (!afterIntent)
+                    await db.AchCycles.Where(x => x.Id == cycleId).ExecuteUpdateAsync(u =>
+                        u.SetProperty(x => x.OperationalStatus, AchCycleOperationalStatus.Closed));
+                return new ProcContrapartidasRequestResolution
+                {
+                    Contract = ContratoValido(), MappingVersion = 5,
+                    MappingSnapshotHash = "res-h02-test", UsedFallback = false
+                };
+            });
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns("<request/>");
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var parser = new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict);
+        var calendar = new Mock<ICycleCalendarGuard>();
+        var guardCalls = 0;
+        calendar.Setup(x => x.EnsureExecutableAsync(It.IsAny<AchCycle>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                guardCalls++;
+                if (afterIntent && guardCalls == 3)
+                    await db.AchCycles.Where(x => x.Id == cycleId).ExecuteUpdateAsync(u =>
+                        u.SetProperty(x => x.OperationalStatus, AchCycleOperationalStatus.Closed));
+                return new CycleCalendarGuardResult(true, false,
+                    DateOnly.FromDateTime(TestClock.OperationalDate), null, "Operable");
+            });
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object, mapper.Object, parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            calendarGuard: calendar.Object, timeProvider: TestClock.Create());
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-res-h02-close", 1);
+        db.ChangeTracker.Clear();
+        var item = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(0, result.Processed);
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.RetryPending, item.State);
+        Assert.Equal(0, item.AttemptCount);
+        Assert.False(item.RequiresReconciliation);
+        Assert.Equal(ContrapartidaDispatchRecovery.UnsentCycleCode, item.LastErrorCode);
+        Assert.Equal(ContrapartidaDispatchRecovery.Idle, item.DispatchLeasePhase);
+        Assert.Equal(afterIntent, item.DispatchIntentAtUtc.HasValue);
+        Assert.Equal(ContrapartidaDispatchBatchStatusEnum.Cancelled,
+            (await db.ContrapartidaDispatchBatches.AsNoTracking().SingleAsync()).Status);
+        var audit = await db.ContrapartidaDispatchAttempts.AsNoTracking().SingleAsync();
+        Assert.True(audit.AttemptNumber < 0);
+        Assert.Equal(IntegrationTransportStatus.NotExecuted, audit.TransportStatus);
+        Assert.Equal("NotSent", audit.SoapTechnicalStatus);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RES_H02_ManualCycleClosesDuringPreparationOrAtFinalFence_SkipsDebit(bool afterIntent)
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var source = await SeedManualRetrySourceAsync(db, cycleId);
+        db.ChangeTracker.Clear();
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper.Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(),
+                It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                if (!afterIntent)
+                    await db.AchCycles.Where(x => x.Id == cycleId).ExecuteUpdateAsync(u =>
+                        u.SetProperty(x => x.OperationalStatus, AchCycleOperationalStatus.Closed));
+                return new ProcContrapartidasRequestResolution
+                {
+                    Contract = ContratoValido(), MappingVersion = 5,
+                    MappingSnapshotHash = "res-h02-manual", UsedFallback = false
+                };
+            });
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns("<manual/>");
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var parser = new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict);
+        var calendar = new Mock<ICycleCalendarGuard>();
+        var guardCalls = 0;
+        calendar.Setup(x => x.EnsureExecutableAsync(It.IsAny<AchCycle>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                guardCalls++;
+                if (afterIntent && guardCalls == 5)
+                    await db.AchCycles.Where(x => x.Id == cycleId).ExecuteUpdateAsync(u =>
+                        u.SetProperty(x => x.OperationalStatus, AchCycleOperationalStatus.Closed));
+                return new CycleCalendarGuardResult(true, false,
+                    DateOnly.FromDateTime(TestClock.OperationalDate), null, "Operable");
+            });
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object, mapper.Object, parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            calendarGuard: calendar.Object, timeProvider: TestClock.Create());
+        var result = await sut.RetryBatchAsync(new ContrapartidaDispatchRetryRequest(
+            source.Id, ContrapartidaDispatchRetryScope.FailedOnly, "qa-res-h02"));
+        db.ChangeTracker.Clear();
+        var item = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(1, result.Selected);
+        Assert.Equal(0, result.Processed);
+        Assert.Equal(1, item.AttemptCount); // Only the original verified SOAP attempt.
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.RetryPending, item.State);
+        Assert.Equal(ContrapartidaDispatchRecovery.UnsentCycleCode, item.LastErrorCode);
+        Assert.False(item.RequiresReconciliation);
+        Assert.Equal(afterIntent, item.DispatchIntentAtUtc.HasValue);
+        Assert.Single(await db.ContrapartidaDispatchAttempts.AsNoTracking()
+            .Where(a => a.AttemptNumber < 0).ToListAsync());
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RES_H02_OperationalWindowExpiresDuringMapping_SkipsSoap()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(db);
+        var cycle = await db.AchCycles.SingleAsync(x => x.Id == cycleId);
+        cycle.EndTime = new TimeSpan(12, 1, 0); // Clock begins at 12:00 America/Bogota.
+        await db.SaveChangesAsync();
+        await SembrarTransaccionYItemPendienteAsync(db, cycleId);
+        var clock = new AdvancingDispatchTimeProvider();
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper.Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(),
+                It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                clock.Advance(TimeSpan.FromMinutes(2));
+                return Task.FromResult(new ProcContrapartidasRequestResolution
+                {
+                    Contract = ContratoValido(), MappingVersion = 5,
+                    MappingSnapshotHash = "res-h02-window", UsedFallback = false
+                });
+            });
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns("<request/>");
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = new ContrapartidaDispatchJobService(db, soap.Object, mapper.Object,
+            new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict).Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance, LiveDispatchOptions(),
+            timeProvider: clock);
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-res-h02-window", 1);
+        db.ChangeTracker.Clear();
+        Assert.Equal(0, result.Processed);
+        var item = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.RetryPending, item.State);
+        Assert.Equal(0, item.AttemptCount);
+        Assert.Equal(ContrapartidaDispatchRecovery.UnsentCycleCode, item.LastErrorCode);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private sealed class AdvancingDispatchTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _now = TestClock.UtcNow;
+        public void Advance(TimeSpan by) => _now = _now.Add(by);
+        public override DateTimeOffset GetUtcNow() => _now;
+        public override TimeZoneInfo LocalTimeZone => TestClock.BogotaTimeZone;
+    }
+
+    [Fact]
+    public async Task RES_H02_CycleReassignedBetweenSelectionAndClaim_CasRejectsStaleWorker()
+    {
+        // Provider-executed CAS model for the dispatcher race. Both providers
+        // must use the same AchCycleId predicate in the real ExecuteUpdate.
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var previousCycle = await SembrarEstructuraBaseAsync(db);
+        await SembrarTransaccionYItemPendienteAsync(db, previousCycle);
+        var item = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        var newCycle = "res-h02-reassigned-cycle";
+        db.AchCycles.Add(new AchCycle
+        {
+            Id = newCycle, ClearingHouseId = 1, CycleName = "CICLO-QA",
+            ProcessingDate = TestClock.OperationalDate, StartTime = TimeSpan.Zero,
+            EndTime = TimeSpan.FromHours(23), CutoffTime = TimeSpan.FromHours(22),
+            OutputReleaseTime = TimeSpan.FromHours(23), OperationalStatus = AchCycleOperationalStatus.Open
+        });
+        await db.SaveChangesAsync();
+        await db.ContrapartidaDispatchItems.Where(x => x.Id == item.Id && x.AchCycleId == previousCycle)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.AchCycleId, newCycle));
+        var lostClaim = await db.ContrapartidaDispatchItems
+            .Where(x => x.Id == item.Id && x.AchCycleId == previousCycle
+                && x.ClearingHouseId == 1 && x.DispatchLeasePhase == ContrapartidaDispatchRecovery.Idle)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.DispatchLeaseToken, "obsolete-worker"));
+        Assert.Equal(0, lostClaim);
+        var persisted = await db.ContrapartidaDispatchItems.AsNoTracking().SingleAsync();
+        Assert.Equal(newCycle, persisted.AchCycleId);
+        Assert.NotEqual("obsolete-worker", persisted.DispatchLeaseToken);
+    }
+
+    private static async Task<ContrapartidaDispatchBatch> SeedManualRetrySourceAsync(
+        AchDbContext db, string cycleId)
+    {
+        var item = await db.ContrapartidaDispatchItems.SingleAsync();
+        item.AttemptCount = 1;
+        item.State = ContrapartidaDispatchItemStateEnum.RetryPending;
+        item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Idle;
+        item.RequiresReconciliation = false;
+        item.NextAttemptAtUtc = null;
+        var batch = new ContrapartidaDispatchBatch
+        {
+            AchCycleId = cycleId, ClearingHouseId = 1,
+            Status = ContrapartidaDispatchBatchStatusEnum.Failed,
+            TotalItems = 1, TotalFailed = 1
+        };
+        db.ContrapartidaDispatchBatches.Add(batch);
+        db.ContrapartidaDispatchAttempts.Add(new ContrapartidaDispatchAttempt
+        {
+            DispatchItemId = item.Id,
+            DispatchBatchId = batch.Id,
+            AttemptNumber = 1,
+            StartedAtUtc = TestClock.UtcNow.UtcDateTime.AddMinutes(-2),
+            FinishedAtUtc = TestClock.UtcNow.UtcDateTime.AddMinutes(-1),
+            Result = ContrapartidaDispatchAttemptResultEnum.Failed,
+            CorrelationId = "prior-verified-rejection",
+            TriggeredBy = "seed:previous",
+            RetryEligible = true,
+            RetryAllowed = true,
+            TransportStatus = IntegrationTransportStatus.Succeeded,
+            BusinessStatus = IntegrationResponseBusinessStatus.Rejected,
+            SoapResponseCode = "R01",
+            SoapMethodName = "Proc_Contrapartidas"
+        });
+        await db.SaveChangesAsync();
+        return batch;
+    }
+
     private static async Task<string> SembrarEstructuraBaseAsync(AchDbContext context)
     {
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig

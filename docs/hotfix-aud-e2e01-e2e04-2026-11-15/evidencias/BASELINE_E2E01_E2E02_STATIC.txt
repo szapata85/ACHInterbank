@@ -1,0 +1,38 @@
+COMMAND: python scripts/test/e2e01_e2e02_source_static_check.py
+EXIT_CODE: 0
+01 PASS SOURCE/SQLMODEL hashes complete immutable instruction incl. amount and addendas
+02 PASS SOURCE/SQLMODEL idempotency key origin-scoped
+03 PASS SOURCE/SQLMODEL legacy instructions fail closed
+04 PASS SOURCE/SQLMODEL changed instruction is conflict
+05 PASS SOURCE/SQLMODEL historical duplicate detection
+06 PASS SOURCE/SQLMODEL creation preflight before policy
+07 PASS SOURCE/SQLMODEL creation recheck inside EF transaction
+08 PASS SOURCE/SQLMODEL unique collision resolves winner
+09 PASS SOURCE/SQLMODEL persister stores fingerprint
+10 PASS SOURCE/SQLMODEL policy not restricted to current cycle for duplicate
+11 PASS SOURCE/SQLMODEL EF filtered unique key
+12 PASS SOURCE/SQLMODEL HTTP controlled 409 conflict
+13 PASS SOURCE/SQLMODEL PG real migration unique index
+14 PASS SOURCE/SQLMODEL SQL Server real migration unique index
+15 PASS SOURCE/SQLMODEL PG duplicates abort DDL without deletes
+16 PASS SOURCE/SQLMODEL SQL Server duplicates abort DDL without deletes
+17 PASS SOURCE/SQLMODEL both providers persist lease and reconciliation
+18 PASS SOURCE/SQLMODEL legacy in-flight fail closed in both providers
+19 PASS SOURCE/SQLMODEL recovery scans expired reporting and retrying
+20 PASS SOURCE/SQLMODEL recovery claims with compare-and-swap
+21 PASS SOURCE/SQLMODEL pre-transport preparing recoverable
+22 PASS SOURCE/SQLMODEL unknown outcome means reconciliation
+23 PASS SOURCE/SQLMODEL recovery audit attempt recorded
+24 PASS SOURCE/SQLMODEL SOAP boundary persisted before I/O
+25 PASS SOURCE/SQLMODEL recovery independently scans Quartz even outside cycles
+26 PASS SOURCE/SQLMODEL scheduled and manual both acquire lease
+27 PASS SOURCE/SQLMODEL scheduled and manual both block reconciliation
+28 PASS SOURCE/SQLMODEL unknown live transport fails closed
+29 PASS SOURCE/SQLMODEL idempotency + SQL concurrency xUnit source exists
+30 PASS SOURCE/SQLMODEL E2E02 restart and concurrent workers xUnit source exists
+31 PASS SOURCE/SQLMODEL SQLite equivalent rejects identical origin and key
+32 PASS SOURCE/SQLMODEL SQLite equivalent allows independent originating scope
+33 PASS SOURCE/SQLMODEL SQLite equivalent atomic recovery selects exactly one claimant
+34 PASS SOURCE/SQLMODEL SQLite equivalent prevents old worker from transport boundary
+35 PASS SOURCE/SQLMODEL SQLite equivalent retains reconciliation flag
+TOTAL 35/35 PASS: SOURCE STATIC + SQLITE MODEL; .NET BUILD/XUNIT/PG/SQLSERVER/UAT NOT EXECUTED

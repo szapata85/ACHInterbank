@@ -1,0 +1,28 @@
+PASS RES-H02 scheduled claim CAS checks AchCycleId
+PASS RES-H02 scheduled claim requires Open DB status
+PASS RES-H02 scheduled claim requires idle phase
+PASS RES-H02 scheduled claim readback checks matching lease/cycle/phase
+PASS RES-H02 scheduled CAS miss breaks without spin
+PASS RES-H02 scheduled pre-intent and post-intent checks
+PASS RES-H02 manual pre-intent and post-intent checks
+PASS RES-H02 both paths check Preparing and InFlight
+PASS RES-H02 fresh persisted cycle read
+PASS RES-H02 fresh calendar policy and operational window
+PASS RES-H02 final CAS checks current persisted cycle and lease
+PASS RES-H02 no SOAP on denied preflight
+PASS RES-H02 abort CAS checks exact phase, token and cycle
+PASS RES-H02 abort restores RetryPending without consuming AttemptCount
+PASS RES-H02 aborted attempt is audited NotExecuted and negative
+PASS RES-H02 unsent cycle code remains eligible for safe reroute
+PASS RES-H02 manual retry retains strict original cycle/lease CAS
+PASS RES-H02 preflight abort cannot be treated as SOAP transport error
+PASS RES-H02 xUnit source RES_H02_ScheduledCycleClosesDuringMappingOrAfterIntent_NoSoapAndNoAttempt
+PASS RES-H02 xUnit source RES_H02_ManualCycleClosesDuringPreparationOrAtFinalFence_SkipsDebit
+PASS RES-H02 xUnit source RES_H02_CycleReassignedBetweenSelectionAndClaim_CasRejectsStaleWorker
+PASS RES-H02 SQLite model rejects obsolete worker after reassignment
+PASS RES-H02 SQLite model permits exactly one owner for new cycle
+PASS RES-H02 SQLite model competing worker loses CAS
+PASS RES-H02 SQLite final fence denies closed cycle
+PASS RES-H02 SQLite model aborts only exact owned claim
+PASS RES-H02 SQLite model produces no monetarily sent item
+TOTAL 27/27 RES-H02 source/SQLite model; C#/.NET/SQL Server/PostgreSQL/SOAP not executed

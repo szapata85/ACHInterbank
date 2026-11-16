@@ -55,7 +55,8 @@ public class ProcTransaccionesRequestMapperTests
         var pMonto = new IntegrationMethodParameter { Id = 3, MethodId = method.Id, ParameterPath = "MONTO", Required = true, Direction = IntegrationParameterDirectionEnum.Input, DisplayName = "MONTO" };
         var pIdTran = new IntegrationMethodParameter { Id = 4, MethodId = method.Id, ParameterPath = "IDTRAN", Required = true, Direction = IntegrationParameterDirectionEnum.Input, DisplayName = "IDTRAN" };
         var pIdCam = new IntegrationMethodParameter { Id = 5, MethodId = method.Id, ParameterPath = "IDCAMCOMPE", Required = true, Direction = IntegrationParameterDirectionEnum.Input, DisplayName = "IDCAMCOMPE" };
-        context.IntegrationMethodParameters.AddRange(pTreg, pTiptran, pMonto, pIdTran, pIdCam);
+        var pNctaOrig = new IntegrationMethodParameter { Id = 6, MethodId = method.Id, ParameterPath = "NCTAORIG", Required = false, Direction = IntegrationParameterDirectionEnum.Input, DisplayName = "NCTAORIG" };
+        context.IntegrationMethodParameters.AddRange(pTreg, pTiptran, pMonto, pIdTran, pIdCam, pNctaOrig);
 
         var set = new IntegrationMappingSet { Id = Guid.NewGuid(), MethodId = method.Id, Name = "pub", Version = 1, Status = IntegrationMappingSetStatusEnum.Published };
         context.IntegrationMappingSets.Add(set);
@@ -64,7 +65,8 @@ public class ProcTransaccionesRequestMapperTests
             new IntegrationMappingRule { Id = 2, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pTiptran.Id, SourceKind = IntegrationSourceKindEnum.Transaction, SourceFieldPath = "transaction.transactionCode", Priority = 1, Enabled = true },
             new IntegrationMappingRule { Id = 3, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pMonto.Id, SourceKind = IntegrationSourceKindEnum.Transaction, SourceFieldPath = "transaction.amount", Priority = 1, Enabled = true },
             new IntegrationMappingRule { Id = 4, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pIdTran.Id, SourceKind = IntegrationSourceKindEnum.Transaction, SourceFieldPath = "transaction.id", Priority = 1, Enabled = true },
-            new IntegrationMappingRule { Id = 5, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pIdCam.Id, SourceKind = IntegrationSourceKindEnum.Cycle, SourceFieldPath = "cycle.clearingHouseId", Priority = 1, Enabled = true });
+            new IntegrationMappingRule { Id = 5, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pIdCam.Id, SourceKind = IntegrationSourceKindEnum.Cycle, SourceFieldPath = "cycle.clearingHouseId", Priority = 1, Enabled = true },
+            new IntegrationMappingRule { Id = 6, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pNctaOrig.Id, SourceKind = IntegrationSourceKindEnum.Transaction, SourceFieldPath = "transaction.sourceAccountNumber", Priority = 1, Enabled = true });
         context.IntegrationMappingSetHistory.Add(new IntegrationMappingSetHistory { MappingSetId = set.Id, MethodId = method.Id, Version = 1, Status = IntegrationMappingSetStatusEnum.Published, Action = "Publish", PerformedBy = "tester", SnapshotHash = "snap-1", SnapshotJson = "{}" });
         await context.SaveChangesAsync();
 
@@ -83,6 +85,8 @@ public class ProcTransaccionesRequestMapperTests
         Assert.Contains("<tem:TREG>6</tem:TREG>", xml);
         Assert.Contains("<tem:TIPTRAN>22</tem:TIPTRAN>", xml);
         Assert.Contains("<tem:IDCAMCOMPE>1</tem:IDCAMCOMPE>", xml);
+        Assert.Equal(transaction.SourceAccountNumber, resolution.Contract.Parameters["NCTAORIG"]);
+        Assert.Contains("<tem:NCTAORIG>s</tem:NCTAORIG>", xml);
         Assert.DoesNotContain("<METODO>", xml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Proc_Contrapartidas", xml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("RegistrarRespuestaTransaccion", xml, StringComparison.OrdinalIgnoreCase);

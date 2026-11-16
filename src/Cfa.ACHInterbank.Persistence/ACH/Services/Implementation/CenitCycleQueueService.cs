@@ -2,6 +2,8 @@ using System.Data;
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -15,11 +17,20 @@ public class CenitCycleQueueService : ICenitCycleQueueService
 {
     private readonly ICenitOperatingCalendarPolicy _calendarPolicy;
     private readonly AchDbContext _context;
+    private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
 
-    public CenitCycleQueueService(ICenitOperatingCalendarPolicy calendarPolicy, AchDbContext context)
+    public CenitCycleQueueService(
+        ICenitOperatingCalendarPolicy calendarPolicy,
+        AchDbContext context,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null)
     {
         _calendarPolicy = calendarPolicy;
         _context = context;
+        // Misma política que aplica la validación NACHA-M, antes del commit de la cola.
+        _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
+            new ClearingHouseToPaymentRailMapper(),
+            new CycleNumberResolver());
     }
 
     public async Task<CenitCycleQueue> EnqueueAsync(AchTransaction transaction, DateTime receivedAtUtc, string reason, CancellationToken ct)
@@ -92,12 +103,19 @@ public class CenitCycleQueueService : ICenitCycleQueueService
     {
         var target = await _context.AchCycles.AsNoTracking()
             .Include(x => x.ClearingHouse)
+                .ThenInclude(x => x!.ClearingHouseConfig)
             .SingleOrDefaultAsync(x => x.Id == targetAchCycleId, ct)
             ?? throw new InvalidOperationException("CENIT_QUEUE_TARGET_NOT_FOUND");
         if (!string.Equals(target.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("CENIT_QUEUE_WRONG_CHAMBER");
         if (target.OperationalStatus == AchCycleOperationalStatus.Cancelled)
             throw new InvalidOperationException("CENIT_QUEUE_TARGET_CANCELLED");
+
+        // El ID de base de datos no es el número de sesión. Sin número inequívoco
+        // se bloquea la incorporación para evitar asignaciones a sesiones erradas.
+        var targetSession = new CycleNumberResolver().Resolve(target.CycleName);
+        if (targetSession is null or < 1 or > 5)
+            throw new InvalidOperationException("CENIT_QUEUE_TARGET_SESSION_UNRESOLVED");
 
         var queued = await _context.CenitCycleQueues
             .Include(x => x.AchTransaction).ThenInclude(x => x.AchBatch)
@@ -133,6 +151,28 @@ public class CenitCycleQueueService : ICenitCycleQueueService
             if (tx.EffectiveEntryDate.Date != target.ProcessingDate.Date
                 || sourceBatch.EffectiveEntryDate.Date != tx.EffectiveEntryDate.Date)
                 throw new InvalidOperationException($"CENIT_QUEUE_VALUE_DATE_REVIEW_REQUIRED:{item.Id}");
+
+            // I01: C5 admite devoluciones (y devoluciones de devoluciones) pero
+            // nunca nuevas entradas monetarias ordinarias o prenotificaciones.
+            // Validar ANTES de mover el lote, persistir el evento o consumir la cola:
+            // el rechazo tardío del generador NACHA no revierte este commit.
+            if (targetSession == 5)
+            {
+                var decision = await _cycleTransactionPolicy.EvaluateAsync(
+                    new CycleTransactionPolicyRequest(
+                        target.ClearingHouseId, target.ClearingHouseCycleConfigId,
+                        target.ProcessingDate, target.ClearingHouse?.Code,
+                        target.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+                        target.CycleName, tx.Type, tx.IsPrenotification,
+                        tx.ReturnReasonCode, tx.OriginalTraceRef,
+                        TransactionCode: tx.TransactionCode), ct);
+                // Defensa adicional ante una configuración C5 permisiva por error:
+                // solo se admite una clase identificada como Return o ReturnOfReturn.
+                if (!decision.IsAllowed ||
+                    decision.FunctionalClass is not ("Return" or "ReturnOfReturn"))
+                    throw new InvalidOperationException(
+                        $"CENIT_QUEUE_CYCLE5_NOT_ALLOWED:{item.Id}:{decision.ReasonCode}");
+            }
 
             if (await _context.AchFileExportTransactions.AsNoTracking()
                 .AnyAsync(x => x.AchTransactionId == tx.Id, ct)

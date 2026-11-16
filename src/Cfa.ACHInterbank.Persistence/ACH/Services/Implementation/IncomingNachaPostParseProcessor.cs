@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Services;
@@ -216,7 +217,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 "LinkingExitoso", "Ok", "Linking determinístico completado.",
                 new { linkResult.LinkType, linkResult.ConfidenceScore }, executedBy, ct);
 
-            await ApplyBusinessEffectsAsync(ingestion, entry, relatedAddenda, classificationRow, linkResult, executedBy, ct);
+            await ApplyBusinessEffectsAsync(ingestion, entry, relatedAddenda, classificationRow, linkResult, link.Id, executedBy, ct);
         }
 
         await _context.SaveChangesAsync(ct);
@@ -270,7 +271,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
             "LinkingManualExitoso", "Ok", "Relación manual confirmada; la devolución continúa por el pipeline oficial.",
             new { incomingNachaTransactionLinkId, link.AchTransactionId }, executedBy, ct);
 
-        return await ApplyBusinessEffectsAsync(ingestion, entry, addenda, classification, manualLink, executedBy, ct);
+        return await ApplyBusinessEffectsAsync(ingestion, entry, addenda, classification, manualLink, link.Id, executedBy, ct);
     }
 
     private static object BuildUnresolvedIncomingReturnEvidence(
@@ -352,6 +353,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         AddendaRecord? addenda,
         IncomingNachaEntryClassification classification,
         IncomingNachaLinkingResult link,
+        Guid incomingNachaTransactionLinkId,
         string executedBy,
         CancellationToken ct)
     {
@@ -486,13 +488,22 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 classification.OriginalTraceRef,
                 classification.ReturnReasonCode!);
 
+            // Only CENIT: pin the exact NACHA link in the immutable state event.
+            // ACH Colombia retains its existing audit payload without modification.
+            var stateEvidence = classification.ClassificationEvidenceJson;
+            if (cenitPolicy is not null)
+            {
+                var cenitEvidence = JsonNode.Parse(stateEvidence) as JsonObject ?? new JsonObject();
+                cenitEvidence[CenitParentReturnEvidenceResolver.LinkIdProperty] = incomingNachaTransactionLinkId.ToString("D");
+                stateEvidence = cenitEvidence.ToJsonString();
+            }
             var transition = await _stateTransitionService.TransitionAsync(
                 new AchStateTransitionRequest(
                     link.AchTransactionId.Value,
                     route.TargetState,
                     route.Source,
                     classification.ReturnReasonCode,
-                    classification.ClassificationEvidenceJson,
+                    stateEvidence,
                     classification.OriginalTraceRef,
                     DateTime.UtcNow,
                     idempotencyKey,
@@ -620,10 +631,10 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 "No existe valor normalizado para validar la devolucion CENIT.");
         }
 
-        var returnCycleName = !string.IsNullOrWhiteSpace(ingestion.ResolvedAchCycleId)
+        var resolvedReturnCycle = !string.IsNullOrWhiteSpace(ingestion.ResolvedAchCycleId)
             ? await _context.AchCycles.AsNoTracking()
                 .Where(x => x.Id == ingestion.ResolvedAchCycleId)
-                .Select(x => x.CycleName)
+                .Select(x => new { x.CycleName, x.ProcessingDate })
                 .SingleOrDefaultAsync(ct)
             : null;
         var originalCycle = !string.IsNullOrWhiteSpace(transaction.AchCycleId)
@@ -632,7 +643,23 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 .Select(x => new { x.CycleName, x.ProcessingDate })
                 .SingleOrDefaultAsync(ct)
             : null;
-        var returnCycleNumber = ingestion.DetectedCycleNumber ?? _cycleNumberResolver.Resolve(returnCycleName);
+        var resolvedReturnCycleNumber = _cycleNumberResolver.Resolve(resolvedReturnCycle?.CycleName);
+        // An imported filename/cycle hint must not disguise an actual C5 R06 as
+        // an earlier session. R06 requires a trusted cycle resolution and a
+        // consistent external hint; other return paths retain their prior policy.
+        if (string.Equals(classification.ReturnReasonCode, "R06", StringComparison.OrdinalIgnoreCase)
+            && (!resolvedReturnCycleNumber.HasValue
+                || (ingestion.DetectedCycleNumber.HasValue
+                    && ingestion.DetectedCycleNumber.Value != resolvedReturnCycleNumber.Value)))
+        {
+            return new CenitIncomingReturnPolicyResult(
+                CenitIncomingReturnPolicyStatus.ManualReviewRequired,
+                "CENIT_R06_RETURN_CYCLE_EVIDENCE_CONFLICT",
+                "La sesion R06 recibida no coincide con el ciclo operacional resuelto, o no se pudo resolver.");
+        }
+        var returnCycleNumber = string.Equals(classification.ReturnReasonCode, "R06", StringComparison.OrdinalIgnoreCase)
+            ? resolvedReturnCycleNumber
+            : ingestion.DetectedCycleNumber ?? resolvedReturnCycleNumber;
         var cycleNames = await _context.AchCycles.AsNoTracking()
             .Where(x => x.ClearingHouseId == ingestion.ResolvedClearingHouseId.Value
                 && x.ProcessingDate.Date == returnValueDate.Value.Date)
@@ -648,11 +675,13 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         var evidence = ParseCenitOperationalEvidence(classification.ClassificationEvidenceJson);
         DateTime? calculatedDeadline = null;
         if (string.Equals(classification.ReturnReasonCode, "R23", StringComparison.OrdinalIgnoreCase)
-            && returnValueDate.Value.Date > transaction.EffectiveEntryDate.Date
+            && originalCycle is not null
+            && resolvedReturnCycle is not null
+            && resolvedReturnCycle.ProcessingDate.Date > originalCycle.ProcessingDate.Date
             && evidence.ReceiverNotificationReceivedDate.HasValue)
         {
             calculatedDeadline = (await _operationalCalendar.GetNextBusinessDayAsync(
-                DateOnly.FromDateTime(evidence.ReceiverNotificationReceivedDate.Value.Date.AddDays(1)),
+                CenitR23BankingDate.FromNotificationTimestamp(evidence.ReceiverNotificationReceivedDate.Value).AddDays(1),
                 ingestion.ResolvedClearingHouseId.Value, ct)).ToDateTime(TimeOnly.MinValue);
         }
 
@@ -675,7 +704,8 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
             evidence.ReceiverRejectionDeadlineDate,
             originalCycle?.ProcessingDate,
             evidence.ReceiverNotificationReceivedDate,
-            calculatedDeadline));
+            calculatedDeadline,
+            resolvedReturnCycle?.ProcessingDate));
     }
 
     private static CenitIncomingReturnOperationalEvidence ParseCenitOperationalEvidence(string? evidenceJson)

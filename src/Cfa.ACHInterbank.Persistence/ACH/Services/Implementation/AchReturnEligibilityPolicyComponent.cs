@@ -101,11 +101,12 @@ internal sealed class AchReturnEligibilityPolicyComponent(
         var cycleEvidence = correlation.CenitCycleEvidence!;
         DateTime? calculatedDeadline = null;
         if (string.Equals(reasonCode, "R23", StringComparison.OrdinalIgnoreCase)
-            && scope.ReturnCycle.ProcessingDate.Date > transaction.EffectiveEntryDate.Date
+            && transaction.AchCycle is not null
+            && scope.ReturnCycle.ProcessingDate.Date > transaction.AchCycle.ProcessingDate.Date
             && evidence.ReceiverNotificationReceivedDate.HasValue)
         {
             calculatedDeadline = (await operationalCalendarService.GetNextBusinessDayAsync(
-                DateOnly.FromDateTime(evidence.ReceiverNotificationReceivedDate.Value.Date.AddDays(1)),
+                CenitR23BankingDate.FromNotificationTimestamp(evidence.ReceiverNotificationReceivedDate.Value).AddDays(1),
                 scope.ReturnCycle.ClearingHouseId, ct)).ToDateTime(TimeOnly.MinValue);
         }
 
@@ -128,7 +129,8 @@ internal sealed class AchReturnEligibilityPolicyComponent(
             evidence.ReceiverRejectionDeadlineDate,
             transaction.AchCycle?.ProcessingDate,
             evidence.ReceiverNotificationReceivedDate,
-            calculatedDeadline));
+            calculatedDeadline,
+            scope.ReturnCycle.ProcessingDate));
         if (!policyResult.IsAllowed)
         {
             throw new InvalidOperationException($"{policyResult.Code}: {policyResult.Message}");
@@ -148,44 +150,88 @@ internal sealed class AchReturnEligibilityPolicyComponent(
 
         var originalCycle = transaction.AchCycle
             ?? throw new InvalidOperationException("ACHCOL_R10_ORIGINAL_CYCLE_REQUIRED: no fue posible resolver el ciclo original.");
-        if (originalCycle.ProcessingDate.Date != returnCycle.ProcessingDate.Date)
+        if (originalCycle.ClearingHouseId != returnCycle.ClearingHouseId)
         {
-            throw new InvalidOperationException("ACHCOL_RETURN_PREVIOUS_OPERATIONAL_DAY: la devolución R10 fuera del día operativo pertenece al flujo de reclamaciones.");
+            throw new InvalidOperationException("ACHCOL_R10_CLEARING_HOUSE_MISMATCH: los ciclos de origen y devolución deben ser de ACH Colombia.");
         }
 
-        _ = originalCycle.ClearingHouseCycleConfig
-            ?? throw new InvalidOperationException("ACHCOL_R10_WINDOW_POLICY_UNRESOLVED: el ciclo original no conserva su política de ciclos.");
-        var maxReturnCycles = await ResolveAchColombiaMaxReturnCyclesAsync(
-            originalCycle.ClearingHouseId,
-            originalCycle.ProcessingDate,
-            ct);
-
-        var scheduledCycles = await context.AchCycles
-            .AsNoTracking()
-            .Include(cycle => cycle.ClearingHouseCycleConfig)
-            .Where(cycle => cycle.ClearingHouseId == originalCycle.ClearingHouseId
-                && cycle.ProcessingDate.Date == originalCycle.ProcessingDate.Date)
-            .OrderBy(cycle => cycle.StartTime)
-            .ThenBy(cycle => cycle.CutoffTime)
-            .ToListAsync(ct);
-        var originalIndex = scheduledCycles.FindIndex(cycle => cycle.Id == originalCycle.Id);
-        var returnIndex = scheduledCycles.FindIndex(cycle => cycle.Id == returnCycle.Id);
-        if (originalIndex < 0 || returnIndex < originalIndex)
+        var originalDate = DateOnly.FromDateTime(originalCycle.ProcessingDate);
+        var returnDate = DateOnly.FromDateTime(returnCycle.ProcessingDate);
+        if (!await operationalCalendarService.IsBusinessDayAsync(originalDate, originalCycle.ClearingHouseId, ct)
+            || !await operationalCalendarService.IsBusinessDayAsync(returnDate, returnCycle.ClearingHouseId, ct))
         {
-            throw new InvalidOperationException("ACHCOL_R10_WINDOW_POLICY_UNRESOLVED: no fue posible resolver el orden operativo de los ciclos.");
+            throw new InvalidOperationException("ACHCOL_R10_NON_OPERATIONAL_DAY: R10 requiere fechas operativas hábiles para ambos ciclos.");
         }
 
-        var returnOpportunityCount = scheduledCycles
-            .Skip(originalIndex)
-            .Take(returnIndex - originalIndex + 1)
-            .Count(cycle => cycle.ClearingHouseCycleConfig?.AllowsReturn == true);
-        if (scheduledCycles[returnIndex].ClearingHouseCycleConfig?.AllowsReturn != true)
+        var sameOperationalDay = originalDate == returnDate;
+        var previousOperationalDay = await operationalCalendarService.GetPreviousBusinessDayAsync(
+            returnDate.AddDays(-1), returnCycle.ClearingHouseId, ct);
+        if (!sameOperationalDay && originalDate != previousOperationalDay)
+        {
+            throw new InvalidOperationException("ACHCOL_R10_RETURN_WINDOW_EXPIRED: el origen no pertenece a la jornada actual ni a la hábil inmediatamente anterior.");
+        }
+
+        // The return cycle can be loaded AsNoTracking without its config by
+        // ResolveScopeAsync. Query the persisted effective cycle configuration
+        // rather than treating an unloaded navigation as a prohibition.
+        var allowsReturn = await context.AchCycles.AsNoTracking()
+            .Where(cycle => cycle.Id == returnCycle.Id
+                && cycle.ClearingHouseId == returnCycle.ClearingHouseId)
+            .Select(cycle => (bool?)cycle.ClearingHouseCycleConfig!.AllowsReturn)
+            .SingleOrDefaultAsync(ct);
+        if (allowsReturn != true)
         {
             throw new InvalidOperationException("ACHCOL_R10_RETURN_NOT_ALLOWED_IN_CYCLE: la política del ciclo solicitado no permite ReturnOut.");
         }
-        if (returnOpportunityCount > maxReturnCycles)
+
+        if (returnDate.ToDateTime(TimeOnly.MinValue) >= RegulatoryCycleScheduleCatalog.AchColombiaSevenCycleEffectiveFrom.Date)
         {
-            throw new InvalidOperationException("ACHCOL_R10_RETURN_WINDOW_EXPIRED: la transacción excede la ventana configurada de devolución.");
+            var resolver = new CycleNumberResolver();
+            var originalNumber = resolver.Resolve(originalCycle.CycleName);
+            var returnNumber = resolver.Resolve(returnCycle.CycleName);
+            if (originalNumber is null or < 1 or > 7 || returnNumber is null or < 1 or > 7)
+            {
+                throw new InvalidOperationException("ACHCOL_R10_WINDOW_POLICY_UNRESOLVED: falta un número C1-C7 verificable para origen o devolución.");
+            }
+
+            var sourceDay = sameOperationalDay
+                ? RegulatoryCycleSourceDay.CurrentOperationalDay
+                : RegulatoryCycleSourceDay.PreviousOperationalDay;
+            if (!RegulatoryCycleScheduleCatalog.AllowsAchColombiaSevenCycleReturn(
+                    originalNumber.Value, returnNumber.Value, sourceDay))
+            {
+                throw new InvalidOperationException("ACHCOL_R10_RETURN_WINDOW_EXPIRED: el par origen/devolución no está autorizado por la matriz C1-C7.");
+            }
+        }
+        else
+        {
+            // Preserve the earlier five-cycle effective policy. The confirmed
+            // seven-cycle matrix must NOT retroactively rewrite historical days.
+            var maxReturnCycles = await ResolveAchColombiaMaxReturnCyclesAsync(
+                originalCycle.ClearingHouseId, originalCycle.ProcessingDate, ct);
+            var scheduledCycles = await context.AchCycles.AsNoTracking()
+                .Include(cycle => cycle.ClearingHouseCycleConfig)
+                .Where(cycle => cycle.ClearingHouseId == originalCycle.ClearingHouseId
+                    && cycle.ProcessingDate.Date == originalCycle.ProcessingDate.Date)
+                .ToListAsync(ct);
+            scheduledCycles = scheduledCycles
+                .OrderBy(ResolveOperationalCycleStart)
+                .ThenBy(cycle => cycle.CutoffTime)
+                .ToList();
+            var originalIndex = scheduledCycles.FindIndex(cycle => cycle.Id == originalCycle.Id);
+            var returnIndex = scheduledCycles.FindIndex(cycle => cycle.Id == returnCycle.Id);
+            if (!sameOperationalDay || originalIndex < 0 || returnIndex < originalIndex)
+            {
+                throw new InvalidOperationException("ACHCOL_R10_WINDOW_POLICY_UNRESOLVED: no fue posible resolver la ventana histórica.");
+            }
+            var returnOpportunityCount = scheduledCycles
+                .Skip(originalIndex)
+                .Take(returnIndex - originalIndex + 1)
+                .Count(cycle => cycle.ClearingHouseCycleConfig?.AllowsReturn == true);
+            if (returnOpportunityCount > maxReturnCycles)
+            {
+                throw new InvalidOperationException("ACHCOL_R10_RETURN_WINDOW_EXPIRED: la transacción excede la ventana histórica configurada.");
+            }
         }
 
         if (requestedBasis == AchColombiaR10ReturnBasis.NoReceiverAuthorizationOrAgreement)
@@ -223,6 +269,20 @@ internal sealed class AchReturnEligibilityPolicyComponent(
         }
 
         throw new InvalidOperationException("ACHCOL_R10_BASIS_UNPROVEN: la base R10 no es reconocida.");
+    }
+
+    internal static DateTime ResolveOperationalCycleStart(AchCycle cycle)
+    {
+        // La hora física de inicio de C1 pertenece al día calendario anterior;
+        // la fecha de procesamiento, elegibilidad y corte sigue siendo la operativa.
+        var startDate = cycle.ProcessingDate.Date;
+        if ((new CycleNumberResolver().Resolve(cycle.CycleName) == 1
+            || string.Equals(cycle.CycleName?.Trim(), "C1", StringComparison.OrdinalIgnoreCase))
+            && cycle.StartTime > cycle.CutoffTime)
+        {
+            startDate = startDate.AddDays(-1);
+        }
+        return startDate.Add(cycle.StartTime);
     }
 
     private async Task<int> ResolveAchColombiaMaxReturnCyclesAsync(

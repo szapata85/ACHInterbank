@@ -23,7 +23,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobService
 {
-    private const int MaxAttempts = 5;
+    private const int MaxAttempts = ContrapartidaDispatchRecovery.MaxSoapAttempts;
     private const string SoapMethodName = IntegrationGuaranteeConstants.ProcContrapartidas;
     private const string TechnicalStatusSucceeded = "Succeeded";
     private const string TechnicalStatusFunctionalRejection = "FunctionalRejection";
@@ -146,8 +146,21 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 "CONTRAPARTIDA_ALREADY_SUCCEEDED: la transacción ya tiene un resultado funcional exitoso.");
         }
 
+        var effectiveCycleId = target.AchCycleId;
+        if (target.State == ContrapartidaDispatchItemStateEnum.RetryPending)
+        {
+            var recovery = await _context.ContrapartidaDispatchItems.AsNoTracking()
+                .Where(x => x.AchTransactionId == transactionId)
+                .Select(x => new { x.LastErrorCode, x.RequiresReconciliation })
+                .SingleAsync(ct);
+            if (IsPreSendRetryCode(recovery.LastErrorCode) && !recovery.RequiresReconciliation)
+            {
+                effectiveCycleId = (await FindActiveRetryCycleAsync(target.ClearingHouseId, ct))?.Id
+                    ?? target.AchCycleId;
+            }
+        }
         return await ProcessPendingAsync(
-            target.AchCycleId,
+            effectiveCycleId,
             target.ClearingHouseId,
             triggeredBy,
             1,
@@ -163,6 +176,9 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         int? transactionId,
         CancellationToken ct)
     {
+        // Recovery is independent of the current cycle; Quartz also scans when no cycle is open.
+        await ContrapartidaDispatchRecovery.RecoverStaleAsync(
+            _context, _timeProvider.GetUtcNow().UtcDateTime, _logger, ct);
         // chunkSize se conserva en el contrato público; cada envío SOAP exige cardinalidad 1:1.
         var safeTriggeredBy = string.IsNullOrWhiteSpace(triggeredBy) ? "quartz:contrapartida" : triggeredBy.Trim();
         var nowUtcOffset = _timeProvider.GetUtcNow();
@@ -187,6 +203,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
         var nowLocal = ValidateCycleOperationalWindow(cycle, nowUtcOffset).LocalNow;
 
+        // AUD-E2E-03: move ONLY proven pre-send recoveries onto this permitted open cycle.
+        // Original monetary transaction/batch and their value date remain immutable.
+        await ReassignRecoveredItemsToActiveCycleAsync(cycle, nowUtcOffset, ct);
+
         var processed = 0;
         var succeeded = 0;
         var failed = 0;
@@ -204,7 +224,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     && i.AchTransaction.Origin == AchTransactionOrigin.Cfa
                     && i.AchTransaction.Type == TransactionTypeEnum.Debit)
                 .Where(i => !transactionId.HasValue || i.AchTransactionId == transactionId.Value)
-                .Where(i => EligibleStates.Contains(i.State))
+                .Where(i => EligibleStates.Contains(i.State) && !i.RequiresReconciliation && i.AttemptCount < MaxAttempts)
                 .Where(i => !i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= nowUtc)
                 .OrderBy(i => i.Id)
                 .Select(i => i.Id)
@@ -219,7 +239,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
             chunks++;
             var chunkPartialCount = 0;
-            var operationToken = $"scheduled:{Guid.NewGuid():N}";
+            var operationToken = string.Empty;
 
             var batch = new ContrapartidaDispatchBatch
             {
@@ -234,30 +254,46 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             };
             await _context.ContrapartidaDispatchBatches.AddAsync(batch, ct);
             await _context.SaveChangesAsync(ct);
+            operationToken = $"scheduled:{batch.Id:N}";
 
             await _context.ContrapartidaDispatchItems
                 .Where(i => pendingItemIds.Contains(i.Id)
+                    // RES-H02-02: selection and claim must agree on the SAME cycle.
+                    // The automatic recovery / manual CAS can reassign an item meanwhile.
+                    && i.AchCycleId == cycle.Id && i.ClearingHouseId == cycle.ClearingHouseId
+                    && i.AchCycle != null && i.AchCycle.OperationalStatus == AchCycleOperationalStatus.Open
+                    && i.DispatchLeasePhase == ContrapartidaDispatchRecovery.Idle
                     && EligibleStates.Contains(i.State)
+                    && i.AttemptCount < MaxAttempts
+                    && !i.RequiresReconciliation
                     && (!i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= nowUtc))
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(i => i.State, ContrapartidaDispatchItemStateEnum.ReportingContrapartida)
                     .SetProperty(i => i.LastCorrelationId, operationToken)
                     .SetProperty(i => i.LastDispatchedBy, safeTriggeredBy)
+                    .SetProperty(i => i.DispatchLeaseToken, operationToken)
+                    .SetProperty(i => i.DispatchLeasePhase, ContrapartidaDispatchRecovery.Preparing)
+                    .SetProperty(i => i.DispatchLeaseExpiresAtUtc,
+                        (DateTime?)nowUtc.Add(ContrapartidaDispatchRecovery.LeaseDuration))
                     .SetProperty(i => i.UpdatedAt, nowUtcOffset), ct);
 
             var dispatchItems = await _context.ContrapartidaDispatchItems
                 .Where(i => pendingItemIds.Contains(i.Id)
                     && i.State == ContrapartidaDispatchItemStateEnum.ReportingContrapartida
-                    && i.LastCorrelationId == operationToken)
+                    && i.DispatchLeaseToken == operationToken
+                    && i.AchCycleId == cycle.Id && i.ClearingHouseId == cycle.ClearingHouseId
+                    && i.DispatchLeasePhase == ContrapartidaDispatchRecovery.Preparing)
                 .ToListAsync(ct);
 
             if (dispatchItems.Count == 0)
             {
                 batch.Status = ContrapartidaDispatchBatchStatusEnum.Cancelled;
-                batch.SummaryMessage = "Sin items reclamados para este chunk (ya tomados por otro worker).";
+                batch.SummaryMessage = "Sin items reclamados: ciclo cambiado, reasignacion o claim de otro worker. SOAP no invocado.";
                 batch.FinishedAtUtc = nowUtc;
                 await _context.SaveChangesAsync(ct);
-                continue;
+                // Stop this invocation: a cycle that closed between selection and
+                // claim would otherwise be selected repeatedly in a busy loop.
+                break;
             }
 
             var transactionIds = dispatchItems.Select(i => i.AchTransactionId).ToArray();
@@ -281,6 +317,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             string executionMode = _dispatchOptions.NormalizedMode;
             string technicalException = string.Empty;
             var liveTransportAttempted = false;
+            var intentPersistenceAttempted = false;
+            var intentCommitted = false;
+            var preSoapAbortAttempted = false;
+            var preSoapAborted = false;
             ProcContrapartidasParsedResponse? parseResult = null;
             var startedAtUtc = nowUtc;
 
@@ -297,15 +337,62 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 batch.MappingVersion = resolution.MappingVersion;
                 batch.MappingSnapshotHash = resolution.MappingSnapshotHash;
 
-                liveTransportAttempted = IsLiveMode(executionMode);
-                var dispatchResult = await DispatchProcContrapartidasAsync(
-                    requestPayload,
-                    cycle.Id,
-                    cycle.ClearingHouseId,
-                    executionMode,
-                    ct);
-                responsePayload = dispatchResult.ResponsePayload;
-                parseResult = dispatchResult.ParseResult;
+                // First boundary: the mapper may have taken long enough for a cycle to close.
+                var itemIds = dispatchItems.Select(x => x.Id).ToArray();
+                if (!await IsCycleAndClaimExecutableBeforeSoapAsync(cycle.Id, cycle.ClearingHouseId,
+                        itemIds, operationToken, ContrapartidaDispatchRecovery.Preparing, ct))
+                {
+                    preSoapAbortAttempted = true;
+                    await ContrapartidaDispatchRecovery.AbortUnsentCycleClaimAsync(
+                        _context, itemIds, operationToken, batch.Id, cycle.Id,
+                        ContrapartidaDispatchRecovery.Preparing, _timeProvider.GetUtcNow().UtcDateTime,
+                        requestPayload, dispatchEndpoint, executionMode, ct);
+                    preSoapAborted = true;
+                }
+                else
+                {
+                    // Persist InFlight BEFORE I/O. A crash from this point is uncertain.
+                    intentPersistenceAttempted = true;
+                    await ContrapartidaDispatchRecovery.PersistIntentBeforeTransportAsync(
+                        _context, itemIds, operationToken, batch.Id,
+                        _timeProvider.GetUtcNow().UtcDateTime, requestPayload, Hash(requestPayload),
+                        resolution.MappingSetId, resolution.MappingVersion, resolution.MappingSnapshotHash,
+                        dispatchEndpoint, executionMode, ct);
+                    intentCommitted = true;
+                    // Second, last-moment fence AFTER evidence commit and IMMEDIATELY before SOAP.
+                    // It re-reads persisted cycle, calendar, policy, window, lease AND cycle ID.
+                    if (!await IsCycleAndClaimExecutableBeforeSoapAsync(cycle.Id, cycle.ClearingHouseId,
+                            itemIds, operationToken, ContrapartidaDispatchRecovery.InFlight, ct))
+                    {
+                        preSoapAbortAttempted = true;
+                        await ContrapartidaDispatchRecovery.AbortUnsentCycleClaimAsync(
+                            _context, itemIds, operationToken, batch.Id, cycle.Id,
+                            ContrapartidaDispatchRecovery.InFlight, _timeProvider.GetUtcNow().UtcDateTime,
+                            requestPayload, dispatchEndpoint, executionMode, ct);
+                        preSoapAborted = true;
+                    }
+                    else
+                    {
+                        liveTransportAttempted = IsLiveMode(executionMode);
+                        var dispatchResult = await DispatchProcContrapartidasAsync(
+                            requestPayload, cycle.Id, cycle.ClearingHouseId, executionMode, ct);
+                        responsePayload = dispatchResult.ResponsePayload;
+                        parseResult = dispatchResult.ParseResult;
+                    }
+                }
+            }
+            catch (Exception) when (preSoapAbortAttempted)
+            {
+                // Do not manufacture a SOAP attempt when a DB-only abort fails.
+                // Orphan recovery will keep any InFlight state in reconciliation.
+                _context.ChangeTracker.Clear();
+                throw;
+            }
+            catch (Exception) when (intentPersistenceAttempted && !intentCommitted)
+            {
+                // The database may or may not have committed; never call SOAP or overwrite a peer's claim.
+                _context.ChangeTracker.Clear();
+                throw;
             }
             catch (Exception ex)
             {
@@ -328,6 +415,20 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 responsePayload = technicalException;
             }
 
+            if (preSoapAborted)
+            {
+                // The item stays RetryPending with an audit entry NotExecuted (negative
+                // recovery number); no monetary attempt was consumed or sent.
+                foreach (var item in dispatchItems) await _context.Entry(item).ReloadAsync(ct);
+                batch.Status = ContrapartidaDispatchBatchStatusEnum.Cancelled;
+                batch.FinishedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+                batch.SummaryMessage = "RES-H02-01: ciclo/claim no ejecutable antes del SOAP; envío omitido, pendiente de nuevo ciclo.";
+                _logger.LogWarning("{Summary} CycleId={CycleId} BatchId={BatchId}",
+                    batch.SummaryMessage, cycle.Id, batch.Id);
+                await _context.SaveChangesAsync(ct);
+                break;
+            }
+
             var finishedAtUtc = nowUtc;
             var durationMs = CalculateDurationMs(startedAtUtc, finishedAtUtc);
             batch.RequestPayloadXml = requestPayload;
@@ -346,7 +447,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 var businessStatus = catalogResult?.BusinessStatus ?? IntegrationResponseBusinessStatus.Unknown;
                 var isSuccess = transportStatus == IntegrationTransportStatus.Succeeded
                     && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
-                var requiresReconciliation = RequiresReconciliation(transportStatus, parseResult, technicalException, liveTransportAttempted);
+                var requiresReconciliation = RequiresReconciliation(transportStatus, parseResult, technicalException, liveTransportAttempted)
+                    || (liveTransportAttempted && (catalogResult is null || !catalogResult.IsKnownCode));
                 var retryAllowed = !requiresReconciliation && (catalogResult is null
                     ? (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable)
                     : catalogResult.RetryAllowed);
@@ -453,6 +555,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 item.LastCorrelationId = attempt.CorrelationId;
                 item.LastDispatchedBy = safeTriggeredBy;
                 item.LastResponseCode = itemCode;
+                item.RequiresReconciliation = requiresReconciliation || catalogResult?.RequiresManualReview == true;
+                item.DispatchLeaseExpiresAtUtc = null;
+                item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Idle;
+                item.DispatchLeaseToken = string.Empty;
                 item.LastErrorCode = isSuccess ? string.Empty : itemCode;
                 item.LastErrorMessage = isSuccess ? string.Empty : (itemMessage ?? string.Empty);
 
@@ -529,35 +635,36 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             throw new InvalidOperationException("Ya existe un reintento manual en ejecución para este batch origen.");
         }
 
-        var cycle = await _context.AchCycles
-            .AsNoTracking()
-            .Include(c => c.ClearingHouse)
-                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
-            .Include(c => c.ClearingHouseCycleConfig)
-            .FirstOrDefaultAsync(x => x.Id == sourceBatch.AchCycleId && x.ClearingHouseId == sourceBatch.ClearingHouseId, ct)
+        // H02: the source batch may belong to a closed or expired cycle. Select a
+        // currently open, calendar-valid, debit-permitted cycle using the same policy
+        // as the automatic pre-send recovery; never fall back to a closed source.
+        var sourceCycle = await _context.AchCycles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == sourceBatch.AchCycleId
+                && x.ClearingHouseId == sourceBatch.ClearingHouseId, ct)
             ?? throw new InvalidOperationException($"No existe ciclo {sourceBatch.AchCycleId} para cámara {sourceBatch.ClearingHouseId}.");
+        var cycle = await FindActiveRetryCycleAsync(sourceBatch.ClearingHouseId, ct,
+            sourceCycle.ProcessingDate.Date);
+        if (cycle is null)
+        {
+            var summary = $"Reintento {sourceBatch.Id}: diferido; no hay ciclo abierto con calendario y débitos permitidos. SOAP no invocado.";
+            _logger.LogInformation("{Summary}", summary);
+            return new ContrapartidaBatchRetryResult(
+                sourceBatch.Id, Guid.Empty, sourceBatch.AchCycleId, sourceBatch.ClearingHouseId,
+                0, 0, 0, 0, 0, summary);
+        }
+        // Re-evaluate at the boundary: no manual debit outside the permitted window.
         var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
         if (!calendarDecision.CanExecute)
         {
-            var deferredSummary = $"Reintento {sourceBatch.Id}: diferido por calendario operativo hasta {calendarDecision.RescheduledDate:yyyy-MM-dd}. SOAP no invocado.";
-            _logger.LogInformation("{Summary} Reason={Reason}", deferredSummary, calendarDecision.Reason);
+            var summary = $"Reintento {sourceBatch.Id}: diferido por calendario operativo. SOAP no invocado.";
             return new ContrapartidaBatchRetryResult(
-                sourceBatch.Id,
-                Guid.Empty,
-                sourceBatch.AchCycleId,
-                sourceBatch.ClearingHouseId,
-                0,
-                0,
-                0,
-                0,
-                0,
-                deferredSummary);
+                sourceBatch.Id, Guid.Empty, sourceBatch.AchCycleId, sourceBatch.ClearingHouseId,
+                0, 0, 0, 0, 0, summary);
         }
         await EnsureCycleAllowsDebitDispatchAsync(cycle, ct);
-
         var nowUtcOffset = _timeProvider.GetUtcNow();
         var nowUtc = nowUtcOffset.UtcDateTime;
-        var nowLocal = ValidateCycleOperationalWindow(cycle, nowUtcOffset).LocalNow;
+        _ = ValidateCycleOperationalWindow(cycle, nowUtcOffset);
 
         var sourceItemIds = await _context.ContrapartidaDispatchAttempts
             .AsNoTracking()
@@ -574,12 +681,16 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         var items = await _context.ContrapartidaDispatchItems
             .AsNoTracking()
             .Where(i => sourceItemIds.Contains(i.Id))
+            .Where(i => i.AchCycle != null
+                && i.AchCycle.ProcessingDate.Date <= cycle.ProcessingDate.Date)
             .Where(i => i.AchTransaction.ClassificationStatus == AchTransactionClassificationStatus.Determined
                 && i.AchTransaction.MonetaryIntegrationRoute == AchMonetaryIntegrationRoute.ProcContrapartidas
                 && i.AchTransaction.Direction == AchTransactionDirection.Outgoing
                 && i.AchTransaction.Origin == AchTransactionOrigin.Cfa
                 && i.AchTransaction.Type == TransactionTypeEnum.Debit)
-            .Select(i => new { i.Id, i.State, i.AttemptCount })
+            .Select(i => new { i.Id, i.State, i.AttemptCount, i.RequiresReconciliation,
+                i.AchCycleId, i.DispatchLeaseToken, i.DispatchLeasePhase,
+                i.LastReassignedFromCycleId, i.LastReassignedAtUtc })
             .ToListAsync(ct);
 
         var lastAttempts = await _context.ContrapartidaDispatchAttempts
@@ -597,6 +708,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             .Where(i =>
             {
                 if (i.AttemptCount >= MaxAttempts
+                    || i.DispatchLeasePhase != ContrapartidaDispatchRecovery.Idle
+                    || i.RequiresReconciliation
                     || i.State == ContrapartidaDispatchItemStateEnum.ReportedToContrapartida
                     || (lastAttemptByItemId.TryGetValue(i.Id, out var lastAttempt)
                         && (lastAttempt.IsSuccessful || lastAttempt.RequiresManualReview
@@ -626,7 +739,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
         var processingBatch = new ContrapartidaDispatchBatch
         {
-            AchCycleId = sourceBatch.AchCycleId,
+            AchCycleId = cycle.Id,
             ClearingHouseId = sourceBatch.ClearingHouseId,
             TriggerType = ContrapartidaDispatchBatchTriggerTypeEnum.ManualRetry,
             RequestedBy = safeTriggeredBy,
@@ -648,25 +761,75 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
         while (selectedItemIds.Count > 0)
         {
+            // A large manual batch may span a cycle boundary: revalidate the DB state,
+            // calendar, and operational window before claiming EACH monetary instruction.
+            // Unprocessed items stay eligible for a later authorised cycle.
+            var currentInstant = _timeProvider.GetUtcNow();
+            var currentCycle = await _context.AchCycles.AsNoTracking()
+                .Include(c => c.ClearingHouse).ThenInclude(ch => ch!.ClearingHouseConfig)
+                .Include(c => c.ClearingHouseCycleConfig)
+                .SingleOrDefaultAsync(c => c.Id == cycle.Id
+                    && c.ClearingHouseId == cycle.ClearingHouseId, ct);
+            if (currentCycle is null
+                || currentCycle.OperationalStatus != AchCycleOperationalStatus.Open
+                || !_windowResolver.Resolve(currentCycle.ProcessingDate, currentCycle.StartTime,
+                    currentCycle.EndTime, ClearingHouseOperationalTimeZone.Resolve(currentCycle),
+                    currentInstant).IsInside
+                || !(await _calendarGuard.EnsureExecutableAsync(currentCycle, ct)).CanExecute)
+            {
+                _logger.LogWarning("H02 manual retry deferred: cycle {CycleId} is no longer executable", cycle.Id);
+                break;
+            }
+            DateTime currentLocal;
+            try
+            {
+                await EnsureCycleAllowsDebitDispatchAsync(currentCycle, ct);
+                currentLocal = ValidateCycleOperationalWindow(currentCycle, currentInstant).LocalNow;
+            }
+            catch (InvalidOperationException ex)
+            {
+                // A policy/window switch between two items must not strand a manual
+                // batch in Processing or start an unauthorised SOAP request.
+                _logger.LogWarning(ex, "H02 manual retry deferred: cycle {CycleId} no longer permits debits", cycle.Id);
+                break;
+            }
             // Mantener lote operativo, pero aislar cada request y su respuesta.
             var chunkIds = selectedItemIds.Take(1).ToList();
             selectedItemIds.RemoveRange(0, chunkIds.Count);
 
-            await _context.ContrapartidaDispatchItems
-                .Where(i => chunkIds.Contains(i.Id)
-                    && i.State != ContrapartidaDispatchItemStateEnum.ReportingContrapartida
-                    && i.State != ContrapartidaDispatchItemStateEnum.Retrying
-                    && i.AttemptCount < MaxAttempts)
+            var selected = items.Single(i => i.Id == chunkIds[0]);
+            // H02: do not claim if another worker has already changed the state,
+            // lease, cycle, or attempt counter. Reassignment and claim are one CAS.
+            var affected = await _context.ContrapartidaDispatchItems
+                .Where(i => i.Id == selected.Id
+                    && i.AchCycleId == selected.AchCycleId
+                    && i.State == selected.State
+                    && i.AttemptCount == selected.AttemptCount
+                    && i.DispatchLeaseToken == selected.DispatchLeaseToken
+                    && i.DispatchLeasePhase == ContrapartidaDispatchRecovery.Idle
+                    && !i.RequiresReconciliation && i.AttemptCount < MaxAttempts)
                 .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(i => i.AchCycleId, cycle.Id)
+                    .SetProperty(i => i.LastReassignedFromCycleId,
+                        selected.AchCycleId != cycle.Id ? selected.AchCycleId : selected.LastReassignedFromCycleId)
+                    .SetProperty(i => i.LastReassignedAtUtc,
+                        selected.AchCycleId != cycle.Id ? (DateTime?)nowUtc : selected.LastReassignedAtUtc)
                     .SetProperty(i => i.State, ContrapartidaDispatchItemStateEnum.Retrying)
                     .SetProperty(i => i.LastCorrelationId, operationToken)
                     .SetProperty(i => i.LastDispatchedBy, safeTriggeredBy)
-                    .SetProperty(i => i.UpdatedAt, nowUtcOffset), ct);
+                    .SetProperty(i => i.DispatchLeaseToken, operationToken)
+                    .SetProperty(i => i.DispatchLeasePhase, ContrapartidaDispatchRecovery.Preparing)
+                    .SetProperty(i => i.DispatchLeaseExpiresAtUtc,
+                        (DateTime?)currentInstant.UtcDateTime.Add(ContrapartidaDispatchRecovery.LeaseDuration))
+                    .SetProperty(i => i.UpdatedAt, currentInstant), ct);
+            if (affected != 1) continue;
 
             var claimed = await _context.ContrapartidaDispatchItems
                 .Where(i => chunkIds.Contains(i.Id)
+                    && i.AchCycleId == cycle.Id
                     && i.State == ContrapartidaDispatchItemStateEnum.Retrying
-                    && i.LastCorrelationId == operationToken)
+                    && i.DispatchLeasePhase == ContrapartidaDispatchRecovery.Preparing
+                    && i.DispatchLeaseToken == operationToken)
                 .ToListAsync(ct);
 
             if (claimed.Count == 0)
@@ -682,18 +845,22 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 .ToListAsync(ct);
             var txById = txs.ToDictionary(x => x.Id);
 
-            var startedAtUtc = nowUtc;
+            var startedAtUtc = currentInstant.UtcDateTime;
             string requestPayload = string.Empty;
             string responsePayload = string.Empty;
             string dispatchEndpoint = string.Empty;
             string executionMode = _dispatchOptions.NormalizedMode;
             string technicalException = string.Empty;
             var liveTransportAttempted = false;
-            ProcContrapartidasParsedResponse parseResult;
+            var intentPersistenceAttempted = false;
+            var intentCommitted = false;
+            var preSoapAbortAttempted = false;
+            var preSoapAborted = false;
+            ProcContrapartidasParsedResponse? parseResult = null;
             try
             {
                 await EnsureContrapartidasReadinessAsync(txs, ct);
-                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, txs, nowLocal, ct);
+                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(currentCycle, txs, currentLocal, ct);
                 EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 var runtime = await ResolveProcContrapartidasRuntimeAsync(ct);
@@ -702,15 +869,55 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 processingBatch.MappingSetId = resolution.MappingSetId;
                 processingBatch.MappingVersion = resolution.MappingVersion;
                 processingBatch.MappingSnapshotHash = resolution.MappingSnapshotHash;
-                liveTransportAttempted = IsLiveMode(executionMode);
-                var dispatchResult = await DispatchProcContrapartidasAsync(
-                    requestPayload,
-                    cycle.Id,
-                    cycle.ClearingHouseId,
-                    executionMode,
-                    ct);
-                responsePayload = dispatchResult.ResponsePayload;
-                parseResult = dispatchResult.ParseResult;
+                var itemIds = claimed.Select(x => x.Id).ToArray();
+                if (!await IsCycleAndClaimExecutableBeforeSoapAsync(cycle.Id, cycle.ClearingHouseId,
+                        itemIds, operationToken, ContrapartidaDispatchRecovery.Preparing, ct))
+                {
+                    preSoapAbortAttempted = true;
+                    await ContrapartidaDispatchRecovery.AbortUnsentCycleClaimAsync(
+                        _context, itemIds, operationToken, processingBatch.Id, cycle.Id,
+                        ContrapartidaDispatchRecovery.Preparing, _timeProvider.GetUtcNow().UtcDateTime,
+                        requestPayload, dispatchEndpoint, executionMode, ct);
+                    preSoapAborted = true;
+                }
+                else
+                {
+                    intentPersistenceAttempted = true;
+                    await ContrapartidaDispatchRecovery.PersistIntentBeforeTransportAsync(
+                        _context, itemIds, operationToken, processingBatch.Id,
+                        _timeProvider.GetUtcNow().UtcDateTime, requestPayload, Hash(requestPayload),
+                        resolution.MappingSetId, resolution.MappingVersion, resolution.MappingSnapshotHash,
+                        dispatchEndpoint, executionMode, ct);
+                    intentCommitted = true;
+                    if (!await IsCycleAndClaimExecutableBeforeSoapAsync(cycle.Id, cycle.ClearingHouseId,
+                            itemIds, operationToken, ContrapartidaDispatchRecovery.InFlight, ct))
+                    {
+                        preSoapAbortAttempted = true;
+                        await ContrapartidaDispatchRecovery.AbortUnsentCycleClaimAsync(
+                            _context, itemIds, operationToken, processingBatch.Id, cycle.Id,
+                            ContrapartidaDispatchRecovery.InFlight, _timeProvider.GetUtcNow().UtcDateTime,
+                            requestPayload, dispatchEndpoint, executionMode, ct);
+                        preSoapAborted = true;
+                    }
+                    else
+                    {
+                        liveTransportAttempted = IsLiveMode(executionMode);
+                        var dispatchResult = await DispatchProcContrapartidasAsync(
+                            requestPayload, cycle.Id, cycle.ClearingHouseId, executionMode, ct);
+                        responsePayload = dispatchResult.ResponsePayload;
+                        parseResult = dispatchResult.ParseResult;
+                    }
+                }
+            }
+            catch (Exception) when (preSoapAbortAttempted)
+            {
+                _context.ChangeTracker.Clear();
+                throw;
+            }
+            catch (Exception) when (intentPersistenceAttempted && !intentCommitted)
+            {
+                _context.ChangeTracker.Clear();
+                throw;
             }
             catch (Exception ex)
             {
@@ -728,6 +935,13 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 responsePayload = technicalException;
             }
 
+            if (preSoapAborted)
+            {
+                foreach (var item in claimed) await _context.Entry(item).ReloadAsync(ct);
+                _logger.LogWarning("RES-H02-01 manual retry: cycle {CycleId} closed or claim moved before SOAP; batch {BatchId} stops without sending", cycle.Id, processingBatch.Id);
+                break;
+            }
+
             var finishedAtUtc = nowUtc;
             var durationMs = CalculateDurationMs(startedAtUtc, finishedAtUtc);
             foreach (var item in claimed)
@@ -741,7 +955,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 var businessStatus = catalogResult?.BusinessStatus ?? IntegrationResponseBusinessStatus.Unknown;
                 var isSuccess = transportStatus == IntegrationTransportStatus.Succeeded
                     && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
-                var requiresReconciliation = RequiresReconciliation(transportStatus, parseResult, technicalException, liveTransportAttempted);
+                var requiresReconciliation = RequiresReconciliation(transportStatus, parseResult, technicalException, liveTransportAttempted)
+                    || (liveTransportAttempted && (catalogResult is null || !catalogResult.IsKnownCode));
                 var retryAllowed = !requiresReconciliation && (catalogResult is null
                     ? (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable)
                     : catalogResult.RetryAllowed);
@@ -805,6 +1020,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 item.LastAttemptAtUtc = finishedAtUtc;
                 item.LastDispatchedBy = safeTriggeredBy;
                 item.LastResponseCode = code;
+                item.RequiresReconciliation = requiresReconciliation || catalogResult?.RequiresManualReview == true;
+                item.DispatchLeaseExpiresAtUtc = null;
+                item.DispatchLeasePhase = ContrapartidaDispatchRecovery.Idle;
+                item.DispatchLeaseToken = string.Empty;
                 item.LastErrorCode = isSuccess ? string.Empty : code;
                 item.LastErrorMessage = isSuccess ? string.Empty : (message ?? string.Empty);
                 item.LastCorrelationId = $"{processingBatch.Id:N}-{item.Id}-{item.AttemptCount}";
@@ -849,19 +1068,23 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         processingBatch.TotalFailed = totalFailed;
         processingBatch.TotalPartial = totalPartial;
         processingBatch.FinishedAtUtc = nowUtc;
-        processingBatch.Status = totalFailed == 0
-            ? ContrapartidaDispatchBatchStatusEnum.Completed
-            : totalSucceeded > 0
+        processingBatch.Status = totalProcessed == 0
+            ? ContrapartidaDispatchBatchStatusEnum.Cancelled
+            : totalProcessed < processingBatch.TotalItems
                 ? ContrapartidaDispatchBatchStatusEnum.CompletedWithErrors
-                : ContrapartidaDispatchBatchStatusEnum.Failed;
-        processingBatch.SummaryMessage = $"Retry source={request.SourceBatchId} scope={request.Scope} selected={processingBatch.TotalItems} processed={totalProcessed} success={totalSucceeded} failed={totalFailed}";
+                : totalFailed == 0
+                    ? ContrapartidaDispatchBatchStatusEnum.Completed
+                    : totalSucceeded > 0
+                        ? ContrapartidaDispatchBatchStatusEnum.CompletedWithErrors
+                        : ContrapartidaDispatchBatchStatusEnum.Failed;
+        processingBatch.SummaryMessage = $"Retry source={request.SourceBatchId} scope={request.Scope} selected={processingBatch.TotalItems} processed={totalProcessed} pending={processingBatch.TotalItems - totalProcessed} success={totalSucceeded} failed={totalFailed}";
 
         await _context.SaveChangesAsync(ct);
 
         return new ContrapartidaBatchRetryResult(
             request.SourceBatchId,
             processingBatch.Id,
-            sourceBatch.AchCycleId,
+            cycle.Id,
             sourceBatch.ClearingHouseId,
             processingBatch.TotalItems,
             totalProcessed,
@@ -1108,6 +1331,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         string technicalException,
         bool liveTransportAttempted)
         => status == IntegrationTransportStatus.TimedOut
+            || (liveTransportAttempted && status == IntegrationTransportStatus.Failed)
             || (liveTransportAttempted && !string.IsNullOrWhiteSpace(technicalException))
             || (liveTransportAttempted && (parsed.ErrorMessage.Contains("timeout", StringComparison.OrdinalIgnoreCase)
                 || parsed.ResponseCode.Equals("PARSER_ERROR", StringComparison.OrdinalIgnoreCase)
@@ -1243,6 +1467,138 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                || code.Equals("PARSER_ERROR", StringComparison.OrdinalIgnoreCase)
                || code.Equals("SOAP_EXCEPTION", StringComparison.OrdinalIgnoreCase)
                || code.Equals("EMPTY_RESPONSE", StringComparison.OrdinalIgnoreCase));
+
+    // A recovered pre-send debit cannot use an expired source cycle. No already-sent,
+    // unknown, or manually reviewed instruction is eligible for re-routing.
+    private async Task ReassignRecoveredItemsToActiveCycleAsync(
+        AchCycle target, DateTimeOffset nowInstant, CancellationToken ct)
+    {
+        var candidates = await _context.ContrapartidaDispatchItems.AsNoTracking()
+            .Include(x => x.AchCycle)
+            .Where(x => x.ClearingHouseId == target.ClearingHouseId
+                && x.AchCycleId != target.Id
+                && x.State == ContrapartidaDispatchItemStateEnum.RetryPending
+                && (x.LastErrorCode == "E2E02_PRE_SEND_CRASH"
+                    || x.LastErrorCode == ContrapartidaDispatchRecovery.UnsentCycleCode)
+                && !x.RequiresReconciliation
+                && x.DispatchLeasePhase == ContrapartidaDispatchRecovery.Idle
+                && x.AttemptCount < MaxAttempts
+                && (!x.NextAttemptAtUtc.HasValue || x.NextAttemptAtUtc <= nowInstant.UtcDateTime))
+            .OrderBy(x => x.Id).Take(100).ToListAsync(ct);
+        foreach (var item in candidates)
+        {
+            var source = item.AchCycle;
+            if (source is null || target.ProcessingDate.Date < source.ProcessingDate.Date) continue;
+            var sourceWindow = _windowResolver.Resolve(source.ProcessingDate, source.StartTime,
+                source.EndTime, ClearingHouseOperationalTimeZone.Resolve(target), nowInstant);
+            if (source.OperationalStatus == AchCycleOperationalStatus.Open && sourceWindow.IsInside)
+                continue;
+
+            var changed = await _context.ContrapartidaDispatchItems
+                .Where(x => x.Id == item.Id
+                    && x.AchCycleId == item.AchCycleId
+                    && x.ClearingHouseId == target.ClearingHouseId
+                    && x.State == ContrapartidaDispatchItemStateEnum.RetryPending
+                    && (x.LastErrorCode == "E2E02_PRE_SEND_CRASH"
+                        || x.LastErrorCode == ContrapartidaDispatchRecovery.UnsentCycleCode)
+                    && x.DispatchLeaseToken == item.DispatchLeaseToken
+                    && x.DispatchLeasePhase == ContrapartidaDispatchRecovery.Idle
+                    && !x.RequiresReconciliation
+                    && x.AttemptCount == item.AttemptCount)
+                .ExecuteUpdateAsync(u => u
+                    .SetProperty(x => x.AchCycleId, target.Id)
+                    .SetProperty(x => x.LastReassignedFromCycleId, item.AchCycleId)
+                    .SetProperty(x => x.LastReassignedAtUtc, (DateTime?)nowInstant.UtcDateTime)
+                    .SetProperty(x => x.LastDispatchedBy, "recovery:cycle-reassigned")
+                    .SetProperty(x => x.UpdatedAt, nowInstant), ct);
+            if (changed == 1)
+                _logger.LogWarning("AUD-E2E-03 item {ItemId}: pre-send retry re-routed {FromCycle} -> {ToCycle}",
+                    item.Id, item.AchCycleId, target.Id);
+        }
+    }
+
+    private static bool IsPreSendRetryCode(string? code)
+        => code == "E2E02_PRE_SEND_CRASH" || code == ContrapartidaDispatchRecovery.UnsentCycleCode;
+
+    // RES-H02-01/02: both scheduled and manual paths share a fresh DB-side final
+    // preflight. The final conditional UPDATE is the claim/cycle fence; a stale
+    // cycle object from mapping cannot authorise a SOAP debit.
+    private async Task<bool> IsCycleAndClaimExecutableBeforeSoapAsync(
+        string cycleId, int clearingHouseId, IReadOnlyList<long> itemIds,
+        string token, string expectedPhase, CancellationToken ct)
+    {
+        if (itemIds.Count != 1) return false;
+        var fresh = await _context.AchCycles.AsNoTracking()
+            .Include(x => x.ClearingHouse).ThenInclude(x => x!.ClearingHouseConfig)
+            .Include(x => x.ClearingHouseCycleConfig)
+            .SingleOrDefaultAsync(x => x.Id == cycleId && x.ClearingHouseId == clearingHouseId, ct);
+        if (fresh is null || fresh.OperationalStatus != AchCycleOperationalStatus.Open)
+            return false;
+        var instant = _timeProvider.GetUtcNow();
+        try
+        {
+            _ = ValidateCycleOperationalWindow(fresh, instant);
+            if (!(await _calendarGuard.EnsureExecutableAsync(fresh, ct)).CanExecute)
+                return false;
+            await EnsureCycleAllowsDebitDispatchAsync(fresh, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "RES-H02-01 cycle {CycleId} rejected at SOAP preflight", cycleId);
+            return false;
+        }
+
+        // Single SQL CAS prevents a claim from belonging to another cycle or a
+        // recovered worker. Requiring persisted Open status closes the selection
+        // /claim race for both providers; lease and phase remain in the predicate.
+        var fenced = await _context.ContrapartidaDispatchItems
+            .Where(x => itemIds.Contains(x.Id)
+                && x.AchCycleId == cycleId && x.ClearingHouseId == clearingHouseId
+                && x.AchCycle != null && x.AchCycle.OperationalStatus == AchCycleOperationalStatus.Open
+                && x.DispatchLeaseToken == token && x.DispatchLeasePhase == expectedPhase
+                && x.DispatchLeaseExpiresAtUtc > instant.UtcDateTime
+                && !x.RequiresReconciliation
+                && (x.State == ContrapartidaDispatchItemStateEnum.ReportingContrapartida
+                    || x.State == ContrapartidaDispatchItemStateEnum.Retrying))
+            .ExecuteUpdateAsync(update => update.SetProperty(x => x.UpdatedAt, instant), ct);
+        return fenced == itemIds.Count;
+    }
+
+    private async Task<AchCycle?> FindActiveRetryCycleAsync(
+        int clearingHouseId, CancellationToken ct, DateTime? minimumProcessingDate = null)
+    {
+        var nowInstant = _timeProvider.GetUtcNow();
+        var cycles = await _context.AchCycles.AsNoTracking()
+            .Include(x => x.ClearingHouse).ThenInclude(x => x!.ClearingHouseConfig)
+            .Include(x => x.ClearingHouseCycleConfig)
+            .Where(x => x.ClearingHouseId == clearingHouseId
+                && x.OperationalStatus == AchCycleOperationalStatus.Open)
+            .OrderBy(x => x.ProcessingDate).ThenBy(x => x.EndTime).ToListAsync(ct);
+        foreach (var cycle in cycles)
+        {
+            if (minimumProcessingDate.HasValue
+                && cycle.ProcessingDate.Date < minimumProcessingDate.Value.Date)
+                continue;
+            if (cycle.ClearingHouse is null || !cycle.ClearingHouse.IsActive ||
+                (cycle.ClearingHouseCycleConfig is not null && !cycle.ClearingHouseCycleConfig.IsActive))
+                continue;
+            var config = cycle.ClearingHouseCycleConfig;
+            if (config is not null && (cycle.ProcessingDate.Date < config.EffectiveFrom.Date ||
+                (config.EffectiveTo.HasValue && cycle.ProcessingDate.Date > config.EffectiveTo.Value.Date)))
+                continue;
+            if (!_windowResolver.Resolve(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime,
+                    ClearingHouseOperationalTimeZone.Resolve(cycle), nowInstant).IsInside)
+                continue;
+            if (!(await _calendarGuard.EnsureExecutableAsync(cycle, ct)).CanExecute)
+                continue;
+            var decision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+                cycle.ClearingHouseId, cycle.ClearingHouseCycleConfigId, cycle.ProcessingDate,
+                cycle.ClearingHouse.Code, cycle.ClearingHouse.ClearingHouseConfig?.PaymentRailCode,
+                cycle.CycleName, TransactionTypeEnum.Debit, false), ct);
+            if (decision.IsAllowed) return cycle;
+        }
+        return null;
+    }
 
     private OperationalCycleWindow ValidateCycleOperationalWindow(AchCycle cycle, DateTimeOffset nowInstant)
     {

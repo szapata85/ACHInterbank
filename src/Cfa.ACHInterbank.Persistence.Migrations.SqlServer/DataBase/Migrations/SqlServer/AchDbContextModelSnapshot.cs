@@ -4108,6 +4108,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("ClaimToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("LeaseExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("TransportStartedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("EstadoNotificacion")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -4151,6 +4161,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EstadoNotificacion", "LeaseExpiresAtUtc")
+                        .HasDatabaseName("IX_AxonNotification_ClaimRecovery");
 
                     b.HasIndex("EstadoNotificacion")
                         .HasDatabaseName("IX_AchRespAttempts_Estado");
@@ -5166,6 +5179,10 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("RequestFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("RecipientIdNumber")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -5245,6 +5262,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("DestinationInstitutionId");
 
                     b.HasIndex("SourceInstitutionId");
+
+                    b.HasIndex("SourceInstitutionId", "TransactionExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AchTransactions_SourceInstitution_ExternalId")
+                        .HasFilter("[TransactionExternalId] IS NOT NULL AND [TransactionExternalId] <> ''");
 
                     b.HasIndex("TransactionExternalId")
                         .HasDatabaseName("IX_AchTransactions_TransactionExternalId");
@@ -8972,6 +8994,29 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int>("ClearingHouseId")
                         .HasColumnType("int");
 
+                    b.Property<string>("DispatchCorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime?>("DispatchIntentAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DispatchSoapEndpoint")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("DispatchExecutionMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("RequestPayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -9085,6 +9130,60 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTime?>("DispatchIntentAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DispatchIntentCorrelationId")
+                        .IsRequired().HasMaxLength(120).HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("DispatchIntentPayloadHash")
+                        .IsRequired().HasMaxLength(64).HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("DispatchIntentPayloadXml")
+                        .IsRequired().HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("DispatchIntentMappingSetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("DispatchIntentMappingVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DispatchIntentMappingSnapshotHash")
+                        .IsRequired().HasMaxLength(128).HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("DispatchIntentSoapEndpoint")
+                        .IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("DispatchIntentExecutionMode")
+                        .IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("DispatchLeaseExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DispatchLeasePhase")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("DispatchLeaseToken")
+                        .IsRequired()
+                        .IsConcurrencyToken()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<bool>("RequiresReconciliation")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("LastReassignedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastReassignedFromCycleId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<DateTime?>("LastAttemptAtUtc")
                         .HasColumnType("datetime2");
 
@@ -9137,6 +9236,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .IsUnique();
 
                     b.HasIndex("State", "NextAttemptAtUtc");
+
+                    b.HasIndex("State", "DispatchLeaseExpiresAtUtc");
 
                     b.HasIndex("ClearingHouseId", "AchCycleId", "State");
 
@@ -10058,6 +10159,21 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("DispatchClaimToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("DispatchLeaseExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("TransportStartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("RequiresReconciliation")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("IdempotencyDispatchKey")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -10126,6 +10242,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("IncomingNachaFileIngestionId");
 
                     b.HasIndex("IncomingNachaTransactionLinkId");
+
+                    b.HasIndex("QueueStatus", "DispatchLeaseExpiresAtUtc")
+                        .HasDatabaseName("IX_IncomingNachaDispatchQueue_ClaimRecovery");
 
                     b.HasIndex("QueueStatus", "NextAttemptAtUtc", "Priority");
 

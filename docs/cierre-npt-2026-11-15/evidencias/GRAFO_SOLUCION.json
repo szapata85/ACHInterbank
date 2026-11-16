@@ -1,0 +1,38 @@
+{
+  "project_count": 7,
+  "all_projects_exist": true,
+  "projects": [
+    {
+      "path": "src\\Cfa.ACHInterbank.Api\\Cfa.ACHInterbank.Api.csproj",
+      "exists": true
+    },
+    {
+      "path": "src\\Cfa.ACHInterbank.Application\\Cfa.ACHInterbank.Application.csproj",
+      "exists": true
+    },
+    {
+      "path": "src\\Cfa.ACHInterbank.Domain\\Cfa.ACHInterbank.Domain.csproj",
+      "exists": true
+    },
+    {
+      "path": "src\\Cfa.ACHInterbank.Persistence\\Cfa.ACHInterbank.Persistence.csproj",
+      "exists": true
+    },
+    {
+      "path": "src\\Cfa.ACHInterbank.Persistence.Migrations.SqlServer\\Cfa.ACHInterbank.Persistence.Migrations.SqlServer.csproj",
+      "exists": true
+    },
+    {
+      "path": "src\\Cfa.ACHInterbank.External\\Cfa.ACHInterbank.External.csproj",
+      "exists": true
+    },
+    {
+      "path": "tests\\Cfa.ACHInterbank.Tests\\Cfa.ACHInterbank.Tests.csproj",
+      "exists": true
+    }
+  ],
+  "dotnet_sdk_present": false,
+  "build_executed": false,
+  "tests_executed": false,
+  "note": "Solution graph file existence only. No compilation."
+}

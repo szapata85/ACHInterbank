@@ -7,5 +7,6 @@ public enum AchResponseNotificationStatus
     ErrorFuncional = 3,
     ErrorTecnico = 4,
     PendienteReintento = 5,
-    RequiereRevisionManual = 6
+    RequiereRevisionManual = 6,
+    InFlight = 7
 }

@@ -228,8 +228,14 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AchDbContext).Assembly);
-
         var isPostgres = Database.ProviderName?.Contains("Npgsql") == true;
+        // E2E-01: partial unique index; do not reserve empty IDs for legacy imports.
+        // PostgreSQL uses quoted identifiers; SQL Server/SQLite support bracket quoting.
+        modelBuilder.Entity<AchTransaction>()
+            .HasIndex(t => new { t.SourceInstitutionId, t.TransactionExternalId })
+            .HasFilter(isPostgres
+                ? "\"TransactionExternalId\" IS NOT NULL AND \"TransactionExternalId\" <> ''"
+                : "[TransactionExternalId] IS NOT NULL AND [TransactionExternalId] <> ''");
 
         modelBuilder.Entity<IntegrationContractVersion>()
             .HasIndex(x => x.MethodId)

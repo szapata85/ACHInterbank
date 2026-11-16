@@ -1,0 +1,32 @@
+COMMAND: python scripts/test/achcol_nacha_transaction_counts_static_check.py
+EXIT_CODE: 0
+
+01 PASS SOURCE_STATIC T6 read before validation
+02 PASS SOURCE_STATIC single T6 count increment
+03 PASS SOURCE_STATIC no T6 count on addenda
+04 PASS SOURCE_STATIC counts accepted after addenda
+05 PASS SOURCE_STATIC final physical total
+06 PASS SOURCE_STATIC final valid distinct
+07 PASS SOURCE_STATIC final rejected distinct
+08 PASS SOURCE_STATIC failure count distinct
+09 PASS SOURCE_STATIC parser contract valid
+10 PASS SOURCE_STATIC parser contract invalid
+11 PASS SOURCE_STATIC ingestion physical total
+12 PASS SOURCE_STATIC ingestion valid direct
+13 PASS SOURCE_STATIC ingestion invalid direct
+14 PASS SOURCE_STATIC no error count double subtraction
+15 PASS SOURCE_STATIC physical mixed batch test
+16 PASS SOURCE_STATIC mixed batch builder T6 twice
+17 PASS SOURCE_STATIC physical mixed batch accepted one
+18 PASS SOURCE_STATIC physical mixed batch rejected one
+19 PASS SOURCE_STATIC late addenda review test
+20 PASS SOURCE_STATIC early rejection count updated
+21 PASS SOURCE_STATIC ingestion persistence test
+22 PASS SOURCE_STATIC multiple failure messages case
+23 PASS SOURCE_STATIC ingestion conservation assertion
+24 PASS SOURCE_STATIC ingestion cardinality invariant
+25 PASS SOURCE_STATIC inconsistent result fails closed regression
+26 PASS SOURCE_STATIC file-based physical D02 test corrected
+27 PASS SOURCE_STATIC CENIT rejected PPD T6 count contract
+28 PASS SOURCE_STATIC CENIT invalid entries final distinct
+TOTAL 28/28 SOURCE STATIC; .NET BUILD/XUNIT/DB NOT EXECUTED

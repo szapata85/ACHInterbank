@@ -21,6 +21,18 @@ public class ContrapartidaDispatchItemConfiguration : IEntityTypeConfiguration<C
             .HasMaxLength(40)
             .IsRequired();
 
+        builder.Property(x => x.DispatchLeaseToken).HasMaxLength(120).IsRequired().IsConcurrencyToken();
+        builder.Property(x => x.DispatchLeasePhase).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.DispatchIntentCorrelationId).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.DispatchIntentPayloadHash).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.DispatchIntentPayloadXml);
+        builder.Property(x => x.DispatchIntentMappingSnapshotHash).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.DispatchIntentSoapEndpoint).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.DispatchIntentExecutionMode).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.RequiresReconciliation).HasDefaultValue(false).IsRequired();
+        builder.HasIndex(x => new { x.State, x.DispatchLeaseExpiresAtUtc });
+
+        builder.Property(x => x.LastReassignedFromCycleId).HasMaxLength(40).IsRequired();
         builder.Property(x => x.LastResponseCode)
             .HasMaxLength(20);
 

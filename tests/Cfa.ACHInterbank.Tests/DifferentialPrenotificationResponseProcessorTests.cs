@@ -250,6 +250,99 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
     }
 
     [Fact]
+    public async Task Npt11_SameTraceInTwoOriginalFiles_MustRemainManualWithoutStateTransition()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        var ingestion = new IncomingNachaFileIngestion { Id = Guid.NewGuid(),
+            FileName = "OTHER.001.1", FileHashSha256 = Guid.NewGuid().ToString("N"),
+            FileSize = 200, ContentType = "text/plain", UploadedBy = "test",
+            CorrelationId = "npt-11-duplicate", ResolvedClearingHouseId = 1 };
+        fixture.Context.IncomingNachaFileIngestions.Add(ingestion);
+        fixture.Context.NachaHeaders.Add(new NachaHeader
+        {
+            NachaID = "NACHA-OTHER", IncomingNachaFileIngestionId = ingestion.Id,
+            ClearingHouseId = 1, FileIdModifier = "B"
+        });
+        fixture.Context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = 112, NachaID = "NACHA-OTHER",
+            SequenceNumber = fixture.TraceNumber, AccountNumber = "0000003102"
+        });
+        await fixture.Context.SaveChangesAsync();
+        var result = await fixture.Processor.ProcessAsync(fixture.SuccessCommand(),
+            fixture.BuildResponse("00", null),
+            HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
+        Assert.Equal("DIFFERENTIAL_RESPONSE_CORRELATION_AMBIGUOUS", result.ErrorCode);
+        Assert.Equal(AchTransferStateEnum.Pending, fixture.Prenotification.State);
+        Assert.Empty(await fixture.Context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Npt11_PhysicalEntryWithNoFinalLink_MustNotFallBackToSameReference()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        fixture.Context.IncomingNachaTransactionLinks.RemoveRange(
+            fixture.Context.IncomingNachaTransactionLinks);
+        await fixture.Context.SaveChangesAsync();
+        var result = await fixture.Processor.ProcessAsync(fixture.SuccessCommand(),
+            fixture.BuildResponse("00", null),
+            HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
+        Assert.Equal("DIFFERENTIAL_RESPONSE_CORRELATION_AMBIGUOUS", result.ErrorCode);
+        Assert.Equal(AchTransferStateEnum.Pending, fixture.Prenotification.State);
+    }
+
+    [Theory]
+    [InlineData("wrong-ingestion")]
+    [InlineData("wrong-addenda")]
+    [InlineData("wrong-original-trace")]
+    public async Task Npt11_InconsistentOriginalLink_NeverMatchesOrMovesMoney(string corruption)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        var link = await fixture.Context.IncomingNachaTransactionLinks.SingleAsync();
+        if (corruption == "wrong-ingestion")
+        {
+            var foreignIngestion = new IncomingNachaFileIngestion
+            {
+                Id = Guid.NewGuid(), FileName = "FOREIGN.001.RET",
+                FileHashSha256 = Guid.NewGuid().ToString("N"), FileSize = 1,
+                ContentType = "text/plain", UploadedBy = "npt-test", CorrelationId = "foreign",
+                ResolvedClearingHouseId = 1
+            };
+            fixture.Context.IncomingNachaFileIngestions.Add(foreignIngestion);
+            link.IncomingNachaFileIngestionId = foreignIngestion.Id;
+        }
+        if (corruption == "wrong-addenda")
+        {
+            fixture.Context.AddendaRecords.Add(new AddendaRecord
+            {
+                AddendaID = 4321, NachaID = "NACHA-PRENOTE",
+                OriginalTraceNumber = "OTHER-TRACE", EntryDetailSequenceNumber = "OTHER-TRACE"
+            });
+            link.AddendaRecordId = 4321;
+        }
+        if (corruption == "wrong-original-trace")
+            fixture.Prenotification.TraceNumber = "999999999999999";
+        await fixture.Context.SaveChangesAsync();
+
+        var response = fixture.BuildResponse("00", null);
+        var result = await fixture.Processor.ProcessAsync(
+            fixture.SuccessCommand(), response,
+            HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
+
+        Assert.False(result.Success);
+        Assert.Equal("DIFFERENTIAL_RESPONSE_CORRELATION_AMBIGUOUS", result.ErrorCode);
+        Assert.Null(response.AchTransactionId);
+        Assert.Equal(AchTransferStateEnum.Pending,
+            (await fixture.Context.AchTransactions.SingleAsync(x => x.Id == fixture.Prenotification.Id)).State);
+        Assert.Empty(await fixture.Context.AchTransactionStateEvents.ToListAsync());
+        Assert.False(result.MonetaryMovementCreated);
+        Assert.False(result.BalancesAffected);
+    }
+
+    [Fact]
     public async Task RegistrarRespuestaTransaccion_ShouldHandleDuplicatePrenotificationResponseControlled()
     {
         await using var fixture = await Fixture.CreateAsync();

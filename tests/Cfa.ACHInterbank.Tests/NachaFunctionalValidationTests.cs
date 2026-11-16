@@ -232,6 +232,8 @@ public class NachaFunctionalValidationTests
         result.Failures.Should().BeEmpty();
         result.TotalBatches.Should().Be(1);
         result.TotalEntries.Should().Be(1);
+        result.ValidEntries.Should().Be(1);
+        result.InvalidEntries.Should().Be(0);
         result.TotalAddendas.Should().Be(1);
         context.NachaHeaders.Should().ContainSingle();
         context.BatchHeaders.Should().ContainSingle();
@@ -272,12 +274,80 @@ public class NachaFunctionalValidationTests
 
         result.Failures.Should().ContainSingle(failure =>
             failure.Reason.Contains("Prenotificación debe tener valor 0", StringComparison.Ordinal));
-        result.TotalEntries.Should().Be(0);
+        result.TotalEntries.Should().Be(1); // One physical T6 was read and rejected.
+        result.ValidEntries.Should().Be(0);
+        result.InvalidEntries.Should().Be(1);
         result.TotalAddendas.Should().Be(0);
         context.EntryDetails.Should().BeEmpty();
         context.AddendaRecords.Should().BeEmpty();
         context.BatchControls.Should().ContainSingle();
         context.FileControls.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ParseMixedPhysicalBatches_D01DoesNotSubtractFromAcceptedT6()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+        // The T1 operational date and first T5 match the configured cycle;
+        // the second T5 is one day earlier and must return D01 per T6.
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "COUNT-CYCLE-ACHCOL",
+            CycleName = "Ciclo 1",
+            ProcessingDate = DateTime.Today,
+            StartTime = TimeSpan.Zero,
+            EndTime = TimeSpan.FromHours(23),
+            CutoffTime = TimeSpan.FromHours(23),
+            ClearingHouseId = 1
+        });
+        await context.SaveChangesAsync();
+
+        var result = await ParseAsync(context, BuildIncomingMixedDateBatchesFile(), "1234567.001.1");
+
+        result.TotalBatches.Should().Be(2);
+        result.TotalEntries.Should().Be(2);
+        result.ValidEntries.Should().Be(1);
+        result.InvalidEntries.Should().Be(1);
+        result.ErrorCount.Should().Be(1);
+        result.Failures.Should().ContainSingle(failure => failure.RecordType == "6"
+            && failure.Reason.Contains("D01:", StringComparison.Ordinal));
+        context.EntryDetails.Should().ContainSingle();
+        context.BatchControls.Should().HaveCount(2);
+        context.FileControls.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ParseEntryRejectedAfterAddendaReview_KeepsPhysicalAndFinalCountsSeparate()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "COUNT-ADDENDA-CYCLE",
+            CycleName = "Ciclo 1",
+            ProcessingDate = DateTime.Today,
+            StartTime = TimeSpan.Zero,
+            EndTime = TimeSpan.FromHours(23),
+            CutoffTime = TimeSpan.FromHours(23),
+            ClearingHouseId = 1
+        });
+        await context.SaveChangesAsync();
+        var records = NachaFixedWidthAssertions.SplitRecords(BuildIncomingFile()).ToList();
+        // T6 return code 21 with T7 type 05: it can pass entry checks but
+        // must be removed by the mandatory return-addenda (type 99) review.
+        records[2] = ReplaceSegment(records[2], 1, 2, "21");
+
+        var result = await ParseAsync(context, string.Concat(records), "1234567.001.1");
+
+        result.TotalEntries.Should().Be(1);
+        result.ValidEntries.Should().Be(0);
+        result.InvalidEntries.Should().Be(1);
+        result.Failures.Should().ContainSingle(failure =>
+            failure.Reason.Contains("adenda tipo 99", StringComparison.Ordinal));
+        context.EntryDetails.Should().BeEmpty();
     }
 
     [Fact]
@@ -1068,9 +1138,9 @@ public class NachaFunctionalValidationTests
         });
         context.CustomerAccounts.Add(new CustomerAccount { Customer = context.Customers.Local.Last(), AccountNumber = "999988887777" });
         context.AchFileRejectionCodes.AddRange(
-            new AchFileRejectionCode { Code = "D01", Description = "Duplicado", IsActive = true },
-            new AchFileRejectionCode { Code = "D02", Description = "Padding invalido", IsActive = true },
-            new AchFileRejectionCode { Code = "D04", Description = "Conteo invalido", IsActive = true },
+            new AchFileRejectionCode { Code = "D01", Description = "Fecha efectiva menor a fecha proceso", IsActive = true },
+            new AchFileRejectionCode { Code = "D02", Description = "Fecha efectiva no valida", IsActive = true },
+            new AchFileRejectionCode { Code = "D04", Description = "Prenotificacion con valor no cero", IsActive = true },
             new AchFileRejectionCode { Code = "D05", Description = "Hash invalido", IsActive = true });
         context.SaveChanges();
     }
@@ -1209,6 +1279,29 @@ public class NachaFunctionalValidationTests
             new('9', 106),
             new('9', 106),
             new('9', 106)
+        };
+        return string.Concat(records);
+    }
+
+    private static string BuildIncomingMixedDateBatchesFile()
+    {
+        const string zeroDebit = "000000000000000000";
+        const string oneCredit = "000000000000150000";
+        const string doubleCredit = "000000000000300000";
+        // Two complete T5/T6/T7/T8 batches plus T1/T9: exactly ten
+        // fixed-width physical records, without synthetic trailing padding.
+        var records = new[]
+        {
+            BuildType1(DateTime.Today, "12345678", "ACH COLOMBIA"),
+            BuildType5(DateTime.Today, "1234567800", "0000001"),
+            BuildType6("22", "76543210", "999988887777", oneCredit, "123456780000001"),
+            BuildType7("05", "INFO-ADDENDA".PadRight(80), "123456780000001"),
+            BuildType8("220", "000002", "0076543210", zeroDebit, oneCredit, "1234567800", "0000001"),
+            BuildType5(DateTime.Today.AddDays(-1), "1234567800", "0000002"),
+            BuildType6("22", "76543210", "999988887777", oneCredit, "123456780000002"),
+            BuildType7("05", "INFO-ADDENDA".PadRight(80), "123456780000002"),
+            BuildType8("220", "000002", "0076543210", zeroDebit, oneCredit, "1234567800", "0000002"),
+            BuildType9("000002", "000001", "00000004", "0153086420", zeroDebit, doubleCredit)
         };
         return string.Concat(records);
     }

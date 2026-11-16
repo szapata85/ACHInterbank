@@ -50,7 +50,7 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
             return DifferentialPrenotificationResponseProcessResult.Skipped("La respuesta no corresponde a prenotificacion.");
         }
 
-        var match = await ResolvePrenotificationMatchAsync(command, cancellationToken);
+        var match = await ResolvePrenotificationMatchAsync(command, response.ClearingHouseId, cancellationToken);
         if (match.CorrelationErrorCode is not null)
         {
             var ambiguousTrace = await WriteTraceAsync(command, response, homologation, match, null, cancellationToken);
@@ -70,9 +70,8 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         }
 
         var prenotification = match.Prenotification;
-        response.AchTransactionId = prenotification.Id;
-        response.CorrelationStatus = AchResponseCorrelationStatus.Matched;
-        response.CorrelationCriterion = "VinculoPrenotificacionNacha";
+        // NPT-12: only establish verified correlation after identity/account/chamber checks.
+        // Retain the candidate solely in local variables until validation is complete.
         if (prenotification.State != AchTransferStateEnum.Pending)
         {
             var duplicateTrace = await WriteTraceAsync(command, response, homologation, match, prenotification, cancellationToken);
@@ -220,6 +219,9 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
                 Message: "La respuesta diferencial ya había sido procesada.");
         }
 
+        response.AchTransactionId = prenotification.Id;
+        response.CorrelationStatus = AchResponseCorrelationStatus.Matched;
+        response.CorrelationCriterion = "VinculoPrenotificacionNachaValidado";
         return new DifferentialPrenotificationResponseProcessResult(
             Processed: true,
             StateChanged: true,
@@ -256,12 +258,21 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
             ct: cancellationToken);
     }
 
-    private async Task<PrenotificationNachaMatch> ResolvePrenotificationMatchAsync(ProcesarRespuestaAchCommand command, CancellationToken cancellationToken)
+    private async Task<PrenotificationNachaMatch> ResolvePrenotificationMatchAsync(ProcesarRespuestaAchCommand command, int? responseClearingHouseId, CancellationToken cancellationToken)
     {
         var reference = Normalize(command.IdTransaccion);
+        if (string.IsNullOrWhiteSpace(reference) || responseClearingHouseId is null)
+            return PrenotificationNachaMatch.Ambiguous(
+                "La referencia o cámara de la respuesta no permite correlación inequívoca.");
 
+        // Chamber-first narrowing prevents unrelated chambers sharing an official
+        // sequence from creating a spurious match. The file/date tie-breaker is
+        // deliberately NOT inferred without an authoritative reference in the input.
+        var clearingHouseId = responseClearingHouseId;
         var entries = await _context.EntryDetails.AsNoTracking()
             .Where(x => x.SequenceNumber != null && x.SequenceNumber.Trim() == reference)
+            .Where(x => _context.NachaHeaders.Any(h => h.NachaID == x.NachaID
+                && h.ClearingHouseId == clearingHouseId))
             .OrderByDescending(x => x.EntryDetailID)
             .Take(2)
             .ToListAsync(cancellationToken);
@@ -273,18 +284,24 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         }
 
         var entry = entries.SingleOrDefault();
-
+        // A response may legitimately carry a unique homologated transaction
+        // reference with no physical NACHA entry. In that case the fallback
+        // below requires a unique CFA prenotification in this chamber.
+        // If a physical entry exists, its final file-scoped link is mandatory.
         AddendaRecord? addenda = null;
         IncomingNachaTransactionLink? link = null;
         if (entry is not null)
         {
-            addenda = await _context.AddendaRecords.AsNoTracking()
+            var addendas = await _context.AddendaRecords.AsNoTracking()
                 .Where(x => x.NachaID == entry.NachaID)
                 .Where(x => x.EntryDetailSequenceNumber == entry.SequenceNumber
                     || x.OriginalTraceNumber == entry.SequenceNumber
                     || x.NewTraceNumber == entry.SequenceNumber)
-                .OrderByDescending(x => x.AddendaID)
-                .FirstOrDefaultAsync(cancellationToken);
+                .Take(2).ToListAsync(cancellationToken);
+            if (addendas.Count > 1)
+                return PrenotificationNachaMatch.Ambiguous(
+                    "Multiples adendas originales para la referencia: verificar archivo manualmente.");
+            addenda = addendas.SingleOrDefault();
 
             var links = await _context.IncomingNachaTransactionLinks.AsNoTracking()
                 .Where(x => x.EntryDetailId == entry.EntryDetailID && x.IsFinal)
@@ -299,9 +316,28 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
             }
 
             link = links.SingleOrDefault();
+            if (link?.AchTransactionId is null
+                || link.LinkType is IncomingNachaLinkType.NoResuelto
+                    or IncomingNachaLinkType.Ambiguous or IncomingNachaLinkType.NotFound
+                || (link.AddendaRecordId.HasValue && link.AddendaRecordId != addenda?.AddendaID))
+                return PrenotificationNachaMatch.Ambiguous(
+                    "Sin vinculo NACHA original inequívoco o con adenda ajena al archivo.");
+            var headerScope = await _context.NachaHeaders.AsNoTracking().FirstOrDefaultAsync(
+                x => x.NachaID == entry.NachaID, cancellationToken);
+            var originalIngestion = await _context.IncomingNachaFileIngestions.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == link.IncomingNachaFileIngestionId, cancellationToken);
+            if (headerScope is null || headerScope.ClearingHouseId != responseClearingHouseId
+                || headerScope.IncomingNachaFileIngestionId != link.IncomingNachaFileIngestionId
+                || originalIngestion is null
+                || originalIngestion.ResolvedClearingHouseId != responseClearingHouseId
+                || (originalIngestion.ResolvedAchCycleId is not null
+                    && headerScope.AchCycleId is not null
+                    && originalIngestion.ResolvedAchCycleId != headerScope.AchCycleId))
+                return PrenotificationNachaMatch.Ambiguous(
+                    "El vinculo final no pertenece al archivo, ciclo y camara originales.");
         }
 
-        var resolution = await ResolvePrenotificationAsync(reference, link?.AchTransactionId, cancellationToken);
+        var resolution = await ResolvePrenotificationAsync(reference, link?.AchTransactionId, responseClearingHouseId, cancellationToken);
         if (resolution.Ambiguous)
         {
             return PrenotificationNachaMatch.Ambiguous(
@@ -309,11 +345,30 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         }
 
         var prenotification = resolution.Prenotification;
+        if (link is not null && prenotification is not null
+            && (link.LinkType == IncomingNachaLinkType.ExactTrace15
+                && !string.Equals(Normalize(prenotification.TraceNumber), reference, StringComparison.Ordinal)
+                || link.LinkType == IncomingNachaLinkType.ExactTransactionExternalId
+                && !string.Equals(Normalize(prenotification.TransactionExternalId), reference, StringComparison.Ordinal)
+                || link.LinkType == IncomingNachaLinkType.ExactOriginalTraceRef
+                && !string.Equals(Normalize(prenotification.OriginalTraceRef), reference, StringComparison.Ordinal)))
+            return PrenotificationNachaMatch.Ambiguous(
+                "El vinculo final no acredita la referencia y ciclo originales de la prenotificacion.");
+
         var nachaId = entry?.NachaID;
 
         var header = string.IsNullOrWhiteSpace(nachaId)
             ? null
             : await _context.NachaHeaders.AsNoTracking().FirstOrDefaultAsync(x => x.NachaID == nachaId, cancellationToken);
+        // The persisted physical header's cycle, when known, must belong to
+        // the linked prenotification. Do not infer a date/cycle from the
+        // differential API payload, which does not carry a homologated file ID.
+        if (link is not null && header?.AchCycleId is not null
+            && prenotification is not null
+            && header.AchCycleId != prenotification.AchCycleId)
+            return PrenotificationNachaMatch.Ambiguous(
+                "El ciclo original del archivo no coincide con el de la prenotificacion vinculada.");
+
         var batchHeader = string.IsNullOrWhiteSpace(nachaId)
             ? null
             : await _context.BatchHeaders.AsNoTracking().Where(x => x.NachaID == nachaId).OrderBy(x => x.BatchID).FirstOrDefaultAsync(cancellationToken);
@@ -327,20 +382,25 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         return new PrenotificationNachaMatch(prenotification, header, batchHeader, entry, addenda, batchControl, fileControl);
     }
 
-    private async Task<PrenotificationResolution> ResolvePrenotificationAsync(string reference, int? linkedTransactionId, CancellationToken cancellationToken)
+    private async Task<PrenotificationResolution> ResolvePrenotificationAsync(string reference, int? linkedTransactionId, int? responseClearingHouseId, CancellationToken cancellationToken)
     {
         var query = _context.AchTransactions
             .Include(x => x.SourceInstitution)
             .Include(x => x.AchCycle)
-            .Where(x => x.IsPrenotification);
+            .Where(x => x.IsPrenotification && x.AchCycle != null
+                && x.AchCycle.ClearingHouseId == responseClearingHouseId
+                && x.Direction == AchTransactionDirection.Outgoing
+                && x.Origin == AchTransactionOrigin.Cfa
+                && x.ClassificationStatus == AchTransactionClassificationStatus.Determined);
 
         if (linkedTransactionId.HasValue)
         {
             var linked = await query.FirstOrDefaultAsync(x => x.Id == linkedTransactionId.Value, cancellationToken);
-            if (linked is not null)
-            {
-                return new PrenotificationResolution(linked, false);
-            }
+            // A forged/stale link must not silently degrade into a different
+            // candidate found by a reused reference in another file or day.
+            return linked is null
+                ? new PrenotificationResolution(null, true)
+                : new PrenotificationResolution(linked, false);
         }
 
         var candidates = await query

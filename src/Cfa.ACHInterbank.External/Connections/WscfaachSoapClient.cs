@@ -134,6 +134,21 @@ public class WscfaachSoapClient : IWscfaachSoapClient
             ResolveControlledLocalTransportOptions(),
             _configuration["WSCFAACH:HostHeader"]);
         var envelope = EnsureEnvelope(requestXml);
+        if (string.Equals(action, "Proc_Transacciones", StringComparison.Ordinal)
+            || string.Equals(action, "Proc_Contrapartidas", StringComparison.Ordinal))
+        {
+            // Validate the actual outbound payload, including raw XML overloads, before transport.
+            Cfa.ACHInterbank.Application.Integrations.Contracts.OfficialSoapContracts.ValidateTransportRequest(
+                envelope, string.Equals(action, "Proc_Transacciones", StringComparison.Ordinal)
+                    ? Cfa.ACHInterbank.Application.Integrations.Contracts.OfficialSoapContracts.Operation.ProcTransaccionesRequest
+                    : Cfa.ACHInterbank.Application.Integrations.Contracts.OfficialSoapContracts.Operation.ProcContrapartidasRequest);
+        }
+
+        // No accredited OFEMP/OFIDARCH/OFDIRECCIONIP source exists yet. A caller using
+        // the raw XML overload must not bypass readiness and reach a monetary POST.
+        if (string.Equals(action, "Proc_Contrapartidas", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED: envio SOAP bloqueado antes de POST hasta homologar OFEMP, OFIDARCH y OFDIRECCIONIP.");
 
         using var client = _httpClientFactory.CreateClient(ExternalHttpClientNames.WscfaachSoapNoRetry);
         client.Timeout = timeout;
@@ -235,6 +250,18 @@ public class WscfaachSoapClient : IWscfaachSoapClient
         {
             throw new InvalidOperationException(
                 $"SOAP method '{action}' is not enabled for Live execution by database configuration.");
+        }
+
+        if ((string.Equals(action, "Proc_Transacciones", StringComparison.Ordinal)
+                && !string.Equals(mapping.SoapAction,
+                    Cfa.ACHInterbank.Application.Integrations.Contracts.OfficialSoapContracts.CfaSoapAction,
+                    StringComparison.Ordinal))
+            || (string.Equals(action, "Proc_Contrapartidas", StringComparison.Ordinal)
+                && !string.Equals(mapping.SoapAction,
+                    Cfa.ACHInterbank.Application.Integrations.Contracts.OfficialSoapContracts.CfaContrapartidasSoapAction,
+                    StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("WSCFAACH_SOAPACTION_XSD_MISMATCH: SOAPAction no corresponde al WSDL local.");
         }
 
         if (mapping.TimeoutSeconds is < 1 or > 300)

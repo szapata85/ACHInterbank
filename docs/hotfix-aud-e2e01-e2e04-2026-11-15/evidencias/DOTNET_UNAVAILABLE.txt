@@ -1,0 +1,12 @@
+COMMAND: dotnet --info
+EXIT_CODE: 127
+/bin/sh: 1: dotnet: not found
+
+COMMAND: dotnet build ACHInterbank.sln --configuration Release
+EXIT_CODE: 127
+/bin/sh: 1: dotnet: not found
+
+COMMAND: dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj --configuration Release
+EXIT_CODE: 127
+/bin/sh: 1: dotnet: not found
+

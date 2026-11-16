@@ -1,0 +1,5 @@
+STATIC C# TOKEN BALANCE (PYGMENTS HEURISTIC ONLY; NOT A COMPILER)
+src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ContrapartidaDispatchRecovery.cs: depth=0, min=0, status=PASS
+src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ContrapartidaDispatchJobService.cs: depth=0, min=0, status=PASS
+tests/Cfa.ACHInterbank.Tests/ContrapartidaDispatchJobServiceTests.cs: depth=0, min=0, status=PASS
+All three changed C# files pass token-balance heuristic. dotnet build and tests NOT EXECUTED.

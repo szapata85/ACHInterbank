@@ -1,0 +1,57 @@
+[
+  {
+    "script": "scripts/test/aud_e2e_final_static_and_sqlite_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/STATIC_FINAL_AND_SQLITE_MODEL.txt"
+  },
+  {
+    "script": "scripts/test/e2e01_e2e02_source_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/BASELINE_E2E01_E2E02_STATIC.txt"
+  },
+  {
+    "script": "scripts/test/achcol_nacha_transaction_counts_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/REGRESSION_01.txt"
+  },
+  {
+    "script": "scripts/test/achcol_incoming_date_admission_boundary_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/REGRESSION_02.txt"
+  },
+  {
+    "script": "scripts/test/predeploy_three_hotfixes_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/REGRESSION_03.txt"
+  },
+  {
+    "script": "scripts/test/cenit_post_i13_ror_c5_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/REGRESSION_04.txt"
+  },
+  {
+    "script": "scripts/test/cenit_i01_queue_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/REGRESSION_05.txt"
+  },
+  {
+    "script": "scripts/test/cenit_i02_ror_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/REGRESSION_06.txt"
+  },
+  {
+    "script": "scripts/test/cenit_i13_nack_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/REGRESSION_07.txt"
+  },
+  {
+    "script": "scripts/test/cenit_i10_alphabet_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/REGRESSION_08.txt"
+  },
+  {
+    "script": "scripts/test/cenit_i12_adv280_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-aud-e2e01-e2e04-2026-11-15/evidencias/REGRESSION_09.txt"
+  }
+]

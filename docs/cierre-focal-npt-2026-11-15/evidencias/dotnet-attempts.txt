@@ -1,0 +1,12 @@
+$ dotnet --info
+bash: line 1: dotnet: command not found
+exit=127
+$ dotnet restore ACHInterbank.sln
+bash: line 1: dotnet: command not found
+exit=127
+$ dotnet build ACHInterbank.sln --no-restore
+bash: line 1: dotnet: command not found
+exit=127
+$ dotnet test ACHInterbank.sln --no-build
+bash: line 1: dotnet: command not found
+exit=127

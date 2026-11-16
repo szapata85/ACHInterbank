@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Services;
+using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
@@ -89,7 +90,7 @@ public class NotificarRespuestaAchUseCaseTests
                 ["idCanal", "nombreCanal", "idTransaccion", "idEstado", "causal", "idTransaccionAxon", "descripcionCausal"],
                 names);
         }
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -114,7 +115,7 @@ public class NotificarRespuestaAchUseCaseTests
             Assert.Equal("E01", payload.RootElement.GetProperty("codigoError").GetString());
             Assert.Equal("Err", payload.RootElement.GetProperty("descripcionError").GetString());
         }
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -133,7 +134,7 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.False(string.IsNullOrWhiteSpace(attempt.ErrorTecnico));
         Assert.NotNull(attempt.RequestPayload);
         Assert.Contains("ResultadoDesconocido", attempt.ResponsePayload!);
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
 
         var replay = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
 
@@ -158,7 +159,7 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.Equal(AchResponseProcessingStatus.RequiereRevisionManual, attempt.AchResponse!.EstadoProcesamiento);
         Assert.Contains("ResultadoDesconocido", attempt.ResponsePayload!);
         Assert.NotNull(attempt.RequestPayload);
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
 
         var duplicate = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
         Assert.True(duplicate.YaProcesada);
@@ -179,10 +180,10 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.Equal("REGISTRAR_RESPUESTA_COMMAND_INVALID", result.CodigoError);
         Assert.Equal(AchResponseNotificationStatus.ErrorFuncional, attempt.EstadoNotificacion);
         Assert.Equal(AchResponseProcessingStatus.ErrorFuncional, attempt.AchResponse!.EstadoProcesamiento);
-        Assert.Null(attempt.FechaEnvio);
+        Assert.NotNull(attempt.FechaEnvio);
         Assert.Null(attempt.RequestPayload);
         gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Never);
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -206,7 +207,7 @@ public class NotificarRespuestaAchUseCaseTests
             .ThrowsAsync(new InvalidOperationException("trace storage unavailable"));
         var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object,
             new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object,
-            operationResolver.Object, readiness.Object, traceWriter.Object);
+            operationResolver.Object, readiness.Object, traceWriter.Object, claimStore: DefaultClaimStore());
 
         var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
 
@@ -215,7 +216,7 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.Equal(AchResponseProcessingStatus.PendienteReintento, attempt.AchResponse!.EstadoProcesamiento);
         Assert.Contains("ErrorTecnico", attempt.ResponsePayload!);
         gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Never);
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -281,7 +282,7 @@ public class NotificarRespuestaAchUseCaseTests
                 []));
 
         attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
-        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, operationResolver.Object, readiness.Object);
+        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, operationResolver.Object, readiness.Object, claimStore: DefaultClaimStore());
 
         var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
 
@@ -290,7 +291,7 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.Equal(AchResponseNotificationStatus.ErrorFuncional, attempt.EstadoNotificacion);
         Assert.Equal(AchResponseProcessingStatus.ErrorFuncional, attempt.AchResponse!.EstadoProcesamiento);
         gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Never);
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -324,7 +325,7 @@ public class NotificarRespuestaAchUseCaseTests
         gateway.Setup(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ResultadoRegistroRespuestaAch(false, null, null));
 
-        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, operationResolver.Object, readiness.Object, traceWriter.Object);
+        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, operationResolver.Object, readiness.Object, traceWriter.Object, claimStore: DefaultClaimStore());
 
         var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, "corr-uat"));
 
@@ -369,7 +370,7 @@ public class NotificarRespuestaAchUseCaseTests
             .ReturnsAsync(new IntegrationMappingTraceWriteResult(Guid.NewGuid(), 5, ["ANSIDTX"], ["missing"]));
 
         attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
-        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, operationResolver.Object, readiness.Object, traceWriter.Object);
+        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, operationResolver.Object, readiness.Object, traceWriter.Object, claimStore: DefaultClaimStore());
 
         var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
 
@@ -392,13 +393,99 @@ public class NotificarRespuestaAchUseCaseTests
             Assert.DoesNotContain(forbidden, x => (t.FullName ?? t.Name).Contains(x, StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task Npt08_TwoConcurrentNotifications_WithAtomicClaimFake_CallGatewayOnce()
+    {
+        // Unit boundary: the fake only models atomic CAS; DB providers require integration tests.
+        var claimCount = 0;
+        var claimStore = new Mock<IAxonNotificationClaimStore>();
+        claimStore.Setup(x => x.TryClaimAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Returns((long id, string token, DateTime now, CancellationToken ct) => Task.FromResult(System.Threading.Interlocked.Increment(ref claimCount) == 1));
+        claimStore.Setup(x => x.MarkTransportIntentAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        claimStore.Setup(x => x.QuarantineExpiredAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(0);
+        var attempts = new Mock<IAchResponseNotificationAttemptRepository>();
+        attempts.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>()))
+            .Returns((long id, CancellationToken ct) => Task.FromResult<AchResponseNotificationAttempt?>(BuildAttempt(AchResponseNotificationStatus.Pendiente)));
+        var gateway = new Mock<IRespuestaTransaccionesAchGateway>();
+        gateway.Setup(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoRegistroRespuestaAch(false, null, null));
+        var responses = new Mock<IAchResponseRepository>();
+        var uow = new Mock<IUnitOfWork>();
+        var sut = new NotificarRespuestaAchUseCase(responses.Object, attempts.Object,
+            new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, claimStore: claimStore.Object);
+
+        await Task.WhenAll(
+            sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null)),
+            sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null)));
+
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(2, claimCount);
+    }
+
+    [Fact]
+    public async Task Npt08_NoClaimStore_MustFailClosedBeforeSoap()
+    {
+        var gateway = new Mock<IRespuestaTransaccionesAchGateway>();
+        var sut = new NotificarRespuestaAchUseCase(new Mock<IAchResponseRepository>().Object,
+            new Mock<IAchResponseNotificationAttemptRepository>().Object,
+            new RegistrarRespuestaAchCommandMapper(), gateway.Object, new Mock<IUnitOfWork>().Object);
+        var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+        Assert.Equal("AXON_CLAIM_STORE_UNAVAILABLE", result.CodigoError);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Npt09_CancellationAfterAxonTransport_UsesIndependentTokenToQuarantine()
+    {
+        using var cts = new CancellationTokenSource();
+        var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
+        var attempts = new Mock<IAchResponseNotificationAttemptRepository>();
+        attempts.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+        var responses = new Mock<IAchResponseRepository>();
+        var uow = new Mock<IUnitOfWork>();
+        var gateway = new Mock<IRespuestaTransaccionesAchGateway>();
+        gateway.Setup(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()))
+            .Returns((RegistrarRespuestaAchCommand _, CancellationToken token) =>
+            {
+                cts.Cancel();
+                return Task.FromCanceled<ResultadoRegistroRespuestaAch>(cts.Token);
+            });
+        var sut = new NotificarRespuestaAchUseCase(responses.Object, attempts.Object,
+            new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, claimStore: DefaultClaimStore());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null), cts.Token));
+        Assert.Equal(AchResponseNotificationStatus.RequiereRevisionManual, attempt.EstadoNotificacion);
+        Assert.Equal(AchResponseProcessingStatus.RequiereRevisionManual, attempt.AchResponse!.EstadoProcesamiento);
+        attempts.Verify(x => x.UpdateAsync(It.IsAny<AchResponseNotificationAttempt>(), CancellationToken.None), Times.Never);
+        responses.Verify(x => x.UpdateAsync(It.IsAny<AchResponse>(), CancellationToken.None), Times.Never);
+        uow.Verify(x => x.CommitAsync(CancellationToken.None), Times.Never);
+    }
+
+    private static IAxonNotificationClaimStore DefaultClaimStore()
+    {
+        // A deterministic fake; it does NOT prove cross-process SQL atomicity.
+        var store = new Mock<IAxonNotificationClaimStore>();
+        store.Setup(x => x.TryFinishPreflightAsync(It.IsAny<long>(), It.IsAny<Guid>(),
+            It.IsAny<AxonNotificationCompletion>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        store.Setup(x => x.TryClaimAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        store.Setup(x => x.MarkTransportIntentAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        store.Setup(x => x.TryFinalizeAsync(It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string>(),
+            It.IsAny<AxonNotificationCompletion>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        store.Setup(x => x.RecordLateEvidenceAsync(It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        store.Setup(x => x.QuarantineExpiredAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(0);
+        return store.Object;
+    }
+
     private static NotificarRespuestaAchUseCase BuildSut(out Mock<IAchResponseNotificationAttemptRepository> attemptRepo, out Mock<IRespuestaTransaccionesAchGateway> gateway, out Mock<IUnitOfWork> uow, out Mock<IAchResponseRepository> responseRepo)
     {
         attemptRepo = new Mock<IAchResponseNotificationAttemptRepository>();
         gateway = new Mock<IRespuestaTransaccionesAchGateway>();
         uow = new Mock<IUnitOfWork>();
         responseRepo = new Mock<IAchResponseRepository>();
-        return new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object);
+        return new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, claimStore: DefaultClaimStore());
     }
 
     private static AchResponseNotificationAttempt BuildAttempt(AchResponseNotificationStatus status)

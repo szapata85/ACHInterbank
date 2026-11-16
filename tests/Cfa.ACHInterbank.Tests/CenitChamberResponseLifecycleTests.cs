@@ -46,6 +46,53 @@ public sealed class CenitChamberResponseLifecycleTests
         }
     }
 
+    [Fact]
+    public async Task I06_ProvisionalLiquidityShortfall_OnlyOfficialTransactionNackCreatesReturn_AndReplayIsIdempotent()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var transaction = await context.AchTransactions.SingleAsync();
+        var cycle = await context.AchCycles.SingleAsync();
+        var execution = new CenitCycleExecution
+        {
+            AchCycleId = cycle.Id,
+            Status = "AwaitingOfficialResult"
+        };
+        context.CenitCycleExecutions.Add(execution);
+        await context.SaveChangesAsync();
+        context.LiquidityOptimizationDecisions.Add(new LiquidityOptimizationDecision
+        {
+            CenitCycleExecutionId = execution.Id,
+            AchTransactionId = transaction.Id,
+            AchBatchId = transaction.AchBatchId,
+            ValueDate = transaction.EffectiveEntryDate.Date,
+            ClearingHouseId = cycle.ClearingHouseId,
+            ClearingHouseCode = "CENIT",
+            DecisionType = "SimulatedInsufficientLiquidity",
+            DecisionReason = "I06 fixture: simulated only",
+            LiquidityModelUsed = "Simulated",
+            FromCycleId = cycle.Id
+        });
+        await context.SaveChangesAsync();
+        Assert.Equal(AchTransferStateEnum.Pending, transaction.State);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+        Assert.Empty(transaction.ReturnReasonCode);
+
+        var service = CreateService(context);
+        var imported = await service.ImportAsync(Command("OPERATOR"));
+        Assert.True(imported.IsApplied);
+        Assert.Equal(CenitChamberCorrelationOutcome.Matched, imported.CorrelationOutcome);
+        Assert.Equal(AchTransferStateEnum.ReturnedByOperator, (await context.AchTransactions.SingleAsync()).State);
+        var official = Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+        Assert.Equal(AchStateEventSourceEnum.Operator, official.Source);
+        Assert.Equal("ERR_TRACE", official.ReasonCode);
+        var replay = await service.ImportAsync(Command("OPERATOR"));
+        Assert.True(replay.IsDuplicate);
+        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+        Assert.Single(await context.LiquidityOptimizationDecisions.ToListAsync());
+        Assert.Equal("AwaitingOfficialResult", (await context.CenitCycleExecutions.SingleAsync()).Status);
+    }
+
     [Theory]
     [InlineData(AchTransferStateEnum.Pending)]
     [InlineData(AchTransferStateEnum.AppliedTacitly)]
@@ -465,7 +512,8 @@ public sealed class CenitChamberResponseLifecycleTests
         await using var context = await CreateSeededContextAsync(connection);
         var valid = AdvContent("81");
         var records = valid.Split('\n');
-        records[^2] = records[^2].Remove(20, 18).Insert(20, "000000000000000000");
+        var controlIndex = Array.FindIndex(records, x => x[0] == '8');
+        records[controlIndex] = records[controlIndex].Remove(20, 18).Insert(20, "000000000000000000");
         var result = await CreateService(context).ImportAsync(
             new CenitChamberResponseImportCommand("ADV-WRONGTOTAL", "bad.ach", "ADV",
                 string.Join("\n", records), Utc(), AchCycleId: "CENIT-CYCLE-1"));
@@ -526,7 +574,8 @@ public sealed class CenitChamberResponseLifecycleTests
         Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
     }
 
-    // 106-character records; CENIT §7.3.3; no CUD integration or synthetic posting.
+    // A physical ADV is 106 positions per record, packed without CR/LF, and padded
+    // with all-9 records to complete a ten-record block (NACHA-M §§3, 7.3.3).
     private static string AdvContent(params string[] codes)
     {
         static string Record(char type, params (int start, string content)[] fields)
@@ -548,12 +597,304 @@ public sealed class CenitChamberResponseLifecycleTests
         }
         var debitCount = codes.Count(code => code is "81" or "84" or "86" or "88");
         var creditCount = codes.Length - debitCount;
+        var routeSum = (10010L * codes.Length).ToString("D10");
         records.Add(Record('8', (2, "280"), (5, codes.Length.ToString("D6")),
+            (11, routeSum),
             (21, (12345L * debitCount).ToString("D18")),
             (39, (12345L * creditCount).ToString("D18")), (100, "0000001")));
-        records.Add(Record('9'));
+        var paddedCount = ((records.Count + 1 + 9) / 10) * 10;
+        records.Add(Record('9', (2, "000001"), (8, (paddedCount / 10).ToString("D6")),
+            (14, codes.Length.ToString("D8")), (22, routeSum),
+            (32, (12345L * debitCount).ToString("D18")),
+            (50, (12345L * creditCount).ToString("D18"))));
+        while (records.Count < paddedCount) records.Add(new string('9', 106));
+        // Existing gateway tests exercise the historic line-delimited representation.
         return string.Join("\n", records);
     }
+
+    private static string PhysicalAdv(params string[] codes)
+        => AdvContent(codes).Replace("\n", string.Empty, StringComparison.Ordinal);
+
+    [Fact]
+    public async Task PT23_PhysicalAdvWithoutLineEndings_AllEightCodes_PersistsEvidenceOnly_AndReplayIsIdempotent()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var input = PhysicalAdv("81", "82", "83", "84", "85", "86", "87", "88");
+        Assert.Equal(0, input.Length % 106);
+        Assert.DoesNotContain('\n', input);
+        Assert.DoesNotContain('\r', input);
+        var command = new CenitChamberResponseImportCommand("PT23-ADV", "adv.bin", "ADV", input,
+            Utc(), AchCycleId: "CENIT-CYCLE-1");
+        var service = CreateService(context);
+        var result = await service.ImportAsync(command);
+        Assert.True(result.IsApplied);
+        Assert.Equal(8, result.ItemCount);
+        var items = await context.CenitChamberResponses.OrderBy(x => x.ItemSequence).ToListAsync();
+        Assert.Equal(new[] {"81", "82", "83", "84", "85", "86", "87", "88"}, items.Select(x => x.ReasonCode));
+        Assert.All(items, x => Assert.Contains("amountCOP=123.45", x.Description));
+        Assert.True((await service.ImportAsync(command)).IsDuplicate);
+        Assert.Equal(8, await context.CenitChamberResponses.CountAsync());
+        Assert.Equal(AchTransferStateEnum.Pending, (await context.AchTransactions.SingleAsync()).State);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task PT23_PhysicalAdvUnderLegacyReconciliationEnvelope_IsRecognized()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var result = await CreateService(context).ImportAsync(
+            new CenitChamberResponseImportCommand("PT23-RECON", "adv.bin", "Reconciliation",
+                PhysicalAdv("85"), Utc(), AchCycleId: "CENIT-CYCLE-1"));
+        Assert.True(result.IsApplied);
+        Assert.Equal("85", result.ReasonCode);
+        Assert.Equal("ADV-280", result.MessageStatus);
+    }
+
+    [Fact]
+    public async Task PT23_MalformedAdvUnderReconciliation_DoesNotBecomeOpaqueAppliedEvidence()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var physical = PhysicalAdv("81");
+        physical = physical.Remove(107, 3).Insert(107, "220"); // batch class, not the file header
+        var result = await CreateService(context).ImportAsync(
+            new CenitChamberResponseImportCommand("PT23-BAD-RECON", "bad.adv", "Reconciliation",
+                physical, Utc(), AchCycleId: "CENIT-CYCLE-1"));
+        Assert.Equal("CENIT_ADV_BATCH_PROFILE_INVALID", result.ProblemCode);
+        Assert.False(result.IsApplied);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("truncated", "CENIT_ADV_RECORD_LENGTH_INVALID")]
+    [InlineData("wrong-start", "CENIT_ADV_FILE_HEADER_INVALID")]
+    [InlineData("wrong-order", "CENIT_ADV_BATCH_CONTROL_REQUIRED")]
+    [InlineData("invalid-character", "CENIT_ADV_RECORD_LENGTH_INVALID")]
+    [InlineData("invalid-amount", "CENIT_ADV_DETAIL_INVALID")]
+    [InlineData("wrong-batch-route", "CENIT_ADV_BATCH_CONTROL_INVALID")]
+    [InlineData("wrong-batch-count", "CENIT_ADV_BATCH_CONTROL_INVALID")]
+    [InlineData("adenda-flag", "CENIT_ADV_DETAIL_INVALID")]
+    [InlineData("wrong-file-count", "CENIT_ADV_FILE_CONTROL_INVALID")]
+    [InlineData("wrong-file-debit", "CENIT_ADV_FILE_CONTROL_INVALID")]
+    [InlineData("wrong-file-route", "CENIT_ADV_FILE_CONTROL_INVALID")]
+    [InlineData("missing-padding", "CENIT_ADV_FILE_STRUCTURE_INVALID")]
+    [InlineData("changed-padding", "CENIT_ADV_FILE_STRUCTURE_INVALID")]
+    public async Task PT23_MalformedPhysicalAdv_FailsClosedAndDoesNotPost(string variant, string expected)
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var records = Enumerable.Range(0, PhysicalAdv("81").Length / 106)
+            .Select(i => PhysicalAdv("81").Substring(i * 106, 106)).ToArray();
+        var fileControlIndex = Array.FindIndex(records, x => x[0] == '9');
+        var batchControlIndex = Array.FindIndex(records, x => x[0] == '8');
+        var detailIndex = Array.FindIndex(records, x => x[0] == '6');
+        switch (variant)
+        {
+            case "wrong-start": records[0] = "6" + records[0][1..]; break;
+            case "wrong-order": (records[batchControlIndex], records[fileControlIndex]) = (records[fileControlIndex], records[batchControlIndex]); break;
+            case "invalid-character": records[detailIndex] = records[detailIndex].Remove(60, 1).Insert(60, "Ñ"); break;
+            case "invalid-amount": records[detailIndex] = records[detailIndex].Remove(27, 1).Insert(27, "X"); break;
+            case "wrong-batch-route": records[batchControlIndex] = records[batchControlIndex].Remove(10, 10).Insert(10, new string('0', 10)); break;
+            case "wrong-batch-count": records[batchControlIndex] = records[batchControlIndex].Remove(4, 6).Insert(4, "000002"); break;
+            case "adenda-flag": records[detailIndex] = records[detailIndex].Remove(84, 1).Insert(84, "1"); break;
+            case "wrong-file-count": records[fileControlIndex] = records[fileControlIndex].Remove(13, 8).Insert(13, "00000002"); break;
+            case "wrong-file-debit": records[fileControlIndex] = records[fileControlIndex].Remove(31, 18).Insert(31, new string('0', 18)); break;
+            case "wrong-file-route": records[fileControlIndex] = records[fileControlIndex].Remove(21, 10).Insert(21, new string('0', 10)); break;
+            case "changed-padding": records[^1] = new string('8', 106); break;
+            case "missing-padding": records = records[..^1]; break;
+        }
+        var physical = string.Concat(records);
+        if (variant == "truncated") physical = physical[..^1];
+        var result = await CreateService(context).ImportAsync(
+            new CenitChamberResponseImportCommand("PT23-BAD-" + variant, "bad.adv", "ADV",
+                physical, Utc(), AchCycleId: "CENIT-CYCLE-1"));
+        Assert.Equal(expected, result.ProblemCode);
+        Assert.False(result.IsApplied);
+        Assert.Equal(AchTransferStateEnum.Pending, (await context.AchTransactions.SingleAsync()).State);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    // I13 / PT-14: a technical file ACK must not hide an individual NACK.
+    // The other exported transfers remain unchanged and the file remains accepted.
+    [Fact]
+    public async Task I13_PT14_AckAndNackAcrossThreeTransactions_PreservesUnrejectedItems()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var original = await context.AchTransactions.SingleAsync();
+        var export = await context.AchFileExports.Include(x => x.Transactions).SingleAsync();
+        foreach (var (id, trace, sequence) in new[]
+        {
+            (7302, "000010070007302", 2),
+            (7303, "000010070007303", 3)
+        })
+        {
+            var transfer = Transaction(id, original.AchCycleId, original.AchBatchId,
+                original.SourceInstitutionId, original.DestinationInstitutionId, trace);
+            context.AchTransactions.Add(transfer);
+            export.Transactions.Add(new AchFileExportTransaction
+            {
+                AchTransactionId = transfer.Id, AchCycleId = transfer.AchCycleId,
+                AchBatchId = transfer.AchBatchId, FileSequence = sequence,
+                TraceNumber = transfer.TraceNumber, Amount = transfer.Amount,
+                IncludedAtUtc = Utc()
+            });
+        }
+        export.TotalTransactions = 3;
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        Assert.True((await service.ImportAsync(Command("ACK"))).IsApplied);
+        var rejected = await service.ImportAsync(Command("OPERATOR") with
+        {
+            SourceResponseId = "I13-MIXED-1",
+            Content = I13NackItems(("000010070007302", "ERR_ACCOUNT")),
+            TransactionTraceNumber = null
+        });
+        Assert.True(rejected.IsApplied);
+        Assert.Equal(7302, rejected.RelatedTransactionId);
+        Assert.Equal(CenitChamberResponseState.Accepted, export.ChamberResponseState);
+        var states = await context.AchTransactions.OrderBy(x => x.Id)
+            .Select(x => new { x.Id, x.State }).ToListAsync();
+        Assert.Equal(new[] { 7301, 7302, 7303 }, states.Select(x => x.Id));
+        Assert.Equal(AchTransferStateEnum.Pending, states[0].State);
+        Assert.Equal(AchTransferStateEnum.ReturnedByOperator, states[1].State);
+        Assert.Equal(AchTransferStateEnum.Pending, states[2].State);
+        var evt = Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+        Assert.Equal(7302, evt.AchTransactionId);
+        Assert.Equal("ERR_ACCOUNT", evt.ReasonCode);
+        Assert.Equal(AchStateEventSourceEnum.Operator, evt.Source);
+        Assert.Equal(2, await context.CenitChamberResponses.CountAsync());
+    }
+
+    [Fact]
+    public async Task I13_PT14_TwoDistinctItemNacksInOnePayload_ApplyOnlyThoseTwoAndReplayOnce()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var first = await context.AchTransactions.SingleAsync();
+        var export = await context.AchFileExports.Include(x => x.Transactions).SingleAsync();
+        var second = Transaction(7302, first.AchCycleId, first.AchBatchId,
+            first.SourceInstitutionId, first.DestinationInstitutionId, "000010070007302");
+        var third = Transaction(7303, first.AchCycleId, first.AchBatchId,
+            first.SourceInstitutionId, first.DestinationInstitutionId, "000010070007303");
+        context.AchTransactions.AddRange(second, third);
+        export.TotalTransactions = 3;
+        foreach (var (transfer, sequence) in new[] { (second, 2), (third, 3) })
+            export.Transactions.Add(new AchFileExportTransaction
+            {
+                AchTransactionId = transfer.Id, AchCycleId = transfer.AchCycleId,
+                AchBatchId = transfer.AchBatchId, FileSequence = sequence,
+                TraceNumber = transfer.TraceNumber, Amount = transfer.Amount,
+                IncludedAtUtc = Utc()
+            });
+        await context.SaveChangesAsync();
+
+        var command = Command("OPERATOR") with
+        {
+            SourceResponseId = "I13-TWO-NACKS",
+            Content = I13NackItems(("000010070007302", "R02"), ("000010070007303", "R03")),
+            TransactionTraceNumber = null
+        };
+        var service = CreateService(context);
+        var imported = await service.ImportAsync(command);
+        Assert.Equal(2, imported.ItemCount);
+        Assert.True(imported.IsApplied);
+        Assert.Equal(CenitChamberResponseState.Pending, export.ChamberResponseState);
+        var rows = await context.CenitChamberResponses.OrderBy(x => x.ItemSequence).ToListAsync();
+        Assert.Equal(new[] { 7302, 7303 }, rows.Select(x => x.AchTransactionId!.Value).ToArray());
+        Assert.All(rows, x => Assert.True(x.IsApplied));
+        Assert.Equal(AchTransferStateEnum.Pending, first.State);
+        Assert.Equal(AchTransferStateEnum.ReturnedByOperator, second.State);
+        Assert.Equal(AchTransferStateEnum.ReturnedByOperator, third.State);
+        Assert.Equal(2, await context.AchTransactionStateEvents.CountAsync());
+
+        await using var replayContext = NewContext(connection);
+        var replay = await CreateService(replayContext).ImportAsync(command);
+        Assert.True(replay.IsDuplicate);
+        Assert.Equal(2, await replayContext.CenitChamberResponses.CountAsync());
+        Assert.Equal(2, await replayContext.AchTransactionStateEvents.CountAsync());
+    }
+
+    [Fact]
+    public async Task I13_PT15_ConflictingReasonsForSameTrace_ArePersistedForReviewWithoutMutations()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var cmd = Command("OPERATOR") with
+        {
+            SourceResponseId = "I13-CONFLICTING-TRACE",
+            Content = I13NackItems(("000010070007301", "R02"),
+                ("000010070007301", "R03")),
+            TransactionTraceNumber = null
+        };
+        var service = CreateService(context);
+        var response = await service.ImportAsync(cmd);
+        Assert.False(response.IsApplied);
+        Assert.Equal("CENIT_NACK_CONFLICTING_REASONS_FOR_TRACE", response.ProblemCode);
+        var rows = await context.CenitChamberResponses.OrderBy(x => x.ItemSequence).ToListAsync();
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, x =>
+        {
+            Assert.False(x.IsApplied);
+            Assert.Equal(CenitChamberCorrelationOutcome.Invalid, x.CorrelationOutcome);
+            Assert.Equal("CENIT_NACK_CONFLICTING_REASONS_FOR_TRACE", x.ProblemCode);
+        });
+        Assert.Equal(AchTransferStateEnum.Pending, (await context.AchTransactions.SingleAsync()).State);
+        Assert.Equal(CenitChamberResponseState.Pending, (await context.AchFileExports.SingleAsync()).ChamberResponseState);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+        Assert.True((await service.ImportAsync(cmd)).IsDuplicate);
+        Assert.Equal(2, await context.CenitChamberResponses.CountAsync());
+    }
+
+    [Fact]
+    public async Task I13_PT15_StaleExportMembershipCannotRejectDifferentUnderlyingTransaction()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var first = await context.AchTransactions.SingleAsync();
+        var second = Transaction(7302, first.AchCycleId, first.AchBatchId,
+            first.SourceInstitutionId, first.DestinationInstitutionId, "000010070007302");
+        context.AchTransactions.Add(second);
+        var membership = await context.AchFileExportTransactions.SingleAsync();
+        membership.AchTransactionId = second.Id; // corrupted/stale association
+        await context.SaveChangesAsync();
+        var result = await CreateService(context).ImportAsync(Command("OPERATOR"));
+        Assert.False(result.IsApplied);
+        Assert.Equal("CENIT_TRANSACTION_TRACE_MISMATCH", result.ProblemCode);
+        Assert.Equal(CenitChamberCorrelationOutcome.TransactionNotFound, result.CorrelationOutcome);
+        Assert.Null(result.RelatedTransactionId);
+        Assert.Equal(AchTransferStateEnum.Pending, first.State);
+        Assert.Equal(AchTransferStateEnum.Pending, second.State);
+        Assert.Empty(await context.AchTransactionStateEvents.ToListAsync());
+        Assert.Equal(CenitChamberResponseState.Pending, (await context.AchFileExports.SingleAsync()).ChamberResponseState);
+    }
+
+    [Fact]
+    public async Task I13_PT15_SameSourceDifferentContent_ReportsConflictWithoutStateRegression()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var command = Command("OPERATOR");
+        var service = CreateService(context);
+        Assert.True((await service.ImportAsync(command)).IsApplied);
+        var conflict = await service.ImportAsync(command with
+        {
+            Content = I13NackItems(("000010070007301", "ERR_CHANGED"))
+        });
+        Assert.False(conflict.IsApplied);
+        Assert.Equal("CENIT_RESPONSE_ID_CONFLICT", conflict.ProblemCode);
+        Assert.Single(await context.CenitChamberResponses.ToListAsync());
+        Assert.Single(await context.AchTransactionStateEvents.ToListAsync());
+    }
+
+    private static string I13NackItems(params (string Trace, string Reason)[] items)
+        => "<FileNack><AdditionalRefs><RelatedRef>REF-1</RelatedRef></AdditionalRefs>"
+            + string.Concat(items.Select(item =>
+                $"<FileErrorHandling><Status>NACK</Status><BatchNo>1</BatchNo><TraceNo>{item.Trace}</TraceNo><ErrorCode>{item.Reason}</ErrorCode></FileErrorHandling>"))
+            + "</FileNack>";
 
     private static CenitChamberResponseImportCommand Command(string fixture)
         => new(

@@ -316,5 +316,6 @@ public class CenitIncomingReturnPolicyTests
             receiverRejectionDeadline,
             originalReceivedDate,
             receiverNotificationDate,
-            calculatedDeadline);
+            calculatedDeadline,
+            returnDate ?? ValueDate);
 }

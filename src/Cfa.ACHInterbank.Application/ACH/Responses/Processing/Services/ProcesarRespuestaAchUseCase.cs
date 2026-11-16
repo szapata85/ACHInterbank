@@ -20,6 +20,7 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDifferentialPrenotificationResponseProcessor? _prenotificationResponseProcessor;
     private readonly IAchResponseTransactionCorrelationService? _transactionCorrelationService;
+    private readonly IAchResponseTransactionalRunner? _transactionalRunner;
 
     public ProcesarRespuestaAchUseCase(
         ProcesarRespuestaAchCommandValidator validator,
@@ -29,7 +30,8 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         IRespuestaAchStatusMappingService mappingService,
         IUnitOfWork unitOfWork,
         IDifferentialPrenotificationResponseProcessor? prenotificationResponseProcessor = null,
-        IAchResponseTransactionCorrelationService? transactionCorrelationService = null)
+        IAchResponseTransactionCorrelationService? transactionCorrelationService = null,
+        IAchResponseTransactionalRunner? transactionalRunner = null)
     {
         _validator = validator;
         _hashService = hashService;
@@ -39,9 +41,33 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         _unitOfWork = unitOfWork;
         _prenotificationResponseProcessor = prenotificationResponseProcessor;
         _transactionCorrelationService = transactionCorrelationService;
+        _transactionalRunner = transactionalRunner;
     }
 
     public async Task<ProcesarRespuestaAchResult> ExecuteAsync(ProcesarRespuestaAchCommand command, CancellationToken cancellationToken = default)
+    {
+        if (_transactionalRunner is null)
+            return await ExecuteCoreAsync(command, cancellationToken); // isolated legacy unit tests
+        try
+        {
+            // Database writes (including intermediate SaveChanges by trace/transition)
+            // become visible together only after AchResponse and its attempt commit.
+            return await _transactionalRunner.RunAsync(() => ExecuteCoreAsync(command, cancellationToken), cancellationToken);
+        }
+        catch (IdempotentWriteConflictException)
+        {
+            // Transaction has already rolled back; resolve the winning receipt outside it.
+            var now = DateTime.UtcNow;
+            var hash = _hashService.BuildHash(command);
+            return await ResolveConcurrentDuplicate(hash, command.CorrelationId ?? string.Empty, now, cancellationToken);
+        }
+        catch (ConcurrentStateWriteConflictException)
+        {
+            return ConcurrentStateConflict(_hashService.BuildHash(command));
+        }
+    }
+
+    private async Task<ProcesarRespuestaAchResult> ExecuteCoreAsync(ProcesarRespuestaAchCommand command, CancellationToken cancellationToken)
     {
         var errors = _validator.Validate(command);
         if (errors.Count > 0)
@@ -108,9 +134,19 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
 
             if (prenotificationProcessing.PrenotificationTransactionId.HasValue)
             {
-                response.AchTransactionId = prenotificationProcessing.PrenotificationTransactionId;
-                response.CorrelationStatus = AchResponseCorrelationStatus.Matched;
-                response.CorrelationCriterion = "VinculoPrenotificacionNacha";
+                // A candidate is evidence, not a verified match (NPT-12).
+                if (prenotificationProcessing.Success)
+                {
+                    response.AchTransactionId = prenotificationProcessing.PrenotificationTransactionId;
+                    response.CorrelationStatus = AchResponseCorrelationStatus.Matched;
+                    response.CorrelationCriterion = "VinculoPrenotificacionNachaValidado";
+                }
+                else
+                {
+                    response.AchTransactionId = null;
+                    response.CorrelationStatus = AchResponseCorrelationStatus.ManualReviewRequired;
+                    response.CorrelationCriterion = "CandidatoPrenotificacionNoValidado";
+                }
             }
 
             if (!prenotificationProcessing.Success)
@@ -132,10 +168,12 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
                 }
                 catch (IdempotentWriteConflictException)
                 {
+                    if (_transactionalRunner is not null) throw;
                     return await ResolveConcurrentDuplicate(hash, correlationId, now, cancellationToken);
                 }
                 catch (ConcurrentStateWriteConflictException)
                 {
+                    if (_transactionalRunner is not null) throw;
                     return ConcurrentStateConflict(hash);
                 }
 
@@ -143,7 +181,8 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
             }
         }
 
-        if (!response.AchTransactionId.HasValue && _transactionCorrelationService is not null)
+        if (!response.AchTransactionId.HasValue && _transactionCorrelationService is not null
+            && !(command.TipoRespuesta == TipoRespuestaAch.Prenota && prenotificationProcessing is not null))
         {
             var correlation = await _transactionCorrelationService.CorrelateAsync(command.IdTransaccion, cancellationToken);
             response.AchTransactionId = correlation.AchTransactionId;
@@ -205,10 +244,12 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         }
         catch (IdempotentWriteConflictException)
         {
+            if (_transactionalRunner is not null) throw;
             return await ResolveConcurrentDuplicate(hash, correlationId, now, cancellationToken);
         }
         catch (ConcurrentStateWriteConflictException)
         {
+            if (_transactionalRunner is not null) throw;
             return ConcurrentStateConflict(hash);
         }
 

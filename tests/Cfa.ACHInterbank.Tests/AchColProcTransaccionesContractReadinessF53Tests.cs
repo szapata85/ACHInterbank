@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Integrations.Contracts;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Xunit;
 
@@ -22,7 +23,7 @@ public sealed class AchColProcTransaccionesContractReadinessF53Tests
         var result = AchColProcTransaccionesDryRunContractCheck.Inspect(preview);
         Assert.True(result.IsSoapPreviewStructurallyValid);
         Assert.False(result.CanTransmit);
-        Assert.False(result.HasExternalXsdEvidence);
+        Assert.True(result.HasExternalXsdEvidence);
         Assert.False(result.HasApprovedAchColMapping);
         Assert.Equal("ACHCOL_F53_EXTERNAL_CONTRACT_NOT_HOMOLOGATED", result.BlockingCode);
         Assert.Contains("IDCAMCOMPE", result.MissingRequiredParameterNames);
@@ -86,7 +87,8 @@ public sealed class AchColProcTransaccionesContractReadinessF53Tests
 
     private static AchColProcTransaccionesDryRunPreview Preview(Dictionary<string, string> values)
     {
-        var fields = string.Join("", values.Select(x =>
+        var fields = string.Join("", values.OrderBy(x =>
+            Array.IndexOf(OfficialSoapContracts.ProcTransaccionesFieldOrder.ToArray(), x.Key)).Select(x =>
             $"<tem:{x.Key}>{System.Security.SecurityElement.Escape(x.Value)}</tem:{x.Key}>"));
         var xml = $"<soapenv:Envelope xmlns:soapenv=\"{Soap}\" xmlns:tem=\"{Action}\"><soapenv:Body><tem:Proc_Transacciones>{fields}</tem:Proc_Transacciones></soapenv:Body></soapenv:Envelope>";
         return new AchColProcTransaccionesDryRunPreview(

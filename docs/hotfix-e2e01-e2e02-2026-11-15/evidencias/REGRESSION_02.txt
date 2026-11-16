@@ -1,0 +1,34 @@
+COMMAND: python scripts/test/achcol_incoming_date_admission_boundary_static_check.py
+EXIT_CODE: 0
+
+01 PASS_STATIC Actual CH identity loaded by id before ACHCOL deferral
+02 PASS_STATIC Identity requires ACTIVE ACHCOL and resolved unambiguous
+03 PASS_STATIC CENIT/other retains file-level mismatch gate
+04 PASS_STATIC No early ACHCOL bad effective date rejection
+05 PASS_STATIC Preview uses ACHCOL eight-digit date format
+06 PASS_STATIC Header vs filename fatal gate retained
+07 PASS_STATIC CH authorization retained for file-based route
+08 PASS_STATIC Header correlation retained for ACHCOL
+09 PASS_STATIC Header creation time fatal retained
+10 PASS_STATIC Bank-calendar gate retained
+11 PASS_STATIC Cycle unresolved/closed/win gates retained
+12 PASS_STATIC Parser file-based scoped to verified CH code and resolved date
+13 PASS_STATIC Parser no cycle inference for file-based ACHCOL
+14 PASS_STATIC Parser checks resolved date against physical header
+15 PASS_STATIC Parser checks resolved house against physical header
+16 PASS_STATIC Parser assigns authoritative operational date
+17 PASS_STATIC Parser fails closed on mismatch
+18 PASS_STATIC Per-batch D01/D02 calculation retained
+19 PASS_STATIC Per-T6 rejection retained
+20 PASS_STATIC V35 past date maps D01
+21 PASS_STATIC V35 absent/invalid/future maps D02
+22 PASS_STATIC Physical byte/frame guards untouched
+23 PASS_STATIC Positive ACHCOL admission fixture
+24 PASS_STATIC Negative/blank ACHCOL admission fixtures
+25 PASS_STATIC Multi-batch admission fixture
+26 PASS_STATIC CENIT vs ACHCOL control test
+27 PASS_STATIC Physical file-based valid parser regression
+28 PASS_STATIC Physical file-based D01/D02 parser regression
+29 PASS_STATIC Physical parser header mismatch negative
+30 PASS_STATIC Historic CENIT parser remains separate
+TOTAL 30/30 STATIC, xUnit NOT EXECUTED

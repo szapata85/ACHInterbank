@@ -1,0 +1,6 @@
+0 scripts/test/achcol_nacha_transaction_counts_static_check.py
+0 scripts/test/e2e01_e2e02_source_static_check.py
+0 scripts/test/h01_h02_static_sqlite_check.py
+0 scripts/test/res_h02_soap_preflight_sqlite_check.py
+0 scripts/test/aud_e2e_final_static_and_sqlite_check.py
+1 scripts/test/npt_static_guard.py

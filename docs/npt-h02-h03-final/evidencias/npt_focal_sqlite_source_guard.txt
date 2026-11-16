@@ -1,0 +1,27 @@
+PASS CFA_SQL_fenced_finish
+PASS CFA_prepared_request_fenced
+PASS CFA_late_outcome_independent_context
+PASS CFA_expired_lease_quarantine
+PASS CFA_exception_classification
+PASS Axon_fenced_finish
+PASS Axon_preflight_fenced
+PASS Axon_version_concurrency
+PASS Axon_late_evidence_separated
+PASS Axon_expired_watchdog
+PASS Axon_cancel_independent_token
+PASS SOAP_reject_wrong_outer_operation
+PASS SOAP_reject_spoofed_nested_codes
+PASS SOAP_reject_faults
+PASS Prenotification_physical_link_file_chamber
+PASS Prenotification_unique_final_link
+PASS Axon independent hosted worker registered
+PASS Dedicated C# race/expiry tests authored
+PASS SQLite two CFA connections one claim
+PASS SQLite stale CFA token cannot finalize
+PASS SQLite quarantined CFA cannot be overwritten
+PASS SQLite quarantined CFA cannot be replayed
+PASS SQLite two Axon connections one claim
+PASS SQLite Axon preflight cannot override in-flight
+PASS SQLite Axon stale finish cannot override quarantine
+PASS SQLite Axon parent remains manual
+TOTAL 26/26 SOURCE + PYTHON_SQLITE_MODEL; .NET, SQLSERVER, POSTGRES, SOAP INTEGRATION NOT EXECUTED

@@ -1,0 +1,45 @@
+$ python scripts/test/h01_h02_static_sqlite_check.py
+PASS H01/H02 recovery does not increment SOAP AttemptCount
+PASS H01/H02 max attempts shared between recovery and dispatcher
+PASS H01/H02 recovery events use distinct negative sequence
+PASS H01/H02 stale CAS fences phase, expiry, token and count
+PASS H01/H02 Preparing allows retry only below max and without reconciliation
+PASS H01/H02 InFlight routes to reconciliation not automatic retry
+PASS H01/H02 exhausted legacy RetryPending scanned independent of cycle
+PASS H01/H02 exhausted state becomes terminal reconciliation
+PASS H01/H02 terminal reconciliation clears next attempt
+PASS H01/H02 manual retries choose active cycle rather than source batch cycle
+PASS H01/H02 active cycle checks operational status and debit policy
+PASS H01/H02 calendar and operating window checked
+PASS H01/H02 manual retries recheck window per chunk
+PASS H01/H02 no cycle defers without new SOAP batch
+PASS H01/H02 manual claim validates stale state and lease atomically
+PASS H01/H02 manual claim guards against outcome unknown
+PASS H01/H02 per-item manual cycle reassignment and lease claim share update
+PASS H01/H02 manual retry preserves original monetary transaction cycle
+PASS H01/H02 xUnit source exists: H01_ExpiredPreparingLease_PreservesSoapCounterAndHonorsLimit
+PASS H01/H02 xUnit source exists: H01_LegacyRetryPendingAtLimit_QuartzRecoveryMovesToReconciliationWithoutSoap
+PASS H01/H02 xUnit source exists: H01_RepeatedRestart_RecoveryAuditsCannotConsumeSoapAttemptsOrCollide
+PASS H01/H02 xUnit source exists: H01_FourActualAttempts_RecoveryThenFinalSoapUsesFifthSlotOnce
+PASS H01/H02 xUnit source exists: H02_ManualRetry_ClosedSourceUsesOpenPermittedCycleAndPersistsAudit
+PASS H01/H02 xUnit source exists: H02_ManualRetry_NoOpenCycle_DefersWithoutSoap
+PASS H01/H02 xUnit source exists: H02_ManualRetry_BlockedCalendarWithOpenCycle_DefersWithoutSoap
+PASS H01/H02 xUnit source exists: H02_ManualRetry_UnknownOutcomeNeverRetransmitsEvenWithOpenCycle
+PASS H01/H02 xUnit source exists: H02_CompetingManualWorkers_CannotBothClaimTheSameDebit
+PASS H01/H02 xUnit source exists: H02_ManualRetry_CycleClosesAfterFirstSoap_LeavesRemainingDebitUnsent
+PASS H01/H02 SQLite model 4 SOAP attempts remain 4 after recovery
+PASS H01/H02 SQLite model recovered Prepare now eligible for fifth attempt
+PASS H01/H02 SQLite model repeated recoveries preserve unique audit numbers
+PASS H01/H02 SQLite model expired InFlight reconciles and does not retry
+PASS H01/H02 SQLite model exhausted legacy item becomes terminal
+PASS H01/H02 SQLite model exhausted sweep is idempotent
+PASS H01/H02 SQLite model only open/calendar/window/policy-valid cycles qualify
+PASS H01/H02 SQLite model first manual worker claims exactly once
+PASS H01/H02 SQLite model second stale manual worker cannot double claim
+PASS H01/H02 SQLite model unknown outcome cannot be claimed for SOAP
+PASS H01/H02 SQLite model monetary source cycle is immutable
+TOTAL 39/39 H01/H02 source + SQLite-equivalent controls; .NET, xUnit, SQL Server, PostgreSQL, SOAP integration and UAT NOT EXECUTED
+
+STDERR:
+
+EXIT_CODE=0

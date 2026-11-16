@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
@@ -189,23 +190,23 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
         var sequence = new Mock<IAchTransactionRepository>();
-        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(new DateOnly(2026, 8, 16), "87654321", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(new DateOnly(2026, 8, 19), "87654321", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
-        var sut = new CenitReturnOfReturnService(context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
+        var sut = new CenitReturnOfReturnService(context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), new OperationalCalendarService(context));
 
-        var outResult = await sut.CreateOutgoingAsync(new(1001, "R60", "C4", new DateTime(2026, 8, 16, 10, 0, 0, DateTimeKind.Utc)));
-        var outDuplicate = await sut.CreateOutgoingAsync(new(1001, "R60", "C4", new DateTime(2026, 8, 16, 10, 1, 0, DateTimeKind.Utc)));
+        var outResult = await sut.CreateOutgoingAsync(new(1001, "R60", "C5", new DateTime(2026, 8, 19, 10, 0, 0, DateTimeKind.Utc)));
+        var outDuplicate = await sut.CreateOutgoingAsync(new(1001, "R60", "C5", new DateTime(2026, 8, 19, 10, 1, 0, DateTimeKind.Utc)));
         outResult.IsSuccessful.Should().BeTrue();
         outDuplicate.WasDuplicate.Should().BeTrue();
 
         var incoming = await sut.IngestIncomingAsync(new(
-            2001, original.Id, "C4", "R61", "21", "123456780000555", original.TraceNumber,
-            "12345678", "765432100000111", "228", "02", 100m,
-            new DateTime(2026, 8, 16, 11, 0, 0, DateTimeKind.Utc), "ror-in-1"));
+            2001, original.Id, "C5", "R61", "21", "123456780000555", original.TraceNumber,
+            "12345678", "765432100000111", "231", "02", 100m,
+            new DateTime(2026, 8, 19, 11, 0, 0, DateTimeKind.Utc), "ror-in-1"));
         var incomingDuplicate = await sut.IngestIncomingAsync(new(
-            2001, original.Id, "C4", "R61", "21", "123456780000555", original.TraceNumber,
-            "12345678", "765432100000111", "228", "02", 100m,
-            new DateTime(2026, 8, 16, 11, 1, 0, DateTimeKind.Utc), "ror-in-1"));
+            2001, original.Id, "C5", "R61", "21", "123456780000555", original.TraceNumber,
+            "12345678", "765432100000111", "231", "02", 100m,
+            new DateTime(2026, 8, 19, 11, 1, 0, DateTimeKind.Utc), "ror-in-1"));
 
         incoming.IsSuccessful.Should().BeTrue();
         incomingDuplicate.WasDuplicate.Should().BeTrue();
@@ -225,7 +226,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
         var original = SeedDomain(context);
         context.AchCycles.Add(new AchCycle
         {
-            Id = "NEXT-C1", CycleName = "Ciclo 1", ProcessingDate = new DateTime(2026, 8, 17),
+            Id = "NEXT-C1", CycleName = "Ciclo 1", ProcessingDate = new DateTime(2026, 8, 20),
             ClearingHouseId = 7001, CutoffTime = TimeSpan.FromHours(10)
         });
         if (sourceExists)
@@ -247,11 +248,13 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
         sequence.Setup(x => x.AllocateNextTraceSequenceAsync(It.IsAny<DateOnly>(), It.IsAny<string>(),
             It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(1);
         var calendar = new Mock<IOperationalCalendarService>();
+        calendar.Setup(x => x.IsBusinessDayAsync(It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         calendar.Setup(x => x.GetNextBusinessDayAsync(It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DateOnly(2026, 8, 17));
+            .ReturnsAsync(new DateOnly(2026, 8, 20));
         var sut = new CenitReturnOfReturnService(context, policy.Object, sequence.Object,
             new AchReturnGenerationLockService(), calendar.Object);
-        var result = await sut.CreateOutgoingAsync(new(1001, "R60", "NEXT-C1", new DateTime(2026, 8, 17, 8, 0, 0)));
+        var result = await sut.CreateOutgoingAsync(new(1001, "R60", "NEXT-C1", new DateTime(2026, 8, 20, 8, 0, 0)));
         result.IsSuccessful.Should().BeTrue(result.Message);
         var flow = await context.ReturnOfReturnFlows.SingleAsync();
         flow.SourceReturnTransactionId.Should().Be(sourceExists ? 101 : (int?)null);
@@ -270,8 +273,8 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
             It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
         var sut = new CenitReturnOfReturnService(context, policy.Object, Mock.Of<IAchTransactionRepository>(),
-            new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
-        var result = await sut.CreateOutgoingAsync(new(1001, "R74", "C4", new DateTime(2026, 8, 16, 10, 0, 0)));
+            new AchReturnGenerationLockService(), new OperationalCalendarService(context));
+        var result = await sut.CreateOutgoingAsync(new(1001, "R74", "C5", new DateTime(2026, 8, 19, 10, 0, 0)));
         result.IsSuccessful.Should().BeFalse();
         result.Code.Should().Be("CENIT_R74_R32_PARENT_REQUIRED");
         (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(0);
@@ -301,16 +304,257 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
         sequence.Setup(x => x.AllocateNextTraceSequenceAsync(It.IsAny<DateOnly>(), It.IsAny<string>(),
             It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(1);
         var sut = new CenitReturnOfReturnService(context, policy.Object, sequence.Object,
-            new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
-        var result = await sut.CreateOutgoingAsync(new(1001, "R74", "C4", new DateTime(2026, 8, 16, 10, 0, 0)));
+            new AchReturnGenerationLockService(), new OperationalCalendarService(context));
+        var result = await sut.CreateOutgoingAsync(new(1001, "R74", "C5", new DateTime(2026, 8, 19, 10, 0, 0)));
         result.IsSuccessful.Should().Be(shouldAccept, result.Message);
         if (!hasInformation)
             result.Code.Should().Be("CENIT_R74_R32_CREDIT_ADDENDA_REQUIRED");
         else
         {
-            var replay = await sut.CreateOutgoingAsync(new(1001, "R74", "C4", new DateTime(2026, 8, 16, 10, 1, 0)));
+            var replay = await sut.CreateOutgoingAsync(new(1001, "R74", "C5", new DateTime(2026, 8, 19, 10, 1, 0)));
             replay.WasDuplicate.Should().BeTrue();
         }
+    }
+
+    [Fact]
+    public async Task I08_R74_GeneratedNachaPhysicalAddenda99PreservesR32SourceTrace()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var entry = new NachaReturnOutEntry(
+            1, "21", "12345678", "0", "00123456789012345", 100m,
+            "900123456", "RECEPTOR CENIT", "AB", "876543210000001",
+            "R74", "123456780000099", string.Empty, "87654321", string.Empty,
+            "876543210000001", "765432100000111", "231", "32");
+        var request = new NachaReturnOutBuildRequest(
+            new DateTime(2026, 8, 19, 14, 30, 0, DateTimeKind.Utc),
+            "A", "0123456789", "0987654321", "CENIT", "CFA", "ROR",
+            [new NachaReturnOutBatch("220", "ORIGINADOR CENIT", string.Empty, "9001234567", "PPD", "ROR",
+                new DateTime(2026, 8, 19), new DateTime(2026, 8, 19), "231", "87654321", 1, [entry])],
+            ClearingHouseCode: "CENIT", ClearingHouseName: "CENIT",
+            NormativeVersion: CenitReturnOfReturn2026Layout.NormativeVersion,
+            FlowTypeCode: CenitReturnOfReturn2026Layout.FlowTypeCode);
+        var generated = await CreateBuilder(context).BuildReturnOutAsync(request);
+        var records = Split(generated.Content);
+        Assert.Equal(10, records.Count);
+        Assert.All(records, record => Assert.Equal(106, record.Length));
+        Assert.Equal("99", records[3].Substring(1, 2));
+        Assert.Equal("R74", records[3].Substring(3, 3));
+        Assert.Equal("123456780000099", records[3].Substring(6, 15));
+        Assert.Equal("765432100000111", records[3].Substring(40, 15));
+        Assert.Equal("32", records[3].Substring(58, 2));
+        Assert.True(CenitReturnOfReturn2026Layout.TryParseAddenda(records[3], out var parsed));
+        Assert.Equal("R74", parsed!.ReasonCode);
+    }
+
+    // I08 / HC-CENIT-008 / PT-10: evidencias físicas y semánticas R74.
+    [Theory]
+    [InlineData("900123456", true)]
+    [InlineData("000000000000000", false)]
+    [InlineData("ABC123456789012", false)]
+    public void I08_PhysicalField3_RequiresNumericNonZeroOriginator(string originator, bool expected)
+    {
+        var id = originator.PadLeft(15, '0');
+        var field3 = id + "  " + "NOMINA".PadRight(10) + "FACTURA-123".PadRight(24)
+            + "  " + "CONCEPTO".PadRight(24) + "   ";
+        Assert.Equal(80, field3.Length);
+        var physicalAddenda = "705" + field3 + "0001" + "0000099" + new string(' ', 12);
+        Assert.Equal(106, physicalAddenda.Length);
+        var raw = new AddendaRecord { CodeTypeAddendumRecord = "05", PaymentRelatedInformation = physicalAddenda.Substring(3, 80).TrimEnd() };
+        Assert.Equal(expected, CenitR74OriginalCreditEvidence.HasValidPhysicalField3(raw));
+    }
+
+    [Fact]
+    public async Task I08_R74_RefusesLocalReferenceWhenExistingPhysicalField3IsEmpty()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        context.AchTransactionAddendas.Add(new AchTransactionAddenda
+        {
+            AchTransactionId = original.Id, AddendaType = "05", Reference = "FACTURA-123"
+        });
+        AddI08OriginalCreditEntry(context, original);
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = 51, NachaID = "N1", EntryDetailId = 52,
+            CodeTypeAddendumRecord = "05", PaymentRelatedInformation = new string('0', 15).PadRight(80)
+        });
+        context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(), EntryDetailId = 52, AddendaRecordId = 51,
+            AchTransactionId = original.Id, IsFinal = true
+        });
+        await context.SaveChangesAsync();
+        Assert.False(await CenitR74OriginalCreditEvidence.ExistsAsync(context, original, default));
+    }
+
+    [Fact]
+    public async Task I08_R74_AcceptsOriginalType05WithValidPhysicalField3()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        AddI08OriginalCreditEntry(context, original);
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = 51, NachaID = "N1", EntryDetailId = 52,
+            CodeTypeAddendumRecord = "05",
+            PaymentRelatedInformation = "000000900123456" + "  " + new string(' ', 63)
+        });
+        context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(), EntryDetailId = 52, AddendaRecordId = 51,
+            AchTransactionId = original.Id, IsFinal = true
+        });
+        await context.SaveChangesAsync();
+        Assert.True(await CenitR74OriginalCreditEvidence.ExistsAsync(context, original, default));
+    }
+
+    [Theory]
+    [InlineData(TransactionTypeEnum.Debit, false, 100)]
+    [InlineData(TransactionTypeEnum.Credit, true, 100)]
+    [InlineData(TransactionTypeEnum.Credit, false, 0)]
+    public async Task I08_R74_RequiresMonetaryCreditEvenWithPaymentReference(TransactionTypeEnum type, bool prenote, int amount)
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        original.Type = type;
+        original.IsPrenotification = prenote;
+        original.Amount = amount;
+        context.AchTransactionAddendas.Add(new AchTransactionAddenda
+        {
+            AchTransactionId = original.Id, AddendaType = "05", Reference = "FACTURA-123"
+        });
+        await context.SaveChangesAsync();
+        Assert.False(await CenitR74OriginalCreditEvidence.ExistsAsync(context, original, default));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task I08_R74_OutgoingRegistrationUsesAuthoritativeRawField3(bool physicalValid)
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        (await context.AchTransactionStateEvents.SingleAsync(x => x.Id == 1001)).ReasonCode = "R32";
+        (await context.AddendaRecords.SingleAsync(x => x.AddendaID == 40)).ReturnReasonCode = "R32";
+        // This local reference must not override a present, invalid physical field.
+        context.AchTransactionAddendas.Add(new AchTransactionAddenda
+        {
+            AchTransactionId = original.Id, AddendaType = "05", Reference = "FACTURA-123"
+        });
+        AddI08OriginalCreditEntry(context, original);
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = 51, NachaID = "N1", EntryDetailId = 52,
+            CodeTypeAddendumRecord = "05",
+            PaymentRelatedInformation = (physicalValid ? "000000900123456" : "000000000000000")
+                + "  " + new string(' ', 63)
+        });
+        context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(), EntryDetailId = 52, AddendaRecordId = 51,
+            AchTransactionId = original.Id, IsFinal = true
+        });
+        await context.SaveChangesAsync();
+        var catalog = new Mock<IAchRegulatoryCatalogService>();
+        catalog.Setup(x => x.ValidateReturnOfReturnAsync(
+            It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, null, true));
+        var sequence = new Mock<IAchTransactionRepository>();
+        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(
+            It.IsAny<DateOnly>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        var sut = new CenitReturnOfReturnService(context, catalog.Object, sequence.Object,
+            new AchReturnGenerationLockService(), new OperationalCalendarService(context));
+
+        var result = await sut.CreateOutgoingAsync(new(1001, "R74", "C5", new DateTime(2026, 8, 19, 10, 0, 0)));
+        Assert.Equal(physicalValid, result.IsSuccessful);
+        if (!physicalValid)
+        {
+            Assert.Equal("CENIT_R74_R32_CREDIT_ADDENDA_REQUIRED", result.Code);
+            Assert.Empty(await context.ReturnOfReturnFlows.ToListAsync());
+        }
+        else
+        {
+            var repeated = await sut.CreateOutgoingAsync(new(1001, "R74", "C5", new DateTime(2026, 8, 19, 10, 1, 0)));
+            Assert.True(repeated.WasDuplicate);
+            Assert.Single(await context.ReturnOfReturnFlows.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task I08_R74_RejectsReturn99AsEvidenceOfOriginalPayment()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        Assert.False(await CenitR74OriginalCreditEvidence.ExistsAsync(context, original, default));
+    }
+
+    [Fact]
+    public async Task I08_R74_RejectsDebitCodeDisguisedAsCreditDespiteType05Addenda()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        original.TransactionCode = "27";
+        context.AchTransactionAddendas.Add(new AchTransactionAddenda
+        {
+            AchTransactionId = original.Id, AddendaType = "05", Reference = "FACTURA-123"
+        });
+        await context.SaveChangesAsync();
+        Assert.False(await CenitR74OriginalCreditEvidence.ExistsAsync(context, original, default));
+    }
+
+    [Fact]
+    public async Task I08_R74_RejectsPaymentAddendaLinkedToReturnInsteadOfOriginalEntry()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = 51, NachaID = "N1", EntryDetailId = 30,
+            CodeTypeAddendumRecord = "05", PaymentRelatedInformation =
+                "000000900123456" + "  " + new string(' ', 63)
+        });
+        context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(), EntryDetailId = 30, AddendaRecordId = 51,
+            AchTransactionId = original.Id, IsFinal = true
+        });
+        await context.SaveChangesAsync();
+        // Entry 30 is the R32 Return, NOT the original credit Entry.
+        Assert.False(await CenitR74OriginalCreditEvidence.ExistsAsync(context, original, default));
+    }
+
+    [Fact]
+    public async Task I08_R74_RejectsType05WithIncorrectOriginalTraceEvenWhenField3Valid()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        AddI08OriginalCreditEntry(context, original);
+        context.EntryDetails.Local.Single(x => x.EntryDetailID == 52).SequenceNumber = "999999990000001";
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = 51, NachaID = "N1", EntryDetailId = 52,
+            CodeTypeAddendumRecord = "05",
+            PaymentRelatedInformation = "000000900123456" + "  " + new string(' ', 63)
+        });
+        context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(), EntryDetailId = 52, AddendaRecordId = 51,
+            AchTransactionId = original.Id, IsFinal = true
+        });
+        await context.SaveChangesAsync();
+        Assert.False(await CenitR74OriginalCreditEvidence.ExistsAsync(context, original, default));
+    }
+
+    private static void AddI08OriginalCreditEntry(AchDbContext context, AchTransaction original)
+    {
+        // Different type-6 row from the incoming R32 return (EntryDetailID 30).
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = 52, NachaID = "N1", BatchHeaderId = 20,
+            SequenceNumber = original.TraceNumber, TransactionCode = "22", Amount = original.Amount
+        });
     }
 
     [Fact]
@@ -323,7 +567,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
-        var rorService = new CenitReturnOfReturnService(context, regulatory.Object, Mock.Of<IAchTransactionRepository>(), new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
+        var rorService = new CenitReturnOfReturnService(context, regulatory.Object, Mock.Of<IAchTransactionRepository>(), new AchReturnGenerationLockService(), new OperationalCalendarService(context));
         var dispatch = new Mock<IIncomingNachaDispatchPlanner>();
         dispatch.Setup(x => x.PlanForIngestionAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(0);
         var stateTransitions = new AchStateTransitionService(context);
@@ -343,8 +587,8 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 IsResolved = true,
                 ClearingHouseId = 7001,
                 DetectedClearingHouseId = 7001,
-                AchCycleId = "C4",
-                OperationalDate = new DateTime(2026, 8, 16),
+                AchCycleId = "C5",
+                OperationalDate = new DateTime(2026, 8, 19),
                 Confidence = 1m,
                 Status = IncomingNachaCycleResolutionStatus.ResueltoConfirmado,
                 ResolutionMode = "NormativeSyntheticFixture",
@@ -379,7 +623,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
         response.ParsingStatus.Should().Be(IncomingNachaParsingStatus.Exitoso);
         response.SelectedProfileCode.Should().Be(CenitReturnOfReturn2026Layout.InProfileCode);
         var persistedIngestion = await context.IncomingNachaFileIngestions.SingleAsync(x => x.Id == response.IngestionId);
-        persistedIngestion.OperationalDate.Should().Be(new DateTime(2026, 8, 16));
+        persistedIngestion.OperationalDate.Should().Be(new DateTime(2026, 8, 19));
         persistedIngestion.ReceivedAtUtc.Should().NotBeNull();
         persistedIngestion.ReceivedAtUtc!.Value.Date.Should().NotBe(persistedIngestion.OperationalDate!.Value.Date);
         var classification = await context.IncomingNachaEntryClassifications.SingleAsync();
@@ -406,12 +650,12 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
-        var sut = new CenitReturnOfReturnService(context, regulatory.Object, Mock.Of<IAchTransactionRepository>(), new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
+        var sut = new CenitReturnOfReturnService(context, regulatory.Object, Mock.Of<IAchTransactionRepository>(), new AchReturnGenerationLockService(), new OperationalCalendarService(context));
 
         var result = await sut.IngestIncomingAsync(new(
-            2001, original.Id, "C4", "R63", "21", "123456780000555", original.TraceNumber,
-            "99999999", "765432100000111", "228", "02", 100m,
-            new DateTime(2026, 8, 16, 11, 0, 0, DateTimeKind.Utc), "ror-in-altered"));
+            2001, original.Id, "C5", "R63", "21", "123456780000555", original.TraceNumber,
+            "99999999", "765432100000111", "231", "02", 100m,
+            new DateTime(2026, 8, 19, 11, 0, 0, DateTimeKind.Utc), "ror-in-altered"));
 
         result.IsSuccessful.Should().BeFalse();
         result.Code.Should().Be("ROR_PARENT_FIELDS_MISMATCH");
@@ -430,14 +674,108 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
             .ReturnsAsync((true, null, true));
         var sequence = new Mock<IAchTransactionRepository>(MockBehavior.Strict);
         var sut = new CenitReturnOfReturnService(
-            context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
+            context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), new OperationalCalendarService(context));
 
         var result = await sut.CreateOutgoingAsync(new(
-            1001, "R60", "C3", new DateTime(2026, 8, 16, 12, 0, 0, DateTimeKind.Utc)));
+            1001, "R60", "C3", new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc)));
 
         result.IsSuccessful.Should().BeFalse();
         result.Code.Should().Be("CENIT_ROR_SAME_DAY_CYCLE_INVALID");
         sequence.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RorSameDay_C4CannotBecomeLastCycleWhenC5IsMissingFromDatabase()
+    {
+        await using var context = BuildContext();
+        SeedDomain(context);
+        context.AchCycles.Remove(await context.AchCycles.SingleAsync(x => x.Id == "C5"));
+        await context.SaveChangesAsync();
+        (await context.AchCycles.CountAsync(x => x.ClearingHouseId == 7001)).Should().Be(4);
+
+        var sequence = new Mock<IAchTransactionRepository>(MockBehavior.Strict);
+        // El catálogo acepta la causal; la validación de ciclo debe fallar antes de reservar traza.
+        var regulatory = new Mock<IAchRegulatoryCatalogService>();
+        regulatory.Setup(x => x.ValidateReturnOfReturnAsync(
+                It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, null, true));
+        var sut = new CenitReturnOfReturnService(context, regulatory.Object,
+            sequence.Object, new AchReturnGenerationLockService(), new OperationalCalendarService(context));
+
+        var result = await sut.CreateOutgoingAsync(new(
+            1001, "R60", "C4", new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc)));
+        result.IsSuccessful.Should().BeFalse();
+        result.Code.Should().Be("CENIT_ROR_SAME_DAY_CYCLE_INVALID");
+        (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(0);
+        (await context.AchTransactions.CountAsync(x => x.Type == TransactionTypeEnum.Return)).Should().Be(0);
+        sequence.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RorSameDay_C4IsNotPermittedEvenWithC5Configured()
+    {
+        await using var context = BuildContext();
+        SeedDomain(context);
+        var sequence = new Mock<IAchTransactionRepository>(MockBehavior.Strict);
+        var regulatory = new Mock<IAchRegulatoryCatalogService>();
+        regulatory.Setup(x => x.ValidateReturnOfReturnAsync(
+                It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, null, true));
+        var sut = new CenitReturnOfReturnService(context, regulatory.Object,
+            sequence.Object, new AchReturnGenerationLockService(), new OperationalCalendarService(context));
+
+        var result = await sut.CreateOutgoingAsync(new(
+            1001, "R60", "C4", new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc)));
+        result.Code.Should().Be("CENIT_ROR_SAME_DAY_CYCLE_INVALID");
+        result.IsSuccessful.Should().BeFalse();
+        sequence.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("C1", false)]
+    [InlineData("C2", true)]
+    [InlineData("C3", true)]
+    [InlineData("C4", true)]
+    [InlineData("C5", false)]
+    public async Task RorSameDay_OnlyParentC2ThroughC4MayTargetC5(string parentCycle, bool allowed)
+    {
+        await using var context = BuildContext();
+        SeedDomain(context);
+        (await context.NachaHeaders.SingleAsync(x => x.NachaID == "N1")).AchCycleId = parentCycle;
+        await context.SaveChangesAsync();
+
+        var result = await CreateI02OutgoingSut(context).CreateOutgoingAsync(new(
+            1001, "R60", "C5", new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc)));
+        result.IsSuccessful.Should().Be(allowed, result.Message);
+        if (!allowed)
+        {
+            result.Code.Should().Be("CENIT_ROR_SAME_DAY_CYCLE_INVALID");
+            (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(0);
+        }
+        else
+        {
+            (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(1);
+            (await context.AchTransactions.SingleAsync(x => x.Id == result.ReturnOfReturnTransactionId!.Value)).AchCycleId.Should().Be("C5");
+        }
+    }
+
+    [Fact]
+    public async Task RorIncoming_C4CannotBeTargetWhenDatabaseContainsOnlyFourCycles()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        context.AchCycles.Remove(await context.AchCycles.SingleAsync(x => x.Id == "C5"));
+        await context.SaveChangesAsync();
+        var result = await CreateI02OutgoingSut(context).IngestIncomingAsync(new(
+            2001, original.Id, "C4", "R61", "21", "123456780000555", original.TraceNumber,
+            "12345678", "765432100000111", "231", "02", 100m,
+            new DateTime(2026, 8, 19, 11, 0, 0, DateTimeKind.Utc), "ror-in-incomplete-cycles"));
+        result.Code.Should().Be("CENIT_ROR_SAME_DAY_CYCLE_INVALID");
+        result.IsSuccessful.Should().BeFalse();
+        (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(0);
+        (await context.AchTransactions.CountAsync(x => x.Type == TransactionTypeEnum.Return)).Should().Be(0);
     }
 
     [Fact]
@@ -447,7 +785,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
         SeedDomain(context);
         context.AchCycles.Add(new AchCycle
         {
-            Id = "NEXT-C2", CycleName = "Ciclo 2", ProcessingDate = new(2026, 8, 18),
+            Id = "NEXT-C2", CycleName = "Ciclo 2", ProcessingDate = new(2026, 8, 21),
             CutoffTime = TimeSpan.FromHours(11), ClearingHouseId = 7001
         });
         await context.SaveChangesAsync();
@@ -457,14 +795,16 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
         var calendar = new Mock<IOperationalCalendarService>();
-        calendar.Setup(x => x.GetNextBusinessDayAsync(new DateOnly(2026, 8, 17), 7001, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DateOnly(2026, 8, 17));
+        calendar.Setup(x => x.IsBusinessDayAsync(It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        calendar.Setup(x => x.GetNextBusinessDayAsync(new DateOnly(2026, 8, 20), 7001, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DateOnly(2026, 8, 20));
         var sequence = new Mock<IAchTransactionRepository>(MockBehavior.Strict);
         var sut = new CenitReturnOfReturnService(
             context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), calendar.Object);
 
         var result = await sut.CreateOutgoingAsync(new(
-            1001, "R68", "NEXT-C2", new DateTime(2026, 8, 18, 10, 0, 0, DateTimeKind.Utc)));
+            1001, "R68", "NEXT-C2", new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc)));
 
         result.IsSuccessful.Should().BeFalse();
         result.Code.Should().Be("CENIT_ROR_DEADLINE_EXCEEDED");
@@ -490,10 +830,10 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
             Mock.Of<IAchRegulatoryCatalogService>(),
             sequence.Object,
             new AchReturnGenerationLockService(),
-            Mock.Of<IOperationalCalendarService>());
+            new OperationalCalendarService(context));
 
         var result = await sut.CreateOutgoingAsync(new(
-            1001, "R61", "C4", new DateTime(2026, 8, 16, 12, 0, 0, DateTimeKind.Utc)));
+            1001, "R61", "C4", new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc)));
 
         result.IsSuccessful.Should().BeFalse();
         result.Code.Should().Be("ROR_ON_ROR_NOT_ALLOWED");
@@ -511,14 +851,14 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
         var sequence = new Mock<IAchTransactionRepository>();
-        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(new DateOnly(2026, 8, 16), "87654321", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(new DateOnly(2026, 8, 19), "87654321", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(7);
-        var service = new CenitReturnOfReturnService(context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
-        var created = await service.CreateOutgoingAsync(new(1001, "R60", "C4", new DateTime(2026, 8, 16, 12, 0, 0, DateTimeKind.Utc)));
-        var duplicate = await service.CreateOutgoingAsync(new(1001, "R60", "C4", new DateTime(2026, 8, 16, 12, 1, 0, DateTimeKind.Utc)));
+        var service = new CenitReturnOfReturnService(context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), new OperationalCalendarService(context));
+        var created = await service.CreateOutgoingAsync(new(1001, "R60", "C5", new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc)));
+        var duplicate = await service.CreateOutgoingAsync(new(1001, "R60", "C5", new DateTime(2026, 8, 19, 12, 1, 0, DateTimeKind.Utc)));
         created.IsSuccessful.Should().BeTrue();
         duplicate.WasDuplicate.Should().BeTrue();
-        sequence.Verify(x => x.AllocateNextTraceSequenceAsync(new DateOnly(2026, 8, 16), "87654321", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        sequence.Verify(x => x.AllocateNextTraceSequenceAsync(new DateOnly(2026, 8, 19), "87654321", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
 
         var naming = new Mock<IExternalFileNamePolicy>();
         naming.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
@@ -533,12 +873,12 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
             nachaFileBuilder: CreateBuilder(context));
         var generated = await generator.GenerateNachaAsync(new(
             [(int)created.FlowId!.Value],
-            new DateTime(2026, 8, 16, 12, 5, 0, DateTimeKind.Utc),
+            new DateTime(2026, 8, 19, 12, 5, 0, DateTimeKind.Utc),
             "ret-cenit-ror-001",
             "api"), CancellationToken.None);
         var regenerated = await generator.GenerateNachaAsync(new(
             [(int)created.FlowId.Value],
-            new DateTime(2026, 8, 16, 12, 6, 0, DateTimeKind.Utc),
+            new DateTime(2026, 8, 19, 12, 6, 0, DateTimeKind.Utc),
             "ret-cenit-ror-001",
             "api"), CancellationToken.None);
 
@@ -572,32 +912,204 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
     private static AchDbContext BuildContext()
         => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
+    [Fact]
+    public async Task I02_Cycle1_PinnedParentChoosesExactReturnAmongTwoMatchingReasons()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        var pinnedLink = await context.IncomingNachaTransactionLinks.SingleAsync();
+        AddCompetingParentReturn(context, original, "765432100000333");
+        (await context.AchTransactionStateEvents.SingleAsync(x => x.Id == 1001)).PayloadJson =
+            JsonSerializer.Serialize(new { incomingReturnLinkId = pinnedLink.Id.ToString("D") });
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "I02-NEXT-C1", CycleName = "Ciclo 1", ProcessingDate = new DateTime(2026, 8, 20),
+            ClearingHouseId = 7001, CutoffTime = TimeSpan.FromHours(10)
+        });
+        context.AchTransactions.Add(new AchTransaction
+        {
+            Id = 101, AchCycleId = "C2", AchBatchId = original.AchBatchId,
+            Type = TransactionTypeEnum.Return, State = AchTransferStateEnum.ReturnedByEpr,
+            Amount = original.Amount, TraceNumber = "765432100000222", OriginalTraceRef = original.TraceNumber,
+            TransactionCode = "21", Reference = "I02-RETURN-PARENT", TransactionExternalId = "I02-RETURN-PARENT",
+            SourceAccountNumber = "1", DestinationAccountNumber = "2"
+        });
+        await context.SaveChangesAsync();
+        var sut = CreateI02OutgoingSut(context);
+        var when = new DateTime(2026, 8, 20, 8, 0, 0, DateTimeKind.Utc);
+        var first = await sut.CreateOutgoingAsync(new(1001, "R60", "I02-NEXT-C1", when));
+        var duplicate = await sut.CreateOutgoingAsync(new(1001, "R60", "I02-NEXT-C1", when.AddMinutes(1)));
+
+        first.IsSuccessful.Should().BeTrue(first.Message);
+        duplicate.WasDuplicate.Should().BeTrue();
+        var flow = await context.ReturnOfReturnFlows.SingleAsync();
+        flow.SourceReturnTransactionId.Should().Be(101);
+        flow.ParentIncomingReturnStateEventId.Should().Be(1001);
+        flow.OriginalTransactionId.Should().Be(original.Id);
+        var ror = await context.AchTransactions.SingleAsync(x => x.Id == flow.ReturnOfReturnTransactionId);
+        ror.Amount.Should().Be(original.Amount);
+        ror.OriginalTraceRef.Should().Be(original.TraceNumber);
+        ror.EffectiveEntryDate.Should().Be(when.Date);
+    }
+
+    [Fact]
+    public async Task I02_Cycle1_LegacyParentWithTwoRawMatchesFailsClosed()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        AddCompetingParentReturn(context, original, "765432100000333");
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "I02-NEXT-C1", CycleName = "Ciclo 1", ProcessingDate = new DateTime(2026, 8, 20),
+            ClearingHouseId = 7001, CutoffTime = TimeSpan.FromHours(10)
+        });
+        await context.SaveChangesAsync();
+        var result = await CreateI02OutgoingSut(context).CreateOutgoingAsync(
+            new(1001, "R60", "I02-NEXT-C1", new DateTime(2026, 8, 20, 8, 0, 0, DateTimeKind.Utc)));
+        result.IsSuccessful.Should().BeFalse();
+        result.Code.Should().Be("CENIT_ROR_SOURCE_RETURN_AMBIGUOUS");
+        (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task I02_Cycle1_PinnedParentBelongingToOtherOriginalFailsClosed()
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        var foreignId = Guid.NewGuid();
+        (await context.AchTransactionStateEvents.SingleAsync(x => x.Id == 1001)).PayloadJson =
+            JsonSerializer.Serialize(new { incomingReturnLinkId = foreignId.ToString("D") });
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "I02-NEXT-C1", CycleName = "Ciclo 1", ProcessingDate = new DateTime(2026, 8, 20),
+            ClearingHouseId = 7001, CutoffTime = TimeSpan.FromHours(10)
+        });
+        await context.SaveChangesAsync();
+        var result = await CreateI02OutgoingSut(context).CreateOutgoingAsync(
+            new(1001, "R60", "I02-NEXT-C1", new DateTime(2026, 8, 20, 8, 0, 0, DateTimeKind.Utc)));
+        result.Code.Should().Be("CENIT_ROR_SOURCE_RETURN_LINK_MISMATCH");
+        result.IsSuccessful.Should().BeFalse();
+        (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(2026, 8, 22)] // sábado
+    [InlineData(2026, 8, 23)] // domingo
+    [InlineData(2026, 8, 17)] // lunes festivo (Asunción de la Virgen)
+    public async Task RorSameDay_NonBusinessDateRejectsOutgoingAndIncomingBeforeMutation(
+        int year, int month, int day)
+    {
+        await using var context = BuildContext();
+        var original = SeedDomain(context);
+        var date = new DateTime(year, month, day);
+        foreach (var cycle in context.AchCycles)
+            cycle.ProcessingDate = date;
+        await context.SaveChangesAsync();
+        var sut = CreateI02OutgoingSut(context);
+        var outgoing = await sut.CreateOutgoingAsync(new(
+            1001, "R60", "C5", date.AddHours(17)));
+        outgoing.IsSuccessful.Should().BeFalse();
+        outgoing.Code.Should().Be("CENIT_ROR_NON_BUSINESS_DAY");
+        var incoming = await sut.IngestIncomingAsync(new(
+            2001, original.Id, "C5", "R61", "21", "123456780000555", original.TraceNumber,
+            "12345678", "765432100000111", "231", "02", 100m,
+            date.AddHours(17), "ror-non-operational-day"));
+        incoming.IsSuccessful.Should().BeFalse();
+        incoming.Code.Should().Be("CENIT_ROR_NON_BUSINESS_DAY");
+        (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(0);
+        (await context.AchTransactions.CountAsync(x => x.Type == TransactionTypeEnum.Return)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RorSameDay_ValidWednesdayPermitsC5AndRetainsHcCenit002()
+    {
+        await using var context = BuildContext();
+        SeedDomain(context); // miércoles 19-08-2026
+        var sut = CreateI02OutgoingSut(context);
+        var accepted = await sut.CreateOutgoingAsync(new(1001, "R60", "C5", new DateTime(2026, 8, 19, 18, 0, 0)));
+        accepted.IsSuccessful.Should().BeTrue(accepted.Message);
+        (await context.ReturnOfReturnFlows.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RorNextBusinessDay_RejectsTargetOnWeekendDespiteValidCycleNumber()
+    {
+        await using var context = BuildContext();
+        SeedDomain(context); // miércoles 19
+        context.AchCycles.Add(new AchCycle {
+            Id = "WEEKEND-C1", CycleName = "Ciclo 1", ClearingHouseId = 7001,
+            ProcessingDate = new DateTime(2026, 8, 22), CutoffTime = TimeSpan.FromHours(10)
+        });
+        await context.SaveChangesAsync();
+        var result = await CreateI02OutgoingSut(context).CreateOutgoingAsync(new(
+            1001, "R60", "WEEKEND-C1", new DateTime(2026, 8, 22, 8, 0, 0)));
+        result.IsSuccessful.Should().BeFalse();
+        result.Code.Should().Be("CENIT_ROR_NON_BUSINESS_DAY");
+    }
+
+    private static CenitReturnOfReturnService CreateI02OutgoingSut(AchDbContext context)
+    {
+        var policy = new Mock<IAchRegulatoryCatalogService>();
+        policy.Setup(x => x.ValidateReturnOfReturnAsync(
+                It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, null, true));
+        var sequence = new Mock<IAchTransactionRepository>();
+        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(It.IsAny<DateOnly>(), It.IsAny<string>(),
+            It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        return new CenitReturnOfReturnService(context, policy.Object, sequence.Object,
+            new AchReturnGenerationLockService(), new OperationalCalendarService(context));
+    }
+
+    private static void AddCompetingParentReturn(AchDbContext context, AchTransaction original, string trace)
+    {
+        const int entryId = 31;
+        const int addendaId = 41;
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = entryId, NachaID = "N1", BatchHeaderId = 20,
+            TransactionCode = "21", Amount = original.Amount, SequenceNumber = trace
+        });
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = addendaId, NachaID = "N1", EntryDetailId = entryId,
+            CodeTypeAddendumRecord = "99", ReturnReasonCode = "R02", OriginalTraceNumber = original.TraceNumber
+        });
+        context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(), EntryDetailId = entryId, AddendaRecordId = addendaId,
+            AchTransactionId = original.Id, IsFinal = true,
+            LinkedAtUtc = DateTime.UtcNow.AddDays(1)
+        });
+    }
+
     private static AchTransaction SeedDomain(AchDbContext context)
     {
         context.ClearingHouses.Add(new ClearingHouse { Id = 7001, Code = "CENIT", Name = "CENIT", OriginCode = "87654321" });
         context.AchCycles.AddRange(
-            new AchCycle { Id = "C1", CycleName = "Ciclo 1", ProcessingDate = new(2026, 8, 16), CutoffTime = TimeSpan.FromHours(9), ClearingHouseId = 7001 },
-            new AchCycle { Id = "C2", CycleName = "Ciclo 2", ProcessingDate = new(2026, 8, 16), CutoffTime = TimeSpan.FromHours(11), ClearingHouseId = 7001 },
-            new AchCycle { Id = "C3", CycleName = "Ciclo 3", ProcessingDate = new(2026, 8, 16), CutoffTime = TimeSpan.FromHours(13), ClearingHouseId = 7001 },
-            new AchCycle { Id = "C4", CycleName = "Ciclo 4", ProcessingDate = new(2026, 8, 16), CutoffTime = TimeSpan.FromHours(15), ClearingHouseId = 7001 });
-        context.AchBatches.Add(new AchBatch { Id = 10, AchCycleId = "C1", CompanyName = "CFA", CompanyIdentification = "9001234567", EffectiveEntryDate = new(2026, 8, 16) });
+            new AchCycle { Id = "C1", CycleName = "Ciclo 1", ProcessingDate = new(2026, 8, 19), CutoffTime = TimeSpan.FromHours(9), ClearingHouseId = 7001 },
+            new AchCycle { Id = "C2", CycleName = "Ciclo 2", ProcessingDate = new(2026, 8, 19), CutoffTime = TimeSpan.FromHours(11), ClearingHouseId = 7001 },
+            new AchCycle { Id = "C3", CycleName = "Ciclo 3", ProcessingDate = new(2026, 8, 19), CutoffTime = TimeSpan.FromHours(13), ClearingHouseId = 7001 },
+            new AchCycle { Id = "C4", CycleName = "Ciclo 4", ProcessingDate = new(2026, 8, 19), CutoffTime = TimeSpan.FromHours(15), ClearingHouseId = 7001 },
+            new AchCycle { Id = "C5", CycleName = "Ciclo 5", ProcessingDate = new(2026, 8, 19), CutoffTime = TimeSpan.FromHours(18), ClearingHouseId = 7001 });
+        context.AchBatches.Add(new AchBatch { Id = 10, AchCycleId = "C1", CompanyName = "CFA", CompanyIdentification = "9001234567", EffectiveEntryDate = new(2026, 8, 19) });
         var original = new AchTransaction
         {
             Id = 100, AchCycleId = "C1", AchBatchId = 10, Type = TransactionTypeEnum.Credit,
             State = AchTransferStateEnum.ReturnedByEpr, Amount = 100m, TransactionCode = "22",
             TraceNumber = "123456780000099", OriginatingDFI = "87654321", ReceivingDFI = "12345678",
             SourceAccountNumber = "1", DestinationAccountNumber = "2", Reference = "REF", TransactionExternalId = "EXT",
-            CompanyName = "CFA", CompanyIdentification = "9001234567", EffectiveEntryDate = new(2026, 8, 15)
+            CompanyName = "CFA", CompanyIdentification = "9001234567", EffectiveEntryDate = new(2026, 8, 18)
         };
         context.AchTransactions.Add(original);
         context.AchTransactionStateEvents.Add(new AchTransactionStateEvent
         {
             Id = 1001, AchTransactionId = original.Id, FromState = AchTransferStateEnum.Certified,
             ToState = AchTransferStateEnum.ReturnedByEpr, Source = AchStateEventSourceEnum.Epr,
-            ReasonCode = "R02", OccurredAtUtc = new(2026, 8, 15, 10, 0, 0, DateTimeKind.Utc)
+            ReasonCode = "R02", OccurredAtUtc = new(2026, 8, 18, 10, 0, 0, DateTimeKind.Utc)
         });
         var header = new NachaHeader { NachaID = "N1", AchCycleId = "C2", ClearingHouseId = 7001 };
-        var batch = new BatchHeader { BatchID = 20, NachaID = "N1", StandardEntryClassCode = "PPD", CompensationDate = "228" };
+        var batch = new BatchHeader { BatchID = 20, NachaID = "N1", StandardEntryClassCode = "PPD", CompensationDate = "231" };
         var entry = new EntryDetail { EntryDetailID = 30, NachaID = "N1", BatchHeaderId = 20, TransactionCode = "21", ReceivingParticipantEntityCode = "12345678", CheckDigit = "0", AccountNumber = "2", Amount = 100m, RecipIdNumber = "900123456", RecipUserName = "RECEPTOR CENIT", DiscreData = "AB", SequenceNumber = "765432100000222" };
         var addenda = new AddendaRecord { AddendaID = 40, NachaID = "N1", EntryDetailId = 30, CodeTypeAddendumRecord = "99", ReturnReasonCode = "R02", OriginalTraceNumber = original.TraceNumber, IdUserOrig = "12345678" };
         context.AddRange(header, batch, entry, addenda);
@@ -606,7 +1118,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
         {
             Id = 2001, OriginalTransactionId = original.Id, ReturnCycleId = "C2", ReturnReasonCode = "R02",
             Amount = 100m, NewSequenceNumber = "765432100000111", OriginalSequenceNumber = original.TraceNumber,
-            ReceiverEntityCode = "87654321", OriginatorEntityCode = "12345678", SequenceDate = new(2026, 8, 16), GeneratedAtUtc = new(2026, 8, 16)
+            ReceiverEntityCode = "87654321", OriginatorEntityCode = "12345678", SequenceDate = new(2026, 8, 19), GeneratedAtUtc = new(2026, 8, 19)
         });
         context.SaveChanges();
         return original;

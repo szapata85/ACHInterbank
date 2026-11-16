@@ -1,0 +1,74 @@
+[
+  {
+    "script": "scripts/test/h01_h02_static_sqlite_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_00.txt",
+    "summary": "TOTAL 39/39 H01/H02 source + SQLite-equivalent controls; .NET, xUnit, SQL Server, PostgreSQL, SOAP integration and UAT NOT EXECUTED"
+  },
+  {
+    "script": "scripts/test/aud_e2e_final_static_and_sqlite_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_01.txt",
+    "summary": "TOTAL 31/31 source/SQLite-model controls; NOT a C# compilation or provider integration test"
+  },
+  {
+    "script": "scripts/test/e2e01_e2e02_source_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_02.txt",
+    "summary": "TOTAL 35/35 PASS: SOURCE STATIC + SQLITE MODEL; .NET BUILD/XUNIT/PG/SQLSERVER/UAT NOT EXECUTED"
+  },
+  {
+    "script": "scripts/test/achcol_nacha_transaction_counts_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_03.txt",
+    "summary": "TOTAL 28/28 SOURCE STATIC; .NET BUILD/XUNIT/DB NOT EXECUTED"
+  },
+  {
+    "script": "scripts/test/achcol_incoming_date_admission_boundary_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_04.txt",
+    "summary": "TOTAL 30/30 STATIC, xUnit NOT EXECUTED"
+  },
+  {
+    "script": "scripts/test/predeploy_three_hotfixes_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_05.txt",
+    "summary": "TOTAL: 41/41 source checks; runtime .NET/xUnit NOT executed"
+  },
+  {
+    "script": "scripts/test/cenit_post_i13_ror_c5_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_06.txt",
+    "summary": "TOTAL 20/20 STATIC SOURCE-CHECK ONLY"
+  },
+  {
+    "script": "scripts/test/cenit_i01_queue_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_07.txt",
+    "summary": ""
+  },
+  {
+    "script": "scripts/test/cenit_i02_ror_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_08.txt",
+    "summary": ""
+  },
+  {
+    "script": "scripts/test/cenit_i13_nack_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_09.txt",
+    "summary": ""
+  },
+  {
+    "script": "scripts/test/cenit_i10_alphabet_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_10.txt",
+    "summary": ""
+  },
+  {
+    "script": "scripts/test/cenit_i12_adv280_static_check.py",
+    "exit_code": 0,
+    "log": "docs/hotfix-h01-h02-2026-11-15/evidencias/CHECK_11.txt",
+    "summary": ""
+  }
+]

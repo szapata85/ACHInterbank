@@ -1,0 +1,47 @@
+$ python scripts/test/cenit_i12_adv280_static_check.py
+PASS physical 106-byte stride rather than requiring newlines
+PASS legacy line reader retains fields without Trim
+PASS legacy Reconciliation detects packed ADV
+PASS invalid batch profile cannot downgrade to opaque reconciliation
+PASS file header record type validated
+PASS header record length validated
+PASS blocking factor 10 validated
+PASS limits inbound message size
+PASS no non-CENIT alphabet accepted
+PASS profile code 280 enforced
+PASS SEC ADV required
+PASS valid value date required
+PASS batch sequence numeric
+PASS all 8 ADV codes constrained
+PASS detail amount digits
+PASS detail route digits
+PASS adenda flag zero required
+PASS batch has nonempty details
+PASS batch control follows details
+PASS batch detail count checked
+PASS batch routing checksum checked
+PASS batch debit control checked
+PASS batch credit control checked
+PASS batch sequence matches
+PASS file T9 required
+PASS file batch count checked
+PASS file physical blocks checked
+PASS file detail count checked
+PASS file route check
+PASS file debit sum
+PASS file credit sum
+PASS file reserved blank
+PASS file padding modulo 10
+PASS all padding must be exact 9s
+PASS only returns after file checks
+PASS official event may not mutate transaction on session output
+PASS PT23 physical positive fixture test
+PASS PT23 legacy Reconciliation physical test
+PASS PT23 malformed physical variants
+PASS PT23 raw fixture preserves full record widths
+PASS no posting after receipt asserted
+41/41 source-contract checks (not C# execution)
+
+STDERR:
+
+EXIT_CODE=0

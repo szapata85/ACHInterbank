@@ -38,6 +38,32 @@ public sealed class IncomingNachaTraceabilityCoreTests
         Assert.Equal("Functional", result.Issue.ErrorType);
     }
 
+    [Theory]
+    [InlineData("CENIT", false)]
+    [InlineData("ACHCOL", true)]
+    public async Task Admission_EffectiveDateMismatch_UsesVerifiedChamberSemantics(
+        string chamberCode, bool expectedAccepted)
+    {
+        await using var fixture = await Fixture.CreateAsync(AchCycleOperationalStatus.Open);
+        fixture.ClearingHouse.Code = chamberCode;
+        fixture.ClearingHouse.IsActive = true;
+        await fixture.Context.SaveChangesAsync();
+        var record = Enumerable.Repeat(' ', 106).ToArray();
+        record[0] = '5';
+        // Legacy CENIT reads yyMMdd; ACHCOL always reads yyyyMMdd.
+        (chamberCode == "CENIT" ? "260723  " : "20260723").CopyTo(0, record, 71, 8);
+        var request = Request("0001283.001.20260724.1", fixture.Cycle.Id) with
+        {
+            Records = [HeaderRecord(), new string(record)]
+        };
+
+        var result = await new IncomingNachaAdmissionValidator(fixture.Context, fixture.Clock)
+            .ValidateAsync(request);
+
+        Assert.Equal(expectedAccepted, result.IsAccepted);
+        Assert.Equal(expectedAccepted ? null : "EFFECTIVE_DATE_MISMATCH", result.Issue?.Code);
+    }
+
     [Fact]
     public async Task Admission_ClosedCycle_RejectsBeforeParser()
     {

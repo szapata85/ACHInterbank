@@ -22,6 +22,8 @@ public class AchResponseNotificationAttemptConfiguration : IEntityTypeConfigurat
         builder.Property(x => x.RequestPayload);
         builder.Property(x => x.ResponsePayload);
         builder.Property(x => x.FechaCreacion).IsRequired();
+        builder.Property(x => x.ClaimToken).HasMaxLength(64);
+        builder.HasIndex(x => new { x.EstadoNotificacion, x.LeaseExpiresAtUtc }).HasDatabaseName("IX_AxonNotification_ClaimRecovery");
 
         builder.HasIndex(x => new { x.AchResponseId, x.NumeroIntento }).IsUnique().HasDatabaseName("UX_AchRespAttempts_Response_Attempt");
         builder.HasIndex(x => x.EstadoNotificacion).HasDatabaseName("IX_AchRespAttempts_Estado");

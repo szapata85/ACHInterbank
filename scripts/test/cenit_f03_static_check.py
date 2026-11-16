@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Static F03 regression guard; not a .NET test or a certified database exercise."""
 from pathlib import Path
+import re
 root=Path(__file__).resolve().parents[2]
 service=(root/'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitCycleQueueService.cs').read_text()
 iface=(root/'src/Cfa.ACHInterbank.Application/ACH/Interfaces/ICenitCycleQueueService.cs').read_text()
@@ -17,7 +18,7 @@ checks = {
  'Serializable transaction and retry strategy': 'IsolationLevel.Serializable' in service and 'CreateExecutionStrategy' in service,
  'Queue is consumed only after assignment': service.index('tx.AchCycleId = targetAchCycleId;') < service.index('item.Status = "Consumed";'),
  'Transaction, batch and event share SaveChanges': 'await _context.SaveChangesAsync(ct);' in service and 'AchTransactionStateEvents.Add' in service,
- 'No CUD and no financial-state transition': 'tx.State =' not in service and 'tx.ReturnReasonCode' not in service and 'CUD' not in service,
+ 'No CUD and no financial-state transition': 'tx.State =' not in service and not re.search(r'\btx\.ReturnReasonCode\s*=(?!=)', service) and 'CUD' not in service,
  'Idempotence avoids repeated consumption': 'if (queued.Count == 0) return 0;' in service and 'if (existing.Status == "Consumed") return existing;' in service,
  'Exported target blocked': 'CENIT_QUEUE_TARGET_ALREADY_EXPORTED' in service,
  'Previously presented source blocked': 'CENIT_QUEUE_ALREADY_PRESENTED' in service,

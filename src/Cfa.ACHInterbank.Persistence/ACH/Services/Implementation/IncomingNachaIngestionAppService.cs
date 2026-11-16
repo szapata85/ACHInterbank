@@ -565,14 +565,17 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct);
         var configClearingHouseCode = ToConfigClearingHouseCode(clearingHouseCode);
         var isCenit = string.Equals(configClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase);
+        // CENIT return-of-return has an independently established F07 layout.
+        // Do not disable that supported non-prenotification route merely because
+        // its record 7 also uses an addenda 99 discriminator.
+        var isCenitReturnOfReturn = isCenit && IsCenitReturnOfReturnCandidate(records);
         var requiresExplicitProfile = isDifferentialCandidate
                                       || string.Equals(configClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
                                       || isCenit;
         if (requiresExplicitProfile)
         {
-            var isCenitRor = isCenit && IsCenitReturnOfReturnCandidate(records);
             var flowTypeCode = isDifferentialCandidate
-                ? isCenitRor ? CenitReturnOfReturn2026Layout.FlowTypeCode : "RETORNO"
+                ? isCenitReturnOfReturn ? CenitReturnOfReturn2026Layout.FlowTypeCode : "RETORNO"
                 : string.Empty;
             var preselectionRequest = new NachaConfigResolutionRequest
             {
@@ -588,7 +591,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["MessageType"] = isDifferentialCandidate
-                        ? isCenitRor ? "ReturnOfReturn" : "DifferentialResponse"
+                        ? isCenitReturnOfReturn ? "ReturnOfReturn" : "DifferentialResponse"
                         : flowTypeCode == "PRENOTIFICACION" ? "Prenotification" : "Original",
                     ["AddendaType"] = isDifferentialCandidate ? "99" : "05"
                 },
@@ -659,6 +662,54 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         {
             ingestion.ProfileCode = selectedProfile.ProfileCode;
             ingestion.ProfileVersion = $"{selectedProfile.VersionMajor}.{selectedProfile.VersionMinor}";
+        }
+
+        // NPT-02: a homologated *selection* alone does not authorize parsing
+        // or financial transitions. The current physical parser does not expose
+        // a certified differential-response adapter to the prenotification use
+        // case. Block before the static parser even when a profile is selected;
+        // do not invent positions or reinterpret an addenda 99 as ordinary data.
+        if (isDifferentialCandidate && !isCenitReturnOfReturn)
+        {
+            const string blockedCode = "DIFFERENTIAL_TABLE_DRIVEN_PARSER_NOT_ENABLED";
+            ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
+            ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+            ingestion.RejectionCode = blockedCode;
+            ingestion.RejectionTitle = "Respuesta diferencial fisica no homologada extremo a extremo";
+            ingestion.RejectionDescription = "No existe adaptador físico diferencial certificado hacia el procesador no monetario.";
+            ingestion.Notes = blockedCode;
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
+            _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                EventType = "DifferentialPhysicalContractGate",
+                EventStatus = "Blocked",
+                Message = "Perfil seleccionado o candidato 99: no se ejecutó parser ni transición de prenotificación.",
+                EvidenceJson = JsonSerializer.Serialize(new
+                {
+                    clearingHouseCode,
+                    profileCode = ingestion.ProfileCode,
+                    profileVersion = ingestion.ProfileVersion,
+                    formatIndicator = "addenda-99",
+                    parserCalled = false,
+                    externalTransmission = false
+                }),
+                RaisedBy = "IncomingNachaIngestionAppService"
+            });
+            _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                AttemptNumber = 1,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
+                OutcomeStatus = IncomingNachaProcessingOutcomeStatus.BloqueadoAmbiguo,
+                FailureStage = "DifferentialContractGate",
+                ErrorCount = 1,
+                ParserErrorsJson = JsonSerializer.Serialize(new[] { blockedCode }),
+                IsReprocessable = true
+            });
+            await _context.SaveChangesAsync(ct);
+            return BuildResponse(ingestion, null, [blockedCode], profileResolution);
         }
 
         ingestion.IngestionStatus = IncomingNachaIngestionStatus.ListoParaParseo;
@@ -747,7 +798,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                             IncomingNachaFileIngestionId = ingestion.Id,
                             SelectedProfileId = profileResolution?.Profile?.Id,
                             SelectedProfileCode = profileResolution?.Profile?.ProfileCode,
-                            RequirePublishedProfileSnapshot = !isDifferentialCandidate && profileResolution?.Profile is not null,
+                            RequirePublishedProfileSnapshot = profileResolution?.Profile is not null,
                             ResolvedAchCycleId = ingestion.ResolvedAchCycleId,
                             ResolvedClearingHouseId = ingestion.ResolvedClearingHouseId,
                             OperationalDate = ingestion.OperationalDate,
@@ -755,14 +806,25 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                         },
                         ct);
 
+                    // Parser counts are a partition of physical T6 records.
+                    // Validation failures (ErrorCount) are diagnostics, not rejected-entry cardinality.
+                    if (parseResult.TotalEntries < 0 || parseResult.ValidEntries < 0
+                        || parseResult.InvalidEntries < 0 || parseResult.ValidEntries > parseResult.TotalEntries
+                        || parseResult.InvalidEntries != parseResult.TotalEntries - parseResult.ValidEntries)
+                    {
+                        throw new InvalidOperationException(
+                            "NACHA_ENTRY_COUNTS_INCONSISTENT: el resultado del parser no conserva el total de entradas T6.");
+                    }
+
                     processingResult.TotalBatches = parseResult.TotalBatches;
                     processingResult.TotalEntries = parseResult.TotalEntries;
                     processingResult.TotalAddendas = parseResult.TotalAddendas;
                     processingResult.WarningCount = parseResult.WarningCount;
                     processingResult.ErrorCount = parseResult.ErrorCount;
-                    processingResult.ValidCount = Math.Max(0, parseResult.TotalEntries - parseResult.ErrorCount);
-                    processingResult.InvalidCount = parseResult.ErrorCount;
-                    processingResult.ParserWarningsJson = JsonSerializer.Serialize(parseResult.Failures.Select(x => x.Reason));
+                    processingResult.ValidCount = parseResult.ValidEntries;
+                    processingResult.InvalidCount = parseResult.InvalidEntries;
+                    // The parser exposes Failures as errors, not warnings; do not alias them.
+                    processingResult.ParserWarningsJson = "[]";
                     processingResult.ParserErrorsJson = JsonSerializer.Serialize(parseResult.Failures.Select(x => x.Reason));
                     processingResult.OutcomeStatus = parseResult.ErrorCount > 0
                         ? IncomingNachaProcessingOutcomeStatus.ExitosoConAdvertencias
@@ -971,17 +1033,25 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
     }
 
     private static bool IsDifferentialCandidate(IReadOnlyList<string> records)
+        // A malformed addenda 99 must still enter the fail-closed differential
+        // gate rather than fall through to the original NACHA parser.
         => records.Any(record =>
-            record.Length == 106
+            record.Length >= 3
             && record[0] == '7'
             && string.Equals(record.Substring(1, 2), "99", StringComparison.Ordinal));
 
     private static bool IsCenitReturnOfReturnCandidate(IReadOnlyList<string> records)
-        => records.Any(record =>
-            record.Length == CenitReturnOfReturn2026Layout.RecordLength
+    {
+        // A valid ROR addenda does not authorize an entire mixed file. Every
+        // physical 7/99 record must have a known R60..R74 ROR discriminator;
+        // the published NACHA profile still validates the remaining fields.
+        var returnAddendas = records.Where(record => record.Length >= 3
             && record[0] == '7'
-            && string.Equals(record.Substring(1, 2), "99", StringComparison.Ordinal)
+            && string.Equals(record.Substring(1, 2), "99", StringComparison.Ordinal)).ToList();
+        return returnAddendas.Count > 0 && returnAddendas.All(record =>
+            record.Length == CenitReturnOfReturn2026Layout.RecordLength
             && CenitReturnOfReturn2026Layout.IsCause(record.Substring(3, 3)));
+    }
 
     private static string ToConfigClearingHouseCode(string clearingHouseCode)
         => clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase)

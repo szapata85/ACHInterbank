@@ -1,0 +1,13 @@
+{
+  "outcome": "PASS",
+  "checks": 51,
+  "contract_fields": {
+    "Proc_Transacciones": 27,
+    "Proc_TransaccionesResponse": 2,
+    "Proc_Contrapartidas": 22,
+    "Proc_ContrapartidasResponse": 5,
+    "RegistrarRespuestaTransaccion": 7,
+    "RegistrarRespuestaTransaccionResponse": 3
+  },
+  "note": "Offline: lxml/XMLSchema y aserciones estáticas. No es compilación .NET ni ejecución C#."
+}

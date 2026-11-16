@@ -1,0 +1,180 @@
+{
+  "kind": "STATIC_SOURCE_AND_PYTHON_SQLITE_MODEL_NOT_DOTNET_TESTS",
+  "total": 42,
+  "passes": 41,
+  "fails": 1,
+  "checks": [
+    {
+      "name": "complete solution",
+      "pass": true
+    },
+    {
+      "name": "SQL conditional queue claim",
+      "pass": true
+    },
+    {
+      "name": "atomic claim affected fence",
+      "pass": true
+    },
+    {
+      "name": "fenced transport intent",
+      "pass": true
+    },
+    {
+      "name": "pretransport/reconciliation distinction",
+      "pass": true
+    },
+    {
+      "name": "no automatic retry for unknown bank outcome",
+      "pass": true
+    },
+    {
+      "name": "success requires parser and catalog",
+      "pass": true
+    },
+    {
+      "name": "dry-run cannot claim real bank success",
+      "pass": true
+    },
+    {
+      "name": "planning failure captured",
+      "pass": true
+    },
+    {
+      "name": "no invented NCTAORIG",
+      "pass": true
+    },
+    {
+      "name": "SOAP 1.1 and 1.2 envelope enforced",
+      "pass": true
+    },
+    {
+      "name": "SOAP operation enforced",
+      "pass": true
+    },
+    {
+      "name": "SOAP fault quarantined",
+      "pass": true
+    },
+    {
+      "name": "no parser automatic timeout retry",
+      "pass": true
+    },
+    {
+      "name": "response relational transaction",
+      "pass": true
+    },
+    {
+      "name": "transaction registered for normal DI",
+      "pass": true
+    },
+    {
+      "name": "processing uses transaction runner",
+      "pass": true
+    },
+    {
+      "name": "no premature prenotification match",
+      "pass": true
+    },
+    {
+      "name": "prenota chamber before match",
+      "pass": true
+    },
+    {
+      "name": "prenota only validated match",
+      "pass": true
+    },
+    {
+      "name": "Axon uses ExecuteUpdate CAS",
+      "pass": true
+    },
+    {
+      "name": "Axon claim DI",
+      "pass": true
+    },
+    {
+      "name": "Axon no claim store fails closed",
+      "pass": true
+    },
+    {
+      "name": "Axon transport intent before remote gateway",
+      "pass": true
+    },
+    {
+      "name": "Axon cancel persists independently",
+      "pass": false
+    },
+    {
+      "name": "Axon in-flight leases quarantined",
+      "pass": true
+    },
+    {
+      "name": "ax attempt persistence model",
+      "pass": true
+    },
+    {
+      "name": "NACHA errors and warnings separated",
+      "pass": true
+    },
+    {
+      "name": "NACHA physical count protected",
+      "pass": true
+    },
+    {
+      "name": "Postgres migration nullable claim and historical backfill",
+      "pass": true
+    },
+    {
+      "name": "SQL Server migration nullable claim and historical backfill",
+      "pass": true
+    },
+    {
+      "name": "both migration identifiers agree",
+      "pass": true
+    },
+    {
+      "name": "xunit parser rejection source exists",
+      "pass": true
+    },
+    {
+      "name": "xunit physical HTTP counting source exists",
+      "pass": true
+    },
+    {
+      "name": "xunit fake concurrent Axon source exists",
+      "pass": true
+    },
+    {
+      "name": "xunit cancel Axon source exists",
+      "pass": true
+    },
+    {
+      "name": "no new UAT",
+      "pass": true
+    },
+    {
+      "name": "SQLite CAS model competing workers only first claims",
+      "pass": true
+    },
+    {
+      "name": "SQLite CAS model stale token cannot mark transport",
+      "pass": true
+    },
+    {
+      "name": "SQLite CAS model expired lease never auto-replays",
+      "pass": true
+    },
+    {
+      "name": "SQLite Axon claim model at most one winner",
+      "pass": true
+    },
+    {
+      "name": "SQLite transaction rollback model no partial pre/response",
+      "pass": true
+    }
+  ],
+  "dotnet": "NOT_RUN",
+  "sqlserver": "NOT_RUN",
+  "postgresql": "NOT_RUN",
+  "uat": "NOT_RUN"
+}

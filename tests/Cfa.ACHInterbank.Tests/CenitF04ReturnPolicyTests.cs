@@ -21,7 +21,8 @@ public class CenitF04ReturnPolicyTests
             ReceiverRejectionDeadlineDate: externalDeadline,
             OriginalReceivedDate: receipt ?? Monday,
             ReceiverNotificationReceivedDate: notification,
-            CalculatedNextBusinessDayDeadline: calculated);
+            CalculatedNextBusinessDayDeadline: calculated,
+            ReturnOperationalDate: returnDate);
 
     [Theory]
     [InlineData(1, 2, true)]
@@ -63,7 +64,8 @@ public class CenitF04ReturnPolicyTests
             ReturnRequestDate: Monday, ImmediateReturnCycleConfirmed: true,
             FundsAvailabilityRequired: type == TransactionTypeEnum.Credit ? true : null,
             FundsAvailabilityConfirmed: type == TransactionTypeEnum.Credit ? true : null,
-            ConfirmationToOriginatorRecorded: true));
+            ConfirmationToOriginatorRecorded: true,
+            OriginalReceivedDate: Monday, ReturnOperationalDate: Monday));
         Assert.True(result.IsAllowed);
     }
 

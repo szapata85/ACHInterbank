@@ -27,7 +27,7 @@ public class NachaInboundValidationSeparationTests
         var action = () => sut.ValidateEntrySequenceStructure(entry, batch, header, last, seen, enforceBatchSequenceOrder: true);
 
         action.Should().Throw<InvalidOperationException>()
-            .WithMessage("*[Regulatory]*D04*Número de secuencia duplicado en el archivo.*");
+            .WithMessage("*[Technical]*Número de secuencia duplicado en el archivo.*");
     }
 
     [Fact]
@@ -130,12 +130,12 @@ public class NachaInboundValidationSeparationTests
         var action = () => sut.ValidateEntrySequenceStructure(entry, batch, header, last, seen, true);
 
         action.Should().Throw<InvalidOperationException>()
-            .WithMessage("*[Regulatory]*CENIT-NACHA-FATAL: Número de secuencia duplicado en el archivo.*")
+            .WithMessage("*[Technical]*Número de secuencia duplicado en el archivo.*")
             .Which.Message.Should().NotContain("D04").And.NotContain("STA");
     }
 
     [Fact]
-    public void AchColombiaNacha_ShouldRetainLegacyCodeLookup()
+    public void AchColombiaNacha_ShouldPreferV35OverIncorrectLegacyDescriptions()
     {
         var catalog = new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>
         {
@@ -147,7 +147,79 @@ public class NachaInboundValidationSeparationTests
         var action = () => sut.ThrowRegulatory("D04", "Conteo divergente.");
 
         action.Should().Throw<InvalidOperationException>()
-            .WithMessage("*[Regulatory]*D04: Conteo inválido ACH. Conteo divergente.*");
+            .WithMessage("*[Regulatory]*D04: El valor de la transacción de prenotificación es diferente de cero. Conteo divergente.*");
+    }
+
+    [Theory]
+    [InlineData("260818", "260819", "D01")]
+    [InlineData("260832", "260819", "D02")]
+    [InlineData("incorrecta", "260819", "D02")]
+    [InlineData(null, "260819", "D02")]
+    [InlineData("", "260819", "D02")]
+    [InlineData("        ", "260819", "D02")]
+    [InlineData("260820", "260819", "D02")]
+    public void AchColombiaEffectiveDate_UsesOnlyNormativeDateCauses(
+        string? effective, string processing, string expectedCode)
+    {
+        var sut = new NachaInboundValidator(new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>());
+        sut.SelectNachaErrorDomain(false);
+        var result = () => sut.ValidateAchColombiaEffectiveDate(effective, processing);
+        result.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*[Regulatory]*{expectedCode}:*");
+    }
+
+    [Fact]
+    public void AchColombiaEffectiveDate_OnlySameOperationalDateIsAccepted()
+    {
+        var sut = new NachaInboundValidator(new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>());
+        sut.SelectNachaErrorDomain(false);
+        sut.ValidateAchColombiaEffectiveDate("260819", "260819");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("fecha-invalida")]
+    public void AchColombiaEffectiveDate_WithUnresolvedOperationalDate_FailsClosed(string? operationalDate)
+    {
+        var sut = new NachaInboundValidator(new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>());
+        sut.SelectNachaErrorDomain(false);
+        var action = () => sut.ValidateAchColombiaEffectiveDate("260818", operationalDate);
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("*[Technical]*ACHCOL_OPERATIONAL_DATE_UNRESOLVED*");
+    }
+
+    [Fact]
+    public void CenitEffectiveDate_DoesNotUseAchColombiaD01OrD02()
+    {
+        var sut = new NachaInboundValidator(new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>());
+        sut.SelectNachaErrorDomain(true);
+        sut.ValidateAchColombiaEffectiveDate("fecha-invalida", "260819");
+    }
+
+    [Fact]
+    public void AchColombiaPrenotificationAmount_CorrectlyReportsD04OnlyOnAchRail()
+    {
+        var catalog = new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>
+        {
+            ["D04"] = new() { Code = "D04", Description = "Prenotificación con importe distinto de cero", IsActive = true }
+        };
+        var sut = new NachaInboundValidator(catalog);
+        sut.SelectNachaErrorDomain(false);
+        sut.GetAchColombiaPrenotificationAmountFailure().Should().Contain("D04").And.Contain("Prenotificación");
+        sut.SelectNachaErrorDomain(true);
+        sut.GetAchColombiaPrenotificationAmountFailure().Should().NotContain("D04").And.Contain("valor 0");
+    }
+
+    [Fact]
+    public void AchColombiaBatchCountFailure_IsTechnicalAndNeverPretendsPrenoteD04()
+    {
+        var sut = new NachaInboundValidator(new Dictionary<string, Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode>());
+        var mismatch = () => sut.ValidateBatchSequenceAndControlConsistency(
+            [new BatchHeader { BatchNumber = 1 }], []);
+        mismatch.Should().Throw<InvalidOperationException>()
+            .WithMessage("*[Technical]*cantidad de registros tipo 5*")
+            .Which.Message.Should().NotContain("D04");
     }
 
     [Theory]

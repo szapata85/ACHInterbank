@@ -324,38 +324,65 @@ public class IntegrationMappingEndToEndTests
     }
 
     [Fact]
-    public async Task Resolver_UsesPublishedDynamicMapping()
+    public async Task Resolver_RejectsUnaccreditedPublishedMappingBeforeSoap()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
-        var published = await fixture.CreateAndPublishResolverMappingAsync();
-
-        var contract = await fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow);
-
-        Assert.NotNull(contract);
-        Assert.NotNull(contract!.Contract);
-        Assert.Equal(fixture.Transaction.TransactionExternalId, contract.Contract.OFIDTX);
-        Assert.False(string.IsNullOrWhiteSpace(contract.Contract.OFFECHEFEC));
+        await fixture.CreateAndPublishResolverMappingAsync();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
     }
 
     [Fact]
-    public async Task Resolver_UsesBootstrapPublishedBaseMapping_ByDefault()
+    public async Task Resolver_BlocksBootstrapMapping_WithoutBusinessCompanyId()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
-        var result = await fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow);
-        Assert.NotNull(result);
-        Assert.NotNull(result!.Contract);
-        Assert.False(result.UsedFallback);
-        Assert.Equal(fixture.Transaction.Reference, result.Contract.OFIDTX);
-        Assert.Equal(fixture.Transaction.Amount, result.Contract.OFMONDEB);
-        Assert.Equal(0m, result.Contract.OFMONCRE);
-        Assert.Equal("D", result.Contract.OFDD);
-        // Characterization only: these seed values are not yet bank-homologated.
-        Assert.Equal(fixture.Cycle.ClearingHouse.Code, result.Contract.OFEMP);
-        Assert.Equal(fixture.Transaction.AchBatchId, result.Contract.OFIDARCH);
-        Assert.Equal(fixture.Transaction.AchBatchId, result.Contract.OFIDLOT);
-        Assert.Equal("OO", result.Contract.OFST);
-        Assert.Equal("0.0.0.0", result.Contract.OFDIRECCIONIP);
-        Assert.Equal(fixture.Transaction.Id, result.Contract.OFIDEBAPLI);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
+        Assert.Contains("INTEGRATION_MAPPING_REQUIRED", error.Message);
+        Assert.Contains("OFEMP", error.Message);
+    }
+
+    [Theory]
+    [InlineData("OFEMP", "clearinghouse.code", IntegrationSourceKindEnum.ClearingHouse)]
+    [InlineData("OFIDARCH", "batch.id", IntegrationSourceKindEnum.Batch)]
+    public async Task Resolver_RejectsUnrelatedSources_EvenWhenPublished(string field, string badPath, IntegrationSourceKindEnum kind)
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var published = await fixture.CreateAndPublishResolverMappingAsync();
+        var parameter = fixture.Parameters.Single(x => x.ParameterPath == field);
+        var rule = await fixture.Context.IntegrationMappingRules.SingleAsync(x =>
+            x.MappingSetId == published.Id && x.ParameterId == parameter.Id);
+        rule.SourceKind = kind;
+        rule.SourceFieldPath = badPath;
+        rule.FixedValue = null;
+        rule.DefaultValue = null;
+        await fixture.Context.SaveChangesAsync();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
+        var directGuard = ProcContrapartidasFunctionalMappingResolver.AssessProtectedRule(field, rule, badPath);
+        Assert.Contains(field, directGuard);
+    }
+
+    [Fact]
+    public async Task Resolver_RejectsReservedIpConstant_EvenWhenPublished()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var published = await fixture.CreateAndPublishResolverMappingAsync();
+        var parameter = fixture.Parameters.Single(x => x.ParameterPath == "OFDIRECCIONIP");
+        var rule = await fixture.Context.IntegrationMappingRules.SingleAsync(x =>
+            x.MappingSetId == published.Id && x.ParameterId == parameter.Id);
+        rule.SourceKind = IntegrationSourceKindEnum.Constant;
+        rule.SourceFieldPath = "constant.value";
+        rule.FixedValue = "0.0.0.0";
+        rule.DefaultValue = null;
+        await fixture.Context.SaveChangesAsync();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
+        var directGuard = ProcContrapartidasFunctionalMappingResolver.AssessProtectedRule("OFDIRECCIONIP", rule, "constant.value");
+        Assert.Contains("OFDIRECCIONIP", directGuard);
     }
 
     [Theory]
@@ -397,46 +424,30 @@ public class IntegrationMappingEndToEndTests
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
 
-        Assert.Contains("PROC_CONTRAPARTIDAS_MONETARY_MISMATCH", error.Message);
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
     }
 
     [Fact]
-    public async Task ProcContrapartidas_ContractDrivenFeatureFlag_ShouldMatchLegacyTypedSoapBaseline()
+    public async Task ProcContrapartidas_ContractDrivenFeatureFlag_CannotBypassUnaccreditedMappings()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
+        await fixture.CreateAndPublishResolverMappingAsync();
         var executionDate = new DateTime(2026, 10, 12, 15, 0, 0, DateTimeKind.Utc);
-
         var legacyMapper = new ProcContrapartidasRequestMapper(fixture.Resolver);
-        var legacyResolution = await legacyMapper.ResolveAsync(
-            fixture.Cycle,
-            [fixture.Transaction],
-            executionDate);
-
         var contractDrivenMapper = CreateContractDrivenProcContrapartidasMapper(fixture);
-        var contractDrivenResolution = await contractDrivenMapper.ResolveAsync(
-            fixture.Cycle,
-            [fixture.Transaction],
-            executionDate);
-
-        var resolved = Assert.IsType<Cfa.ACHInterbank.Application.Integrations.Models.ResolvedIntegrationRequest>(
-            contractDrivenResolution.Contract.ContractDrivenRequest);
-        Assert.Equal(legacyResolution.MappingSetId, contractDrivenResolution.MappingSetId);
-        Assert.Equal(legacyResolution.MappingVersion, contractDrivenResolution.MappingVersion);
-        Assert.Equal(legacyResolution.MappingSnapshotHash, contractDrivenResolution.MappingSnapshotHash);
-        Assert.Equal("WSCFAACH.Proc_Contrapartidas", resolved.MethodCode);
-        Assert.Equal("Proc_Contrapartidas", resolved.OperationName);
-        Assert.Equal("http://tempuri.org/", resolved.TargetNamespace);
-        Assert.Equal("http://tempuri.org/IWSCFAACH/Proc_Contrapartidas", resolved.SoapAction);
-
-        AssertProcContrapartidasSoapParity(
-            legacyMapper.BuildSoapBody(legacyResolution.Contract),
-            contractDrivenMapper.BuildSoapBody(contractDrivenResolution.Contract));
+        var legacyError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            legacyMapper.ResolveAsync(fixture.Cycle, [fixture.Transaction], executionDate));
+        var genericError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            contractDrivenMapper.ResolveAsync(fixture.Cycle, [fixture.Transaction], executionDate));
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", legacyError.Message);
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", genericError.Message);
     }
 
     [Fact]
     public async Task ProcContrapartidas_ContractDrivenFeatureFlag_ShouldPreserveLegacyRequiredSourceGuard()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
+        await fixture.CreateAndPublishResolverMappingAsync();
         fixture.Transaction.Reference = string.Empty;
         await fixture.Context.SaveChangesAsync();
         var mapper = CreateContractDrivenProcContrapartidasMapper(fixture);
@@ -447,27 +458,33 @@ public class IntegrationMappingEndToEndTests
                 [fixture.Transaction],
                 new DateTime(2026, 10, 12, 15, 0, 0, DateTimeKind.Utc)));
 
-        Assert.Contains("INTEGRATION_MAPPING_SOURCE_REQUIRED", error.Message);
-        Assert.Contains("OFIDTX", error.Message);
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
+        Assert.Throws<InvalidOperationException>(() =>
+            ProcContrapartidasFunctionalMappingResolver.EnsureProtectedResolvedValues(
+                fixture.Transaction, fixture.Transaction.SourceAccountNumber, "SPOOF-REFERENCE"));
     }
 
     [Fact]
     public async Task Resolver_ShouldFailControlled_WhenRequiredReferenceSourceIsMissing()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
+        await fixture.CreateAndPublishResolverMappingAsync();
         fixture.Transaction.Reference = string.Empty;
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
 
-        Assert.Contains("INTEGRATION_MAPPING_SOURCE_REQUIRED", error.Message);
-        Assert.Contains("OFIDTX", error.Message);
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
+        Assert.Throws<InvalidOperationException>(() =>
+            ProcContrapartidasFunctionalMappingResolver.EnsureProtectedResolvedValues(
+                fixture.Transaction, fixture.Transaction.SourceAccountNumber, "SPOOF-REFERENCE"));
     }
 
     [Fact]
     public async Task Resolver_ShouldUseInvariantMonetaryConversion()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
+        await fixture.CreateAndPublishResolverMappingAsync();
         var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
         var originalUiCulture = System.Globalization.CultureInfo.CurrentUICulture;
         try
@@ -475,10 +492,9 @@ public class IntegrationMappingEndToEndTests
             System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
             System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo("de-DE");
 
-            var result = await fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow);
-
-            Assert.NotNull(result);
-            Assert.Equal(75.5m, result!.Contract.OFMONDEB);
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
+            Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
         }
         finally
         {

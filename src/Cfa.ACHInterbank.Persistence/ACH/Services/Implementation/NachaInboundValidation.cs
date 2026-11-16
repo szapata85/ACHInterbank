@@ -179,7 +179,7 @@ internal sealed class NachaInboundValidator
 
         if (!seenSequenceNumbers.Add(rawSequence))
         {
-            ThrowRegulatory("D04", "Número de secuencia duplicado en el archivo.");
+            ThrowTechnical("Número de secuencia duplicado en el archivo.");
         }
 
         var originSegment = rawSequence[..8];
@@ -211,7 +211,7 @@ internal sealed class NachaInboundValidator
             && lastConsecutiveByBatch.TryGetValue(batch.BatchNumber, out var previousConsecutive)
             && consecutiveValue <= previousConsecutive)
         {
-            ThrowRegulatory("D04", "La secuencia del lote no es estrictamente ascendente.");
+            ThrowTechnical("La secuencia del lote no es estrictamente ascendente.");
         }
 
         if (enforceBatchSequenceOrder)
@@ -222,6 +222,62 @@ internal sealed class NachaInboundValidator
         return ParseNachaProcessingDate(header?.FileCreationDate)
             ?? throw new InvalidOperationException(
                 "ACHCOL-T1-FILE-CREATION-DATE: no existe una fecha operacional válida para comprobar duplicidad de secuencia.");
+    }
+
+    // V35, Anexo 3: D01/D02 are operator returns for the individual entries
+    // in the batch, not physical file rejections. The caller must preserve
+    // the original 106-byte records and independently validate their framing.
+    internal string? GetAchColombiaEffectiveDateFailure(string? rawEffectiveDate, DateTime? operationalDate)
+    {
+        if (_isCenitNachaProfile)
+        {
+            return null;
+        }
+
+        var effective = ParseNachaProcessingDate(rawEffectiveDate);
+        if (!effective.HasValue)
+        {
+            // Empty/null values are invalid too: do NOT silently accept them.
+            return GetRegulatoryError("D02", "La fecha efectiva del lote está vacía o no representa una fecha válida.");
+        }
+
+        if (!operationalDate.HasValue || operationalDate.Value == default)
+        {
+            // D01 requires evidence that effective < operational. If the
+            // authoritative cycle cannot be resolved, reject the FILE safely
+            // rather than asserting an unproven operator cause or accepting it.
+            ThrowTechnical("ACHCOL_OPERATIONAL_DATE_UNRESOLVED: no se pudo resolver la fecha operativa del ciclo; no es posible descartar D01.");
+        }
+
+        if (effective.Value.Date < operationalDate.Value.Date)
+        {
+            return GetRegulatoryError("D01", "La fecha efectiva del lote es anterior al día de proceso.");
+        }
+
+        // V35, 2.1.3.1: only lots effective on the processing day are processed.
+        if (effective.Value.Date > operationalDate.Value.Date)
+        {
+            return GetRegulatoryError("D02", "La fecha efectiva no corresponde al día de proceso habilitado.");
+        }
+
+        return null;
+    }
+
+    // Retained as a validation boundary for callers checking a single date.
+    // The physical parser uses the returned cause per transaction instead.
+    internal void ValidateAchColombiaEffectiveDate(string? rawEffectiveDate, string? rawProcessingDate)
+    {
+        if (_isCenitNachaProfile)
+        {
+            return;
+        }
+
+        var failure = GetAchColombiaEffectiveDateFailure(
+            rawEffectiveDate, ParseNachaProcessingDate(rawProcessingDate));
+        if (failure is not null)
+        {
+            throw new InvalidOperationException($"[{ValidationBoundary.Regulatory}] {failure}");
+        }
     }
 
     internal void ValidateBatchSequenceAndControlConsistency(
@@ -238,7 +294,7 @@ internal sealed class NachaInboundValidator
 
         if (headers.Count != controls.Count)
         {
-            ThrowRegulatory("D04", "La cantidad de registros tipo 5 no coincide con los registros tipo 8 del archivo.");
+            ThrowTechnical("La cantidad de registros tipo 5 no coincide con los registros tipo 8 del archivo.");
         }
 
         for (int index = 0; index < headers.Count; index++)
@@ -254,12 +310,12 @@ internal sealed class NachaInboundValidator
 
             if (!int.TryParse(control.BatchNumber?.Trim(), out var controlBatchNumber))
             {
-                ThrowRegulatory("D04", "El Número de Lote del registro tipo 8 debe ser numérico en posiciones 100-106.");
+                ThrowTechnical("El Número de Lote del registro tipo 8 debe ser numérico en posiciones 100-106.");
             }
 
             if (controlBatchNumber != expectedBatchNumber || controlBatchNumber != header.BatchNumber)
             {
-                ThrowRegulatory("D04", "Inconsistencia en Número de Lote entre registros tipo 5 y tipo 8.");
+                ThrowTechnical("Inconsistencia en Número de Lote entre registros tipo 5 y tipo 8.");
             }
         }
     }
@@ -282,7 +338,7 @@ internal sealed class NachaInboundValidator
 
         if ((control.EntryAddendaCount ?? 0) != metrics.EntryAddendaCount)
         {
-            ThrowRegulatory("D04", $"El conteo físico de registros tipo 6 y 7 del lote ({metrics.EntryAddendaCount}) no coincide con el valor reportado en el registro tipo 8 ({control.EntryAddendaCount ?? 0}).");
+            ThrowTechnical($"El conteo físico de registros tipo 6 y 7 del lote ({metrics.EntryAddendaCount}) no coincide con el valor reportado en el registro tipo 8 ({control.EntryAddendaCount ?? 0}).");
         }
 
         if ((control.EntryHash ?? 0) != metrics.EntryHash)
@@ -346,28 +402,28 @@ internal sealed class NachaInboundValidator
         var expectedBatchCount = headers.Count;
         if (fileMetrics.BatchCount != expectedBatchCount)
         {
-            ThrowRegulatory("D04", $"La cantidad de lotes calculada durante el recorrido del archivo ({fileMetrics.BatchCount}) no coincide con los registros tipo 5 ({expectedBatchCount}).");
+            ThrowTechnical($"La cantidad de lotes calculada durante el recorrido del archivo ({fileMetrics.BatchCount}) no coincide con los registros tipo 5 ({expectedBatchCount}).");
         }
 
         if (control.BatchCount != expectedBatchCount)
         {
-            ThrowRegulatory("D04", $"La cantidad de lotes del Registro Tipo 9 ({control.BatchCount}) no coincide con la cantidad de registros tipo 5 ({expectedBatchCount}).");
+            ThrowTechnical($"La cantidad de lotes del Registro Tipo 9 ({control.BatchCount}) no coincide con la cantidad de registros tipo 5 ({expectedBatchCount}).");
         }
 
         if (lines.Count % 10 != 0)
         {
-            ThrowRegulatory("D02", $"El archivo debe ocupar un número entero de bloques de 10 registros y se recibieron {lines.Count} registros.");
+            ThrowTechnical($"El archivo debe ocupar un número entero de bloques de 10 registros y se recibieron {lines.Count} registros.");
         }
 
         var expectedBlockCount = lines.Count / 10;
         if (control.BlockCount != expectedBlockCount)
         {
-            ThrowRegulatory("D04", $"El número de bloques físicos del Registro Tipo 9 ({control.BlockCount}) no coincide con los bloques del archivo ({expectedBlockCount}).");
+            ThrowTechnical($"El número de bloques físicos del Registro Tipo 9 ({control.BlockCount}) no coincide con los bloques del archivo ({expectedBlockCount}).");
         }
 
         if (control.EntryAddendaCount != fileMetrics.EntryAddendaCount)
         {
-            ThrowRegulatory("D04", $"El conteo total de registros tipo 6 y 7 del archivo ({fileMetrics.EntryAddendaCount}) no coincide con el Registro Tipo 9 ({control.EntryAddendaCount}).");
+            ThrowTechnical($"El conteo total de registros tipo 6 y 7 del archivo ({fileMetrics.EntryAddendaCount}) no coincide con el Registro Tipo 9 ({control.EntryAddendaCount}).");
         }
 
         if (control.EntryHash != fileMetrics.EntryHash)
@@ -394,20 +450,20 @@ internal sealed class NachaInboundValidator
         {
             if (!IsPaddingRecord(lines[index]))
             {
-                ThrowRegulatory("D02", "Los registros de relleno posteriores al Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones.");
+                ThrowTechnical("Los registros de relleno posteriores al Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones.");
             }
         }
 
         var aggregatedBatchCount = batchControlList.Count;
         if (aggregatedBatchCount != control.BatchCount)
         {
-            ThrowRegulatory("D04", $"La cantidad de registros tipo 8 ({aggregatedBatchCount}) no coincide con la cantidad de lotes reportada en el Registro Tipo 9 ({control.BatchCount}).");
+            ThrowTechnical($"La cantidad de registros tipo 8 ({aggregatedBatchCount}) no coincide con la cantidad de lotes reportada en el Registro Tipo 9 ({control.BatchCount}).");
         }
 
         var aggregatedEntryAddendaCount = batchControlList.Sum(batchControl => batchControl.EntryAddendaCount ?? 0);
         if (aggregatedEntryAddendaCount != control.EntryAddendaCount)
         {
-            ThrowRegulatory("D04", $"La sumatoria de conteos de los registros tipo 8 ({aggregatedEntryAddendaCount}) no coincide con el Registro Tipo 9 ({control.EntryAddendaCount}).");
+            ThrowTechnical($"La sumatoria de conteos de los registros tipo 8 ({aggregatedEntryAddendaCount}) no coincide con el Registro Tipo 9 ({control.EntryAddendaCount}).");
         }
 
         const long maxHash = 10_000_000_000L;
@@ -524,6 +580,11 @@ internal sealed class NachaInboundValidator
             ThrowTechnical("ACHCOL-T6-T7-ORDER: se recibió T7 sin un T6 inmediatamente asociado que declare adenda.");
         }
     }
+
+    internal string GetAchColombiaPrenotificationAmountFailure()
+        => _isCenitNachaProfile
+            ? "Prenotificación debe tener valor 0."
+            : GetRegulatoryError("D04", "El valor de la transacción de prenotificación es diferente de cero.");
 
     [DoesNotReturn]
     internal void ThrowRegulatory(string dxxCode, string fallbackMessage)
@@ -764,6 +825,21 @@ internal sealed class NachaInboundValidator
             return $"CENIT-NACHA-FATAL: {fallbackMessage}";
         }
 
+        // V35 (Anexo 3) prevails over pre-existing legacy rows that may describe
+        // D01 as duplicate files, D02 as padding, or D04 as a batch-count error.
+        // CENIT was handled above and never consumes this ACH-only mapping.
+        var achColombiaDescription = dxxCode.ToUpperInvariant() switch
+        {
+            "D01" => "La fecha efectiva es menor a la fecha de proceso",
+            "D02" => "La fecha efectiva no es válida",
+            "D04" => "El valor de la transacción de prenotificación es diferente de cero",
+            _ => null
+        };
+        if (achColombiaDescription is not null)
+        {
+            return $"{dxxCode.ToUpperInvariant()}: {achColombiaDescription}. {fallbackMessage}";
+        }
+
         if (_rejectionCatalog.TryGetValue(dxxCode, out var catalog))
         {
             return $"{catalog.Code}: {catalog.Description}. {fallbackMessage}";
@@ -923,7 +999,7 @@ internal sealed class NachaInboundDatabaseValidator
 
         if (existsInPreviousCycle)
         {
-            _rules.ThrowRegulatory("D01", "Número de secuencia duplicado en el ámbito de fecha operacional.");
+            NachaInboundValidator.ThrowTechnical("Número de secuencia duplicado en el ámbito de fecha operacional.");
         }
     }
 
@@ -976,7 +1052,7 @@ internal sealed class NachaInboundDatabaseValidator
         if ((publishedRule?.IsPrenotification ?? NachaInboundTransactionCodeSets.PrenoteCodes.Contains(code))
             && entry.Amount.GetValueOrDefault() != 0m)
         {
-            const string reason = "Prenotificación debe tener valor 0.";
+            var reason = _rules.GetAchColombiaPrenotificationAmountFailure();
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
             return (false, reason);
         }

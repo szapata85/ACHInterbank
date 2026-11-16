@@ -245,7 +245,7 @@ export class CenitOperationPageComponent implements OnInit {
   private mapNet(row: CenitNetPositionRow): Record<string, string> {
     return {
       Entidad: row.financialInstitutionName || String(row.financialInstitutionId ?? '-'),
-      'Posición neta': this.formatAmount(row.netAmount ?? 0),
+      'Posición neta simulada (no liquidada)': this.formatAmount(row.netAmount ?? 0),
       'Liquidez simulada': this.formatAmount(row.availableLiquidity ?? 0),
       'Fuente de liquidez (referencia)': this.mapLiquiditySourceType(row.liquiditySourceType)
     };
@@ -359,8 +359,8 @@ export class CenitOperationPageComponent implements OnInit {
         mensaje: 'Priorice transacciones en riesgo y reduzca acumulación operacional.'
       },
       neteo: {
-        titulo: 'Posiciones netas por entidad',
-        subtitulo: 'Consolidado de posición neta y liquidez operativa para compensación.',
+        titulo: 'Proyección de neteo CENIT (no oficial)',
+        subtitulo: 'Estimación interna por entidad; no confirma compensación ni liquidación CENIT/CUD.',
         mensaje: 'Liquidez simulada para evaluación interna. No representa saldo real CUD ni liquidación firme.'
       },
       optimizacion: {

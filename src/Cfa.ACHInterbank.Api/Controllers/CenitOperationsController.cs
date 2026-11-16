@@ -192,8 +192,8 @@ public class CenitOperationsController : ControllerBase
     /// <param name="page">Número de página; el controller normaliza valores menores que 1 a 1.</param>
     /// <param name="pageSize">Tamaño solicitado; el controller lo limita al intervalo de 1 a 200.</param>
     /// <param name="ct">Token de cancelación de la solicitud.</param>
-    [EndpointSummary("Posiciones netas de liquidez por ejecución")]
-    [EndpointDescription("Consulta posiciones netas de la ejecución indicada; cuando cenitCycleExecutionId no se informa, selecciona la ejecución más reciente por StartedAtUtc. Si no existe ninguna ejecución, devuelve items vacío, total 0 y cenitCycleExecutionId nulo. En caso contrario ordena las posiciones por NetAmount descendente y devuelve un cuerpo anónimo paginado con los importes y datos de liquidez persistidos.")]
+    [EndpointSummary("Proyecciones internas de posiciones netas CENIT (no liquidación)")]
+    [EndpointDescription("Consulta únicamente estimaciones internas de posiciones netas CENIT: NO prueba compensación ni liquidación CUD. Incluye en el sobre de respuesta calculationKind=InternalSimulation, representsOfficialSettlement=false y officialEvidenceIncluded=false, también cuando no hay resultados. Selecciona la ejecución indicada o la última por StartedAtUtc, con paginación por NetAmount descendente.")]
     [HttpGet("net-positions")]
     [Authorize(Policy = "CanReadAch")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -210,19 +210,23 @@ public class CenitOperationsController : ControllerBase
         var latestExecutionId = cenitCycleExecutionId
             ?? await _dbContext.Set<CenitCycleExecution>()
                 .AsNoTracking()
+                .Where(x => x.AchCycle.ClearingHouse.Code == CenitClearingHouseCode)
                 .OrderByDescending(x => x.StartedAtUtc)
                 .Select(x => (long?)x.Id)
                 .FirstOrDefaultAsync(ct);
 
         if (!latestExecutionId.HasValue)
         {
-            return Ok(new { items = Array.Empty<object>(), total = 0, page, pageSize, cenitCycleExecutionId = (long?)null });
+            return Ok(new { items = Array.Empty<object>(), total = 0, page, pageSize,
+                cenitCycleExecutionId = (long?)null, calculationKind = "InternalSimulation",
+                representsOfficialSettlement = false, officialEvidenceIncluded = false });
         }
 
         var query = _dbContext.Set<CenitNetPosition>()
             .AsNoTracking()
             .Include(x => x.FinancialInstitution)
-            .Where(x => x.CenitNettingExecution.CenitCycleExecutionId == latestExecutionId.Value);
+            .Where(x => x.CenitNettingExecution.CenitCycleExecutionId == latestExecutionId.Value
+                     && x.CenitNettingExecution.CenitCycleExecution.AchCycle.ClearingHouse.Code == CenitClearingHouseCode);
 
         var total = await query.CountAsync(ct);
         var items = await query
@@ -245,7 +249,10 @@ public class CenitOperationsController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new { items, total, page, pageSize, cenitCycleExecutionId = latestExecutionId.Value });
+        // Contrato aditivo: las posiciones netas NO aportan constancia bancaria/CUD.
+        return Ok(new { items, total, page, pageSize, cenitCycleExecutionId = latestExecutionId.Value,
+            calculationKind = "InternalSimulation", representsOfficialSettlement = false,
+            officialEvidenceIncluded = false });
     }
 
     /// <summary>Consulta decisiones de optimización de liquidez persistidas.</summary>

@@ -1,0 +1,94 @@
+{
+  "source_archive": "ACHInterbank_PROYECTO_COMPLETO_I13_PRE_DESPLIEGUE_3_HOTFIXES_2026-11-15.zip",
+  "sha256": "2f37ef69b7f97d2c73db2ba872aa4205ce70c916a5f0f82f153e91f476485242",
+  "original_members": 5599,
+  "missing_originals": [],
+  "changed_originals": [
+    {
+      "name": "ACHInterbank_ajustado/MEMORY_STATE.md",
+      "status": "MODIFIED",
+      "sha256_before": "c93b6021563609b42ad14b868ef5c902b6fd4707793c765444474a64ab552961",
+      "sha256_after": "b09b6a070cce64707a7c36b32b8e66ef020ac1f68c0d70112d4646b0344b49c6"
+    },
+    {
+      "name": "ACHInterbank_ajustado/scripts/test/predeploy_three_hotfixes_static_check.py",
+      "status": "MODIFIED",
+      "sha256_before": "75dd111003f318f970b0cea0a144de6c5ccc7adac55397361056aff54243ac3c",
+      "sha256_after": "a9418163eaa2e9c77b3d2c18cab650b296664ed739261423aec3f84cf77d92a1"
+    },
+    {
+      "name": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Application/ACH/Models/RegulatoryCycleScheduleCatalog.cs",
+      "status": "MODIFIED",
+      "sha256_before": "7d67311d56f3a3fbe51661eec4b36bc992f6fe1a6536deff5a14adff4c3e3832",
+      "sha256_after": "50480f0e808481385c81aeb5e9e04aea6f63b8b7c5ece1c49d1ac65b8d2a728d"
+    },
+    {
+      "name": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchReturnEligibilityPolicyComponent.cs",
+      "status": "MODIFIED",
+      "sha256_before": "7c63bb32172d97256398a01a11af8c04c5c3ee8cef2b7e53e9dc3cfe436dd0a1",
+      "sha256_after": "52b478c7d71a76499bcd40725fac624769fd1f7bd51c003a760c5098c5fe5f05"
+    },
+    {
+      "name": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundValidation.cs",
+      "status": "MODIFIED",
+      "sha256_before": "f0805f4da6f9a6ff595d8cc4490563ab005b4588eee819f6098836b2c0eaf71b",
+      "sha256_after": "93820ee3a547b590d0e776bd531359b3f0ac2162c489b18844cc1916b140e9c1"
+    },
+    {
+      "name": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaParserService.cs",
+      "status": "MODIFIED",
+      "sha256_before": "756c5ddc932026facaeb87a91cf691db6e4f306453276bb2f8c9f6335dfb4e9b",
+      "sha256_after": "303e669cbf018de594bd2bd1bfe14115b2eeab9c208987631bbb3fc03d5c8989"
+    },
+    {
+      "name": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchReturnsFileByClearingHouseTests.cs",
+      "status": "MODIFIED",
+      "sha256_before": "d2b4f198d82b6c25ea42bfc32de27cf09c96ae075917962561b70d3047c708fd",
+      "sha256_after": "8a99f329ff7ff02e377ac67732f7fe3a2d43fce5642e0b31f88aadcd8c6dfea8"
+    },
+    {
+      "name": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchTransactionNachaTests.cs",
+      "status": "MODIFIED",
+      "sha256_before": "8f4b4e047b1ba0859df9d34f6802ae654ac429cb3d3f8b8b2d3d6b9763b240dc",
+      "sha256_after": "e4f2a7d47de7ed9c44174391438a7c87852a38ad4d43293a9a0f893c2a46bb5f"
+    },
+    {
+      "name": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/CenitI11StaNachaRejectionDomainsTests.cs",
+      "status": "MODIFIED",
+      "sha256_before": "94eb9a9cb425948d1b243aebfce1507f56e0654fdbd0b79033db6e05560a7ac9",
+      "sha256_after": "ac98b79f852f551efa5a4ff183b8a04b34dda2d463859d5c5a2f8935478db263"
+    },
+    {
+      "name": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaInboundValidationSeparationTests.cs",
+      "status": "MODIFIED",
+      "sha256_before": "9a9f816d231fab74f69812701d754db4bf4afa34f4aa7e72574d7ac1b9ef3f96",
+      "sha256_after": "81400c1ef1381476f51db55002307861c403b19e35494224535add4055ac6d69"
+    },
+    {
+      "name": "LEER_PRIMERO.md",
+      "status": "MODIFIED",
+      "sha256_before": "19285eaf706ab0df992b74fbe9b58c8040b0fc3ecbb400905984f2e20b29293e",
+      "sha256_after": "e88bb07f5f6bc0a65df75bad403276a28a4398e0a153412a4eb223b1f3197db0"
+    },
+    {
+      "name": "PLAN_IMPLEMENTACION_13_CASOS/MEMORY_STATE.json",
+      "status": "MODIFIED",
+      "sha256_before": "94b0ce081a64fd438e3ad9c74dfbbc507d74e398982281d5c6f202bd533cdf27",
+      "sha256_after": "7201e68778a276cac08e9306ed9a09487d9492069437f52fb1a270be2d0b0d4d"
+    },
+    {
+      "name": "PLAN_IMPLEMENTACION_13_CASOS/MEMORY_STATE.md",
+      "status": "MODIFIED",
+      "sha256_before": "4d5ab8b695c8d788e60253de58846d80a44f5ae34f7fd574d7bb319829d652a1",
+      "sha256_after": "7aede4c9ff1a1961c60546030348bbfa14e96386c3097e4d888673878703776e"
+    },
+    {
+      "name": "PLAN_IMPLEMENTACION_13_CASOS/PLAN_IMPLEMENTACION_13_CASOS.md",
+      "status": "MODIFIED",
+      "sha256_before": "714cda294e3026a3a6ccf40c1c334ed02bf9c4c891a2646fabfe5be8ccef3421",
+      "sha256_after": "62227afb9595ae8615b213c96e59cb699f6d752c41d4cb284fa106d1bda7f809"
+    }
+  ],
+  "unchanged_originals": 5585,
+  "old_folder_count": 4
+}

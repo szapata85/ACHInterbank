@@ -1,0 +1,45 @@
+COMMAND: python scripts/test/predeploy_three_hotfixes_static_check.py
+EXIT_CODE: 0
+
+01 PASS_STATIC V35 D01 fecha efectiva anterior
+02 PASS_STATIC V35 D02 fecha efectiva inválida
+03 PASS_STATIC V35 D04 prenotificación no cero
+04 PASS_STATIC ACH date comparison method
+05 PASS_STATIC D01 mapped exclusively to compared effective date
+06 PASS_STATIC D02 covers absent and invalid date
+07 PASS_STATIC D04 linked to prenotification amount
+08 PASS_STATIC No misuse of D01 D02 D04 in parser
+09 PASS_STATIC No misuse of D01 D02 D04 in validator
+10 PASS_STATIC Technical duplicate trace
+11 PASS_STATIC Technical duplicate NACHA file
+12 PASS_STATIC Technical invalid filler
+13 PASS_STATIC No D04 for invalid counts
+14 PASS_STATIC CENIT physical fatal separated
+15 PASS_STATIC ACH legacy catalogue descriptions overridden by V35
+16 PASS_STATIC ACH Dxx semantic tests
+17 PASS_STATIC ACH technical negative tests
+18 PASS_STATIC R10 still scopes to processing date
+19 PASS_STATIC R10 effective policy unchanged
+20 PASS_STATIC R10 operational chronology instead of time of day
+21 PASS_STATIC R10 previous calendar date
+22 PASS_STATIC R10 seven cycles full matrix
+23 PASS_STATIC R10 midnight boundary unit
+24 PASS_STATIC No missing operational date can bypass D01
+25 PASS_STATIC ACH V35 operator cause is attached per entry
+26 PASS_STATIC R10 uses bank holidays for original and return
+27 PASS_STATIC R10 uses previous BANK operational day
+28 PASS_STATIC R10 uses canonical published windows
+29 PASS_STATIC No unconditional previous-day R10 rejection
+30 PASS_STATIC No remaining strict same-date R10 condition
+31 PASS_STATIC Historical five-cycle R10 policy retained
+32 PASS_STATIC R10 source/destination pair matrices unit data
+33 PASS_STATIC R10 backend supports unresolved navigation
+34 PASS_STATIC ROR fixed C5 normative cycle preserved
+35 PASS_STATIC ROR same-day bank calendar
+36 PASS_STATIC ROR target bank calendar for next-day path
+37 PASS_STATIC ROR alternative next business day retained
+38 PASS_STATIC ROR both directions share the calendar gate
+39 PASS_STATIC ROR bank holiday, Sunday, Saturday and business day tests
+40 PASS_STATIC ROR non-operational target expected rejection
+41 PASS_STATIC CENIT DSP-152 banking day restriction
+TOTAL: 41/41 source checks; runtime .NET/xUnit NOT executed

@@ -2,12 +2,13 @@ using System.IO;
 using System.Xml;
 using System.Xml.Linq;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Integrations.Contracts;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 /// <summary>
 /// F5.3: offline integrity check for the F5.2 diagnostic SOAP preview.
-/// Not an XSD validator or CFA homologation approval; never authorizes dispatch.
+/// Validates bundled XSD, but is NOT CFA homologation approval or dispatch authorization.
 /// Exposes names and counts only, not PII or monetary amounts.
 /// </summary>
 public static class AchColProcTransaccionesDryRunContractCheck
@@ -89,6 +90,17 @@ public static class AchColProcTransaccionesDryRunContractCheck
                 || !string.Equals(value, x.Value, StringComparison.Ordinal)))
             throw new InvalidOperationException("ACHCOL_F53_SOAP_PREVIEW_MISMATCH: XML y valores observados no coinciden.");
 
+        // All five bundled XSD are now available; this validates only the
+        // partial (minOccurs=0) diagnostic projection, not operational readiness.
+        try
+        {
+            OfficialSoapContracts.ValidateElement(operation, OfficialSoapContracts.Operation.ProcTransaccionesRequest);
+        }
+        catch (InvalidOperationException)
+        {
+            throw new InvalidOperationException("ACHCOL_F53_XSD_INVALID: proyeccion incompatible con WSCFAACH xsd0.");
+        }
+
         // No values (account numbers, identity, amount, names) in this result.
         return new AchColProcTransaccionesContractReadiness(
             preview.DispatchQueueId,
@@ -116,7 +128,7 @@ public sealed record AchColProcTransaccionesContractReadiness(
     string BlockingCode)
 {
     public bool IsSoapPreviewStructurallyValid => true;
-    public bool HasExternalXsdEvidence => false;
+    public bool HasExternalXsdEvidence => true; // XSD local validado; NO homologación bancaria.
     public bool HasApprovedAchColMapping => false;
     public bool CanTransmit => false;
 }

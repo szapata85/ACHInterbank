@@ -1,0 +1,145 @@
+{
+  "type": "source_and_original_bundle_static_guards",
+  "total": 33,
+  "passed": 33,
+  "results": [
+    {
+      "name": "original snapshot WSCFAACH/WSCFAACH.wsdl.xml",
+      "passed": true
+    },
+    {
+      "name": "original snapshot WSCFAACH/xsd0.xml",
+      "passed": true
+    },
+    {
+      "name": "original snapshot WSCFAACH/xsd1.xml",
+      "passed": true
+    },
+    {
+      "name": "original snapshot WSAxonRespuestaTransacciones/WSAxonRespuestaTransacciones.wsdl.xml",
+      "passed": true
+    },
+    {
+      "name": "original snapshot WSAxonRespuestaTransacciones/xsd0.xml",
+      "passed": true
+    },
+    {
+      "name": "original snapshot WSAxonRespuestaTransacciones/xsd1.xml",
+      "passed": true
+    },
+    {
+      "name": "original snapshot WSAxonRespuestaTransacciones/xsd2.xml",
+      "passed": true
+    },
+    {
+      "name": "explicit local schema resources",
+      "passed": true
+    },
+    {
+      "name": "no network resolver",
+      "passed": true
+    },
+    {
+      "name": "import relink only locally",
+      "passed": true
+    },
+    {
+      "name": "schema compilation",
+      "passed": true
+    },
+    {
+      "name": "schema validates actual operation",
+      "passed": true
+    },
+    {
+      "name": "WSDL action validation",
+      "passed": true
+    },
+    {
+      "name": "WSDL local binding validation",
+      "passed": true
+    },
+    {
+      "name": "CFA response XSD enforcement",
+      "passed": true
+    },
+    {
+      "name": "CFA retains no automatic replay",
+      "passed": true
+    },
+    {
+      "name": "CFA SOAP Fault fail closed",
+      "passed": true
+    },
+    {
+      "name": "CFA strict RTAACH",
+      "passed": true
+    },
+    {
+      "name": "Axon response XSD enforcement",
+      "passed": true
+    },
+    {
+      "name": "Axon requires qualified data contract boolean",
+      "passed": true
+    },
+    {
+      "name": "Axon DTD blocked",
+      "passed": true
+    },
+    {
+      "name": "Axon fault uncertain",
+      "passed": true
+    },
+    {
+      "name": "CFA request XSD preflight",
+      "passed": true
+    },
+    {
+      "name": "NCTAORIG is transaction source only",
+      "passed": true
+    },
+    {
+      "name": "NCTAORIG never accepts default/fixed",
+      "passed": true
+    },
+    {
+      "name": "origin proven from exact transaction source, not receiver",
+      "passed": true
+    },
+    {
+      "name": "Live NCTAORIG nonempty guard preserved",
+      "passed": true
+    },
+    {
+      "name": "F5 blocked after local XSD validation",
+      "passed": true
+    },
+    {
+      "name": "F5 external operational approval still blocked",
+      "passed": true
+    },
+    {
+      "name": "Axon both request paths validated",
+      "passed": true
+    },
+    {
+      "name": "Axon retains cancellation token",
+      "passed": true
+    },
+    {
+      "name": "CFA SOAPAction exact pre-transport",
+      "passed": true
+    },
+    {
+      "name": "Axon SOAPAction exact pre-transport",
+      "passed": true
+    }
+  ],
+  "not_executed": [
+    "dotnet build",
+    "xUnit",
+    "real SOAP transport",
+    "SQL Server/PostgreSQL"
+  ]
+}

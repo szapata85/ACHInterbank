@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +51,10 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
 
         builder.Property(t => t.TransactionExternalId)
             .HasMaxLength(64);
+        builder.Property(t => t.RequestFingerprint).HasMaxLength(64);
+        builder.HasIndex(t => new { t.SourceInstitutionId, t.TransactionExternalId })
+            .IsUnique()
+            .HasDatabaseName("UX_AchTransactions_SourceInstitution_ExternalId");
         builder.Property(t => t.TraceNumber).HasMaxLength(20).IsRequired();
 
         builder.Property(t => t.CompanyEntryDescriptionId)

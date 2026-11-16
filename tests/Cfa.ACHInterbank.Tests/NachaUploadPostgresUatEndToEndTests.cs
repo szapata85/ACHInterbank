@@ -565,9 +565,9 @@ public class NachaUploadPostgresUatEndToEndTests
         if (!await context.AchFileRejectionCodes.AnyAsync())
         {
             context.AchFileRejectionCodes.AddRange(
-                new AchFileRejectionCode { Code = "D01", Description = "Duplicado", IsActive = true, AppliesToStage = "Integration", IsRetryable = false },
-                new AchFileRejectionCode { Code = "D02", Description = "Padding invalido", IsActive = true, AppliesToStage = "Integration", IsRetryable = false },
-                new AchFileRejectionCode { Code = "D04", Description = "Conteo invalido", IsActive = true, AppliesToStage = "Integration", IsRetryable = false },
+                new AchFileRejectionCode { Code = "D01", Description = "Fecha efectiva menor a fecha proceso", IsActive = true, AppliesToStage = "Integration", IsRetryable = false },
+                new AchFileRejectionCode { Code = "D02", Description = "Fecha efectiva no valida", IsActive = true, AppliesToStage = "Integration", IsRetryable = false },
+                new AchFileRejectionCode { Code = "D04", Description = "Prenotificacion con valor no cero", IsActive = true, AppliesToStage = "Integration", IsRetryable = false },
                 new AchFileRejectionCode { Code = "D05", Description = "Hash invalido", IsActive = true, AppliesToStage = "Integration", IsRetryable = false });
         }
     }

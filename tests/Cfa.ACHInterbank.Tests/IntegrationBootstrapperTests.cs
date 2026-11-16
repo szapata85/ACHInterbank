@@ -50,10 +50,10 @@ public sealed class IntegrationBootstrapperTests
         var secondCounts = await ReadCountsAsync(fixture.Context);
 
         Assert.Equal(3, firstCounts.PublishedSets);
-        Assert.Equal(42, firstCounts.MappingRules);
+        Assert.Equal(39, firstCounts.MappingRules);
         Assert.Equal(2, firstCounts.ResponseStatusMappings);
         Assert.Equal(18, firstCounts.TransaccionesPublishedRules);
-        Assert.Equal(17, firstCounts.ContrapartidasPublishedRules);
+        Assert.Equal(14, firstCounts.ContrapartidasPublishedRules);
         Assert.Equal(7, firstCounts.RespuestaPublishedRules);
         Assert.Equal(0, firstCounts.ContrapartidasOptionalPublishedRules);
         AssertCountsEqual(firstCounts, secondCounts);
@@ -340,6 +340,14 @@ public sealed class IntegrationBootstrapperTests
 
         Assert.Equal(27, parameters.Count);
         Assert.Contains(parameters, x => x.ParameterPath == "NCTAORIG" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
+        var originParameter = parameters.Single(x => x.ParameterPath == "NCTAORIG");
+        var originRule = rules.Single(x => x.ParameterId == originParameter.Id);
+        Assert.Equal("transaction.sourceAccountNumber", originRule.SourceFieldPath);
+        Assert.Equal("batchHeaders.companyName", rules.Single(x => x.ParameterId == parameters.Single(p => p.ParameterPath == "NORIG").Id).SourceFieldPath);
+        Assert.Equal("batchHeaders.companyId", rules.Single(x => x.ParameterId == parameters.Single(p => p.ParameterPath == "IDORIG").Id).SourceFieldPath);
+        Assert.Equal("entrydetails.accountnumber", rules.Single(x => x.ParameterId == parameters.Single(p => p.ParameterPath == "NCTARECEP").Id).SourceFieldPath);
+        Assert.Null(originRule.FixedValue);
+        Assert.Null(originRule.DefaultValue);
         Assert.Contains(parameters, x => x.ParameterPath == "DISCRE" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
         Assert.DoesNotContain(parameters, x => x.ParameterPath == "ILR");
         Assert.All(new[] { "TREG", "CONV", "PROD", "REGLOTE", "LIBRE", "DIRECCIONIP", "LIBRE1" },

@@ -138,6 +138,11 @@ public static class DependencyInjectionService
         services.AddHostedService<DataProtectionKeyRingStartupValidator>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<Cfa.ACHInterbank.Application.ACH.Responses.Processing.Interfaces.IAchResponseTransactionalRunner,
+            Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.AchResponseTransactionalRunner>();
+        services.AddScoped<Cfa.ACHInterbank.Application.ACH.Responses.Notification.Interfaces.IAxonNotificationClaimStore,
+            Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.AxonNotificationClaimStore>();
+        services.AddHostedService<Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.AxonNotificationRecoveryHostedService>();
         services.AddSingleton<IAchTransactionClassificationPolicy, AchTransactionClassificationPolicy>();
         services.AddSingleton<IOutgoingTransactionMonitoringStatusPolicy, OutgoingTransactionMonitoringStatusPolicy>();
 

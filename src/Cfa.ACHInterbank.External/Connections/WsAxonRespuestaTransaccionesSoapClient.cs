@@ -122,6 +122,9 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
                 ? _endpointSecurity.HostHeader
                 : null);
         var envelope = BuildEnvelope(requestXml);
+        // Public raw XML and parameter overloads must pass the same final XSD check.
+        Cfa.ACHInterbank.Application.Integrations.Contracts.OfficialSoapContracts.ValidateTransportRequest(
+            envelope, Cfa.ACHInterbank.Application.Integrations.Contracts.OfficialSoapContracts.Operation.RegistrarRespuestaRequest);
 
         using var client = _httpClientFactory.CreateClient(ExternalHttpClientNames.WsAxonSoapNoRetry);
         client.Timeout = timeout;
@@ -224,6 +227,13 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         if (string.IsNullOrWhiteSpace(mapping.SoapAction))
         {
             throw new InvalidOperationException($"SOAP action for '{action}' is not configured in database.");
+        }
+
+        if (!string.Equals(mapping.SoapAction,
+            Cfa.ACHInterbank.Application.Integrations.Contracts.OfficialSoapContracts.AxonSoapAction,
+            StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("WSAXON_SOAPACTION_XSD_MISMATCH: SOAPAction no corresponde al WSDL local.");
         }
 
         if (mapping.TimeoutSeconds is < 1 or > 300)

@@ -184,6 +184,17 @@ public static class RegulatoryCycleScheduleCatalog
         ReturnWindow(6, Current(2), Current(3), Current(4), Current(5)),
         ReturnWindow(7, Current(3), Current(4), Current(5), Current(6)));
 
+    // ACH Colombia: seven-cycle return matrix, as published in "Nuevos Ciclos
+    // de Proceso y Horarios". SourceDay refers to the OPERATIONAL day, not
+    // the calendar day when cycle C1 opens (19:01 the previous evening).
+    public static bool AllowsAchColombiaSevenCycleReturn(
+        int originalCycleNumber,
+        int returnCycleNumber,
+        RegulatoryCycleSourceDay sourceDay)
+        => AchColombiaSevenCycleReturnWindows
+            .Any(window => window.ReturnCycleNumber == returnCycleNumber
+                && window.Allows(originalCycleNumber, sourceDay));
+
     private static readonly IReadOnlyList<RegulatoryCycleScheduleCandidate> AchColombiaSevenCycleCandidateCycles = Freeze(
         Candidate(
             1,

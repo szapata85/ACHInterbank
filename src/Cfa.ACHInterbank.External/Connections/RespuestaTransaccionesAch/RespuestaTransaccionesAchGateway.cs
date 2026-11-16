@@ -1,3 +1,5 @@
+using System.Xml.Linq;
+using Cfa.ACHInterbank.Application.Integrations.Contracts;
 using Cfa.ACHInterbank.Application.ACH.Responses.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
@@ -43,6 +45,7 @@ public sealed class RespuestaTransaccionesAchGateway : IRespuestaTransaccionesAc
         if (_dispatchOptions.UseContractDrivenRequest)
         {
             var operationXml = await BuildContractDrivenOperationAsync(command, cancellationToken).ConfigureAwait(false);
+            ValidateAxonRequestBeforeTransport(operationXml);
             soapResponse = await _soapClient
                 .RegistrarRespuestaTransaccionAsync(operationXml, cancellationToken)
                 .ConfigureAwait(false);
@@ -50,6 +53,10 @@ public sealed class RespuestaTransaccionesAchGateway : IRespuestaTransaccionesAc
         else
         {
             var physicalRequest = _requestMapper.Map(command);
+            // Validate the exact legacy transport serializer (not a second mapping).
+            ValidateAxonRequestBeforeTransport(
+                SoapParameterMapper.BuildActionBody("RegistrarRespuestaTransaccion", physicalRequest,
+                    OfficialSoapContracts.TargetNamespace));
             soapResponse = await _soapClient
                 .RegistrarRespuestaTransaccionAsync(physicalRequest, cancellationToken)
                 .ConfigureAwait(false);
@@ -63,6 +70,14 @@ public sealed class RespuestaTransaccionesAchGateway : IRespuestaTransaccionesAc
         {
             throw new InvalidOperationException("Error parsing SOAP response for ACH response registration.", ex);
         }
+    }
+
+    private static void ValidateAxonRequestBeforeTransport(string operationXml)
+    {
+        // No SOAP call, state transition or database transaction until the
+        // operation matches the provided, locally compiled official XSD.
+        var operation = XElement.Parse(operationXml, LoadOptions.None);
+        OfficialSoapContracts.ValidateElement(operation, OfficialSoapContracts.Operation.RegistrarRespuestaRequest);
     }
 
     private async Task<string> BuildContractDrivenOperationAsync(

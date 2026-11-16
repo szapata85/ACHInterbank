@@ -1,0 +1,2 @@
+bash: line 1: dotnet: command not found
+dotnet_build_exit=127

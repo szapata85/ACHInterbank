@@ -201,7 +201,9 @@ public sealed class ProcTransaccionesFunctionalSourceResolver : IProcTransaccion
             paymentInformation,
             entry.AccountNumber,
             entry.RecipUserName,
-            entry.RecipIdNumber);
+            entry.RecipIdNumber,
+            batch.CompanyName,
+            batch.CompanyId);
     }
 
     private async Task<NachaSourceContext> LoadNachaSourceContextAsync(

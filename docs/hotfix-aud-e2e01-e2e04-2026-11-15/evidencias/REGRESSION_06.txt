@@ -1,0 +1,29 @@
+COMMAND: python scripts/test/cenit_i02_ror_static_check.py
+EXIT_CODE: 0
+01 PASS Resolver exists in CENIT implementation
+02 PASS Link GUID embedded in Return In state evidence
+03 PASS Pinned payload precedes state transition
+04 PASS Resolver parses GUID from immutable event payload
+05 PASS Malformed pinned ID fails closed
+06 PASS Foreign/missing pinned link fails closed
+07 PASS Legacy ambiguity fails closed
+08 PASS Only final NACHA links eligible
+09 PASS Raw addenda type 99 required
+10 PASS Original trace must match parent payment
+11 PASS Raw amount must match original
+12 PASS Link FK to entry/addenda checked
+13 PASS Creation reuses shared resolution
+14 PASS Creation does not choose last linked raw
+15 PASS Creation checks persisted Return original trace if present
+16 PASS C1 exporter prevalidates with shared resolution
+17 PASS Physical builder resolves with same authoritative link
+18 PASS No latest-link substitution in CENIT builder
+19 PASS Build checks ROR amount
+20 PASS Legacy null SourceReturnTransaction supported
+21 PASS Idempotency unique flow by parent retained
+22 PASS C1 positive correlation and replay test exists
+23 PASS C1 ambiguous and foreign-parent negatives exist
+24 PASS Generator both legacy ambiguous and pinned positive tests exist
+25 PASS Generator changed link negative exists
+26 PASS No schema migration for this increment
+I02 SOURCE-CHECK: 26/26 PASS. No C# compilation, DB or official operator verification.

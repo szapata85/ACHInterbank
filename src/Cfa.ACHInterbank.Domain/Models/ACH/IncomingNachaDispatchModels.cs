@@ -56,6 +56,12 @@ public class IncomingNachaDispatchQueue : AuditableEntity
     public string LastErrorMessage { get; set; } = string.Empty;
     public string LastResponseCode { get; set; } = string.Empty;
     public DateTime? ConfirmedAtUtc { get; set; }
+    // NPT-03/04: durable CAS claim, never infer transport from Dispatching alone.
+    public string? DispatchClaimToken { get; set; }
+    public DateTime? DispatchLeaseExpiresAtUtc { get; set; }
+    public DateTime? TransportStartedAtUtc { get; set; }
+    public bool RequiresReconciliation { get; set; }
+
 
     public IncomingNachaFileIngestion Ingestion { get; set; } = null!;
     public IncomingNachaEntryClassification Classification { get; set; } = null!;

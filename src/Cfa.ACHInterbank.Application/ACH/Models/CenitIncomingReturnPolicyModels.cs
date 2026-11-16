@@ -52,7 +52,8 @@ public sealed record CenitIncomingReturnPolicyRequest(
     DateTime? ReceiverRejectionDeadlineDate = null,
     DateTime? OriginalReceivedDate = null,
     DateTime? ReceiverNotificationReceivedDate = null,
-    DateTime? CalculatedNextBusinessDayDeadline = null);
+    DateTime? CalculatedNextBusinessDayDeadline = null,
+    DateTime? ReturnOperationalDate = null);
 
 /// <summary>
 /// Evidencia operativa opcional que la generación de devoluciones entrega a la política CENIT cuando corresponde.

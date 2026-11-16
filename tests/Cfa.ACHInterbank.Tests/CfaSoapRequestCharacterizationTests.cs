@@ -19,7 +19,7 @@ public sealed class CfaSoapRequestCharacterizationTests
     private static readonly XNamespace TempUri = "http://tempuri.org/";
 
     [Fact]
-    public async Task ProcTransacciones_BuildSoapBody_FreezesDynamicDictionaryOrderOmissionsNamespacesAndEscaping()
+    public async Task ProcTransacciones_BuildSoapBody_UsesXsdOrderOmissionsNamespacesAndEscaping()
     {
         await using var context = BuildContext();
         var sut = new ProcTransaccionesRequestMapper(context);
@@ -27,7 +27,7 @@ public sealed class CfaSoapRequestCharacterizationTests
         {
             ["TREG"] = "6",
             ["TIPTRAN"] = "22",
-            ["DESCRIPCION"] = "SYNTH & <VALUE>",
+            ["DESTRAN"] = "SYNTH & <VALUE>",
             ["EMPTY"] = string.Empty,
             ["WHITESPACE"] = "   ",
             ["NULLVALUE"] = null!,
@@ -47,12 +47,12 @@ public sealed class CfaSoapRequestCharacterizationTests
         Assert.Equal(TempUri + "Proc_Transacciones", operation.Name);
 
         Assert.Equal(
-            ["TREG", "TIPTRAN", "DESCRIPCION", "IDTRAN"],
+            ["TREG", "TIPTRAN", "DESTRAN", "IDTRAN"],
             operation.Elements().Select(x => x.Name.LocalName).ToArray());
         Assert.All(operation.Elements(), x => Assert.Equal(TempUri.NamespaceName, x.Name.NamespaceName));
         Assert.Equal("6", operation.Element(TempUri + "TREG")!.Value);
         Assert.Equal("22", operation.Element(TempUri + "TIPTRAN")!.Value);
-        Assert.Equal("SYNTH & <VALUE>", operation.Element(TempUri + "DESCRIPCION")!.Value);
+        Assert.Equal("SYNTH & <VALUE>", operation.Element(TempUri + "DESTRAN")!.Value);
         Assert.Equal("0000001", operation.Element(TempUri + "IDTRAN")!.Value);
         Assert.DoesNotContain(operation.Elements(), x => x.Name.LocalName is "EMPTY" or "WHITESPACE" or "NULLVALUE" or "ILR" or "METODO");
         Assert.Contains("SYNTH &amp; &lt;VALUE&gt;", xml, StringComparison.Ordinal);

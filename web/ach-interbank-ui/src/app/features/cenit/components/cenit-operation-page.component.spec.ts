@@ -62,6 +62,18 @@ describe('CenitOperationPageComponent', () => {
     expect(api.getNetPositions).toHaveBeenCalled();
   });
 
+  it('NettingView_ShouldLabelAmountsAsSimulatedAndNotSettled', () => {
+    const api = service();
+    const component = create('neteo', api, (mock) => {
+      mock.getNetPositions.and.returnValue(of({ items: [{ financialInstitutionName: 'Entidad A', netAmount: -100, availableLiquidity: 0, liquiditySourceType: 'Simulated' }] }));
+    }).componentInstance;
+
+    expect(component.titulo).toContain('no oficial');
+    expect(component.subtitulo).toContain('no confirma');
+    expect(component.rows[0]['Posición neta simulada (no liquidada)']).toBeDefined();
+    expect(component.rows[0]['Fuente de liquidez (referencia)']).toContain('no equivale a saldo real CUD');
+  });
+
   it('Operation_ShouldCallOptimizationEndpointForOptimizationView', () => {
     const api = service();
     create('optimizacion', api);

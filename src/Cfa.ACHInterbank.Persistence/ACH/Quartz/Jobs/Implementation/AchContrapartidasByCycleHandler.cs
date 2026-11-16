@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,9 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
     public async Task<string> ExecuteAsync(TaskDefinition task, CancellationToken cancellationToken)
     {
         var nowInstant = _timeProvider.GetUtcNow();
+        // Global recovery must run even when no cycles are currently active.
+        var recovered = await ContrapartidaDispatchRecovery.RecoverStaleAsync(
+            _db, nowInstant.UtcDateTime, _log, cancellationToken);
         var chunkSize = ParsePositiveInt(task, "ChunkSize", 300);
         var maxCyclesPerRun = ParsePositiveInt(task, "MaxCyclesPerRun", 20);
 
@@ -46,6 +50,8 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
             .ToListAsync(cancellationToken);
 
         var activeCycles = candidateCycles
+            // Closed source cycles must not starve a recovered item awaiting a valid open cycle.
+            .Where(c => c.OperationalStatus == AchCycleOperationalStatus.Open)
             .Where(c => _windowResolver.Resolve(
                 c.ProcessingDate,
                 c.StartTime,
@@ -59,7 +65,7 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
 
         if (!activeCycles.Any())
         {
-            return $"Sin ciclos activos para ejecutar contrapartidas. InstanteUtc={nowInstant:O}";
+            return $"Sin ciclos activos para ejecutar contrapartidas. Recovered={recovered}. InstanteUtc={nowInstant:O}";
         }
 
         var summaries = new List<string>(activeCycles.Count);
@@ -95,7 +101,7 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
             }
         }
 
-        return $"Proc_Contrapartidas ejecutado. Ciclos={activeCycles.Count}, Processed={totalProcessed}, Success={totalSucceeded}, Failed={totalFailed}, Partial={totalPartial}. Detalle=[{string.Join(" | ", summaries)}]";
+        return $"Proc_Contrapartidas ejecutado. Recovered={recovered}, Ciclos={activeCycles.Count}, Processed={totalProcessed}, Success={totalSucceeded}, Failed={totalFailed}, Partial={totalPartial}. Detalle=[{string.Join(" | ", summaries)}]";
     }
 
     private static int ParsePositiveInt(TaskDefinition task, string key, int defaultValue)

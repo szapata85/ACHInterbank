@@ -57,10 +57,20 @@ public class CenitCycleExecutionService : ICenitCycleExecutionService
             _context.CenitCycleExecutions.Add(execution);
             await _context.SaveChangesAsync(ct);
         }
-        else if (string.Equals(execution.Status, "AwaitingOfficialResult", StringComparison.OrdinalIgnoreCase)
+        else if (execution.CompletedAtUtc.HasValue
+                 || string.Equals(execution.Status, "AwaitingOfficialResult", StringComparison.OrdinalIgnoreCase)
                  || string.Equals(execution.Status, "Completed", StringComparison.OrdinalIgnoreCase))
         {
+            // I06: un reintento de Quartz no puede degradar una conclusión previa
+            // (por ejemplo, resultado oficial registrado) a espera de respuesta.
             return execution;
+        }
+        else if (!string.Equals(execution.Status, "Running", StringComparison.OrdinalIgnoreCase)
+                 && !string.Equals(execution.Status, "Pending", StringComparison.OrdinalIgnoreCase))
+        {
+            // I06: para estados no reconocidos, fallar cerrado. Nunca reescribir
+            // evidencia terminal/operativa con el estado provisional del simulador.
+            throw new InvalidOperationException("CENIT_CYCLE_EXECUTION_STATE_REQUIRES_RECONCILIATION");
         }
 
         // F01: el fin de la ventana NO es evidencia de liquidación, neteo ni rechazo.

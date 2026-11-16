@@ -23,6 +23,8 @@ public class IncomingNachaDispatchQueueConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.LastResponseCode).HasMaxLength(80);
         builder.Property(x => x.LastErrorMessage).HasMaxLength(4000);
 
+        builder.Property(x => x.DispatchClaimToken).HasMaxLength(64);
+        builder.HasIndex(x => new { x.QueueStatus, x.DispatchLeaseExpiresAtUtc }).HasDatabaseName("IX_IncomingNachaDispatchQueue_ClaimRecovery");
         builder.HasIndex(x => x.IdempotencyDispatchKey).IsUnique();
         builder.HasIndex(x => new { x.QueueStatus, x.NextAttemptAtUtc, x.Priority });
         builder.HasIndex(x => x.AchTransactionId);

@@ -203,6 +203,16 @@ public class AchTransactionService : IAchTransactionService
 
         ct.ThrowIfCancellationRequested();
         _transactionValidator.ValidateRequest(request);
+        // E2E-01: idempotency precedes cycle/window policy and all onboarding/queue side effects.
+        // The unique database index, not this lookup, is the concurrency authority.
+        var originId = await TransactionIdempotency.ResolveOriginatingInstitutionAsync(_context, ct);
+        var preexisting = await TransactionIdempotency.FindAsync(_context, originId, request, ct);
+        if (preexisting is not null)
+        {
+            RecordTerminalOutcome("accepted", "idempotent_reuse");
+            terminalOutcomeRecorded = true;
+            return preexisting;
+        }
         if (_catalogService is not null)
         {
             await _catalogService.IsPrenotificationRequiredAsync(request.Type, ct);
@@ -224,6 +234,14 @@ public class AchTransactionService : IAchTransactionService
 
             if (!preview.CanSubmit)
             {
+                // A concurrent winner may have committed after the initial lookup.
+                var peer = await TransactionIdempotency.FindAsync(_context, originId, request, ct);
+                if (peer is not null)
+                {
+                    RecordTerminalOutcome("accepted", "idempotent_reuse_after_preview");
+                    terminalOutcomeRecorded = true;
+                    return peer;
+                }
                 RecordTerminalOutcome("rejected", "transaction_policy");
                 terminalOutcomeRecorded = true;
                 throw new InvalidOperationException(preview.Message ?? "La transacción incumple las políticas operativas ACH.");
@@ -242,12 +260,22 @@ public class AchTransactionService : IAchTransactionService
             while (true)
             {
                 ct.ThrowIfCancellationRequested();
-                var transactionStarted = false;
-
+                // Own the transaction for the whole attempt, including catch/finally paths.
+                // Disposal is guaranteed on success, retry, cancellation and failure.
+                await using var dbTransaction = await _context.Database.BeginTransactionAsync(ct);
+                var transactionCompleted = false;
                 try
                 {
-                    await using var dbTransaction = await _context.Database.BeginTransactionAsync(ct);
-                    transactionStarted = true;
+
+                    // Second lookup closes the gap before performing transaction-scoped side effects.
+                    var alreadyCommitted = await TransactionIdempotency.FindAsync(_context, originId, request, ct);
+                    if (alreadyCommitted is not null)
+                    {
+                        registeredTransaction = alreadyCommitted;
+                        await dbTransaction.RollbackAsync(CancellationToken.None);
+                        transactionCompleted = true;
+                        return;
+                    }
 
                     var customerContext = await EnsureCustomerAndAccountsAsync(request, ct);
                     await _context.SaveChangesAsync(ct);
@@ -317,6 +345,8 @@ public class AchTransactionService : IAchTransactionService
                     }
 
                     batchContext = batchContext with { Classification = classification };
+                    if (batchContext.SourceInstitutionId != originId)
+                        throw new InvalidOperationException("E2E01_ORIGIN_SCOPE_CHANGED: la entidad originadora cambió durante el registro.");
                     var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
 
                     if (!request.IsPrenotification
@@ -393,7 +423,7 @@ public class AchTransactionService : IAchTransactionService
                     await _unitOfWork.CommitAsync(ct);
                     ct.ThrowIfCancellationRequested();
                     await dbTransaction.CommitAsync(ct);
-                    transactionStarted = false;
+                    transactionCompleted = true;
                     registeredTransaction = persisted.Transaction;
                     return;
                 }
@@ -402,29 +432,45 @@ public class AchTransactionService : IAchTransactionService
                     && RelationalDatabaseExceptionClassifier.IsUniqueViolation(ex))
                 {
                     uniqueConflictRetries++;
-                    if (transactionStarted)
+                    if (!transactionCompleted)
                     {
                         RecordRollback("unique_conflict");
+                        await dbTransaction.RollbackAsync(CancellationToken.None);
+                        transactionCompleted = true;
                     }
-                    RecordRetry("unique_conflict");
+                    // Release EF's CurrentTransaction before re-querying the winning instruction.
+                    // await using will perform a harmless second disposal on scope exit.
+                    await dbTransaction.DisposeAsync();
                     _context.ChangeTracker.Clear();
+                    // A peer may have committed this exact instruction. Never create a new
+                    // trace, queue item or SOAP dispatch for its retry.
+                    var winner = await TransactionIdempotency.FindAsync(_context, originId, request, ct);
+                    if (winner is not null)
+                    {
+                        registeredTransaction = winner;
+                        return;
+                    }
+                    // Preserve the existing bounded retry for other unique constraints
+                    // (e.g. canonical onboarding and trace allocation).
+                    RecordRetry("unique_conflict");
                     ct.ThrowIfCancellationRequested();
                 }
                 catch (OperationCanceledException)
                 {
-                    if (transactionStarted)
+                    if (!transactionCompleted)
                     {
                         RecordRollback("canceled");
+                        await dbTransaction.RollbackAsync(CancellationToken.None);
                     }
-
                     _context.ChangeTracker.Clear();
                     throw;
                 }
                 catch
                 {
-                    if (transactionStarted)
+                    if (!transactionCompleted)
                     {
                         RecordRollback("failed");
+                        await dbTransaction.RollbackAsync(CancellationToken.None);
                     }
 
                     // A failed single registration owns its transaction-scoped unit of work. Clearing the

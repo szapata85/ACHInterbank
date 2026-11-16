@@ -1,0 +1,32 @@
+01 PASS source/sqlite-model EF transaction declared in enclosing retry scope before try
+02 PASS source/sqlite-model transaction context disposed on all paths
+03 PASS source/sqlite-model rollback on unique collision
+04 PASS source/sqlite-model commit after UOW
+05 PASS source/sqlite-model recovery snapshots expiry, phase, attempt
+06 PASS source/sqlite-model recovery checks expiry and phase in same CAS
+07 PASS source/sqlite-model recovery never retries reconciliation item
+08 PASS source/sqlite-model InFlight transition requires active matching token/phase/expiry
+09 PASS source/sqlite-model persistent intent and fence shared DB transaction
+10 PASS source/sqlite-model intent contains correlation and SHA256 hash
+11 PASS source/sqlite-model intent includes mapper and transport details
+12 PASS source/sqlite-model manual multi-item intent scoped to one dispatch item
+13 PASS source/sqlite-model per-item audit contains mapper/hash/endpoint
+14 PASS source/sqlite-model intent before SOAP both scheduled and manual
+15 PASS source/sqlite-model failed persistence prevents SOAP
+16 PASS source/sqlite-model cycle reassignment pre-send only
+17 PASS source/sqlite-model cycle reassign CAS and audit metadata
+18 PASS source/sqlite-model cycle target policy and calendar checked before reroute
+19 PASS source/sqlite-model unknown result blocked from replay
+20 PASS source/sqlite-model Postgres migration and snapshot match intent fields
+21 PASS source/sqlite-model SqlServer migration and snapshot match intent fields
+22 PASS source/sqlite-model added xUnit source AUD_E2E_02_PhasePromotedBeforeExpiredRecovery
+23 PASS source/sqlite-model added xUnit source AUD_E2E_04_IntentCommittedBeforeSoap
+24 PASS source/sqlite-model added xUnit source AUD_E2E_04_ManualMultiItemBatch
+25 PASS source/sqlite-model added xUnit source AUD_E2E_04_ExpiredLeaseCannotWrite
+26 PASS source/sqlite-model added xUnit source AUD_E2E_03_ClosedOriginalCycle
+27 PASS source/sqlite-model added xUnit source AUD_E2E_03_UnknownResult
+28 PASS source/sqlite-model added xUnit source AUD_E2E_03_DeferredOperationalCalendar
+29 PASS source/sqlite-model SQLite CAS phase race rejects stale Preparing snapshot
+30 PASS source/sqlite-model SQLite unknown in-flight becomes reconciliation
+31 PASS source/sqlite-model SQLite unknown cannot reassign cycle
+TOTAL 31/31 source/SQLite-model controls; NOT a C# compilation or provider integration test

@@ -1,0 +1,38 @@
+{
+  "input_archive": "ACHInterbank_PROYECTO_COMPLETO_I13_ROR_C5_HOTFIX_2026-11-15.zip",
+  "input_sha256": "3600efca392c1664701d066810aa9df11d8f2b55e282e1f18496a76e4b9001aa",
+  "original_file_count": 5578,
+  "unaltered_originals": 5568,
+  "modified_originals": [
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchReturnEligibilityPolicyComponent.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitReturnOfReturnService.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaInboundValidation.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaParserService.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchReturnsFileByClearingHouseTests.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/CenitReturnOfReturn2026Tests.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaFunctionalValidationTests.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaInboundValidationSeparationTests.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaIncomingEndToEndProcessingTests.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/NachaUploadPostgresUatEndToEndTests.cs"
+  ],
+  "missing_originals": [],
+  "new_files": [
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i01_queue_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i02_ror_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i03_netting_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i04_r23_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i05_priority_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i06_official_liquidity_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i07_r06_cycle5_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i08_r74_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i09_r23_deadlines_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i10_alphabet_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i12_adv280_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/cenit_i13_nack_static_check.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/grafo_sln.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/hotfix_31_controles_estaticos.log",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/regresion_cenit_incrementos.json",
+    "docs/hotfix-pre-despliegue-2026-11-15/evidencias/regresion_hc_cenit002_20_controles.log",
+    "scripts/test/predeploy_three_hotfixes_static_check.py"
+  ]
+}

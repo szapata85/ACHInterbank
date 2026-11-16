@@ -1,0 +1,4 @@
+SOLUTION GRAPH: OK
+  solution projects: 7
+  disk projects:     7
+  project references: all targets exist and are loaded by the solution

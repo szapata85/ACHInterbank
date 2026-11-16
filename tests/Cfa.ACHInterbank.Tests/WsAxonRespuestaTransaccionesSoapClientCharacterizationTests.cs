@@ -13,6 +13,8 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
 {
+    private const string ValidAxonBody = "<RegistrarRespuestaTransaccion xmlns=\"http://tempuri.org/\"><idCanal>1</idCanal><nombreCanal>ACH</nombreCanal><idTransaccion>TX-1</idTransaccion><idEstado>2</idEstado><causal>R01</causal><idTransaccionAxon>99</idTransaccionAxon><descripcionCausal>Motivo</descripcionCausal></RegistrarRespuestaTransaccion>";
+
     [Fact]
     public async Task RegistrarRespuestaTransaccionAsync_WithXmlBody_WrapsSoap11Envelope_AndPreservesBody()
     {
@@ -20,7 +22,7 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
 
         var sut = BuildClient(Endpoint(server), out _);
-        var body = "<RegistrarRespuestaTransaccion><idTransaccion>TX-1</idTransaccion></RegistrarRespuestaTransaccion>";
+        var body = ValidAxonBody;
 
         await sut.RegistrarRespuestaTransaccionAsync(body);
 
@@ -71,12 +73,22 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         const string soapAction = "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion";
         var sut = BuildClient(Endpoint(server), out _, soapAction);
 
-        var response = await sut.RegistrarRespuestaTransaccionAsync("<Body>ok</Body>");
+        var response = await sut.RegistrarRespuestaTransaccionAsync(ValidAxonBody);
 
         var request = server.Requests.Single();
         Assert.Equal(soapAction, request.SoapAction);
         Assert.StartsWith("text/xml", request.ContentType, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("<resp>ok</resp>", response);
+    }
+
+    [Fact]
+    public async Task Npt14_Axon_WhenSoapActionDiffersFromWsdl_FailsBeforeTransport()
+    {
+        var sut = BuildClient("http://127.0.0.1:1/WSAxonRespuestaTransacciones.svc", out _,
+            "http://tempuri.org/IWSAxonRespuestaTransacciones/WRONG_ACTION");
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.RegistrarRespuestaTransaccionAsync("<RegistrarRespuestaTransaccion/>") );
+        Assert.Contains("SOAPACTION_XSD_MISMATCH", ex.Message);
     }
 
     [Fact]
@@ -87,8 +99,35 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
 
         var sut = BuildClient(Endpoint(server), out _);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegistrarRespuestaTransaccionAsync("<Body>error</Body>"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegistrarRespuestaTransaccionAsync(ValidAxonBody));
         Assert.Single(server.Requests);
+    }
+
+    [Theory]
+    [InlineData("<RegistrarRespuestaTransaccion><idCanal>1</idCanal></RegistrarRespuestaTransaccion>")]
+    [InlineData("<RegistrarRespuestaTransaccion xmlns='http://tempuri.org/'><idCanal>not-int</idCanal></RegistrarRespuestaTransaccion>")]
+    [InlineData("<RegistrarRespuestaTransaccion xmlns='http://tempuri.org/'><idCanal>1</idCanal><idCanal>2</idCanal></RegistrarRespuestaTransaccion>")]
+    [InlineData("<RegistrarRespuestaTransaccion xmlns='http://tempuri.org/'><unknown>value</unknown></RegistrarRespuestaTransaccion>")]
+    [InlineData("<soap:Envelope xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/'><soap:Body><RegistrarRespuestaTransaccion xmlns='http://tempuri.org/'/><RegistrarRespuestaTransaccion xmlns='http://tempuri.org/'/></soap:Body></soap:Envelope>")]
+    [InlineData("<!DOCTYPE doc [<!ENTITY e SYSTEM 'file:///etc/passwd'>]><RegistrarRespuestaTransaccion xmlns='http://tempuri.org/'/>")]
+    public async Task NptH01_Axon_PublicXmlOverload_RejectsInvalidBodyBeforeHttp(string invalidBody)
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var sut = BuildClient(Endpoint(server), out _);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegistrarRespuestaTransaccionAsync(invalidBody));
+        Assert.Empty(server.Requests);
+    }
+
+    [Fact]
+    public async Task NptH01_Axon_ParameterOverload_RejectsInvalidIntegerBeforeHttp()
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var sut = BuildClient(Endpoint(server), out _);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegistrarRespuestaTransaccionAsync(
+            new Dictionary<string, object?> { ["idCanal"] = "wrong-int" }));
+        Assert.Empty(server.Requests);
     }
 
     [Fact]
@@ -170,7 +209,7 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
         var sut = BuildClient(Endpoint(server), out _);
 
-        await sut.RegistrarRespuestaTransaccionAsync("<x/>");
+        await sut.RegistrarRespuestaTransaccionAsync(ValidAxonBody);
 
         Assert.Single(server.Requests);
     }
@@ -197,7 +236,7 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         policy.HostHeader = $"127.0.0.1:{endpoint.Port}";
         var sut = BuildClient(Endpoint(server), out _, policy: policy);
 
-        await sut.RegistrarRespuestaTransaccionAsync("<x/>");
+        await sut.RegistrarRespuestaTransaccionAsync(ValidAxonBody);
 
         Assert.Equal(policy.HostHeader, server.Requests.Single().Host);
     }
@@ -223,7 +262,7 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
             policy: ControlledLocalPolicy(logicalEndpoint.AbsoluteUri),
             transport: transport);
 
-        await sut.RegistrarRespuestaTransaccionAsync("<x/>");
+        await sut.RegistrarRespuestaTransaccionAsync(ValidAxonBody);
 
         var request = Assert.Single(server.Requests);
         Assert.Equal(transport.HostHeader, request.Host);
@@ -262,7 +301,7 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
             ports: [server.Port],
             paths: ["/WSAxonRespuestaTransacciones.svc"]));
 
-        await sut.RegistrarRespuestaTransaccionAsync("<x/>");
+        await sut.RegistrarRespuestaTransaccionAsync(ValidAxonBody);
 
         Assert.Single(server.Requests);
     }

@@ -35,6 +35,18 @@ public class CenitNettingService : ICenitNettingService
 
     public async Task<CenitNettingExecution> CalculateAsync(CenitCycleExecution execution, CancellationToken ct)
     {
+        // La proyección es exclusivamente CENIT. Validar incluso en reintentos:
+        // un snapshot previo NO convierte un ciclo de otra cámara en CENIT.
+        var cycle = await _context.AchCycles
+            .AsNoTracking()
+            .Include(x => x.ClearingHouse)
+                .ThenInclude(x => x!.ClearingHouseConfig)
+            .FirstAsync(x => x.Id == execution.AchCycleId, ct);
+        if (!string.Equals(cycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("El neteo simulado CENIT solo aplica a ciclos de la cámara CENIT.");
+        }
+
         // Una proyección interna puede consultarse, nunca certifica liquidación oficial.
         var existing = await _context.CenitNettingExecutions
             .Include(x => x.NetPositions)
@@ -44,12 +56,6 @@ public class CenitNettingService : ICenitNettingService
         {
             return existing;
         }
-
-        var cycle = await _context.AchCycles
-            .AsNoTracking()
-            .Include(x => x.ClearingHouse)
-                .ThenInclude(x => x!.ClearingHouseConfig)
-            .FirstAsync(x => x.Id == execution.AchCycleId, ct);
         var sourceFileReference = await _context.AchFileExports
             .AsNoTracking()
             .Where(x => x.AchCycleId == execution.AchCycleId)

@@ -38,14 +38,26 @@ public class TransactionPriorityPolicy : ITransactionPriorityPolicy
         // falta el código NACHA verificable, no inferir tipo de devolución.
         if (transaction.Type == TransactionTypeEnum.Return)
         {
-            var isReturnDebit = transaction.TransactionCode is "21" or "22" or "23" or "31" or "32" or "33" or "51" or "52" or "53";
-            var isReturnCredit = transaction.TransactionCode is "26" or "27" or "28" or "36" or "37" or "38" or "55" or "56" or "57";
+            // Solo códigos de *devolución* NACHA-M: nunca tratar un pago
+            // ordinario (22/27) ni una prenotificación (23/28) como devolución.
+            // 21/31/51 abonan la devolución de un débito original;
+            // 26/36/56 debitan la devolución de un crédito original.
+            var isReturnDebit = transaction.TransactionCode is "21" or "31" or "51";
+            var isReturnCredit = transaction.TransactionCode is "26" or "36" or "56";
             if (isReturnDebit)
                 return sec switch { "CCD" => 10, "PPD" => 9, _ => 0 };
             if (isReturnCredit)
                 return sec switch { "CCD" => 8, "PPD" => 7, "CTX" => 6, _ => 0 };
             return 0;
         }
+
+        // SEC y tipo deben ser coherentes con el código NACHA-M. Una clase
+        // desconocida o inconsistente no recibe prioridad por aproximación.
+        var isOrdinaryCredit = transaction.TransactionCode is "22" or "32" or "42" or "52";
+        var isOrdinaryDebit = transaction.TransactionCode is "27" or "37" or "55";
+        if ((transaction.Type == TransactionTypeEnum.Credit && !isOrdinaryCredit)
+            || (transaction.Type == TransactionTypeEnum.Debit && !isOrdinaryDebit))
+            return 0;
 
         return (sec, transaction.Type) switch
         {

@@ -87,7 +87,7 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task ProcTransaccionesReadiness_ShouldFailClosed_WhenNctaOrigUsesTransactionSourceAccountNumber()
+    public async Task ProcTransaccionesReadiness_ShouldBeReady_WhenNctaOrigUsesTransactionSourceAccountNumber()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         await fixture.PublishCompleteMappingAsync(
@@ -108,9 +108,53 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
         var readiness = await fixture.ReadinessService.EvaluateAsync(
             operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
 
+        Assert.True(readiness.IsReady);
+        Assert.True(readiness.CanBuildPayload);
+        Assert.Empty(readiness.Errors);
+    }
+
+    [Theory]
+    [InlineData("transaction.destinationAccountNumber")]
+    [InlineData("entrydetails.accountnumber")]
+    public async Task ProcTransaccionesReadiness_RejectsRecipientOrEntryAccountAsOrigin(string wrongSource)
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcTransacciones,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath == "NCTAORIG")
+                {
+                    rule.SourceKind = wrongSource.StartsWith("transaction.", StringComparison.Ordinal)
+                        ? IntegrationSourceKindEnum.Transaction : IntegrationSourceKindEnum.EntryDetail;
+                    rule.SourceFieldPath = wrongSource;
+                }
+            });
+        var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
+        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
         Assert.False(readiness.IsReady);
         Assert.Equal("PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID", readiness.Code);
-        Assert.Contains(readiness.Errors, x => x.Contains("NCTAORIG", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData("NORIG", "entrydetails.accountnumber")]
+    [InlineData("IDORIG", "transaction.companyIdentification")]
+    [InlineData("NCTARECEP", "transaction.sourceAccountNumber")]
+    public async Task Readiness_RejectsManipulatedPhysicalNachaMappings(string field, string wrongSource)
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(IntegrationGuaranteeConstants.ProcTransacciones,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath == field)
+                    rule.SourceFieldPath = wrongSource;
+            });
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal));
+        Assert.False(readiness.IsReady);
+        Assert.False(readiness.CanBuildPayload);
+        Assert.Equal("PROC_TRANSACCIONES_NACHA_SOURCE_INVALID", readiness.Code);
+        Assert.Contains(readiness.Errors, error => error.Contains(field, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -177,7 +221,7 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
 
         Assert.False(readiness.IsReady);
         Assert.Equal("Failed", readiness.Status);
-        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
+        Assert.Equal("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", readiness.Code);
         Assert.False(readiness.UsesFallback);
         Assert.False(readiness.CanBuildPayload);
         Assert.Empty(readiness.RequiredFallbackFields);
@@ -211,19 +255,16 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task BootstrapPublishedProcContrapartidasMapping_ShouldBeReadyWithOnlyTechnicalWarnings()
+    public async Task BootstrapPublishedProcContrapartidasMapping_BlocksUnverifiedSources()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
-
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
-
-        Assert.True(readiness.IsReady);
-        Assert.Equal("ReadyWithWarnings", readiness.Status);
-        Assert.True(readiness.CanBuildPayload);
-        Assert.False(readiness.UsesFallback);
-        Assert.Empty(readiness.Errors);
-        Assert.Contains(readiness.Warnings, x => x.Contains("OFDIRECCIONIP", StringComparison.OrdinalIgnoreCase));
+        Assert.False(readiness.IsReady);
+        Assert.False(readiness.CanBuildPayload);
+        Assert.Contains("OFEMP", readiness.MissingRequiredMappings);
+        Assert.Contains("OFIDARCH", readiness.MissingRequiredMappings);
+        Assert.Contains("OFDIRECCIONIP", readiness.MissingRequiredMappings);
     }
 
     [Fact]
@@ -273,13 +314,13 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
 
         Assert.False(readiness.IsReady);
-        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
+        Assert.Equal("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", readiness.Code);
         Assert.Contains(readiness.Errors, x => x.Contains("OFMONDEB", StringComparison.OrdinalIgnoreCase)
             && x.Contains("0", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public async Task Readiness_ShouldAllow_ProcContrapartidasObservedFunctionalConstants()
+    public async Task Readiness_ObservedConstantsDoNotOverrideMissingHomologation()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         await fixture.PublishCompleteMappingAsync(
@@ -310,14 +351,14 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.True(readiness.IsReady);
-        Assert.Equal("Ok", readiness.Status);
-        Assert.DoesNotContain(readiness.Errors, x => x.Contains("OFDD", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(readiness.Errors, x => x.Contains("OFIDTX", StringComparison.OrdinalIgnoreCase));
+        Assert.False(readiness.IsReady);
+        Assert.Equal("Failed", readiness.Status);
+        Assert.Contains(readiness.Errors, x => x.Contains("OFEMP", StringComparison.OrdinalIgnoreCase));
+        Assert.False(readiness.CanBuildPayload);
     }
 
     [Fact]
-    public async Task Readiness_ShouldWarn_WhenTechnicalConstantIsDocumentedButNotFunctional()
+    public async Task Readiness_RejectsZeroIpEvenWhenPublished()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         await fixture.PublishCompleteMappingAsync(
@@ -335,14 +376,15 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.True(readiness.IsReady);
-        Assert.Equal("ReadyWithWarnings", readiness.Status);
-        Assert.Equal("READY_WITH_WARNINGS", readiness.Code);
-        Assert.Contains(readiness.Warnings, x => x.Contains("OFDIRECCIONIP", StringComparison.OrdinalIgnoreCase));
+        Assert.False(readiness.IsReady);
+        Assert.Equal("Failed", readiness.Status);
+        Assert.Equal("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", readiness.Code);
+        Assert.Contains(readiness.Errors, x => x.Contains("OFDIRECCIONIP", StringComparison.OrdinalIgnoreCase));
+        Assert.False(readiness.CanBuildPayload);
     }
 
     [Fact]
-    public async Task Readiness_ShouldNotFail_ForProcContrapartidasOptionalReservedAnsFields()
+    public async Task Readiness_OptionalAnsDoNotBypassUnaccreditedSources()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         await fixture.PublishCompleteMappingAsync(IntegrationGuaranteeConstants.ProcContrapartidas);
@@ -350,10 +392,85 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.True(readiness.IsReady);
-        Assert.Equal("Ok", readiness.Status);
-        Assert.DoesNotContain(readiness.Errors, x => x.Contains("ANS", StringComparison.OrdinalIgnoreCase));
+        Assert.False(readiness.IsReady);
+        Assert.Equal("Failed", readiness.Status);
+        Assert.Contains(readiness.Errors, x => x.Contains("OFEMP", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(readiness.Warnings, x => x.Contains("ANS", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData("OFCTA", "FixedValue")]
+    [InlineData("OFCTA", "DefaultValue")]
+    [InlineData("OFCTA", "TransformationCode")]
+    [InlineData("OFCTA", "FormatMask")]
+    [InlineData("OFCTA", "ConditionExpression")]
+    [InlineData("OFCTA", "Expression")]
+    [InlineData("OFCTA", "UnknownSource")]
+    [InlineData("OFIDTX", "FixedValue")]
+    [InlineData("OFIDTX", "DefaultValue")]
+    [InlineData("OFIDTX", "TransformationCode")]
+    [InlineData("OFIDTX", "FormatMask")]
+    [InlineData("OFIDTX", "ConditionExpression")]
+    [InlineData("OFIDTX", "Expression")]
+    [InlineData("OFIDTX", "UnknownSource")]
+    public async Task Readiness_BlocksManipulatedProtectedFields_BeforePayload(string field, string manipulation)
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcContrapartidas,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath != field) return;
+                switch (manipulation)
+                {
+                    case "FixedValue": rule.FixedValue = "SUBSTITUTE"; break;
+                    case "DefaultValue": rule.DefaultValue = "SUBSTITUTE"; break;
+                    case "TransformationCode": rule.TransformationCode = "Lowercase"; break;
+                    case "FormatMask": rule.FormatMask = "000000"; break;
+                    case "ConditionExpression": rule.ConditionExpression = "true"; break;
+                    case "Expression": rule.SourceKind = IntegrationSourceKindEnum.Expression; break;
+                    case "UnknownSource": rule.SourceFieldPath = "unavailable.nonexistentField"; break;
+                }
+            });
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa));
+        Assert.False(readiness.IsReady);
+        Assert.False(readiness.CanBuildPayload);
+        Assert.Equal("PROC_CONTRAPARTIDAS_PROTECTED_SOURCE_INVALID", readiness.Code);
+        Assert.Contains(readiness.Errors, x => x.Contains("PROC_CONTRAPARTIDAS_PROTECTED_SOURCE_INVALID", StringComparison.Ordinal)
+            && x.Contains(field, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("OFEMP", "clearinghouse.code")]
+    [InlineData("OFEMP", "")]
+    [InlineData("OFIDARCH", "batch.id")]
+    [InlineData("OFIDARCH", "")]
+    [InlineData("OFDIRECCIONIP", "0.0.0.0")]
+    [InlineData("OFDIRECCIONIP", "")]
+    [InlineData("OFDIRECCIONIP", "192.0.2.55")]
+    public async Task Readiness_RejectsPublishedUnaccreditedSources_WithoutChangingRules(string field, string value)
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcContrapartidas,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath != field) return;
+                rule.SourceFieldPath = value;
+                rule.SourceKind = IntegrationSourceKindEnum.Constant;
+                rule.FixedValue = value;
+            });
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa));
+        Assert.False(readiness.IsReady);
+        Assert.False(readiness.CanBuildPayload);
+        Assert.Equal("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", readiness.Code);
+        Assert.Contains(readiness.Errors, x => x.Contains($"PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED: {field}", StringComparison.Ordinal));
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas");
+        var parameter = await fixture.Context.IntegrationMethodParameters.SingleAsync(x => x.MethodId == method.Id && x.ParameterPath == field);
+        var rulePersisted = await fixture.Context.IntegrationMappingRules.SingleAsync(x => x.ParameterId == parameter.Id && x.FixedValue == value);
+        Assert.Equal(value, rulePersisted.FixedValue); // no silent rewrite
     }
 
     [Fact]
@@ -417,7 +534,7 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task Readiness_ShouldExposeWarnings_WhenOnlyNonBlockingDefaultsExist()
+    public async Task Readiness_DefaultWarningsDoNotOverrideSecurityFailures()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         await fixture.PublishCompleteMappingAsync(
@@ -435,9 +552,9 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.True(readiness.IsReady);
-        Assert.Equal("ReadyWithWarnings", readiness.Status);
-        Assert.Equal("READY_WITH_WARNINGS", readiness.Code);
+        Assert.False(readiness.IsReady);
+        Assert.Equal("Failed", readiness.Status);
+        Assert.Equal("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", readiness.Code);
         Assert.Contains(readiness.Warnings, x => x.Contains("OFIDCAMCOMPE", StringComparison.OrdinalIgnoreCase)
             && x.Contains("1", StringComparison.OrdinalIgnoreCase));
     }
@@ -694,24 +811,6 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
                 index++;
             }
 
-            if (operationKey == IntegrationGuaranteeConstants.ProcTransacciones)
-            {
-                var nctaOrigParameter = await Context.IntegrationMethodParameters
-                    .SingleAsync(x => x.MethodId == method.Id && x.ParameterPath == "NCTAORIG");
-                var nctaOrigRule = new IntegrationMappingRule
-                {
-                    MappingSetId = set.Id,
-                    MethodId = method.Id,
-                    ParameterId = nctaOrigParameter.Id,
-                    SourceKind = IntegrationSourceKindEnum.EntryDetail,
-                    SourceFieldPath = "entrydetails.accountnumber",
-                    Priority = 1,
-                    Enabled = true
-                };
-                configureRule?.Invoke(nctaOrigParameter, nctaOrigRule);
-                Context.IntegrationMappingRules.Add(nctaOrigRule);
-            }
-
             await Context.SaveChangesAsync();
         }
 
@@ -850,6 +949,7 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             {
                 "transaction" => IntegrationSourceKindEnum.Transaction,
                 "entrydetails" => IntegrationSourceKindEnum.EntryDetail,
+                "batchHeaders" => IntegrationSourceKindEnum.BatchHeader,
                 "cycle" => IntegrationSourceKindEnum.Cycle,
                 _ => IntegrationSourceKindEnum.Transaction
             };
@@ -864,12 +964,12 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
                 "OFIDTX" => "transaction.reference",
                 "BCORECEP" => "destinationInstitution.transitCodeNormalized",
                 "BCOORIG" => "sourceInstitution.transitCodeNormalized",
-                "NORIG" => "sourceInstitution.name",
-                "NCTAORIG" => "entrydetails.accountnumber",
-                "IDORIG" => "transaction.companyIdentification",
+                "NORIG" => "batchHeaders.companyName",
+                "NCTAORIG" => "transaction.sourceAccountNumber",
+                "IDORIG" => "batchHeaders.companyId",
                 "DESTRAN" or "INFPAG" => "procTransacciones.paymentInformation",
                 "FECEFEC" => "transaction.effectiveEntryDate",
-                "NCTARECEP" => "transaction.destinationAccountNumber",
+                "NCTARECEP" => "entrydetails.accountnumber",
                 "MONTO" => "transaction.amount",
                 "NRECEP" => "entryDetails.recipUserName",
                 "IDRECEP" => "entryDetails.recipIdNumber",

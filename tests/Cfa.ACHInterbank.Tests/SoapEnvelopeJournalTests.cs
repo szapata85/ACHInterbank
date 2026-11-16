@@ -126,17 +126,10 @@ public class SoapEnvelopeJournalTests
     }
 
     [Fact]
-    public async Task ProcContrapartidas_Http500_LogsRawRequestAndFaultResponse()
+    public async Task ProcContrapartidas_NoGo_DoesNotJournalAnUnsentEnvelope()
     {
         using var server = await LocalSoapServer.StartAsync((_, _) =>
-            new HttpResponseMessage(HttpStatusCode.InternalServerError)
-            {
-                Content = new StringContent("""
-                    <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
-                      <s:Body><s:Fault><faultstring>SECRET-RESPONSE</faultstring></s:Fault></s:Body>
-                    </s:Envelope>
-                    """)
-            });
+            new HttpResponseMessage(HttpStatusCode.InternalServerError) { Content = new StringContent("<secret/>") });
         var logger = new CollectingLogger();
         var journal = BuildJournal(logger, true);
         var endpoint = new UriBuilder(Uri.UriSchemeHttp, "127.0.0.1", server.Port, "WSCFAACH.svc").Uri.AbsoluteUri;
@@ -155,20 +148,11 @@ public class SoapEnvelopeJournalTests
         });
         var sut = new WscfaachSoapClient(Mock.Of<ILoggerManager>(), settings.Object,
             new StaticHttpClientFactory(), new ConfigurationBuilder().Build(), envelopeJournal: journal);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            sut.ProcContrapartidasAsync("<Proc_Contrapartidas><OFCTA>SECRET-ACCOUNT</OFCTA></Proc_Contrapartidas>"));
-
-        Assert.Equal(2, logger.Messages.Count);
-        Assert.Contains("direction=REQUEST", logger.Messages[0]);
-        Assert.Contains("direction=RESPONSE", logger.Messages[1]);
-        Assert.Contains("httpStatus=500", logger.Messages[1]);
-        Assert.Contains("soapFault=True", logger.Messages[1]);
-        Assert.Contains("<OFCTA>SECRET-ACCOUNT</OFCTA>", ExtractEnvelope(logger.Messages[0]));
-        Assert.Contains("<faultstring>SECRET-RESPONSE</faultstring>", ExtractEnvelope(logger.Messages[1]));
-        var ids = logger.Messages.Select(m => Regex.Match(m, "correlationId=([a-f0-9]{32})").Groups[1].Value).ToArray();
-        Assert.Equal(ids[0], ids[1]);
-        Assert.NotEmpty(ids[0]);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.ProcContrapartidasAsync("<Proc_Contrapartidas xmlns=\"http://tempuri.org/\"><OFCTA>SYNTH-ACCOUNT</OFCTA></Proc_Contrapartidas>"));
+        Assert.Contains("PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED", error.Message);
+        Assert.Empty(server.Requests);
+        Assert.Empty(logger.Messages);
     }
 
     [Fact]
@@ -202,11 +186,11 @@ public class SoapEnvelopeJournalTests
             envelopeJournal: BuildJournal(logger, true));
 
         var response = await sut.ProcTransaccionesAsync(
-            "<Proc_Transacciones><Cuenta>123456789</Cuenta></Proc_Transacciones>");
+            "<Proc_Transacciones xmlns=\"http://tempuri.org/\"><NCTAORIG>123456789</NCTAORIG></Proc_Transacciones>");
 
         Assert.Equal(responseXml, response);
         Assert.Equal(2, logger.Messages.Count);
-        Assert.Contains("<Cuenta>123456789</Cuenta>", ExtractEnvelope(logger.Messages[0]));
+        Assert.Contains("<NCTAORIG>123456789</NCTAORIG>", ExtractEnvelope(logger.Messages[0]));
         Assert.Equal(responseXml, ExtractEnvelope(logger.Messages[1]));
         Assert.Contains("httpStatus=200", logger.Messages[1]);
     }
@@ -248,14 +232,14 @@ public class SoapEnvelopeJournalTests
             }), new StaticHttpClientFactory(), envelopeJournal: journal);
 
         var response = await sut.RegistrarRespuestaTransaccionAsync(
-            "<RegistrarRespuestaTransaccion><Cuenta>123456789</Cuenta></RegistrarRespuestaTransaccion>");
+            "<RegistrarRespuestaTransaccion xmlns=\"http://tempuri.org/\"><idCanal>1</idCanal><nombreCanal>ACH</nombreCanal><idTransaccion>REF</idTransaccion><idEstado>2</idEstado><causal>R01</causal><idTransaccionAxon>3</idTransaccionAxon><descripcionCausal>Motivo</descripcionCausal></RegistrarRespuestaTransaccion>");
 
         Assert.Equal(responseXml, response);
         Assert.Equal(2, logger.Messages.Count);
         Assert.Contains("direction=REQUEST", logger.Messages[0]);
         Assert.Contains("direction=RESPONSE", logger.Messages[1]);
         Assert.Contains("httpStatus=200", logger.Messages[1]);
-        Assert.Contains("<Cuenta>123456789</Cuenta>", ExtractEnvelope(logger.Messages[0]));
+        Assert.Contains("<idTransaccion>REF</idTransaccion>", ExtractEnvelope(logger.Messages[0]));
         Assert.Equal(responseXml, ExtractEnvelope(logger.Messages[1]));
     }
 

@@ -54,7 +54,7 @@ public sealed class CurrentIntegrationSourceProviderFactory
             [ProcContrapartidasMethod, ProcTransaccionesMethod],
             async (context, ct) => (await RequireTransactionAsync(context, ct)).CompanyIdentification);
         Add(providers, IntegrationSourceKindEnum.Transaction, "transaction.sourceAccountNumber", "Cuenta origen", "Número de cuenta origen de la transacción.", "string", false, "Transacción", 20, IntegrationSensitiveClassification.Account,
-            [ProcContrapartidasMethod],
+            [ProcContrapartidasMethod, ProcTransaccionesMethod],
             async (context, ct) => (await RequireTransactionAsync(context, ct)).SourceAccountNumber);
         Add(providers, IntegrationSourceKindEnum.Transaction, "transaction.debitCreditIndicator", "Indicador débito/crédito", "Indicador D/C derivado del tipo transaccional.", "string", false, "Transacción", 30, IntegrationSensitiveClassification.Financial,
             [ProcContrapartidasMethod],
@@ -106,6 +106,12 @@ public sealed class CurrentIntegrationSourceProviderFactory
         Add(providers, IntegrationSourceKindEnum.Transaction, "sourceInstitution.name", "Nombre originador", "Nombre de la institución originadora.", "string", false, "Institución", 320, IntegrationSensitiveClassification.Personal,
             [ProcTransaccionesMethod],
             async (context, ct) => (await _procTransaccionesFunctionalSourceResolver.ResolveAsync(context, ct)).SourceInstitutionName);
+        Add(providers, IntegrationSourceKindEnum.BatchHeader, "batchHeaders.companyName", "Nombre originador lote", "Nombre del originador del registro NACHA-M tipo 5.", "string", true, "NACHA-M", 321, IntegrationSensitiveClassification.Personal,
+            [ProcTransaccionesMethod],
+            async (context, ct) => (await _procTransaccionesFunctionalSourceResolver.ResolveAsync(context, ct)).BatchOriginatorName);
+        Add(providers, IntegrationSourceKindEnum.BatchHeader, "batchHeaders.companyId", "Identificación originador lote", "Identificación del originador del registro NACHA-M tipo 5.", "string", true, "NACHA-M", 322, IntegrationSensitiveClassification.Personal,
+            [ProcTransaccionesMethod],
+            async (context, ct) => (await _procTransaccionesFunctionalSourceResolver.ResolveAsync(context, ct)).BatchOriginatorId);
         Add(providers, IntegrationSourceKindEnum.EntryDetail, "entrydetails.accountnumber", "Cuenta detalle entrada", "Número de cuenta del registro de detalle NACHA-M clasificado.", "string", true, "NACHA-M", 330, IntegrationSensitiveClassification.Account,
             [ProcTransaccionesMethod],
             async (context, ct) => (await _procTransaccionesFunctionalSourceResolver.ResolveAsync(context, ct)).EntryAccountNumber);

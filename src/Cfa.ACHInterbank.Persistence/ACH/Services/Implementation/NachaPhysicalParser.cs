@@ -87,6 +87,11 @@ internal static class NachaPhysicalParser
         return new NachaPhysicalFile(recordLength, records);
     }
 
+    // I10: use the same physical repertoire at the CENIT generation boundary.
+    // Check the original Unicode character BEFORE Encoding.ASCII.GetBytes can replace it with '?'.
+    internal static bool IsCenitAcceptedCharacter(char value)
+        => value <= 0x7F && IsAcceptedByte((byte)value, isCenitNachaProfile: true);
+
     private static bool IsAcceptedByte(byte value, bool isCenitNachaProfile)
         => value == (byte)' '
            || value is >= (byte)'0' and <= (byte)'9'

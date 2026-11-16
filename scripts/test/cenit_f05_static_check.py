@@ -5,6 +5,7 @@ root=Path(__file__).resolve().parents[2]
 p=root/'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation'
 s=(p/'CenitReturnOfReturnService.cs').read_text()
 g=(p/'AchReturnOfReturnFileGenerationService.cs').read_text()
+h=(p/'CenitR74OriginalCreditEvidence.cs').read_text()
 c=(p/'Seeders/RegulatoryCatalogSeeder.cs').read_text()
 t=(root/'tests/Cfa.ACHInterbank.Tests/CenitReturnOfReturn2026Tests.cs').read_text()
 u=(root/'tests/Cfa.ACHInterbank.Tests/AchReturnOfReturnFileGenerationServiceTests.cs').read_text()
@@ -24,10 +25,10 @@ checks={
  'C1 calendar rule maintained':'GetPreviousBusinessDayAsync' in g,
  'R74 catalog only on R32':'originalCause == "R32"' in c and 'Where(code => code != "R74")' in c,
  'R74 parent validation outgoing/incoming':'CENIT_R74_R32_PARENT_REQUIRED' in s,
- 'R74 monetary credit validation':'original.Type != TransactionTypeEnum.Credit || original.IsPrenotification || original.Amount <= 0' in s,
- 'R74 adenda return code 99 never counted':'x.AddendaRecord.CodeTypeAddendumRecord == "05"' in s and 'x.AddendaRecord.CodeTypeAddendumRecord == "05"' in g,
- 'R74 requires field3 information':'HasMeaningfulPaymentInformation(x.AddendaRecord!.IdUserOrig)' in s,
- 'R74 zero-only fields do not qualify':"value.Any(c => c != '0' && c != ' ')" in s,
+ 'R74 monetary credit validation':'original.Type != TransactionTypeEnum.Credit || original.IsPrenotification || original.Amount <= 0' in h and 'CenitR74OriginalCreditEvidence.ExistsAsync(context, original, ct)' in s,
+ 'R74 adenda return code 99 never counted':'x.AddendaRecord.CodeTypeAddendumRecord == "05"' in h and 'CenitR74OriginalCreditEvidence.ExistsAsync(context, original, ct)' in g,
+ 'R74 requires field3 information':'PaymentRelatedInformation' in h and 'HasCorrelatedOriginalEntry(x, original) && HasValidPhysicalField3(x.AddendaRecord!)' in h,
+ 'R74 zero-only fields do not qualify':"value.Any(c => c != '0' && c != ' ')" in h and "trimmed.Any(c => c != '0')" in h,
  'R74 rerun on productive file generator':'CENIT_R74_ORIGINAL_ADDENDA_REQUIRED' in g,
  'R74 parent and addenda tests':'F05_R74_MustHaveR32Parent' in t and 'F05_R74_RequiresMonetaryCreditAndOriginalPaymentInformation' in t,
  'C1 persisted source test':'F05_Cycle1_CorrelatesPersistedSourceReturnBeforeCreatingFlow' in t,

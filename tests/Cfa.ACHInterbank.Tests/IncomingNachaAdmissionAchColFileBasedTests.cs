@@ -115,17 +115,40 @@ public sealed class IncomingNachaAdmissionAchColFileBasedTests
         Assert.Equal("ACHCOL_HEADER_TIME_INVALID", result.Issue?.Code);
     }
 
+    // ACH Colombia V35, 2.1.3.1 and Annex 3: D01/D02 are operator
+    // returns for every T6 of the affected lot, not admission-file errors.
     [Theory]
-    [InlineData("20260723", "EFFECTIVE_DATE_MISMATCH")]
-    [InlineData("20261345", "ACHCOL_EFFECTIVE_DATE_INVALID")]
-    public async Task BatchEffectiveDate_IsValidatedInEightDigitAchColFormat(string effectiveDate, string expectedCode)
+    [InlineData("20260723", true)]  // D01: prior date
+    [InlineData("20260727", true)]  // D02: non-operational future date
+    [InlineData("20261345", false)] // D02: malformed effective date
+    [InlineData("        ", false)] // D02: blank effective date
+    public async Task BatchEffectiveDate_IsDeferredToPerTransactionOperatorReturns(
+        string effectiveDate, bool expectedParsedDate)
     {
         await using var fixture = await Fixture.CreateAsync();
         var result = await fixture.Validator().ValidateAsync(Request(
             "0001283.008.20260724.8.OUT", Header('H'), Batch(effectiveDate)));
 
-        Assert.False(result.IsAccepted);
-        Assert.Equal(expectedCode, result.Issue?.Code);
+        Assert.True(result.IsAccepted);
+        Assert.Null(result.Issue);
+        Assert.Equal(expectedParsedDate, result.EffectiveDate.HasValue);
+    }
+
+    [Fact]
+    public async Task MultipleBatches_DoNotRejectWholeAchColFileFromFirstOrLaterEffectiveDate()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var request = Request("0001283.008.20260724.8.OUT", Header('H')) with
+        {
+            Records = [Header('H'), Batch("20260723"), Batch("20260724"), Batch("        ")]
+        };
+
+        var result = await fixture.Validator().ValidateAsync(request);
+
+        Assert.True(result.IsAccepted);
+        Assert.Null(result.Issue);
+        // Preview is only the first T5; later batches must still reach the parser.
+        Assert.Equal(new DateOnly(2026, 7, 23), result.EffectiveDate);
     }
 
     [Fact]

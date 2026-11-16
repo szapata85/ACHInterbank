@@ -24,4 +24,7 @@ public class AchResponseNotificationAttempt
     public string? ErrorTecnico { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime? FechaEnvio { get; set; }
+    public string? ClaimToken { get; set; }
+    public DateTime? LeaseExpiresAtUtc { get; set; }
+    public DateTime? TransportStartedAtUtc { get; set; }
 }

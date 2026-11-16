@@ -59,11 +59,21 @@ public class AchReturnEligibilityService(
         }
 
         var normalizedReasonCode = request.ReturnReasonCode.Trim().ToUpperInvariant();
+        // The CENIT credit R23 window starts on receipt at the receiving
+        // participant, not at the instruction's effective value date.  No
+        // other cause or clearing house inherits this exception.
+        var isCenitCreditR23 = tx.Type == Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit
+            && normalizedReasonCode == "R23"
+            && await context.ClearingHouses.AsNoTracking()
+                .AnyAsync(x => x.Id == clearingHouseId.Value && x.Code == "CENIT", cancellationToken);
+        var originalWindowStart = isCenitCreditR23
+            ? tx.AchCycle!.ProcessingDate.Date
+            : tx.EffectiveEntryDate.Date;
         var returnCodeValidation = await regulatoryCatalogService.ValidateReturnCodeAsync(
             clearingHouseId.Value,
             normalizedReasonCode,
             tx.Type,
-            tx.EffectiveEntryDate.Date,
+            originalWindowStart,
             request.ReturnDate.Date,
             cancellationToken);
 
@@ -80,7 +90,7 @@ public class AchReturnEligibilityService(
             clearingHouseId.Value,
             tx.Type,
             normalizedReasonCode,
-            tx.EffectiveEntryDate.Date,
+            originalWindowStart,
             request.ReturnDate.Date,
             request.HasAddenda,
             tx.State.ToString(),

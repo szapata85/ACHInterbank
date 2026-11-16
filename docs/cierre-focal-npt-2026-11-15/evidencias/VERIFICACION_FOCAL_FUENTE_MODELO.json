@@ -1,0 +1,112 @@
+{
+  "kind": "SOURCE_STATIC_AND_PYTHON_SQLITE_MODEL_NOT_DOTNET_TESTS",
+  "checks": [
+    {
+      "name": "CFA_SQL_fenced_finish",
+      "pass": true
+    },
+    {
+      "name": "CFA_prepared_request_fenced",
+      "pass": true
+    },
+    {
+      "name": "CFA_late_outcome_independent_context",
+      "pass": true
+    },
+    {
+      "name": "CFA_expired_lease_quarantine",
+      "pass": true
+    },
+    {
+      "name": "CFA_exception_classification",
+      "pass": true
+    },
+    {
+      "name": "Axon_fenced_finish",
+      "pass": true
+    },
+    {
+      "name": "Axon_preflight_fenced",
+      "pass": true
+    },
+    {
+      "name": "Axon_version_concurrency",
+      "pass": true
+    },
+    {
+      "name": "Axon_late_evidence_separated",
+      "pass": true
+    },
+    {
+      "name": "Axon_expired_watchdog",
+      "pass": true
+    },
+    {
+      "name": "Axon_cancel_independent_token",
+      "pass": true
+    },
+    {
+      "name": "SOAP_reject_wrong_outer_operation",
+      "pass": true
+    },
+    {
+      "name": "SOAP_reject_spoofed_nested_codes",
+      "pass": true
+    },
+    {
+      "name": "SOAP_reject_faults",
+      "pass": true
+    },
+    {
+      "name": "Prenotification_physical_link_file_chamber",
+      "pass": true
+    },
+    {
+      "name": "Prenotification_unique_final_link",
+      "pass": true
+    },
+    {
+      "name": "Axon independent hosted worker registered",
+      "pass": true
+    },
+    {
+      "name": "Dedicated C# race/expiry tests authored",
+      "pass": true
+    },
+    {
+      "name": "SQLite two CFA connections one claim",
+      "pass": true
+    },
+    {
+      "name": "SQLite stale CFA token cannot finalize",
+      "pass": true
+    },
+    {
+      "name": "SQLite quarantined CFA cannot be overwritten",
+      "pass": true
+    },
+    {
+      "name": "SQLite quarantined CFA cannot be replayed",
+      "pass": true
+    },
+    {
+      "name": "SQLite two Axon connections one claim",
+      "pass": true
+    },
+    {
+      "name": "SQLite Axon preflight cannot override in-flight",
+      "pass": true
+    },
+    {
+      "name": "SQLite Axon stale finish cannot override quarantine",
+      "pass": true
+    },
+    {
+      "name": "SQLite Axon parent remains manual",
+      "pass": true
+    }
+  ],
+  "pass": 26,
+  "total": 26,
+  "dotnet_executed": false
+}

@@ -123,6 +123,39 @@ public class AchRegulatoryCatalogClearingHouseTests
         catalog.Verify(x => x.GetReturnCodesByClearingHouseCodeAsync("CENIT", It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Theory]
+    [InlineData("CENIT", "R23", 15, true)]
+    [InlineData("CENIT", "R23", 16, false)]
+    [InlineData("CENIT", "R02", 2, false)]
+    [InlineData("ACHCOL", "R23", 2, false)]
+    [InlineData("ACHCOL", "R23", 1, true)]
+    public async Task I09_GenericCreditPolicy_OnlyCenitR23UsesFifteenDays(
+        string clearingCode, string reason, int days, bool expectedAllowed)
+    {
+        await using var context = await Ctx();
+        var clearing = await Ch(context, clearingCode);
+        var original = new DateTime(2026, 8, 10);
+        context.AchReturnPolicies.Add(new AchReturnPolicy
+        {
+            ClearingHouseId = clearing.Id,
+            TransactionType = "Credit",
+            Direction = "Any",
+            FlowType = "Return",
+            AllowedReturnCodesCsv = "R23,R02",
+            MaxDays = 1,
+            RequiredOriginalTransactionState = "Pending",
+            RequiresAddenda = true,
+            IsActive = true,
+            EffectiveFrom = original.AddDays(-1)
+        });
+        await context.SaveChangesAsync();
+        var service = new AchRegulatoryCatalogService(context);
+        var result = await service.ValidateReturnPolicyAsync(clearing.Id,
+            TransactionTypeEnum.Credit, reason, original, original.AddDays(days),
+            true, "Pending", CancellationToken.None);
+        Assert.Equal(expectedAllowed, result.IsAllowed);
+    }
+
     static async Task<AchDbContext> Ctx(){var cn=new SqliteConnection("DataSource=:memory:");await cn.OpenAsync();var o=new DbContextOptionsBuilder<AchDbContext>().UseSqlite(cn).Options;var c=new AchDbContext(o);c.Database.EnsureCreated();return c;}
     static async Task<ClearingHouse> Ch(AchDbContext c,string code){var e=await c.ClearingHouses.FirstOrDefaultAsync(x=>x.Code==code);if(e!=null)return e;var cfg=new ClearingHouseConfig{ClearingHouseId=9000+Math.Abs(code.GetHashCode()%1000),HolidayStrategy="Colombian"};c.ClearingHouseConfigs.Add(cfg);await c.SaveChangesAsync();var ch=new ClearingHouse{Name=code,Code=code,OriginCode="000101006",ClearingHouseId=cfg.Id};c.ClearingHouses.Add(ch);await c.SaveChangesAsync();return ch;}
 }

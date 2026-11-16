@@ -348,22 +348,21 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
             .Include(x => x.ClearingHouse)
             .SingleAsync(x => x.Id == transaction.AchCycleId);
 
-        var resolution = await new ProcContrapartidasFunctionalMappingResolver(context)
-            .TryResolveAsync(cycle, [transaction], DateTime.UtcNow);
-        resolution.Should().NotBeNull();
-        resolution!.UsedFallback.Should().BeFalse();
-        resolution.Contract.OFIDTX.Should().Be(transaction.Reference);
-        resolution.Contract.OFMONDEB.Should().Be(transaction.Amount);
-        resolution.Contract.OFDD.Should().Be("D");
+        var resolutionError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ProcContrapartidasFunctionalMappingResolver(context)
+                .TryResolveAsync(cycle, [transaction], DateTime.UtcNow));
+        resolutionError.Message.Should().Contain("INTEGRATION_MAPPING_REQUIRED");
 
         var operationResolver = new TransactionIntegrationOperationResolver(context);
         var operation = await operationResolver.ResolveAsync(transaction);
         var readiness = await new IntegrationMappingReadinessService(context, new IntegrationCatalogService(context))
             .EvaluateAsync(operation);
-        readiness.IsReady.Should().BeTrue();
-        readiness.Status.Should().Be("ReadyWithWarnings");
-        readiness.UsesFallback.Should().BeFalse();
-        readiness.Errors.Should().BeEmpty();
+        readiness.IsReady.Should().BeFalse();
+        readiness.Status.Should().Be("Failed");
+        readiness.CanBuildPayload.Should().BeFalse();
+        readiness.MissingRequiredMappings.Should().Contain("OFEMP");
+        readiness.MissingRequiredMappings.Should().Contain("OFIDARCH");
+        readiness.MissingRequiredMappings.Should().Contain("OFDIRECCIONIP");
 
         var settingsBootstrapper = new SoapIntegrationSettingsBootstrapper(context, BuildSoapBootstrapConfiguration());
         await settingsBootstrapper.EnsureAsync();

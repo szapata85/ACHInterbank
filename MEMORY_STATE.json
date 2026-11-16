@@ -1,0 +1,281 @@
+{
+  "date": "2026-11-16",
+  "status": "NPT_H02_H03_FINAL_FUENTE_PENDIENTE_DOTNET",
+  "formal_decision": "NO-GO",
+  "uat_executed": false,
+  "source_sha256": "0c9662d1e44a8b68e7760ebe5c23c04b70b835acd61269cebdc2e3fcaf8de631",
+  "updated_findings": [
+    "RES-H02-01",
+    "RES-H02-02"
+  ],
+  "canonical_full_state": "../PLAN_IMPLEMENTACION_13_CASOS/MEMORY_STATE.json",
+  "report": "docs/hotfix-res-h02-2026-11-15/INFORME_RES_H02_FINAL.md",
+  "source_zip": "ACHInterbank_PROYECTO_COMPLETO_HOTFIX_FOCAL_H01_H02_2026-11-15.zip",
+  "preserved_findings": [
+    "E2E-01",
+    "E2E-02",
+    "AUD-E2E-01",
+    "AUD-E2E-02",
+    "AUD-E2E-03",
+    "AUD-E2E-04"
+  ],
+  "code_change_summary": {
+    "H01": "Lease recovery audit separated from real dispatch attempts; legacy exhausted RetryPending to reconciliation",
+    "H02": "Manual retry reuses safe active cycle selection with calendar/window/policy and atomic reassignment plus claim"
+  },
+  "validation": {
+    "focal_static_sqlite_model": "39/39 pass",
+    "previous_e2e_checks": "31/31 and 35/35 pass",
+    "regression_scripts": "9/9 exit 0",
+    "dotnet_build": "NOT_RUN_DOTNET_UNAVAILABLE",
+    "xunit": "WRITTEN_NOT_RUN",
+    "postgresql": "NOT_RUN",
+    "sqlserver": "NOT_RUN",
+    "uat": "NOT_RUN"
+  },
+  "res_h02": {
+    "res_h02_01": "Fenced fresh cycle/calendar/window/policy and owned lease immediately before transport; auditable NotSent abort and safe reroute",
+    "res_h02_02": "Scheduled claim CAS includes AchCycleId / ClearingHouseId / Open / Idle; stale claim stops",
+    "migrations_added": 0,
+    "xunit_methods_added": 4,
+    "xunit_cases_added": 6,
+    "xunit_cases_executed": 0,
+    "checks_focal_static_sqlite": "27/27",
+    "regression_scripts": "12/12 exit 0",
+    "solution_graph": "7/7",
+    "dotnet_build": "NOT_RUN_SDK_MISSING_127",
+    "sqlserver": "NOT_RUN",
+    "postgresql": "NOT_RUN",
+    "soap_live": "NOT_RUN",
+    "residual_risk": "TOCTOU between final cycle DB fence and network I/O without coordinated closer lock; G3 required",
+    "formal_decision": "NO-GO"
+  },
+  "last_npt_increment": {
+    "date": "2026-11-15",
+    "formal_decision": "NO-GO",
+    "uat_executed": false,
+    "soap_live_enabled": false,
+    "npt_findings": {
+      "NPT-01": "Bloqueado por contrato externo",
+      "NPT-02": "Bloqueado por contrato externo",
+      "NPT-03": "Corregido en fuente pendiente de prueba",
+      "NPT-04": "Corregido en fuente pendiente de prueba",
+      "NPT-05": "Bloqueado por contrato externo",
+      "NPT-06": "Corregido en fuente pendiente de prueba",
+      "NPT-07": "Corregido en fuente pendiente de prueba",
+      "NPT-08": "Corregido en fuente pendiente de prueba",
+      "NPT-09": "Corregido en fuente pendiente de prueba",
+      "NPT-10": "Corregido en fuente pendiente de prueba",
+      "NPT-11": "Corregido en fuente pendiente de prueba",
+      "NPT-12": "Corregido en fuente pendiente de prueba",
+      "NPT-13": "Corregido en fuente pendiente de prueba",
+      "NPT-14": "Bloqueado por contrato externo"
+    },
+    "source_zip_sha256": "f28654ce10542c9acaec7d42d454a9ddd0c6e19744e8046c26141b620b42eaa9",
+    "report": "ACHInterbank_ajustado/docs/cierre-npt-2026-11-15/INFORME_IMPLEMENTACION_NPT_01_14.md",
+    "dotnet_restore": "NOT_EXECUTED_SDK_UNAVAILABLE",
+    "dotnet_build": "NOT_EXECUTED_SDK_UNAVAILABLE",
+    "dotnet_test": "NOT_EXECUTED_SDK_UNAVAILABLE",
+    "sqlserver": "NOT_EXECUTED",
+    "postgresql": "NOT_EXECUTED",
+    "physical_soap": "NOT_EXECUTED",
+    "uat": "NOT_EXECUTED",
+    "static_checks": "42/42 passed: source + Python SQLite CAS model, NOT xUnit",
+    "external_contracts": [
+      "F5 ACHCOL file-based",
+      "differential physical layouts",
+      "CFA NCTAORIG",
+      "5 missing XSD imports"
+    ],
+    "legacy_static_regressions": "5/5 exit code 0 (scripts source/SQLite models only)",
+    "file_changes_baseline_count": {
+      "added": 16,
+      "modified": 26,
+      "removed": 0
+    }
+  },
+  "last_npt_focal_7": {
+    "date": "2026-11-15",
+    "decision": "NO-GO",
+    "uptake": "source_changes_written_not_dotnet_tested",
+    "source_baseline_sha256": "3f99534d05603ba054faf90f782f6950bbd2a461121a1611c09ffbf24161a448",
+    "findings": {
+      "NPT-03": "Corregido en fuente pendiente de prueba",
+      "NPT-04": "Corregido en fuente pendiente de prueba",
+      "NPT-06": "Corregido en fuente pendiente de prueba",
+      "NPT-08": "Corregido en fuente pendiente de prueba",
+      "NPT-09": "Corregido en fuente pendiente de prueba",
+      "NPT-10": "Corregido en fuente pendiente de prueba",
+      "NPT-11": "Corregido en fuente pendiente de prueba"
+    },
+    "preserved": [
+      "NPT-07",
+      "NPT-12",
+      "NPT-13"
+    ],
+    "untouched_contractual": [
+      "NPT-01",
+      "NPT-02",
+      "NPT-05",
+      "NPT-14"
+    ],
+    "static_sqlite_model": {
+      "passed": 26,
+      "total": 26
+    },
+    "historical_regressions_exit_zero": [
+      28,
+      35,
+      39,
+      27,
+      31
+    ],
+    "legacy_npt_guard": {
+      "passed": 41,
+      "total": 42,
+      "exit": 1,
+      "reason": "obsolete assertion requires legacy UoW cancel persistence"
+    },
+    "dotnet_restore_build_test": "NOT_RUN_SDK_NOT_INSTALLED_EXIT_127",
+    "sqlserver": "NOT_RUN",
+    "postgresql": "NOT_RUN",
+    "soap_instrumented": "NOT_RUN",
+    "uat": "NOT_RUN",
+    "live_enabled": false,
+    "new_migrations": 0,
+    "report": "docs/cierre-focal-npt-2026-11-15/INFORME_CIERRE_FOCAL_NPT.md"
+  },
+  "npt_cfa_late_01": {
+    "date": "2026-11-15",
+    "state": "CORREGIDO_EN_FUENTE_PENDIENTE_DE_PRUEBA",
+    "code": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostProcessingPipeline.cs",
+    "method": "PreserveLateEvidenceAsync",
+    "behavior": "append-only deterministic-id NptLateOutcomeFenced event; preserve original execution/queue",
+    "migrations_added": 0,
+    "xunit_methods_added": 6,
+    "xunit_executed": 0,
+    "static_sqlite_model": {
+      "passed": 15,
+      "total": 15
+    },
+    "focal_regression": "26/26",
+    "historical_regressions": "5/5 exit 0",
+    "npt_legacy_regression": "41/42 (Axon expectation pre-existing)",
+    "dotnet_info_restore_build_test": "all exit 127 (SDK absent)",
+    "sqlserver_postgres": "PENDING",
+    "uat_executed": false,
+    "live_enabled": false,
+    "report": "docs/hotfix-npt-cfa-late-01/INFORME_NPT_CFA_LATE_01.md"
+  },
+  "npt_pre_xsd_final": {
+    "date": "2026-11-15",
+    "base_zip_sha256": "07da2c52c5200f003a8b95dc3de20dc6d878fea48f2982c89d0289accbdd3d40",
+    "decision": "NO-GO",
+    "findings": {
+      "NPT-01": "PARCIALMENTE CORREGIDO",
+      "NPT-02": "BLOQUEADO POR DEPENDENCIA EXTERNA",
+      "NPT-05": "PARCIALMENTE CORREGIDO",
+      "NPT-11": "PARCIALMENTE CORREGIDO"
+    },
+    "controls_source_wsdl": "31/31 PASS",
+    "previous_focal_source": "15/15 and 26/26 PASS",
+    "selected_regressions": "6/6 exit 0",
+    "legacy_npt_guard": "41/42 exit 1 inherited Axon assertion",
+    "dotnet_restore_build_test": "NOT_EXECUTED_SDK_MISSING_EXIT_127",
+    "xunit_executed": 0,
+    "sqlserver_executed": false,
+    "postgresql_executed": false,
+    "uat_executed": false,
+    "soap_live_enabled": false,
+    "migrations_added": 0,
+    "report": "docs/npt-pre-xsd-final/INFORME_NPT_PRE_XSD_FINAL.md"
+  },
+  "npt_soap_xsd_final_01": {
+    "date": "2026-11-16",
+    "source_zip": "ACHInterbank_NPT_PRE_XSD_FINAL_2026-11-15.zip",
+    "findings": {
+      "NPT-01": "PARCIAL",
+      "NPT-05": "PARCIAL",
+      "NPT-10": "CORREGIDO_TECNICAMENTE_EN_FUENTE_PENDIENTE_DOTNET",
+      "NPT-14": "CORREGIDO_TECNICAMENTE_EN_FUENTE_PENDIENTE_DOTNET"
+    },
+    "official_xsd_count": 5,
+    "official_wsdl_count": 2,
+    "checks_offline_lxml": "38/38 PASS",
+    "checks_static_source": "33/33 PASS",
+    "historical_regressions": "7/7 exit 0",
+    "legacy_npt_guard": "40/42 exit 1 (Axon prior expectation and SOAP1.2 unsupported by supplied SOAP1.1 WSDL)",
+    "dotnet_info_restore_build_test": "all exit 127 (SDK absent)",
+    "xunit_executed": 0,
+    "sqlserver_executed": false,
+    "postgresql_executed": false,
+    "soap_live_enabled": false,
+    "uat_executed": false,
+    "migration_count": 0,
+    "new_nuget_references": 0,
+    "external_deps": [
+      "ACH Colombia F5 file-based homologation/authorization",
+      "CFA NCTAORIG origin-account source approval",
+      "CFA/Axon response code semantics"
+    ],
+    "report": "docs/npt-soap-xsd-final-01/INFORME_NPT_SOAP_XSD_FINAL_01.md"
+  },
+  "latest_focal_hotfix_20261116": {
+    "name": "NPT_SOAP_XSD_H01_H02_H03",
+    "base_zip": "ACHInterbank_NPT_SOAP_XSD_FINAL_01.zip",
+    "base_sha256": "1434255a811427a06cc5b85af7d86bdf4da606b3fdfc63383b87c143dacfa34d",
+    "status": "CORREGIDO_EN_FUENTE_PENDIENTE_DOTNET",
+    "formal_decision": "NO-GO",
+    "uat_executed": false,
+    "findings": {
+      "H-01": "Validación XSD previa a HTTP en CFA y Axon",
+      "H-02": "Guard NCTAORIG Live fail-closed aun ausente/vacío/nil",
+      "H-03": "Expectativas readiness actualizadas"
+    },
+    "execution": {
+      "xsd_lxml": "38/38",
+      "legacy_source": "33/33",
+      "hotfix_focal_offline": "21/21",
+      "historical_scripts": "7/7 exits 0",
+      "legacy_npt": "40/42 exit 1 prior discrepancies",
+      "dotnet_restore_build_test": "UNAVAILABLE_127",
+      "xunit": "NOT_EXECUTED",
+      "uat": "NOT_EXECUTED"
+    },
+    "report": "docs/npt-transport-xsd-h010203/INFORME_H010203.md"
+  },
+  "latest_micro_hotfix_20261116": {
+    "name": "NPT_H02_H03_FINAL",
+    "base_zip": "ACHInterbank_HOTFIX_XSD_TRANSPORTE_NCTAORIG_H010203_2026-11-16.zip",
+    "scope": [
+      "H-02",
+      "H-03"
+    ],
+    "mapping": "Transactions.SourceAccountNumber -> Proc_Transacciones.NCTAORIG",
+    "h02": "CORREGIDO_EN_FUENTE_PENDIENTE_DOTNET",
+    "h03": "PRUEBAS_CORREGIDAS_PENDIENTE_XUNIT",
+    "h01": "PRESERVADO_SIN_MODIFICAR",
+    "live_automatically_enabled": false,
+    "offline_static": "23/23",
+    "historical_regressions": "6/6 exit 0",
+    "dotnet_restore_build_test": "SDK_AUSENTE_EXIT_127",
+    "xunit": "NO_EJECUTADO",
+    "uat": "NO_EJECUTADO",
+    "report": "docs/npt-h02-h03-final/INFORME_NPT_H02_H03_FINAL.md",
+    "production_files_changed": [
+      "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostProcessingPipeline.cs",
+      "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ProcTransaccionesRequestMapper.cs",
+      "src/Cfa.ACHInterbank.Persistence/Integrations/Providers/CurrentIntegrationSourceProviderFactory.cs",
+      "src/Cfa.ACHInterbank.Persistence/Integrations/Services/IntegrationMappingReadinessService.cs"
+    ],
+    "test_files_changed": [
+      "tests/Cfa.ACHInterbank.Tests/NachaDesagregadoIntegrationMappingTests.cs",
+      "tests/Cfa.ACHInterbank.Tests/OfficialSoapXsdContractTests.cs",
+      "tests/Cfa.ACHInterbank.Tests/ProcTransaccionesOriginAccountSafetyTests.cs",
+      "tests/Cfa.ACHInterbank.Tests/ProcTransaccionesRequestMapperTests.cs",
+      "tests/Cfa.ACHInterbank.Tests/TransactionIntegrationReadinessGuaranteeTests.cs"
+    ],
+    "schema_modified": false,
+    "migrations_added": 0
+  }
+}

@@ -16,6 +16,8 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
     private const string OkCode = "OK";
     private const string ReadyWithWarningsCode = "READY_WITH_WARNINGS";
     private const string FunctionalPlaceholderCode = "FUNCTIONAL_MAPPING_PLACEHOLDER";
+    private const string ProcContrapartidasSourceNotHomologatedCode = "PROC_CONTRAPARTIDAS_SOURCE_NOT_HOMOLOGATED";
+    private const string ProcContrapartidasProtectedSourceInvalidCode = "PROC_CONTRAPARTIDAS_PROTECTED_SOURCE_INVALID";
     private const string RegistrarContractInvalidCode = "REGISTRAR_WSDL_CONTRACT_INVALID";
     private const string ProcTransaccionesNctaOrigSourceInvalidCode = "PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID";
 
@@ -143,6 +145,22 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             .ThenBy(x => x.ParameterPath)
             .ToListAsync(ct);
 
+        // A changed/inactive method catalog cannot silently remove monetary identity
+        // gates from readiness; this is limited to protected Proc_Contrapartidas fields.
+        if (string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var activePaths = activeInputParameters.Select(x => x.ParameterPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var missingProtected = new[] { "OFEMP", "OFIDARCH", "OFDIRECCIONIP", "OFCTA", "OFIDTX" }
+                .Where(x => !activePaths.Contains(x)).ToArray();
+            if (missingProtected.Length > 0)
+            {
+                return Failed(integrationKey, operationKey, mappingPurpose, mappingDirection,
+                    "PROC_CONTRAPARTIDAS_PROTECTED_CONTRACT_INVALID",
+                    [$"El catalogo activo omite campos protegidos: {string.Join(", ", missingProtected)}."]);
+            }
+        }
+
         var registrarContractErrors = ValidateRegistrarRespuestaContract(operationKey, activeInputParameters);
         if (registrarContractErrors.Count > 0)
         {
@@ -211,8 +229,13 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         var published = publishedMappings[0];
         var snapshot = await _snapshotBuilder.BuildAsync(published.Id, ct);
 
+        // Protected fields remain mandatory for monetary readiness even if a published
+        // method catalog was modified to mark them optional (not an XSD-wide rule).
+        var isContrapartidas = string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas,
+            StringComparison.OrdinalIgnoreCase);
         var requiredParameters = activeInputParameters
-            .Where(x => x.Required)
+            .Where(x => x.Required || (isContrapartidas
+                && ProcContrapartidasFunctionalMappingResolver.IsProtectedParameter(x.ParameterPath)))
             .ToList();
 
         var requiredIds = requiredParameters.Select(x => x.Id).ToHashSet();
@@ -224,7 +247,8 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
                 return new IntegrationMappingReadinessResult(
                     IsReady: false,
                     Status: "Failed",
-                    Code: ProcTransaccionesNctaOrigSourceInvalidCode,
+                    Code: nctaOrigErrors.Any(x => x.StartsWith("PROC_TRANSACCIONES_NACHA_SOURCE_INVALID", StringComparison.Ordinal))
+                        ? "PROC_TRANSACCIONES_NACHA_SOURCE_INVALID" : ProcTransaccionesNctaOrigSourceInvalidCode,
                     IntegrationKey: integrationKey,
                     OperationKey: operationKey,
                     MappingPurpose: mappingPurpose,
@@ -252,6 +276,11 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             .Where(x => x.MappingSetId == published.Id && requiredIds.Contains(x.ParameterId))
             .ToListAsync(ct);
 
+        var protectedSourcePaths = isContrapartidas
+            ? await _context.IntegrationSourceCatalogFields.AsNoTracking()
+                .Where(x => x.MethodId == method.Id && x.IsActive)
+                .ToDictionaryAsync(x => x.Id, x => x.FieldPath, ct)
+            : new Dictionary<long, string>();
         var ruleGroups = rules.GroupBy(x => x.ParameterId).ToDictionary(x => x.Key, x => x.ToList());
         var missing = new List<string>();
         var inactive = new List<string>();
@@ -275,6 +304,18 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
                     .OrderBy(x => x.Priority)
                     .ThenBy(x => x.Id)
                     .First();
+                if (isContrapartidas)
+                {
+                    var effectiveSourcePath = !string.IsNullOrWhiteSpace(winner.SourceFieldPath)
+                        ? winner.SourceFieldPath
+                        : (winner.SourceCatalogFieldId.HasValue
+                            && protectedSourcePaths.TryGetValue(winner.SourceCatalogFieldId.Value, out var catalogPath)
+                                ? catalogPath : string.Empty);
+                    var safetyError = ProcContrapartidasFunctionalMappingResolver.AssessProtectedRule(
+                        parameter.ParameterPath, winner, effectiveSourcePath);
+                    if (safetyError is not null)
+                        functionalErrors.Add(safetyError);
+                }
                 var assessment = AssessFunctionalCoverage(operationKey, parameter, winner);
                 functionalErrors.AddRange(assessment.Errors);
                 functionalWarnings.AddRange(assessment.Warnings);
@@ -328,7 +369,7 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             return new IntegrationMappingReadinessResult(
                 IsReady: false,
                 Status: "Failed",
-                Code: FunctionalPlaceholderCode,
+                Code: ResolveFunctionalErrorCode(functionalErrors),
                 IntegrationKey: integrationKey,
                 OperationKey: operationKey,
                 MappingPurpose: mappingPurpose,
@@ -416,6 +457,9 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         {
             return [$"Proc_Transacciones.transaction: no existe la transacción {transactionId} para evaluar fuentes funcionales."];
         }
+
+        if (string.IsNullOrWhiteSpace(transaction.SourceAccountNumber))
+            errors.Add("Proc_Transacciones.NCTAORIG: Transactions.SourceAccountNumber es obligatorio para la operación.");
 
         if (!IsTransitCode(transaction.DestinationInstitution?.TransitCode))
             errors.Add("Proc_Transacciones.BCORECEP: la CFA receptora no tiene TransitCode numérico de tres dígitos.");
@@ -518,6 +562,12 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         IReadOnlyCollection<IntegrationMethodParameter> activeInputParameters,
         Guid mappingSetId)
     {
+        var activePaths = activeInputParameters.Select(x => x.ParameterPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var missingPhysical = new[] { "NORIG", "IDORIG", "NCTARECEP" }
+            .Where(x => !activePaths.Contains(x)).ToArray();
+        if (missingPhysical.Length > 0)
+            return [$"PROC_TRANSACCIONES_NACHA_SOURCE_INVALID: catalogo sin fuentes fisicas {string.Join(", ", missingPhysical)}."];
+
         var parameter = activeInputParameters.FirstOrDefault(x => string.Equals(x.ParameterPath, "NCTAORIG", StringComparison.OrdinalIgnoreCase));
         if (parameter is null)
         {
@@ -526,7 +576,7 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
 
         var rule = _context.IntegrationMappingRules
             .AsNoTracking()
-            .Where(x => x.MappingSetId == mappingSetId && x.ParameterId == parameter.Id)
+            .Where(x => x.MappingSetId == mappingSetId && x.ParameterId == parameter.Id && x.Enabled)
             .OrderBy(x => x.Priority)
             .ThenBy(x => x.Id)
             .FirstOrDefault();
@@ -536,14 +586,32 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             return ["PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID"];
         }
 
-        if (rule.SourceKind != IntegrationSourceKindEnum.EntryDetail
-            || !string.Equals(rule.SourceFieldPath, "entrydetails.accountnumber", StringComparison.OrdinalIgnoreCase)
-            || !string.IsNullOrWhiteSpace(rule.FixedValue)
-            || !string.IsNullOrWhiteSpace(rule.DefaultValue))
+        if (rule.SourceKind != IntegrationSourceKindEnum.Transaction
+            || !string.Equals(rule.SourceFieldPath, "transaction.sourceAccountNumber", StringComparison.OrdinalIgnoreCase)
+            || rule.FixedValue is not null
+            || rule.DefaultValue is not null
+            || !string.IsNullOrWhiteSpace(rule.TransformationCode)
+            || !string.IsNullOrWhiteSpace(rule.FormatMask)
+            || !string.IsNullOrWhiteSpace(rule.ConditionExpression))
         {
             return ["PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID"];
         }
 
+        // Verify published physical NACHA source identity as well; no receiver/originator swap.
+        foreach (var physical in activeInputParameters.Where(x => ProcTransaccionesRequestMapper.IsPhysicalNachaField(x.ParameterPath)))
+        {
+            var physicalRule = _context.IntegrationMappingRules.AsNoTracking()
+                .Where(x => x.MappingSetId == mappingSetId && x.ParameterId == physical.Id && x.Enabled)
+                .OrderBy(x => x.Priority).ThenBy(x => x.Id).FirstOrDefault();
+            if (physicalRule is null)
+                return [$"PROC_TRANSACCIONES_NACHA_SOURCE_INVALID: {physical.ParameterPath} no tiene regla activa."];
+            var sourceError = ProcTransaccionesRequestMapper.AssessPhysicalNachaRule(physical.ParameterPath, physicalRule);
+            if (sourceError is not null)
+                return [sourceError];
+        }
+
+        // The functional source of NCTAORIG is Transactions.SourceAccountNumber.
+        // Invalid/missing data is rejected at runtime and by the request mapper.
         return [];
     }
 
@@ -589,6 +657,17 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         return errors;
     }
 
+    // Prefer the protected-identity violation when a published mapping has both errors.
+    // Other unhomologated sources remain blocked with their own public code.
+    private static string ResolveFunctionalErrorCode(IReadOnlyCollection<string> errors)
+    {
+        if (errors.Any(x => x.StartsWith(ProcContrapartidasProtectedSourceInvalidCode + ":", StringComparison.Ordinal)))
+            return ProcContrapartidasProtectedSourceInvalidCode;
+        if (errors.Any(x => x.StartsWith(ProcContrapartidasSourceNotHomologatedCode + ":", StringComparison.Ordinal)))
+            return ProcContrapartidasSourceNotHomologatedCode;
+        return FunctionalPlaceholderCode;
+    }
+
     private static FunctionalCoverageAssessment AssessFunctionalCoverage(
         string operationKey,
         IntegrationMethodParameter parameter,
@@ -604,12 +683,6 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         if (rule.SourceKind == IntegrationSourceKindEnum.Constant)
         {
             var value = fixedValue ?? defaultValue ?? sourcePath;
-            if (IsNonBlockingTechnicalConstant(operationKey, parameterPath, value))
-            {
-                warnings.Add(WarningMessage(operationKey, parameterPath, value, "constante tecnica documentada; validar contra politica funcional antes de salida productiva"));
-                return new FunctionalCoverageAssessment([], warnings);
-            }
-
             if (IsReservedResponsePlaceholder(operationKey, parameterPath))
             {
                 warnings.Add(WarningMessage(operationKey, parameterPath, value, "campo contractual de respuesta/reservado; no se decide direccion en esta fase"));
@@ -672,11 +745,6 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
 
         return new FunctionalCoverageAssessment(errors, warnings);
     }
-
-    private static bool IsNonBlockingTechnicalConstant(string operationKey, string parameterPath, string? value)
-        => string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(parameterPath, "OFDIRECCIONIP", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(value, "0.0.0.0", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsReservedResponsePlaceholder(string operationKey, string parameterPath)
         => string.Equals(operationKey, IntegrationGuaranteeConstants.ProcTransacciones, StringComparison.OrdinalIgnoreCase)

@@ -62,6 +62,12 @@ public class ContrapartidaDispatchBatch : AuditableEntity
     public Guid? MappingSetId { get; set; }
     public int? MappingVersion { get; set; }
     public string MappingSnapshotHash { get; set; } = string.Empty;
+    // AUD-E2E-04: durable intent, committed atomically with the InFlight fencing transition.
+    public string DispatchCorrelationId { get; set; } = string.Empty;
+    public string RequestPayloadHash { get; set; } = string.Empty;
+    public DateTime? DispatchIntentAtUtc { get; set; }
+    public string DispatchSoapEndpoint { get; set; } = string.Empty;
+    public string DispatchExecutionMode { get; set; } = string.Empty;
     public string RequestPayloadXml { get; set; } = string.Empty;
     public string ResponsePayloadXml { get; set; } = string.Empty;
     public string SummaryMessage { get; set; } = string.Empty;
@@ -85,6 +91,27 @@ public class ContrapartidaDispatchItem : AuditableEntity
     public DateTime? LastAttemptAtUtc { get; set; }
     public DateTime? LastSuccessAtUtc { get; set; }
     public int AttemptCount { get; set; }
+    /// <summary>Opaque claim token. CAS/EF concurrency prevents a recovered worker from overwriting decisions.</summary>
+    public string DispatchLeaseToken { get; set; } = string.Empty;
+    public DateTime? DispatchLeaseExpiresAtUtc { get; set; }
+    /// <summary>Idle, Preparing (no SOAP), InFlight (SOAP may have been sent).</summary>
+    public string DispatchLeasePhase { get; set; } = "Idle";
+    // Last pre-transport intent is per ITEM, not per batch: manual retry batches may contain
+    // multiple independent SOAP requests. Historical completed attempts retain older XML.
+    public string DispatchIntentCorrelationId { get; set; } = string.Empty;
+    public string DispatchIntentPayloadHash { get; set; } = string.Empty;
+    public string DispatchIntentPayloadXml { get; set; } = string.Empty;
+    public Guid? DispatchIntentMappingSetId { get; set; }
+    public int? DispatchIntentMappingVersion { get; set; }
+    public string DispatchIntentMappingSnapshotHash { get; set; } = string.Empty;
+    public string DispatchIntentSoapEndpoint { get; set; } = string.Empty;
+    public string DispatchIntentExecutionMode { get; set; } = string.Empty;
+    public DateTime? DispatchIntentAtUtc { get; set; }
+    /// <summary>Fail closed: a result-unknown debit must never be retried automatically or manually without reconciliation.</summary>
+    public bool RequiresReconciliation { get; set; }
+    // Dispatch routing only: preserve the originating AchTransaction/AchBatch cycle unchanged.
+    public string LastReassignedFromCycleId { get; set; } = string.Empty;
+    public DateTime? LastReassignedAtUtc { get; set; }
 
     public string LastResponseCode { get; set; } = string.Empty;
     public string LastErrorCode { get; set; } = string.Empty;

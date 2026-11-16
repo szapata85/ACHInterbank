@@ -1,0 +1,97 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="http://tempuri.org/" elementFormDefault="qualified" targetNamespace="http://tempuri.org/">
+<xs:element name="PLValidarUsuarioBV">
+<xs:complexType>
+<xs:sequence>
+<xs:element minOccurs="0" name="VLLogin" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="VLClave" nillable="true" type="xs:string"/>
+</xs:sequence>
+</xs:complexType>
+</xs:element>
+<xs:element name="PLValidarUsuarioBVResponse">
+<xs:complexType>
+<xs:sequence>
+<xs:element minOccurs="0" name="PLValidarUsuarioBVResult" nillable="true" type="xs:string"/>
+</xs:sequence>
+</xs:complexType>
+</xs:element>
+<xs:element name="Proc_Contrapartidas">
+<xs:complexType>
+<xs:sequence>
+<xs:element minOccurs="0" name="OFNIT" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="OFEMP" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="OFCTA" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="OFDD" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="OFFECHEFEC" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="OFMONDEB" type="xs:decimal"/>
+<xs:element minOccurs="0" name="OFMONCRE" type="xs:decimal"/>
+<xs:element minOccurs="0" name="OFIDARCH" type="xs:int"/>
+<xs:element minOccurs="0" name="OFIDLOT" type="xs:int"/>
+<xs:element minOccurs="0" name="OFST" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="OFIDTX" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="OFIDREVER" type="xs:int"/>
+<xs:element minOccurs="0" name="OFIDEBAPLI" type="xs:int"/>
+<xs:element minOccurs="0" name="OFIDCAMCOMPE" type="xs:int"/>
+<xs:element minOccurs="0" name="OFDIRECCIONIP" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="OFLIBRE" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="OFLIBRE1" type="xs:int"/>
+<xs:element minOccurs="0" name="ANSIDLOTE" type="xs:int"/>
+<xs:element minOccurs="0" name="ANSST" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="ANCLC" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="ANSIDTX" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="ANSIDREVER" type="xs:int"/>
+</xs:sequence>
+</xs:complexType>
+</xs:element>
+<xs:element name="Proc_ContrapartidasResponse">
+<xs:complexType>
+<xs:sequence>
+<xs:element minOccurs="0" name="ANSIDLOTE" type="xs:int"/>
+<xs:element minOccurs="0" name="ANSST" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="ANCLC" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="ANSIDTX" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="ANSIDREVER" type="xs:int"/>
+</xs:sequence>
+</xs:complexType>
+</xs:element>
+<xs:element name="Proc_Transacciones">
+<xs:complexType>
+<xs:sequence>
+<xs:element minOccurs="0" name="TREG" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="TIPTRAN" type="xs:int"/>
+<xs:element minOccurs="0" name="BCORECEP" type="xs:int"/>
+<xs:element minOccurs="0" name="BCOORIG" type="xs:int"/>
+<xs:element minOccurs="0" name="NORIG" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="NCTAORIG" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="IDORIG" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="DESTRAN" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="FECEFEC" type="xs:int"/>
+<xs:element minOccurs="0" name="NCTARECEP" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="MONTO" type="xs:double"/>
+<xs:element minOccurs="0" name="NRECEP" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="IDRECEP" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="DISCRE" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="CONV" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="PROD" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="INFPAG" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="IDTRAN" type="xs:long"/>
+<xs:element minOccurs="0" name="IDLOTE" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="REGLOTE" type="xs:long"/>
+<xs:element minOccurs="0" name="IREVER" type="xs:int"/>
+<xs:element minOccurs="0" name="LIBRE" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="IDCAMCOMPE" type="xs:int"/>
+<xs:element minOccurs="0" name="DIRECCIONIP" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="LIBRE1" type="xs:int"/>
+<xs:element minOccurs="0" name="RTAACH" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="RTALOC" nillable="true" type="xs:string"/>
+</xs:sequence>
+</xs:complexType>
+</xs:element>
+<xs:element name="Proc_TransaccionesResponse">
+<xs:complexType>
+<xs:sequence>
+<xs:element minOccurs="0" name="RTAACH" nillable="true" type="xs:string"/>
+<xs:element minOccurs="0" name="RTALOC" nillable="true" type="xs:string"/>
+</xs:sequence>
+</xs:complexType>
+</xs:element>
+</xs:schema>

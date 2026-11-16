@@ -418,12 +418,16 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         {
             result.Failures.Should().BeEmpty();
             result.TotalEntries.Should().Be(1);
+            result.ValidEntries.Should().Be(1);
+            result.InvalidEntries.Should().Be(0);
             result.TotalAddendas.Should().Be(count);
         }
         else
         {
             result.Failures.Should().NotBeEmpty();
-            result.TotalEntries.Should().Be(0);
+            result.TotalEntries.Should().Be(1); // Rejected but physically present.
+            result.ValidEntries.Should().Be(0);
+            result.InvalidEntries.Should().Be(1);
         }
     }
 
@@ -478,11 +482,15 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         {
             result.Failures.Should().BeEmpty();
             result.TotalEntries.Should().Be(1);
+            result.ValidEntries.Should().Be(1);
+            result.InvalidEntries.Should().Be(0);
         }
         else
         {
             result.Failures.Should().NotBeEmpty();
-            result.TotalEntries.Should().Be(0);
+            result.TotalEntries.Should().Be(1);
+            result.ValidEntries.Should().Be(0);
+            result.InvalidEntries.Should().Be(1);
         }
     }
 

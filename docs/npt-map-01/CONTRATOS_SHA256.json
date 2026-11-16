@@ -1,0 +1,30 @@
+{
+  "WSCFAACH/WSCFAACH.wsdl.xml": {
+    "sha256": "46e66b4e84fb4d4082dfe5474cfc9a2095cc75373a4550bafdc3e122b02dc8ab",
+    "matches_project_resource": true
+  },
+  "WSCFAACH/xsd0.xml": {
+    "sha256": "5a0e0b237c034db7efdffcea00623c68ef029720e32a0e482944893b2c8538e7",
+    "matches_project_resource": true
+  },
+  "WSCFAACH/xsd1.xml": {
+    "sha256": "affa235e732a8bf3ca3eb406dc435c4d72095d21c8e5906927c3812e3e8a5d19",
+    "matches_project_resource": true
+  },
+  "WSAxonRespuestaTransacciones/WSAxonRespuestaTransacciones.wsdl.xml": {
+    "sha256": "0308cf9375989d6214a88120a887518406618ab195ccff9a78879f0ad5793062",
+    "matches_project_resource": true
+  },
+  "WSAxonRespuestaTransacciones/xsd0.xml": {
+    "sha256": "c6163208ddc3c471c72e87e77d259c0040da0188fed04e813e6838ae3ff70fd5",
+    "matches_project_resource": true
+  },
+  "WSAxonRespuestaTransacciones/xsd1.xml": {
+    "sha256": "affa235e732a8bf3ca3eb406dc435c4d72095d21c8e5906927c3812e3e8a5d19",
+    "matches_project_resource": true
+  },
+  "WSAxonRespuestaTransacciones/xsd2.xml": {
+    "sha256": "5cf9892080047fe1944f0ff3df9217c269c32c47e4318a7eda886a6969c069b7",
+    "matches_project_resource": true
+  }
+}

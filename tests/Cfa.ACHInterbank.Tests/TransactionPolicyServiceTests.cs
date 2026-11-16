@@ -176,7 +176,7 @@ public class TransactionPolicyServiceTests
 
         Assert.False(preview.CanSubmit);
         Assert.True(preview.WouldDuplicate);
-        Assert.Equal("Ya existe una transacción equivalente para el mismo ciclo.", preview.Message);
+        Assert.Contains("entidad originadora", preview.Message);
         Assert.Equal($"{cycle.Id}:Credit:1234567890:9876543210:1500:REF-CONTRACT-001", preview.IdempotencyKey);
     }
 

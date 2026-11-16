@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
@@ -1014,6 +1015,112 @@ public class AchReturnOfReturnFileGenerationServiceTests
         Assert.False(result.IsGenerated);
         Assert.Contains(result.Failures, x => x.Code == CycleTransactionPolicy.NotAllowedReasonCode);
         Assert.DoesNotContain(result.Failures, x => x.Code.StartsWith("CENIT_", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(true, "CENIT_ROR_OPTION_C_REQUIRED")]
+    [InlineData(false, "CENIT_ROR_SOURCE_RETURN_AMBIGUOUS")]
+    public async Task I02_Cycle1_FileValidationRejectsAmbiguousLegacyButAcceptsPinnedParent(
+        bool pinSource, string expectedCode)
+    {
+        await using var context = BuildContext();
+        var date = new DateTime(2026, 9, 16);
+        var id = SeedCenitCycle1RorFlow(context, 253, 8353, date.AddDays(-1), date);
+        var sourceLink = await context.IncomingNachaTransactionLinks.SingleAsync();
+        var parent = await context.AchTransactionStateEvents.SingleAsync(x => x.Id == 900000L + id);
+        if (pinSource)
+            parent.PayloadJson = JsonSerializer.Serialize(new { incomingReturnLinkId = sourceLink.Id.ToString("D") });
+        AddI02CompetingRawLink(context, id);
+        await context.SaveChangesAsync();
+
+        var result = await CreateCenitCycle1PolicySut(context).GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { id }, date.AddHours(8), "qa", "api"), CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == expectedCode);
+        if (pinSource)
+            Assert.DoesNotContain(result.Failures, x => x.Code == "CENIT_ROR_SOURCE_RETURN_AMBIGUOUS");
+        Assert.Empty(await context.AchReturnOfReturnGeneratedFileAudits.ToListAsync());
+    }
+
+    [Fact]
+    public async Task I02_Cycle1_BuilderReceivesTraceFromPinnedParentNotNewerCompetingRaw()
+    {
+        await using var context = BuildContext();
+        var date = new DateTime(2026, 9, 16);
+        var id = SeedCenitCycle1RorFlow(context, 255, 8355, date.AddDays(-1), date);
+        var sourceLink = await context.IncomingNachaTransactionLinks.SingleAsync();
+        var parent = await context.AchTransactionStateEvents.SingleAsync(x => x.Id == 900000L + id);
+        parent.PayloadJson = JsonSerializer.Serialize(new { incomingReturnLinkId = sourceLink.Id.ToString("D") });
+        AddI02CompetingRawLink(context, id);
+        await context.SaveChangesAsync();
+
+        NachaReturnOutBuildRequest? mapped = null;
+        var builder = new Mock<INachaFileBuilder>();
+        builder.Setup(x => x.BuildReturnOutAsync(It.IsAny<NachaReturnOutBuildRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<NachaReturnOutBuildRequest, CancellationToken>((request, _) => mapped = request)
+            .ReturnsAsync(new NachaReturnOutBuildResult(
+                string.Join("\n", new[] { '1', '5', '6', '7', '8', '9' }
+                    .Select(recordType => recordType + new string('0', 105))),
+                6, CenitReturnOfReturn2026Layout.OutProfileCode,
+                CenitReturnOfReturn2026Layout.NormativeVersion, false));
+        var cyclePolicy = BuildCenitCycle1BlockedPolicy();
+        var sut = new AchReturnOfReturnFileGenerationService(
+            context, nachaFileBuilder: builder.Object,
+            cycleTransactionPolicy: cyclePolicy.Object,
+            operationalCalendarService: new OperationalCalendarService(context));
+        var result = await sut.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { id }, date.AddHours(8), "qa", "api"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.NotNull(mapped);
+        var entry = Assert.Single(Assert.Single(mapped!.Batches).Entries);
+        Assert.Equal(context.AchTransactions.Single(x => x.Id == id * 10 + 1).TraceNumber, entry.SourceReturnTraceNumber);
+        Assert.NotEqual($"COMPETING{id}", entry.SourceReturnTraceNumber);
+        Assert.Equal(context.AchTransactions.Single(x => x.Id == id * 10 + 3).TraceNumber, entry.OriginalTraceNumber);
+        Assert.Equal(100m, entry.Amount);
+        Assert.Single(await context.AchReturnOfReturnGeneratedFileAudits.ToListAsync());
+    }
+
+    [Fact]
+    public async Task I02_Cycle1_FileValidationRejectsParentLinkChangedAfterRegistration()
+    {
+        await using var context = BuildContext();
+        var date = new DateTime(2026, 9, 16);
+        var id = SeedCenitCycle1RorFlow(context, 254, 8354, date.AddDays(-1), date);
+        var parent = await context.AchTransactionStateEvents.SingleAsync(x => x.Id == 900000L + id);
+        parent.PayloadJson = JsonSerializer.Serialize(new { incomingReturnLinkId = Guid.NewGuid().ToString("D") });
+        await context.SaveChangesAsync();
+
+        var result = await CreateCenitCycle1PolicySut(context).GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(new[] { id }, date.AddHours(8), "qa", "api"), CancellationToken.None);
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_SOURCE_RETURN_LINK_MISMATCH");
+        Assert.Empty(await context.AchReturnOfReturnGeneratedFileAudits.ToListAsync());
+    }
+
+    private static void AddI02CompetingRawLink(AchDbContext context, int flowId)
+    {
+        var entryId = flowId * 10 + 7;
+        var addendaId = flowId * 10 + 8;
+        var original = context.AchTransactions.Single(x => x.Id == flowId * 10 + 3);
+        var nachaId = $"CENIT-ROR-SOURCE-{flowId}";
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = entryId, NachaID = nachaId, BatchHeaderId = flowId * 10 + 4,
+            SequenceNumber = $"COMPETING{flowId}", Amount = original.Amount
+        });
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = addendaId, NachaID = nachaId, EntryDetailId = entryId,
+            CodeTypeAddendumRecord = "99", ReturnReasonCode = "R02", OriginalTraceNumber = original.TraceNumber
+        });
+        context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(), AchTransactionId = original.Id,
+            EntryDetailId = entryId, AddendaRecordId = addendaId, IsFinal = true,
+            LinkedAtUtc = DateTime.UtcNow.AddDays(1)
+        });
     }
 
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

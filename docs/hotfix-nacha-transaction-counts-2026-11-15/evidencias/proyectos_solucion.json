@@ -1,0 +1,30 @@
+[
+  {
+    "project": "src\\Cfa.ACHInterbank.Api\\Cfa.ACHInterbank.Api.csproj",
+    "exists": true
+  },
+  {
+    "project": "src\\Cfa.ACHInterbank.Application\\Cfa.ACHInterbank.Application.csproj",
+    "exists": true
+  },
+  {
+    "project": "src\\Cfa.ACHInterbank.Domain\\Cfa.ACHInterbank.Domain.csproj",
+    "exists": true
+  },
+  {
+    "project": "src\\Cfa.ACHInterbank.Persistence\\Cfa.ACHInterbank.Persistence.csproj",
+    "exists": true
+  },
+  {
+    "project": "src\\Cfa.ACHInterbank.Persistence.Migrations.SqlServer\\Cfa.ACHInterbank.Persistence.Migrations.SqlServer.csproj",
+    "exists": true
+  },
+  {
+    "project": "src\\Cfa.ACHInterbank.External\\Cfa.ACHInterbank.External.csproj",
+    "exists": true
+  },
+  {
+    "project": "tests\\Cfa.ACHInterbank.Tests\\Cfa.ACHInterbank.Tests.csproj",
+    "exists": true
+  }
+]

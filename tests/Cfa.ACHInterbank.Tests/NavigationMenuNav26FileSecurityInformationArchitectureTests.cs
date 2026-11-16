@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Persistence.Configuration;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Navigation.Seeders;
 using Cfa.ACHInterbank.Persistence.Security.Seeders;

@@ -25,7 +25,7 @@ namespace Cfa.ACHInterbank.Tests;
 public sealed class NachaDesagregadoIntegrationMappingTests
 {
     [Fact]
-    public async Task ProcTransaccionesReadiness_CompleteFunctionalSources_IsReady()
+    public async Task ProcTransaccionesReadiness_CanonicalOriginSourcePassesWithValidPrerequisites()
     {
         await using var fixture = await Fixture.CreateAsync();
         await fixture.PublishProcTransaccionesMappingAsync();
@@ -39,7 +39,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
     }
 
     [Fact]
-    public async Task EffectiveSettings_HomologatedMapping_IsReadyWithoutBlockingParameters()
+    public async Task EffectiveSettings_ValidOriginMappingDoesNotEnableLiveWithoutOtherGuards()
     {
         await using var fixture = await Fixture.CreateAsync();
         await fixture.PublishProcTransaccionesMappingAsync();
@@ -69,8 +69,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         var settings = await service.GetAsync();
 
         Assert.True(settings.ProcTransaccionesEffectiveSettings!.MappingReady);
-        Assert.Null(settings.ProcTransaccionesEffectiveSettings.MappingIssueCode);
-        Assert.Empty(settings.ProcTransaccionesEffectiveSettings.BlockingParameters);
+        Assert.Equal("Live", settings.ProcTransaccionesEffectiveSettings.EffectiveMode);
     }
 
     [Fact]
@@ -96,9 +95,9 @@ public sealed class NachaDesagregadoIntegrationMappingTests
     }
 
     [Theory]
-    [InlineData(true, "BCORECEP")]
-    [InlineData(false, "BCOORIG")]
-    public async Task ProcTransaccionesReadiness_MissingTransitCode_Blocks(bool receiver, string parameter)
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ProcTransaccionesReadiness_MissingTransitCodeFailsForActualTransitProblem(bool receiver)
     {
         await using var fixture = await Fixture.CreateAsync();
         await fixture.PublishProcTransaccionesMappingAsync();
@@ -110,7 +109,9 @@ public sealed class NachaDesagregadoIntegrationMappingTests
             .EvaluateAsync(Operation(fixture));
 
         Assert.False(readiness.IsReady);
-        Assert.Contains(readiness.Errors, x => x.Contains(parameter, StringComparison.OrdinalIgnoreCase));
+        Assert.False(readiness.CanBuildPayload);
+        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
+        Assert.Contains(readiness.Errors, x => x.Contains(receiver ? "BCORECEP" : "BCOORIG", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -138,7 +139,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Equal("1234567", result.Contract.Parameters["IDTRAN"]);
         Assert.Equal("000001", result.Contract.Parameters["IDLOTE"]);
         Assert.Equal("0", result.Contract.Parameters["IREVER"]);
-        Assert.Equal("0000003202", result.Contract.Parameters["NCTAORIG"]);
+        Assert.Equal("0000007101", result.Contract.Parameters["NCTAORIG"]);
         Assert.Equal(77, result.Contract.Parameters["DESTRAN"].Length);
         Assert.Equal(result.Contract.Parameters["DESTRAN"], result.Contract.Parameters["INFPAG"]);
     }
@@ -231,7 +232,9 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Equal("32", resolution.Contract.Parameters["TIPTRAN"]);
         Assert.Equal("4321.50", resolution.Contract.Parameters["MONTO"]);
         Assert.Equal("1234567", resolution.Contract.Parameters["IDTRAN"]);
-        Assert.Equal("Banco Externo UAT", resolution.Contract.Parameters["NORIG"]);
+        Assert.Equal("BANCO EXTERNO UAT", resolution.Contract.Parameters["NORIG"]);
+        Assert.Equal("900999000", resolution.Contract.Parameters["IDORIG"]);
+        Assert.Equal("0000003202", resolution.Contract.Parameters["NCTARECEP"]);
         Assert.Equal(77, resolution.Contract.Parameters["DESTRAN"].Length);
         Assert.Equal(resolution.Contract.Parameters["DESTRAN"], resolution.Contract.Parameters["INFPAG"]);
         Assert.Equal("283", resolution.Contract.Parameters["BCORECEP"]);
@@ -328,7 +331,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Contains("Proc_Transacciones", envelope);
         Assert.Contains("1234567", envelope);
         Assert.DoesNotContain("<METODO>", envelope, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("<tem:NCTAORIG>0000003202</tem:NCTAORIG>", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<tem:NCTAORIG>0000007101</tem:NCTAORIG>", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ILR", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SEED", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("PLACEHOLDER", envelope, StringComparison.OrdinalIgnoreCase);
@@ -402,13 +405,14 @@ public sealed class NachaDesagregadoIntegrationMappingTests
     }
 
     [Fact]
-    public async Task ProcTransacciones_ShouldMapNctaOrig_FromEntryDetailsAccountNumber_AndIgnoreTransactionSourceAccountNumber()
+    public async Task ProcTransacciones_ShouldMapNctaOrig_FromTransactionSourceAccountNumber_NotReceivingEntryDetail()
     {
         await using var fixture = await Fixture.CreateAsync();
         await fixture.PublishProcTransaccionesMappingAsync();
 
         var entry = await fixture.Context.EntryDetails.SingleAsync(x => x.EntryDetailID == 601);
         entry.AccountNumber = "123456789";
+        fixture.Transaction.DestinationAccountNumber = "123456789"; // Keep NACHA type-6 correlation valid.
         fixture.Transaction.SourceAccountNumber = "local-live-test-marker";
         await fixture.Context.SaveChangesAsync();
 
@@ -423,8 +427,90 @@ public sealed class NachaDesagregadoIntegrationMappingTests
 
         var envelope = mapper.BuildSoapBody(resolution.Contract);
 
-        Assert.Contains("<tem:NCTAORIG>123456789</tem:NCTAORIG>", envelope, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("local-live-test-marker", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<tem:NCTAORIG>local-live-test-marker</tem:NCTAORIG>", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<tem:NCTAORIG>123456789</tem:NCTAORIG>", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(fixture.Transaction.SourceAccountNumber, resolution.Contract.Parameters["NCTAORIG"]);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_OmitsUnprovenOptionalOriginAccount_ButLiveStillBlocks()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishProcTransaccionesMappingAsync();
+        fixture.Transaction.SourceAccountNumber = string.Empty;
+        await fixture.Context.SaveChangesAsync();
+
+        var mapper = new ProcTransaccionesRequestMapper(fixture.Context);
+        var resolution = await mapper.ResolveAsync(
+            fixture.Queue, fixture.Ingestion, fixture.Classification,
+            fixture.Transaction, fixture.Cycle, DateTime.UtcNow);
+        var envelope = mapper.BuildSoapBody(resolution.Contract);
+        Assert.DoesNotContain("<tem:NCTAORIG>", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<tem:NCTARECEP>0000003202</tem:NCTARECEP>", envelope, StringComparison.OrdinalIgnoreCase);
+        var blocked = Assert.Throws<InvalidOperationException>(() =>
+            IncomingNachaExternalDispatchStage.EnsureLiveOriginAccountPresent(envelope));
+        Assert.Contains("PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID", blocked.Message);
+    }
+
+    [Theory]
+    [InlineData(false, "TransformationCode")]
+    [InlineData(false, "FormatMask")]
+    [InlineData(false, "ConditionExpression")]
+    [InlineData(true, "TransformationCode")]
+    [InlineData(true, "FormatMask")]
+    [InlineData(true, "ConditionExpression")]
+    public async Task ProcTransacciones_NctaOrig_RejectsManipulatedMetadata_InBothMappingModes(
+        bool contractDriven, string metadata)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishProcTransaccionesMappingAsync();
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x =>
+            x.Code == "WSCFAACH.Proc_Transacciones");
+        var parameter = await fixture.Context.IntegrationMethodParameters.SingleAsync(x =>
+            x.MethodId == method.Id && x.ParameterPath == "NCTAORIG");
+        var rule = await fixture.Context.IntegrationMappingRules.SingleAsync(x =>
+            x.ParameterId == parameter.Id && x.Enabled);
+        switch (metadata)
+        {
+            case "TransformationCode": rule.TransformationCode = "Trim"; break;
+            case "FormatMask": rule.FormatMask = "000000"; break;
+            case "ConditionExpression": rule.ConditionExpression = "true"; break;
+        }
+        await fixture.Context.SaveChangesAsync();
+
+        ProcTransaccionesRequestMapper mapper;
+        if (contractDriven)
+        {
+            var functionalSourceResolver = new ProcTransaccionesFunctionalSourceResolver(fixture.Context);
+            var sourceRegistry = new IntegrationSourceProviderRegistry(
+                new CurrentIntegrationSourceProviderFactory(fixture.Context, functionalSourceResolver).Create());
+            var transformationRegistry = new IntegrationTransformationRegistry(
+                StandardIntegrationTransformationCatalog.Create());
+            var requestResolver = new IntegrationRequestResolver(
+                new IntegrationExecutionContractResolver(fixture.Context),
+                new IntegrationParameterValueResolver(sourceRegistry, transformationRegistry));
+            mapper = new ProcTransaccionesRequestMapper(fixture.Context,
+                options: Options.Create(new ProcTransaccionesDispatchOptions
+                {
+                    Mode = "DryRun", UseContractDrivenRequest = true
+                }),
+                requestResolver: requestResolver,
+                soapBodyWriter: new ContractDrivenSoapBodyWriter(),
+                functionalSourceResolver: functionalSourceResolver);
+        }
+        else
+        {
+            mapper = new ProcTransaccionesRequestMapper(fixture.Context);
+        }
+
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => mapper.ResolveAsync(
+            fixture.Queue, fixture.Ingestion, fixture.Classification,
+            fixture.Transaction, fixture.Cycle, DateTime.UtcNow));
+        // The generic engine itself rejects a condition before returning a binding.
+        var expected = contractDriven && metadata == "ConditionExpression"
+            ? "MAPPING_CONDITION_NOT_SUPPORTED"
+            : "PROC_TRANSACCIONES_NCTAORIG_SOURCE_UNVERIFIED";
+        Assert.Contains(expected, error.Message);
     }
 
     private static void AssertSoapRequestSemanticParity(string legacyXml, string contractDrivenXml)
@@ -552,7 +638,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
                 Reference = "UAT-NACHA-EXT-701",
                 SourceInstitutionId = 2,
                 DestinationInstitutionId = 1,
-                SourceAccountNumber = string.Empty,
+                SourceAccountNumber = "0000007101",
                 DestinationAccountNumber = "0000003202",
                 OriginatingDFI = "99999900",
                 ReceivingDFI = "00001283",

@@ -1,0 +1,22 @@
+{
+  "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaAdmissionValidator.cs": {
+    "sha256": "04cde91bfe8da035d068bf2d807ebbc4a2b05fbdd733152dfb13f4d27f8048b5",
+    "bytes": 16390
+  },
+  "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaParserService.cs": {
+    "sha256": "88a6ba4242184074c171ae4b28e41404d780c7fb907fbfd90f9f36a75de6e238",
+    "bytes": 59538
+  },
+  "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/IncomingNachaAdmissionAchColFileBasedTests.cs": {
+    "sha256": "fcdad5f877173303ce3e797342b6e55fe95a6082d38d07b0663cc18bc69a4294",
+    "bytes": 11453
+  },
+  "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/IncomingNachaTraceabilityCoreTests.cs": {
+    "sha256": "ed31c5661783cbd90801721cc4ceab5b4b1df240f069a7bf8d3708b3105f1cee",
+    "bytes": 14143
+  },
+  "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/AchTransactionNachaTests.cs": {
+    "sha256": "223ee67cc0aee846b760be1dbb9fa66859522d6de2818aa7b766522e7370d576",
+    "bytes": 135503
+  }
+}

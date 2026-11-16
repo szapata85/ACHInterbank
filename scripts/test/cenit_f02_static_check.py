@@ -27,7 +27,9 @@ checks = {
     'F02-S08 ADV validates profile, control and totals':
         'header.Substring(1, 3) != "280"' in service
         and 'header.Substring(50, 3) != "ADV"' in service
-        and 'rawDebits != debits * 100m' in service,
+        and 'expectedDebits != debits' in service
+        and 'expectedCredits != credits' in service
+        and 'CENIT_ADV_FILE_CONTROL_INVALID' in service,
     'F02-S09 ADV codes 81-88 and cycle correlation':
         all(f'"{i}"' in service for i in range(81,89))
         and 'parsed.Type is CenitChamberResponseType.Reconciliation' in service,

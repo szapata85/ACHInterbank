@@ -1,0 +1,30 @@
+{
+  "total": 23,
+  "passed": 23,
+  "checks": {
+    "source provider allows ProcTransacciones": true,
+    "NCTAORIG canonical mapping source": true,
+    "readiness requires exact canonical mapping": true,
+    "readiness rejects fixed and default fallbacks": true,
+    "independent provenance-only blocker removed": true,
+    "runtime rejects blank transaction source": true,
+    "mapper rejects absent source": true,
+    "mapper enforces exact ordinal equality": true,
+    "mapper rejects receiver source and constant": true,
+    "legacy mapping uses source account exactly": true,
+    "Live preflight retains mandatory account": true,
+    "Live preflight rejects xsi nil": true,
+    "Live preflight blocks DTD and resolvers": true,
+    "no automatic blanket provenance denial": true,
+    "ACH Colombia file-based F5 remains gated": true,
+    "XSD final transport still in CFA client": true,
+    "XSD final transport still in Axon client": true,
+    "positive readiness expectation updated": true,
+    "transit negative expectations updated": true,
+    "mismatched source negative tests": true,
+    "missing source negative test": true,
+    "live nil and duplicate negative tests": true,
+    "direct mapper test has original account": true
+  },
+  "execution": "Python static only; no CLR"
+}

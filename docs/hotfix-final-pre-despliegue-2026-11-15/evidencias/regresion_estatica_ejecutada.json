@@ -1,0 +1,128 @@
+[
+  {
+    "script": "cenit_i01_queue_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      15,
+      15
+    ],
+    "stdout_tail": "5, replay, mixto, y sesión inválida\nPASS I01 regresión previa DB/rollback conservada\nI01 STATIC RESULT 15/15. NO se ejecutaron xUnit, DB, Quartz ni CENIT real.\n"
+  },
+  {
+    "script": "cenit_i02_ror_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      26,
+      26
+    ],
+    "stdout_tail": "nged link negative exists\n26 PASS No schema migration for this increment\nI02 SOURCE-CHECK: 26/26 PASS. No C# compilation, DB or official operator verification.\n"
+  },
+  {
+    "script": "cenit_i03_netting_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      22,
+      22
+    ],
+    "stdout_tail": "e camara ajena e historico\nPASS: xUnit cubre contrato API\nPASS: Jasmine comprueba etiqueta UX\nI03 SOURCE-CHECK: 22/22. NO ejecuta compilacion, tests C# ni CUD.\n"
+  },
+  {
+    "script": "cenit_i04_r23_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      24,
+      24
+    ],
+    "stdout_tail": " amount and supplied-deadline tamper\nPASS: No ACH Colombia implementation edited by I04 guard\nI04 STATIC: 24/24; NO xUnit, DB, NACHA-M or operator ACK executed\n"
+  },
+  {
+    "script": "cenit_i05_priority_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      32,
+      32
+    ],
+    "stdout_tail": "ure provides CENIT context\nPASS: New tests do not assert official settlement\nI05 STATIC: 32/32; no .NET compilation, xUnit, SQL engine or operator ACK executed\n"
+  },
+  {
+    "script": "cenit_i06_official_liquidity_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      32,
+      32
+    ],
+    "stdout_tail": "cial idempotente\nPASS: Regla de causa sintética interna DXX-LIQ no da rechazo\nI06 STATIC: 32/32. No equivale a compilación, xUnit o verificación con CENIT/CUD.\n"
+  },
+  {
+    "script": "cenit_i07_r06_cycle5_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      37,
+      37
+    ],
+    "stdout_tail": "ow has dates\n37 PASS: Historical F07 positive R06 fixture now has dates\nI07: 37/37 static assertions; runtime tests, DB, output file and CENIT ACK NOT EXECUTED\n"
+  },
+  {
+    "script": "cenit_i08_r74_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      44,
+      44
+    ],
+    "stdout_tail": "Return99 false positive test exists\n44 PASS: F05 guard updated for shared source\nI08 STATIC: 44/44. xUnit, build, relational DB and bank operator NOT EXECUTED.\n"
+  },
+  {
+    "script": "cenit_i09_r23_deadlines_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      58,
+      58
+    ],
+    "stdout_tail": "7 PASS: Tests verify production calendar invocation\n58 PASS: Tests do not claim executed runtime\nI09 STATIC: 58/58; no .NET, DB, bank operator or UAT executed.\n"
+  },
+  {
+    "script": "cenit_i10_alphabet_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      27,
+      27
+    ],
+    "stdout_tail": "ure 10x106 (line endings excluded)\n26 PASS golden CENIT repertoire matches published §4.1\n27 PASS explicit binary alphabet size matches spec\nRESULT: 27/27 PASS\n"
+  },
+  {
+    "script": "cenit_i12_adv280_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      41,
+      41
+    ],
+    "stdout_tail": "med physical variants\nPASS PT23 raw fixture preserves full record widths\nPASS no posting after receipt asserted\n41/41 source-contract checks (not C# execution)\n"
+  },
+  {
+    "script": "cenit_i13_nack_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      33,
+      33
+    ],
+    "stdout_tail": " source conflict test exists\nPASS SQLite reload replay in PT14\nPASS no ACH Colombia file changed in focal source\n33/33 source-contract checks (C# not executed)\n"
+  },
+  {
+    "script": "cenit_post_i13_ror_c5_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      20,
+      20
+    ],
+    "stdout_tail": "ly positive outgoing now targets C5\n19 PASS Previously positive incoming now targets C5\n20 PASS Next-day C1 tests retained\nTOTAL 20/20 STATIC SOURCE-CHECK ONLY\n"
+  },
+  {
+    "script": "predeploy_three_hotfixes_static_check.py",
+    "exit_code": 0,
+    "counts_last": [
+      41,
+      41
+    ],
+    "stdout_tail": " ROR non-operational target expected rejection\n41 PASS_STATIC CENIT DSP-152 banking day restriction\nTOTAL: 41/41 source checks; runtime .NET/xUnit NOT executed\n"
+  }
+]

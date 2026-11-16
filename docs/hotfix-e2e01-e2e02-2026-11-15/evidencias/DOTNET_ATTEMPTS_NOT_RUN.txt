@@ -1,0 +1,13 @@
+HOST CHECK 2026-11-15
+dotnet path: 
+ATTEMPT: dotnet --info
+bash: line 1: dotnet: command not found
+EXIT_CODE=127
+
+ATTEMPT: dotnet build ACHInterbank.sln --configuration Release
+bash: line 1: dotnet: command not found
+EXIT_CODE=127
+
+ATTEMPT: dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj --filter E2E01|E2E02
+bash: line 1: dotnet: command not found
+EXIT_CODE=127

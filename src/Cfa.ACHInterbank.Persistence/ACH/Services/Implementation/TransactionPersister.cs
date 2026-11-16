@@ -62,6 +62,7 @@ public class TransactionPersister : ITransactionPersister
         {
             Amount = request.Amount,
             TransactionExternalId = ResolveOperationalId(request),
+            RequestFingerprint = TransactionIdempotency.Fingerprint(request),
             Reference = request.Reference?.Trim() ?? string.Empty,
             Type = effectiveType,
 

@@ -1,0 +1,103 @@
+{
+  "source_archive": "ACHInterbank_PROYECTO_COMPLETO_HOTFIX_FOCAL_H01_H02_2026-11-15.zip",
+  "source_sha256": "0c9662d1e44a8b68e7760ebe5c23c04b70b835acd61269cebdc2e3fcaf8de631",
+  "date": "2026-11-15",
+  "baseline_files": 5709,
+  "original_files_preserved": 5709,
+  "baseline_changed": 9,
+  "new_files_count": 26,
+  "deleted": [],
+  "modified_existing_files": [
+    {
+      "path": "ACHInterbank_ajustado/MEMORY_STATE.json",
+      "sha256_previous": "bb1fce80f40a6ebbf8a7574b73d120fab45ec20066860cb3b7dfd9b948bf43f5",
+      "sha256_new": "383002c637310f1ff2fff11f2812f858e6bdd642893b68e9e7aecfcdb5952b50"
+    },
+    {
+      "path": "ACHInterbank_ajustado/MEMORY_STATE.md",
+      "sha256_previous": "54004d2dfbebcda0465424e0e636f5419df1782ef745bb2243dbab0b34be3981",
+      "sha256_new": "e6b3b6c0edc740a24d9fda34ae8e5235df7f515b6c4c08665e920b4995205bb6"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ContrapartidaDispatchJobService.cs",
+      "sha256_previous": "458a37610a3e9623bf99dec2a48229a16864d7a5e4e67078a0bd54eae13d752f",
+      "sha256_new": "0b99f07ef8b6e8e2bb5927242c758729a7b5b30d27c47e88a7e809da78a52502"
+    },
+    {
+      "path": "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ContrapartidaDispatchRecovery.cs",
+      "sha256_previous": "604912f93bc7b619907845fc5d95bb0c3e90e478403bafed5dfb2b6d57d8a8ce",
+      "sha256_new": "915eb2fec80ec44d4e7395a09003210b2c1985d3482223d13563c304faa88b7c"
+    },
+    {
+      "path": "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/ContrapartidaDispatchJobServiceTests.cs",
+      "sha256_previous": "eb553a7d46c32affcb4d31c5941056827f878e0d8124316594105a8d9c76c3bf",
+      "sha256_new": "a75687d3b17a9d16cb90ef1f696ea3af7b34b5cade7367e5ad882199b5a845f2"
+    },
+    {
+      "path": "LEER_PRIMERO.md",
+      "sha256_previous": "37a12d999b4ea9708f44cae135a7d231cadde2eb076a0f9ce3fa34f9eaed9cb4",
+      "sha256_new": "efde3f15264a306c4d6c382ba9da01bf4b3dc1926991972e68d26ff5de3b1e6b"
+    },
+    {
+      "path": "PLAN_IMPLEMENTACION_13_CASOS/MEMORY_STATE.json",
+      "sha256_previous": "ec7bad69551ae6d0c080bfa793be0e2df6f55361b50cdb7237b1eeb9b6a01aaf",
+      "sha256_new": "779ad64897df53b9082c6e3281c565bba8836fe77b1f1d0eb195826602c6ed37"
+    },
+    {
+      "path": "PLAN_IMPLEMENTACION_13_CASOS/MEMORY_STATE.md",
+      "sha256_previous": "138651413f49ddddd274e7a36053cbde9d8226f35e7b654f6595d670a5dcfb4f",
+      "sha256_new": "d2eebe457b9bed5a8574d1a1c6ed5b78a6b128e10507d8d99740c52301a97a21"
+    },
+    {
+      "path": "PLAN_IMPLEMENTACION_13_CASOS/PLAN_IMPLEMENTACION_13_CASOS.md",
+      "sha256_previous": "6ade2f4343ad3733f9b276ebb66c6e9f99b3ba01cd4fb01e2da1776c47920827",
+      "sha256_new": "9255c22eee91fb42a97aba6d9dc903f0d39c574c673e311dcf34f155e9ea646e"
+    }
+  ],
+  "new_files": [
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/ARCHIVOS_MODIFICADOS.md",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/INFORME_RES_H02_FINAL.md",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/PLAN_IMPLEMENTACION_RES_H02.md",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/DOTNET_BUILD.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/DOTNET_INFO.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/FOCAL_RES_H02.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_00.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_01.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_02.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_03.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_04.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_05.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_06.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_07.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_08.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_09.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_10.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_11.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/REGRESSION_RESULTS.json",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/SOLUTION_STRUCTURE.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/SOURCE_DIFF_MANIFEST.json",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/XUNIT_ATTEMPT.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/previous_AUD_E2E.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/previous_E2E01_02.txt",
+    "ACHInterbank_ajustado/docs/hotfix-res-h02-2026-11-15/evidencias/previous_H01_H02.txt",
+    "ACHInterbank_ajustado/scripts/test/res_h02_soap_preflight_sqlite_check.py"
+  ],
+  "note": "Complete differential including report, manifest and inventory files",
+  "source_only_changes": [
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ContrapartidaDispatchJobService.cs",
+    "ACHInterbank_ajustado/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ContrapartidaDispatchRecovery.cs",
+    "ACHInterbank_ajustado/tests/Cfa.ACHInterbank.Tests/ContrapartidaDispatchJobServiceTests.cs"
+  ],
+  "e2e_03_changed": false,
+  "normative_docs_changed": false,
+  "uat_executed": false,
+  "dotnet_compilation_executed": false,
+  "validation": {
+    "static_sqlite_focal": "27/27",
+    "regression_scripts": "12/12",
+    "solution_graph": "7/7",
+    "xunit_added_methods": 4,
+    "xunit_scenarios": 6,
+    "xunit_executed": 0
+  }
+}

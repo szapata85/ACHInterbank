@@ -566,7 +566,7 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
-    public async Task RegisterTransactionAsync_WhenPolicyRejectsDuplicate_DoesNotCreateSecondInitialStateEvent()
+    public async Task RegisterTransactionAsync_IdenticalRequestReturnsExistingWithoutSecondStateEvent()
     {
         using var connection = CreateOpenConnection();
 
@@ -601,7 +601,7 @@ public class AchTransactionNachaTests
             addendas: null,
             ct: CancellationToken.None);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
+        var again = await service.RegisterTransactionAsync(
             amount: 1500m,
             reference: "PAGO-REF-DUP-001",
             type: TransactionTypeEnum.Debit,
@@ -618,12 +618,137 @@ public class AchTransactionNachaTests
             recipientName: "Cliente sintético",
             requiresIdentityValidation: false,
             addendas: null,
-            ct: CancellationToken.None));
+            ct: CancellationToken.None);
 
-        Assert.Contains("equivalente", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, again.Id);
         Assert.Equal(1, await context.AchTransactions.CountAsync());
         Assert.Equal(1, await context.AchTransactionStateEvents.CountAsync());
-        policyService.Verify(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        policyService.Verify(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_ReusedExternalIdWithChangedAmount_ThrowsControlledConflictAndDoesNotQueue()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        SeedCoreEntities(context);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var (service, dispatchMock) = BuildTransactionServiceWithDispatchMock(context, cycleId);
+        var descriptionId = GetCompanyEntryDescriptionId(context, "PAGOS PSE");
+
+        Task<AchTransaction> Register(decimal amount) => service.RegisterTransactionAsync(
+            amount: amount,
+            reference: "IDEMPOTENT-REF-01",
+            type: TransactionTypeEnum.Debit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: false,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "111122223333",
+            destinationAccountNumber: "999988887777",
+            companyName: "Empresa Demo",
+            companyIdentification: "123456780",
+            companyEntryDescriptionId: descriptionId,
+            recipientIdNumber: "900123456",
+            recipientName: "Cliente sintético",
+            transactionExternalId: "E2E01-CONFLICT",
+            ct: CancellationToken.None);
+
+        var original = await Register(1500m);
+        var replay = await Register(1500m);
+        Assert.Equal(original.Id, replay.Id);
+        var ex = await Assert.ThrowsAsync<TransactionIdempotencyConflictException>(() => Register(1501m));
+        Assert.Contains("E2E01_IDEMPOTENCY_CONFLICT", ex.Message);
+        Assert.Equal(1, await context.AchTransactions.CountAsync());
+        Assert.Equal(1, await context.AchTransactionStateEvents.CountAsync());
+        dispatchMock.Verify(x => x.EnsurePendingDispatchAsync(
+            It.IsAny<AchTransaction>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task E2E01_RelationalUniqueIndex_SerializesConcurrentInsertsWithinOriginScope()
+    {
+        var dbFile = Path.Combine(Path.GetTempPath(), $"ach-e2e01-{Guid.NewGuid():N}.sqlite");
+        var connectionString = $"Data Source={dbFile};Cache=Shared;Default Timeout=30;Pooling=False";
+        try
+        {
+            var options = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connectionString).Options;
+            string cycleId;
+            int descriptionId;
+            int batchId;
+            using (var seed = new AchDbContext(options))
+            {
+                await seed.Database.EnsureCreatedAsync();
+                SeedCoreEntities(seed);
+                cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+                descriptionId = GetCompanyEntryDescriptionId(seed, "PAGOS PSE");
+                var batch = new AchBatch
+                {
+                    AchCycleId = cycleId,
+                    CompanyName = "Empresa Demo",
+                    CompanyIdentification = "123456780",
+                    CompanyEntryDescriptionId = descriptionId,
+                    CompanyEntryDescription = "PAGOS PSE",
+                    OriginOrOdfi = "12345678",
+                    EffectiveEntryDate = TestClock.OperationalDate,
+                    BatchSequenceNumber = 1
+                };
+                seed.AchBatches.Add(batch);
+                await seed.SaveChangesAsync();
+                batchId = batch.Id;
+            }
+
+            AchTransaction Build(int origin, int sequence) => new()
+            {
+                Amount = 1500m,
+                TransactionExternalId = "E2E01-DB-UNIQUE",
+                Reference = "E2E01-DB-UNIQUE",
+                Type = TransactionTypeEnum.Credit,
+                TransactionCode = "22",
+                TraceNumber = $"12345678{sequence:D7}",
+                TraceSequenceNumber = sequence,
+                CompanyEntryDescriptionId = descriptionId,
+                CompanyName = "Empresa Demo",
+                CompanyIdentification = "123456780",
+                OriginatingDFI = "12345678",
+                ReceivingDFI = "76543210",
+                EffectiveEntryDate = TestClock.OperationalDate,
+                SourceAccountNumber = "111122223333",
+                DestinationAccountNumber = "999988887777",
+                SourceInstitutionId = origin,
+                DestinationInstitutionId = 2,
+                AchCycleId = cycleId,
+                AchBatchId = batchId
+            };
+
+            async Task<bool> InsertAsync(int sequence)
+            {
+                await using var context = new AchDbContext(options);
+                context.AchTransactions.Add(Build(1, sequence));
+                try { await context.SaveChangesAsync(); return true; }
+                catch (DbUpdateException ex) when (RelationalDatabaseExceptionClassifier.IsUniqueViolation(ex)) { return false; }
+                catch (DbUpdateException ex) when (ex.InnerException is SqliteException { SqliteErrorCode: 5 or 6 }) { return false; }
+                catch (SqliteException ex) when (ex.SqliteErrorCode is 5 or 6) { return false; }
+            }
+
+            var results = await Task.WhenAll(InsertAsync(11), InsertAsync(12));
+            Assert.Contains(true, results);
+            await using var check = new AchDbContext(options);
+            Assert.Equal(1, await check.AchTransactions.CountAsync(t => t.SourceInstitutionId == 1
+                && t.TransactionExternalId == "E2E01-DB-UNIQUE"));
+            // Regardless of SQLite scheduling, the index must reject a later conflicting insert.
+            check.AchTransactions.Add(Build(1, 13));
+            var conflict = await Assert.ThrowsAsync<DbUpdateException>(() => check.SaveChangesAsync());
+            Assert.True(RelationalDatabaseExceptionClassifier.IsUniqueViolation(conflict));
+            check.ChangeTracker.Clear();
+            // Scope is the originating institution: another origin is allowed.
+            check.AchTransactions.Add(Build(3, 14));
+            await check.SaveChangesAsync();
+            Assert.Equal(2, await check.AchTransactions.CountAsync(t => t.TransactionExternalId == "E2E01-DB-UNIQUE"));
+        }
+        finally
+        {
+            try { File.Delete(dbFile); } catch (IOException) { /* SQLite may retain handles on Windows. */ }
+        }
     }
 
     [Fact]
@@ -1735,6 +1860,158 @@ public class AchTransactionNachaTests
     }
 
     [Theory]
+    [InlineData("        ", "D02")]
+    [InlineData("20260230", "D02")]
+    [InlineData("20260723", "D01")]
+    [InlineData("20260727", "D02")]
+    public async Task ParseAndSaveAsync_PhysicalT5Date_V35ReturnsOperatorCausePerEntry(
+        string effectiveDate, string expectedCode)
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var records = ChunkRecords(await BuildValidNachaFileAsync(connection, cycleId));
+        // Fixed-width NACHA-M: record T5, positions 72..79 (1-based).
+        records[1] = ReplaceSegment(records[1], 71, 8, effectiveDate);
+        using var parseContext = CreateContext(connection);
+        var parser = BuildParser(parseContext);
+        using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Concat(records)));
+
+        var failures = await parser.ParseAndSaveAsync(stream, "invalid-effective.ach");
+
+        var failure = Assert.Single(failures);
+        Assert.Equal("6", failure.RecordType);
+        Assert.Contains(expectedCode + ":", failure.Reason, StringComparison.Ordinal);
+        Assert.Empty(await parseContext.EntryDetails.ToListAsync());
+        Assert.NotNull(await parseContext.BatchControls.SingleOrDefaultAsync());
+    }
+
+    [Fact]
+    public async Task ParseAndSaveDetailedAsync_AchColFileBasedValidDate_AcceptsPhysicalTransactionsWithoutCycle()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var content = await BuildValidNachaFileAsync(connection, cycleId);
+        using var parseContext = CreateContext(connection);
+        var house = await parseContext.ClearingHouses.SingleAsync(x => x.Id == 1);
+        house.Code = "ACHCOL";
+        house.IsActive = true;
+        await parseContext.SaveChangesAsync();
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
+
+        var result = await BuildParser(parseContext).ParseAndSaveDetailedAsync(stream, "valid-file-based.ach",
+            new NachaParseRequest
+            {
+                ResolvedClearingHouseId = 1,
+                OperationalDate = TestClock.OperationalDate,
+                CorrelationId = "achcol-file-based-valid"
+            });
+
+        Assert.Empty(result.Failures);
+        Assert.Equal(1, result.TotalEntries);
+        Assert.Null((await parseContext.NachaHeaders.SingleAsync()).AchCycleId);
+        Assert.NotNull(await parseContext.EntryDetails.SingleOrDefaultAsync());
+    }
+
+    // File-based ingestion has an authoritative operational date but no
+    // internal AchCycle; the parser must not infer a different cycle or lose
+    // D01/D02 per-entry validation after admission has accepted the file.
+    [Theory]
+    [InlineData("20260723", "D01")]
+    [InlineData("20260727", "D02")]
+    [InlineData("20260230", "D02")]
+    [InlineData("        ", "D02")]
+    public async Task ParseAndSaveDetailedAsync_AchColFileBasedPhysicalFile_UsesResolvedDateWithoutCycle(
+        string effectiveDate, string expectedOperatorCode)
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var records = ChunkRecords(await BuildValidNachaFileAsync(connection, cycleId));
+        records[1] = ReplaceSegment(records[1], 71, 8, effectiveDate);
+        using var parseContext = CreateContext(connection);
+        var house = await parseContext.ClearingHouses.SingleAsync(x => x.Id == 1);
+        house.Code = "ACHCOL";
+        house.IsActive = true;
+        await parseContext.SaveChangesAsync();
+        var parser = BuildParser(parseContext);
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Concat(records)));
+
+        var result = await parser.ParseAndSaveDetailedAsync(stream, "file-based-nacha.ach", new NachaParseRequest
+        {
+            ResolvedClearingHouseId = 1,
+            OperationalDate = TestClock.OperationalDate,
+            CorrelationId = "achcol-file-based-date-boundary"
+        });
+
+        Assert.Equal(1, result.TotalEntries); // Physical T6, even though rejected.
+        Assert.Equal(0, result.ValidEntries);
+        Assert.Equal(1, result.InvalidEntries);
+        Assert.Contains(result.Failures, failure => failure.RecordType == "6"
+            && failure.Reason.Contains(expectedOperatorCode + ":", StringComparison.Ordinal));
+        Assert.Null((await parseContext.NachaHeaders.SingleAsync()).AchCycleId);
+        Assert.Empty(await parseContext.EntryDetails.ToListAsync());
+        Assert.NotNull(await parseContext.BatchControls.SingleOrDefaultAsync());
+    }
+
+    [Fact]
+    public async Task ParseAndSaveDetailedAsync_AchColFileBasedDateDisagreesWithHeader_FailsClosed()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var content = await BuildValidNachaFileAsync(connection, cycleId);
+        using var parseContext = CreateContext(connection);
+        var house = await parseContext.ClearingHouses.SingleAsync(x => x.Id == 1);
+        house.Code = "ACHCOL";
+        house.IsActive = true;
+        await parseContext.SaveChangesAsync();
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            BuildParser(parseContext).ParseAndSaveDetailedAsync(stream, "bad-context.ach", new NachaParseRequest
+            {
+                ResolvedClearingHouseId = 1,
+                OperationalDate = TestClock.OperationalDate.AddDays(1),
+                CorrelationId = "achcol-untrusted-operational-date"
+            }));
+
+        Assert.Contains("ACHCOL_OPERATIONAL_DATE_UNRESOLVED", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ParseAndSaveAsync_PhysicalT6NonzeroPrenote_ReportsD04_NotFileRejection()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var records = ChunkRecords(await BuildValidNachaFileAsync(connection, cycleId));
+        records[2] = ReplaceSegment(records[2], 1, 2, "23");
+        using var parseContext = CreateContext(connection);
+        var parser = BuildParser(parseContext);
+        using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Concat(records)));
+
+        var failures = await parser.ParseAndSaveAsync(stream, "nonzero-prenote.ach");
+
+        Assert.Contains(failures, failure => failure.Reason.Contains("D04:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ParseAndSaveAsync_PhysicalFileMissingOperationalCycle_FailsClosedWithoutInventingD01()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+        var records = ChunkRecords(await BuildValidNachaFileAsync(connection, cycleId));
+        // Date in T1 references a date without a configured operating cycle.
+        records[0] = ReplaceSegment(records[0], 23, 8, "20260725");
+        using var parseContext = CreateContext(connection);
+        var parser = BuildParser(parseContext);
+        using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Concat(records)));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            parser.ParseAndSaveAsync(stream, "missing-operative-cycle.ach"));
+
+        Assert.Contains("ACHCOL_OPERATIONAL_DATE_UNRESOLVED", error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("[Regulatory] D01", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("22", "INVOICE-001", "FREE-INFO-001", null, null, null)]
     [InlineData("23", "PRENOTE-REFERENCE-001", null, null, null, null)]
     [InlineData("27", null, null, "9001234567890", "CUSTOMER-001", "SERVICE-001")]
@@ -1785,7 +2062,8 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal51.ach", CancellationToken.None));
 
-        Assert.Contains("D04", ex.Message);
+        Assert.Contains("[Technical]", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("conteo físico", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1842,7 +2120,8 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal60.ach", CancellationToken.None));
 
-        Assert.Contains("D04", ex.Message);
+        Assert.Contains("[Technical]", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("cantidad de lotes", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1860,7 +2139,8 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal64.ach", CancellationToken.None));
 
-        Assert.Contains("D02", ex.Message);
+        Assert.Contains("[Technical]", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("relleno", ex.Message, StringComparison.Ordinal);
     }
 
     private static SqliteConnection CreateOpenConnection()

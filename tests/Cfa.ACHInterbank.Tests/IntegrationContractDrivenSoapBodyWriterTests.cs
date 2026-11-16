@@ -230,13 +230,13 @@ public sealed class IntegrationContractDrivenSoapBodyWriterTests
         {
             ["TREG"] = "6",
             ["TIPTRAN"] = "22",
-            ["DESCRIPCION"] = "SYNTH & <VALUE>",
+            ["DESTRAN"] = "SYNTH & <VALUE>",
             ["DISCRE"] = string.Empty,
             ["IDTRAN"] = "0000001"
         });
         var treg = Binding(1, "TREG", 1, true);
         var tiptran = Binding(2, "TIPTRAN", 2, true, dataType: "int");
-        var descripcion = Binding(3, "DESCRIPCION", 3, true);
+        var descripcion = Binding(3, "DESTRAN", 3, true);
         var discre = Binding(4, "DISCRE", 4, false);
         var idtran = Binding(5, "IDTRAN", 5, true, dataType: "long");
         var contract = Contract("WSCFAACH.Proc_Transacciones", "Proc_Transacciones", [treg, tiptran, descripcion, discre, idtran]);
@@ -264,7 +264,7 @@ public sealed class IntegrationContractDrivenSoapBodyWriterTests
         {
             ["TREG"] = "6",
             ["TIPTRAN"] = "22",
-            ["DESCRIPCION"] = "SYNTH & <VALUE>",
+            ["DESTRAN"] = "SYNTH & <VALUE>",
             ["EMPTY"] = string.Empty,
             ["WHITESPACE"] = "   ",
             ["NULLVALUE"] = null!,
@@ -274,7 +274,7 @@ public sealed class IntegrationContractDrivenSoapBodyWriterTests
         });
         var treg = Binding(1, "TREG", 1, true);
         var tiptran = Binding(2, "TIPTRAN", 2, true, dataType: "int");
-        var descripcion = Binding(3, "DESCRIPCION", 3, true);
+        var descripcion = Binding(3, "DESTRAN", 3, true);
         var empty = Binding(4, "EMPTY", 4, false);
         var whitespace = Binding(5, "WHITESPACE", 5, false);
         var nullValue = Binding(6, "NULLVALUE", 6, false);
@@ -303,7 +303,7 @@ public sealed class IntegrationContractDrivenSoapBodyWriterTests
         var genericOperation = Operation(_sut.Write(parity.ContractDrivenRequest));
 
         AssertOperationEquivalent(legacyOperation, genericOperation);
-        Assert.Equal(["TREG", "TIPTRAN", "DESCRIPCION", "IDTRAN"], genericOperation.Elements().Select(x => x.Name.LocalName).ToArray());
+        Assert.Equal(["TREG", "TIPTRAN", "DESTRAN", "IDTRAN"], genericOperation.Elements().Select(x => x.Name.LocalName).ToArray());
     }
 
     [Fact]

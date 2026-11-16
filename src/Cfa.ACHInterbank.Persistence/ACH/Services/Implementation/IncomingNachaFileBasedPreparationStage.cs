@@ -75,12 +75,16 @@ internal sealed class IncomingNachaFileBasedPreparationStage
             var reason = "ACHCOL_PREFLIGHT_CONTEXT_MISSING";
             var valid = false;
             if (queue.AchCycleId is null
+                && queue.AchTransactionId is null
+                && queue.IncomingNachaTransactionLinkId is null
                 && queue.EntryDetailId is int entryId
                 && ingestions.TryGetValue(queue.IncomingNachaFileIngestionId, out var ingestion)
                 && classifications.TryGetValue(queue.IncomingNachaEntryClassificationId, out var classification)
                 && entries.TryGetValue(entryId, out var entry)
                 && headers.TryGetValue(entry.NachaID, out var header)
                 && chambers.TryGetValue(queue.ClearingHouseId, out var chamber)
+                && header.IncomingNachaFileIngestionId == ingestion.Id
+                && (!header.ClearingHouseId.HasValue || header.ClearingHouseId == queue.ClearingHouseId)
                 && classification.IncomingNachaFileIngestionId == ingestion.Id
                 && classification.EntryDetailId == entryId
                 && ingestion.ResolvedClearingHouseId == queue.ClearingHouseId

@@ -448,14 +448,13 @@ public class AchReturnOfReturnFileGenerationService(
                 ? await context.AchTransactionStateEvents.AsNoTracking()
                     .SingleOrDefaultAsync(x => x.Id == flow.ParentIncomingReturnStateEventId.Value, ct)
                 : null;
-            var sourceArtifact = parentEvent is null ? null : await context.IncomingNachaTransactionLinks.AsNoTracking()
-                .Include(x => x.EntryDetail)
-                .Include(x => x.AddendaRecord)
-                .Where(x => x.AchTransactionId == parentEvent.AchTransactionId
-                    && x.AddendaRecord != null && x.AddendaRecord.ReturnReasonCode == parentEvent.ReasonCode)
-                .OrderByDescending(x => x.LinkedAtUtc).FirstOrDefaultAsync(ct);
-            if (parentEvent is null || sourceArtifact?.EntryDetail is null || sourceArtifact.AddendaRecord is null)
-                return new("CENIT_ROR_SOURCE_RETURN_RAW_NOT_FOUND", $"Falta la devolución raw ligada al evento padre del flujo {flow.Id}.");
+            if (parentEvent is null || flow.OriginalTransaction is null)
+                return new("CENIT_ROR_SOURCE_RETURN_RAW_NOT_FOUND", $"Falta el evento padre del flujo {flow.Id}.");
+            var evidence = await CenitParentReturnEvidenceResolver.ResolveAsync(
+                context, parentEvent, flow.OriginalTransaction, ct);
+            if (!evidence.IsResolved)
+                return new(evidence.Code!, $"Flujo {flow.Id}: {evidence.Message}");
+            var sourceArtifact = evidence.Artifact!;
             var sourceCycleId = await context.NachaHeaders.AsNoTracking()
                 .Where(x => x.NachaID == sourceArtifact.EntryDetail.NachaID)
                 .Select(x => x.AchCycleId).SingleOrDefaultAsync(ct);
@@ -506,16 +505,18 @@ public class AchReturnOfReturnFileGenerationService(
         {
             var parentEventId = flow.ParentIncomingReturnStateEventId!.Value;
             var parentEvent = await context.AchTransactionStateEvents.AsNoTracking().SingleAsync(x => x.Id == parentEventId, ct);
-            var artifact = await context.IncomingNachaTransactionLinks
-                .Include(x => x.EntryDetail).ThenInclude(x => x!.BatchHeader)
-                .Include(x => x.AddendaRecord)
-                .Where(x => x.AchTransactionId == parentEvent.AchTransactionId
-                            && x.AddendaRecord != null
-                            && x.AddendaRecord.ReturnReasonCode == parentEvent.ReasonCode)
-                .OrderByDescending(x => x.LinkedAtUtc)
-                .FirstOrDefaultAsync(ct);
-            if (artifact?.EntryDetail?.BatchHeader is null || artifact.AddendaRecord is null)
-                return Failure(flowIds, "PARENT_INCOMING_RETURN_RAW_NOT_FOUND", $"No existe evidencia raw para el flujo {flow.Id}.");
+            if (flow.OriginalTransaction is null || parentEvent.AchTransactionId != flow.OriginalTransactionId)
+                return Failure(flowIds, "CENIT_ROR_SOURCE_RETURN_CORRELATION_INVALID", $"El flujo {flow.Id} apunta a otra transaccion original.");
+            var evidence = await CenitParentReturnEvidenceResolver.ResolveAsync(
+                context, parentEvent, flow.OriginalTransaction, ct);
+            if (!evidence.IsResolved)
+                return Failure(flowIds, evidence.Code!, $"Flujo {flow.Id}: {evidence.Message}");
+            var artifact = evidence.Artifact!;
+            if (artifact.EntryDetail?.BatchHeader is null || artifact.AddendaRecord is null)
+                return Failure(flowIds, "PARENT_INCOMING_RETURN_RAW_NOT_FOUND", $"No existe lote raw para el flujo {flow.Id}.");
+            if (flow.ReturnOfReturnTransaction.Type != TransactionTypeEnum.Return
+                || flow.ReturnOfReturnTransaction.Amount != artifact.EntryDetail.Amount)
+                return Failure(flowIds, "CENIT_ROR_AMOUNT_CORRELATION_INVALID", $"La ROR del flujo {flow.Id} no conserva el importe del padre.");
             if (!string.Equals(artifact.EntryDetail.BatchHeader.StandardEntryClassCode?.Trim(), "PPD", StringComparison.OrdinalIgnoreCase))
                 return Failure(flowIds, CenitReturnOfReturn2026Layout.CcdScopeStatus, "El contrato específico vigente de ROR CENIT está definido para PPD.");
 
@@ -527,20 +528,8 @@ public class AchReturnOfReturnFileGenerationService(
                     .SingleOrDefaultAsync(x => x.Id == flow.OriginalTransactionId, ct);
                 if (original is null || original.Type != TransactionTypeEnum.Credit || original.IsPrenotification || original.Amount <= 0)
                     return Failure(flowIds, "CENIT_R74_CREDIT_MONETARY_REQUIRED", "R74 requiere crédito monetario original.");
-                var paymentAddendas = await context.AchTransactionAddendas.AsNoTracking()
-                    .Where(x => x.AchTransactionId == original.Id && x.AddendaType == "05")
-                    .ToListAsync(ct);
-                var rawOriginalAddendas = await context.IncomingNachaTransactionLinks.AsNoTracking()
-                    .Include(x => x.AddendaRecord)
-                    .Where(x => x.AchTransactionId == original.Id && x.AddendaRecord != null
-                        && x.AddendaRecord.CodeTypeAddendumRecord == "05"
-                        && (x.AddendaRecord.ReturnReasonCode == null || x.AddendaRecord.ReturnReasonCode == ""))
-                    .ToListAsync(ct);
-                static bool HasInfo(string? value) => !string.IsNullOrWhiteSpace(value) && value.Any(c => c != '0' && c != ' ');
-                if (!paymentAddendas.Any(x => HasInfo(x.Information) || HasInfo(x.Reference))
-                    && !rawOriginalAddendas.Any(x => HasInfo(x.AddendaRecord!.IdUserOrig)
-                        || HasInfo(x.AddendaRecord.InvoiceOrAccountNumber) || HasInfo(x.AddendaRecord.InfofromOriginator)))
-                    return Failure(flowIds, "CENIT_R74_ORIGINAL_ADDENDA_REQUIRED", "R74 requiere campo 3 informado en adenda 05 de crédito original.");
+                if (!await CenitR74OriginalCreditEvidence.ExistsAsync(context, original, ct))
+                    return Failure(flowIds, "CENIT_R74_ORIGINAL_ADDENDA_REQUIRED", "R74 requiere campo 3 de adenda 05 de crédito original con identificación válida.");
             }
 
             sourceBatch ??= artifact.EntryDetail.BatchHeader;

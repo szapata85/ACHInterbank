@@ -13,12 +13,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Contratos oficiales locales: sin resoluciones de schemaLocation externas. -->
+    <EmbeddedResource Include="Integrations/Contracts/OfficialSoapSchemas/WSCFAACH/*.xml" LogicalName="OfficialSoapSchemas.WSCFAACH.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Integrations/Contracts/OfficialSoapSchemas/WSAxonRespuestaTransacciones/*.xml" LogicalName="OfficialSoapSchemas.WSAxonRespuestaTransacciones.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="DataBase\Command\" />
     <Folder Include="DataBase\Queries\" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AutoMapper" Version="16.2.0" />
+    <PackageReference Include="AutoMapper" Version="16.3.0" />
     <PackageReference Include="FluentValidation" Version="12.2.0" />
     <PackageReference Include="JWT" Version="11.1.0" />
     <PackageReference Include="MediatR" Version="14.2.0" />

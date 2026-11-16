@@ -172,22 +172,22 @@ public class TransactionPolicyService : ITransactionPolicyService
                 existingAmount);
         }
 
-        // 6. Duplicate detection and the rest of the existing preview contract remain unchanged.
+        // 6. E2E-01: preview is advisory; DB uniqueness and registration return the final decision.
+        // The scope is the originating institution, never the current operational cycle.
         var operationalId = ResolveOperationalId(request.TransactionExternalId, request.Reference);
-        var wouldDuplicate = await _context.AchTransactions
+        var originIds = await _context.FinancialInstitutions.AsNoTracking()
+            .Where(x => x.IsDefaultSource && x.Status == Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.FinancialInstitutionStatus.Active)
+            .Select(x => x.Id).Take(2).ToListAsync(ct);
+        var wouldDuplicate = originIds.Count != 1 || await _context.AchTransactions
             .AsNoTracking()
-            .AnyAsync(t => t.AchCycleId == cycle.Id
+            .AnyAsync(t => t.SourceInstitutionId == originIds[0]
                 && (t.TransactionExternalId == operationalId
-                    || ((t.TransactionExternalId == null || t.TransactionExternalId == "") && t.Reference == operationalId))
-                && t.Amount == request.Amount
-                && t.SourceAccountNumber == request.SourceAccountNumber.Trim()
-                && t.DestinationAccountNumber == request.DestinationAccountNumber.Trim()
-                && t.Type == request.Type,
-                ct);
+                    || ((t.TransactionExternalId == null || t.TransactionExternalId == "")
+                        && t.Reference == operationalId)), ct);
 
         return new TransactionPolicyPreview(
             !wouldDuplicate,
-            wouldDuplicate ? "Ya existe una transacción equivalente para el mismo ciclo." : null,
+            wouldDuplicate ? "La entidad originadora ya registra este identificador externo; reintentar la creación permite recuperar solo una instrucción idéntica." : null,
             cycle.Id,
             cycle.CycleName,
             cycle.ProcessingDate,

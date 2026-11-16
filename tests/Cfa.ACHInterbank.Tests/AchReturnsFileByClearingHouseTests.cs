@@ -456,13 +456,17 @@ public class AchReturnsFileByClearingHouseTests
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 710, "ACH-R10-1");
+        SetR10OriginalCycle(context, "ACH-R10-1", "Ciclo 1", new DateTime(2026, 11, 18));
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-1-TARGET", new DateTime(2026, 11, 18), 9);
+        (await context.AchCycles.SingleAsync(row => row.Id == "ACH-R10-1-TARGET")).CycleName = "Ciclo 2";
+        await context.SaveChangesAsync();
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
             [710] = new(true, "R10", 7002, "Debit", "Pending", [])
         });
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-1", [new ReturnSelectionItemDto(710, "R10")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-1", [new ReturnSelectionItemDto(710, "R10")], ReturnCycleId: "ACH-R10-1-TARGET"), CancellationToken.None);
 
         Assert.NotEmpty(response.Content);
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(row => row.OriginalTransactionId == 710));
@@ -473,6 +477,10 @@ public class AchReturnsFileByClearingHouseTests
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 712, "ACH-R10-2");
+        SetR10OriginalCycle(context, "ACH-R10-2", "Ciclo 1", new DateTime(2026, 11, 18));
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-2-TARGET", new DateTime(2026, 11, 18), 9);
+        (await context.AchCycles.SingleAsync(row => row.Id == "ACH-R10-2-TARGET")).CycleName = "Ciclo 2";
+        await context.SaveChangesAsync();
         var original = await context.AchTransactions.SingleAsync(transaction => transaction.Id == 712);
         context.AchTransactions.Add(new AchTransaction
         {
@@ -494,7 +502,7 @@ public class AchReturnsFileByClearingHouseTests
         });
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-2", [new ReturnSelectionItemDto(712, "R10", AchColombiaR10Basis: AchColombiaR10ReturnBasis.NoReceiverAuthorizationOrAgreement)]), CancellationToken.None);
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-2", [new ReturnSelectionItemDto(712, "R10", AchColombiaR10Basis: AchColombiaR10ReturnBasis.NoReceiverAuthorizationOrAgreement)], ReturnCycleId: "ACH-R10-2-TARGET"), CancellationToken.None);
 
         Assert.Contains("NoReceiverAuthorizationOrAgreement", await context.AchTransactionStateEvents.Where(eventRow => eventRow.AchTransactionId == 712).Select(eventRow => eventRow.PayloadJson).SingleAsync(), StringComparison.Ordinal);
     }
@@ -504,6 +512,10 @@ public class AchReturnsFileByClearingHouseTests
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 714, "ACH-R10-3");
+        SetR10OriginalCycle(context, "ACH-R10-3", "Ciclo 1", new DateTime(2026, 11, 18));
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-3-TARGET", new DateTime(2026, 11, 18), 9);
+        (await context.AchCycles.SingleAsync(row => row.Id == "ACH-R10-3-TARGET")).CycleName = "Ciclo 2";
+        await context.SaveChangesAsync();
         var original = await context.AchTransactions.SingleAsync(transaction => transaction.Id == 714);
         context.AchTransactions.Add(new AchTransaction
         {
@@ -525,7 +537,7 @@ public class AchReturnsFileByClearingHouseTests
         });
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-3", [new ReturnSelectionItemDto(714, "R10")]), CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-3", [new ReturnSelectionItemDto(714, "R10")], ReturnCycleId: "ACH-R10-3-TARGET"), CancellationToken.None));
 
         Assert.Contains("ACHCOL_R10_BASIS_UNPROVEN", ex.Message, StringComparison.Ordinal);
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(row => row.OriginalTransactionId == 714));
@@ -536,17 +548,21 @@ public class AchReturnsFileByClearingHouseTests
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 716, "ACH-R10-W0");
-        var day = DateTime.UtcNow.Date;
-        SeedScheduledAchCycle(context, 7002, "ACH-R10-W1", day, 1);
-        SeedScheduledAchCycle(context, 7002, "ACH-R10-W2", day, 2);
-        SeedScheduledAchCycle(context, 7002, "ACH-R10-W3", day, 3);
+        var day = new DateTime(2026, 11, 18);
+        SetR10OriginalCycle(context, "ACH-R10-W0", "Ciclo 1", day);
+        for (var n = 1; n <= 3; n++)
+        {
+            SeedScheduledAchCycle(context, 7002, $"ACH-R10-W{n}", day, n + 1);
+            (await context.AchCycles.SingleAsync(cycle => cycle.Id == $"ACH-R10-W{n}")).CycleName = $"Ciclo {n + 1}";
+        }
+        await context.SaveChangesAsync();
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
             [716] = new(true, "R10", 7002, "Debit", "Pending", [])
         });
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-W3", [new ReturnSelectionItemDto(716, "R10")]), CancellationToken.None);
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-W0", [new ReturnSelectionItemDto(716, "R10", AchColombiaR10Basis: AchColombiaR10ReturnBasis.NoReceiverAuthorizationOrAgreement)], ReturnCycleId: "ACH-R10-W3"), CancellationToken.None);
 
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(row => row.OriginalTransactionId == 716));
     }
@@ -556,38 +572,47 @@ public class AchReturnsFileByClearingHouseTests
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 718, "ACH-R10-X0");
-        var day = DateTime.UtcNow.Date;
+        var day = new DateTime(2026, 11, 18);
+        SetR10OriginalCycle(context, "ACH-R10-X0", "Ciclo 1", day);
         for (var hour = 1; hour <= 6; hour++)
         {
             SeedScheduledAchCycle(context, 7002, $"ACH-R10-X{hour}", day, hour);
+            (await context.AchCycles.SingleAsync(cycle => cycle.Id == $"ACH-R10-X{hour}")).CycleName = $"Ciclo {hour + 1}";
         }
+        await context.SaveChangesAsync();
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
             [718] = new(true, "R10", 7002, "Debit", "Pending", [])
         });
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-X4", [new ReturnSelectionItemDto(718, "R10")]), CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-X0", [new ReturnSelectionItemDto(718, "R10")], ReturnCycleId: "ACH-R10-X4"), CancellationToken.None));
 
         Assert.Contains("ACHCOL_R10_RETURN_WINDOW_EXPIRED", ex.Message, StringComparison.Ordinal);
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(row => row.OriginalTransactionId == 718));
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldRejectR10ForPreviousOperationalDay()
+    public async Task GenerateReturnsFileAsync_ShouldPermitR10ForPreviousOperationalDayAcrossWeekendAndHoliday()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 720, "ACH-R10-D0");
-        SeedScheduledAchCycle(context, 7002, "ACH-R10-D1", DateTime.UtcNow.Date.AddDays(1), 1);
+        var original = await context.AchCycles.SingleAsync(cycle => cycle.Id == "ACH-R10-D0");
+        original.CycleName = "Ciclo 7";
+        original.ProcessingDate = new DateTime(2026, 11, 13); // Friday
+        var transaction = await context.AchTransactions.SingleAsync(x => x.Id == 720);
+        transaction.EffectiveEntryDate = original.ProcessingDate;
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-D1", new DateTime(2026, 11, 17), 7);
+        (await context.AchCycles.SingleAsync(cycle => cycle.Id == "ACH-R10-D1")).CycleName = "Ciclo 1";
+        await context.SaveChangesAsync();
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
             [720] = new(true, "R10", 7002, "Debit", "Pending", [])
         });
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-D1", [new ReturnSelectionItemDto(720, "R10")]), CancellationToken.None));
-
-        Assert.Contains("ACHCOL_RETURN_PREVIOUS_OPERATIONAL_DAY", ex.Message, StringComparison.Ordinal);
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-D0", [new ReturnSelectionItemDto(720, "R10", AchColombiaR10Basis: AchColombiaR10ReturnBasis.NoReceiverAuthorizationOrAgreement)], ReturnCycleId: "ACH-R10-D1"), CancellationToken.None);
+        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(row => row.OriginalTransactionId == 720));
     }
 
     [Fact]
@@ -595,7 +620,7 @@ public class AchReturnsFileByClearingHouseTests
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 722, "ACH-R10-H0");
-        var historicalDay = DateTime.UtcNow.Date.AddDays(-1);
+        var historicalDay = new DateTime(2026, 9, 29); // five-cycle historical policy
         var originalCycle = await context.AchCycles.SingleAsync(cycle => cycle.Id == "ACH-R10-H0");
         originalCycle.ProcessingDate = historicalDay;
         var originalTransaction = await context.AchTransactions.SingleAsync(transaction => transaction.Id == 722);
@@ -612,7 +637,7 @@ public class AchReturnsFileByClearingHouseTests
             EffectiveTo = historicalDay,
             IsActive = true
         });
-        currentPolicy.EffectiveFrom = DateTime.UtcNow.Date;
+        currentPolicy.EffectiveFrom = historicalDay.AddDays(1);
         await context.SaveChangesAsync();
         SeedScheduledAchCycle(context, 7002, "ACH-R10-H1", historicalDay, 1);
         SeedScheduledAchCycle(context, 7002, "ACH-R10-H2", historicalDay, 2);
@@ -622,7 +647,7 @@ public class AchReturnsFileByClearingHouseTests
         });
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-H2", [new ReturnSelectionItemDto(722, "R10")]), CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-H0", [new ReturnSelectionItemDto(722, "R10")], ReturnCycleId: "ACH-R10-H2"), CancellationToken.None));
 
         Assert.Contains("ACHCOL_R10_RETURN_WINDOW_EXPIRED", ex.Message, StringComparison.Ordinal);
     }
@@ -658,6 +683,151 @@ public class AchReturnsFileByClearingHouseTests
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), causeCodePolicy: causePolicy.Object, nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CP-3", [new ReturnSelectionItemDto(703, reason)]), CancellationToken.None));
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 703));
+    }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    [InlineData(3, true)]
+    [InlineData(4, true)]
+    [InlineData(5, false)]
+    [InlineData(6, false)]
+    [InlineData(7, false)]
+    public async Task R10_Hotfix02_SevenCyclesRespectOperationalChronology(int targetNumber, bool expected)
+    {
+        await using var context = BuildContext();
+        const int transactionId = 880;
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", transactionId, "ACH-HF02-C1");
+        var c1 = await context.AchCycles.SingleAsync(cycle => cycle.Id == "ACH-HF02-C1");
+        c1.CycleName = "Ciclo 1";
+        c1.ProcessingDate = new DateTime(2026, 11, 18);
+        (await context.AchTransactions.SingleAsync(row => row.Id == transactionId)).EffectiveEntryDate = c1.ProcessingDate;
+        c1.StartTime = new TimeSpan(19, 1, 0);
+        c1.CutoffTime = TimeSpan.FromHours(7);
+        c1.ClearingHouseCycleConfig!.StartTime = c1.StartTime;
+        c1.ClearingHouseCycleConfig.CutoffTime = c1.CutoffTime;
+        await context.SaveChangesAsync();
+        for (var n = 2; n <= 7; n++)
+        {
+            SeedScheduledAchCycle(context, 7002, $"ACH-HF02-C{n}", c1.ProcessingDate, 2 * n + 4);
+            var cycle = await context.AchCycles.SingleAsync(row => row.Id == $"ACH-HF02-C{n}");
+            cycle.CycleName = $"Ciclo {n}";
+        }
+        await context.SaveChangesAsync();
+        var original = await context.AchTransactions.Include(row => row.AchCycle)
+            .ThenInclude(cycle => cycle!.ClearingHouseCycleConfig)
+            .SingleAsync(row => row.Id == transactionId);
+        var returnCycle = await context.AchCycles.Include(row => row.ClearingHouseCycleConfig)
+            .SingleAsync(row => row.Id == $"ACH-HF02-C{targetNumber}");
+        var policy = new AchReturnEligibilityPolicyComponent(context,
+            Mock.Of<IAchReturnEligibilityService>(), null, new OperationalCalendarService(context));
+        var scope = new AchReturnGenerationScope(c1, returnCycle, null, true, false);
+        var item = new ReturnSelectionItemDto(transactionId, "R10",
+            AchColombiaR10Basis: AchColombiaR10ReturnBasis.NoReceiverAuthorizationOrAgreement);
+        var action = () => policy.ValidatePreEligibilityAsync(original, scope, item, CancellationToken.None);
+        if (expected)
+        {
+            await action();
+        }
+        else
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(action);
+            Assert.Contains("ACHCOL_R10_RETURN_WINDOW_EXPIRED", error.Message, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void R10_Hotfix02_CycleOneStartsPreviousCalendarDateEvenAcrossMidnight()
+    {
+        var operationalDate = new DateTime(2026, 11, 18); // miércoles hábil
+        var c1 = new AchCycle {
+            Id = "C1", CycleName = "Ciclo 1", ProcessingDate = operationalDate,
+            StartTime = new TimeSpan(19, 1, 0), CutoffTime = TimeSpan.FromHours(7)
+        };
+        var c2 = new AchCycle {
+            Id = "C2", CycleName = "Ciclo 2", ProcessingDate = operationalDate,
+            StartTime = new TimeSpan(7, 1, 0), CutoffTime = TimeSpan.FromHours(9)
+        };
+        Assert.Equal(new DateTime(2026, 11, 17, 19, 1, 0),
+            AchReturnEligibilityPolicyComponent.ResolveOperationalCycleStart(c1));
+        Assert.Equal(new DateTime(2026, 11, 18, 7, 1, 0),
+            AchReturnEligibilityPolicyComponent.ResolveOperationalCycleStart(c2));
+        Assert.True(AchReturnEligibilityPolicyComponent.ResolveOperationalCycleStart(c1)
+            < AchReturnEligibilityPolicyComponent.ResolveOperationalCycleStart(c2));
+        c1.CycleName = "C1";
+        Assert.Equal(new DateTime(2026, 11, 17, 19, 1, 0),
+            AchReturnEligibilityPolicyComponent.ResolveOperationalCycleStart(c1));
+    }
+
+    // Independent copy of the published matrix, not derived from production
+    // helpers. Covers all 49 same-day and all 49 previous-day cycle pairs.
+    public static IEnumerable<object[]> SevenCycleNormativeMatrix()
+    {
+        var previous = new[] { "4567", "567", "67", "7", "", "", "" };
+        var current = new[] { "", "1", "12", "123", "1234", "2345", "3456" };
+        for (var target = 1; target <= 7; target++)
+        for (var original = 1; original <= 7; original++)
+        {
+            yield return new object[] { original, target, RegulatoryCycleSourceDay.PreviousOperationalDay,
+                previous[target - 1].Contains(original.ToString()) };
+            yield return new object[] { original, target, RegulatoryCycleSourceDay.CurrentOperationalDay,
+                current[target - 1].Contains(original.ToString()) };
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(SevenCycleNormativeMatrix))]
+    public void R10_Final_CatalogExactlyMatchesAllPublishedPairs(
+        int origin, int destination, RegulatoryCycleSourceDay sourceDay, bool expected)
+    {
+        Assert.Equal(expected, RegulatoryCycleScheduleCatalog.AllowsAchColombiaSevenCycleReturn(
+            origin, destination, sourceDay));
+    }
+
+    [Theory]
+    [InlineData("2026-11-13", 7, "2026-11-17", 1, true)] // holiday Monday 16 Nov + weekend
+    [InlineData("2026-11-13", 3, "2026-11-17", 1, false)]
+    [InlineData("2026-11-18", 1, "2026-11-18", 2, true)]
+    [InlineData("2026-11-18", 1, "2026-11-18", 1, false)]
+    [InlineData("2026-11-17", 7, "2026-11-19", 1, false)] // intervening working day
+    [InlineData("2026-11-14", 7, "2026-11-17", 1, false)] // Saturday source
+    [InlineData("2026-11-16", 7, "2026-11-17", 1, false)] // national holiday source
+    [InlineData("2026-11-13", 7, "2026-11-15", 1, false)] // Sunday destination
+    public async Task R10_Final_PolicyEvaluatesActualOperationalDaysAndPairs(
+        string originDay, int originalNumber, string destinationDay, int returnNumber, bool expected)
+    {
+        await using var context = BuildContext();
+        const int transactionId = 992;
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", transactionId, "R10-FINAL-ORIGIN");
+        var originalDate = DateTime.ParseExact(originDay, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var targetDate = DateTime.ParseExact(destinationDay, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var originalCycle = await context.AchCycles.SingleAsync(row => row.Id == "R10-FINAL-ORIGIN");
+        originalCycle.CycleName = $"Ciclo {originalNumber}";
+        originalCycle.ProcessingDate = originalDate;
+        originalCycle.StartTime = originalNumber == 1 ? new TimeSpan(19, 1, 0) : TimeSpan.FromHours(16);
+        originalCycle.CutoffTime = originalNumber == 1 ? TimeSpan.FromHours(7) : TimeSpan.FromHours(18);
+        var transaction = await context.AchTransactions.SingleAsync(row => row.Id == transactionId);
+        transaction.EffectiveEntryDate = originalDate;
+        SeedScheduledAchCycle(context, 7002, "R10-FINAL-RETURN", targetDate, 8);
+        var returnCycle = await context.AchCycles.SingleAsync(row => row.Id == "R10-FINAL-RETURN");
+        returnCycle.CycleName = $"Ciclo {returnNumber}";
+        if (returnNumber == 1)
+        {
+            returnCycle.StartTime = new TimeSpan(19, 1, 0);
+            returnCycle.CutoffTime = TimeSpan.FromHours(7);
+        }
+        await context.SaveChangesAsync();
+        var attached = await context.AchTransactions.Include(row => row.AchCycle)
+            .ThenInclude(row => row!.ClearingHouseCycleConfig).SingleAsync(row => row.Id == transactionId);
+        var scope = new AchReturnGenerationScope(originalCycle, returnCycle, null, true, false);
+        var policy = new AchReturnEligibilityPolicyComponent(context,
+            Mock.Of<IAchReturnEligibilityService>(), null, new OperationalCalendarService(context));
+        var item = new ReturnSelectionItemDto(transactionId, "R10",
+            AchColombiaR10Basis: AchColombiaR10ReturnBasis.NoReceiverAuthorizationOrAgreement);
+
+        var action = () => policy.ValidatePreEligibilityAsync(attached, scope, item, CancellationToken.None);
+        if (expected) await action();
+        else await Assert.ThrowsAsync<InvalidOperationException>(action);
     }
 
     static List<string> SplitRecords(string content)
@@ -701,6 +871,23 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+    static void SetR10OriginalCycle(AchDbContext context, string cycleId, string cycleName, DateTime operationalDate)
+    {
+        var cycle = context.AchCycles.Single(row => row.Id == cycleId);
+        cycle.CycleName = cycleName;
+        cycle.ProcessingDate = operationalDate;
+        if (cycleName == "Ciclo 1")
+        {
+            cycle.StartTime = new TimeSpan(19, 1, 0);
+            cycle.CutoffTime = TimeSpan.FromHours(7);
+        }
+        foreach (var transaction in context.AchTransactions.Where(row => row.AchCycleId == cycleId))
+        {
+            transaction.EffectiveEntryDate = operationalDate;
+        }
+        context.SaveChanges();
+    }
 
     static void SeedScheduledAchCycle(AchDbContext context, int clearingHouseId, string cycleId, DateTime processingDate, int hour, bool allowsReturn = true)
     {

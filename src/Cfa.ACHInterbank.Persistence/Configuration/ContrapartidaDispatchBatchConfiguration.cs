@@ -37,6 +37,10 @@ public class ContrapartidaDispatchBatchConfiguration : IEntityTypeConfiguration<
             .HasMaxLength(128)
             .IsRequired();
 
+        builder.Property(x => x.DispatchCorrelationId).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.RequestPayloadHash).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.DispatchSoapEndpoint).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.DispatchExecutionMode).HasMaxLength(20).IsRequired();
         builder.Property(x => x.RequestPayloadXml);
         builder.Property(x => x.ResponsePayloadXml);
 
