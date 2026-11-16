@@ -1,0 +1,1 @@
+<FileNack><AdditionalRefs><RelatedRef>REF-1</RelatedRef></AdditionalRefs><FileErrorHandling><Status>NACK</Status><BatchNo>1</BatchNo><TraceNo>000010070007302</TraceNo><ErrorCode>ERR_ACCOUNT</ErrorCode></FileErrorHandling></FileNack>
