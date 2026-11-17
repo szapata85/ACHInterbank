@@ -79,6 +79,7 @@ services:
       CenitLocalGateway__OutputPath: /var/ach/cenit/output
       CenitLocalGateway__ArchivePath: /var/ach/cenit/archive
       CenitLocalGateway__PollIntervalMilliseconds: "250"
+      appSettings__tokenManager__secretKetJwt: "${ACH_JWT_SECRET:?Falta ACH_JWT_SECRET en .env}"
     volumes:
       # No incluye secretos de appsettings.Development.json en la imagen Docker.
       # Montaje solo para ejecución local; la conexión SQL se sobreescribe por ambiente.
