@@ -68,7 +68,9 @@ services:
       RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E: "false"
       ALLOW_LOCAL_MONETARY_SOAP_E2E: "false"
       ACH_SOAP_LIVE_TESTS: "false"
-      ProcTransacciones__Mode: DryRun
+      ProcTransacciones__Mode: Live
+      ProcContrapartidas__Mode: Live
+      SoapIntegrationBootstrap__EnforceLiveOnly: "true"
       RateLimiting__PermitLimit: "10"
       RateLimiting__WindowSeconds: "1"
       RateLimiting__QueueLimit: "2"

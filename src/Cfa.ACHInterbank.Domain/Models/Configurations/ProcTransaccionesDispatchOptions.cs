@@ -4,12 +4,12 @@ public sealed class ProcTransaccionesDispatchOptions
 {
     public const string SectionName = "ProcTransacciones";
 
-    public string Mode { get; set; } = "DryRun";
+    public string Mode { get; set; } = "Live";
 
     public bool UseContractDrivenRequest { get; set; }
 
     public string NormalizedMode
-        => string.IsNullOrWhiteSpace(Mode) ? "DryRun" : Mode.Trim();
+        => string.IsNullOrWhiteSpace(Mode) ? "Live" : Mode.Trim();
 
     public bool IsLive
         => string.Equals(NormalizedMode, "Live", StringComparison.OrdinalIgnoreCase);

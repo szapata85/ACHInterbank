@@ -762,11 +762,10 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
             parametersRoot.Id,
             order: 40);
 
-        await ReconcileExistingAsync(
-            OperationalRestrictionsRoute,
-            "Restricciones operativas",
-            parametersRoot.Id,
-            order: 50);
+        // The operational restrictions administration screen has been retired.
+        // Previous installations can still contain this route; it must not be
+        // reactivated or required by the canonical navigation reconciler.
+        await DeactivateMenuRouteAsync(OperationalRestrictionsRoute);
 
         var nachaConfiguration = await ReconcileExistingAsync(
             NachaConfigurationRoute,
@@ -906,12 +905,9 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
             connections.Id,
             order: 40);
 
-        var legacySoapItem = await context.MenuItems
-            .SingleOrDefaultAsync(item => item.Route == LegacySoapIntegrationsRoute);
-        if (legacySoapItem is not null)
-        {
-            legacySoapItem.IsActive = false;
-        }
+        // Historic databases may contain more than one legacy SOAP menu row.
+        // Deactivate all of them instead of throwing on SingleOrDefaultAsync.
+        await DeactivateMenuRouteAsync(LegacySoapIntegrationsRoute);
 
         await context.SaveChangesAsync();
 

@@ -141,11 +141,9 @@ public sealed class NavigationMenuNav1BaselineTests
         [
             // Permission prerequisites participate in the same global seeder pipeline.
             new ClaimsPermissionSeeder(context),
-            new CfaOperationalTransactionRestrictionsPermissionSeeder(context),
 
             new NachaSecurityMenuSeeder(context),
             new NachaConfigMenuSeeder(context),
-            new OperationalRestrictionsMenuSeeder(context),
             new UsersMenuSeeder(context),
             new CyclesMenuSeeder(context),
             new IncomingNachaCommandCenterMenuSeeder(context),

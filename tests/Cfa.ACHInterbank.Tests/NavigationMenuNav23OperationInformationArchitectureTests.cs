@@ -203,7 +203,6 @@ public sealed class NavigationMenuNav23OperationInformationArchitectureTests
                 "/catalogs/clearing-house-preferences",
                 "/ach-cycles",
                 "/catalogs/bank-holidays",
-                "/operational-restrictions",
                 "/nacha-config-admin",
                 "/catalogs",
                 "/integraciones",
@@ -335,10 +334,8 @@ public sealed class NavigationMenuNav23OperationInformationArchitectureTests
         IDbSeeder[] seeders =
         [
             new ClaimsPermissionSeeder(context),
-            new CfaOperationalTransactionRestrictionsPermissionSeeder(context),
             new NachaSecurityMenuSeeder(context),
             new NachaConfigMenuSeeder(context),
-            new OperationalRestrictionsMenuSeeder(context),
             new UsersMenuSeeder(context),
             new CyclesMenuSeeder(context),
             new IncomingNachaCommandCenterMenuSeeder(context),

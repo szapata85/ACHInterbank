@@ -79,6 +79,15 @@ public class SoapIntegrationSettingsController : ControllerBase
         {
             return RevisionConflict(ex);
         }
+        catch (ArgumentException ex) when (ex.Message.Contains("SOAP_LIVE_ONLY_REQUIRED", StringComparison.Ordinal))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "SOAP_LIVE_ONLY_REQUIRED",
+                Detail = "Esta instalación solo admite Live para servicios activos. Para detener envíos use Enabled=false.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
     }
 
     private ConflictObjectResult RevisionConflict(SoapIntegrationSettingsRevisionConflictException ex)

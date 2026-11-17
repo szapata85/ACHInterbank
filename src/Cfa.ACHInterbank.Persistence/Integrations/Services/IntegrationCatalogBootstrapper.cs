@@ -243,8 +243,11 @@ public sealed class IntegrationCatalogBootstrapper
             .Select(x => (Guid?)x.Id)
             .SingleOrDefaultAsync(ct);
 
+        // Never deactivate or rewrite parameters belonging to an imported
+        // non-baseline contract version. Baseline is seed-owned only.
         var existing = await _context.Set<IntegrationMethodParameter>()
-            .Where(x => x.MethodId == methodId)
+            .Where(x => x.MethodId == methodId
+                && (x.ContractVersionId == null || x.ContractVersionId == baselineContractVersionId))
             .ToListAsync(ct);
 
         var byKey = existing.ToDictionary(x => x.ParameterPath, StringComparer.OrdinalIgnoreCase);
@@ -270,8 +273,12 @@ public sealed class IntegrationCatalogBootstrapper
             parameter.UiHelpText = spec.UiHelpText;
             parameter.DataType = spec.DataType;
             parameter.XsdType = spec.DataType;
-            parameter.Nillable = false;
-            parameter.MinOccurs = spec.Required ? 1 : 0;
+            // The supplied XSD sequences use minOccurs=0 for all parameters.
+            // Functional Required remains stricter. Required inputs deliberately
+            // fail closed on null even where the wire XSD allows xsi:nil.
+            parameter.Nillable = !spec.Required
+                && string.Equals(spec.DataType, "string", StringComparison.OrdinalIgnoreCase);
+            parameter.MinOccurs = 0;
             parameter.MaxOccurs = 1;
             parameter.SupportStatus = "Supported";
             parameter.Direction = spec.Direction;
@@ -318,11 +325,9 @@ public sealed class IntegrationCatalogBootstrapper
             field.IsActive = true;
         }
 
-        var allowed = specs.Select(x => x.FieldPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var stale in existing.Where(x => !allowed.Contains(x.FieldPath)))
-        {
-            stale.IsActive = false;
-        }
+        // The source catalog is extensible: fields added by operators for
+        // published mapping versions must not be disabled by a baseline seed.
+        // Baseline entries are updated above; unknown paths are preserved.
     }
 
     private async Task EnsureAdditionalSourceCatalogAsync(int methodId, IReadOnlyCollection<SourceSeedSpec> specs, CancellationToken ct)

@@ -65,7 +65,7 @@ public sealed class SoapIntegrationSettingsBootstrapperTests
     }
 
     [Fact]
-    public async Task EnsureAsync_RepairsStaleRegistrar_AndProcContrapartidasMappings()
+    public async Task EnsureAsync_ReconcilesWsdlArguments_WithoutOverwritingOperatorRuntimeSettings()
     {
         await using var fixture = await ContextFixture.CreateAsync();
         await SeedCatalogAsync(fixture.Context);
@@ -98,14 +98,86 @@ public sealed class SoapIntegrationSettingsBootstrapperTests
         var wsAxon = ReadMappings(row.WsAxonRespuestaTransaccionesMappingsJson);
         Assert.Single(wscfaach, x => x.MethodName == "Proc_Transacciones");
         var contrapartidas = Assert.Single(wscfaach, x => x.MethodName == "Proc_Contrapartidas");
-        Assert.Equal("Live", contrapartidas.OperatingMode);
+        Assert.Equal("DryRun", contrapartidas.OperatingMode);
         Assert.Equal(15, contrapartidas.TimeoutSeconds);
         Assert.Equal(22, contrapartidas.InputParameterMappings.Count);
         var registrar = Assert.Single(wsAxon, x => x.MethodName == "RegistrarRespuestaTransaccion");
-        Assert.Equal("http://localhost:7083/WSAxonRespuestaTransacciones.svc", registrar.Endpoint);
-        Assert.Equal("Live", registrar.OperatingMode);
+        Assert.Equal("https://backend1.example.com", registrar.Endpoint);
+        Assert.Equal("Disabled", registrar.OperatingMode);
         Assert.True(registrar.Enabled);
-        Assert.DoesNotContain("backend1.example.com", row.WsAxonRespuestaTransaccionesMappingsJson);
+        Assert.Equal(7, registrar.InputParameterMappings.Count);
+        Assert.Equal("http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion", registrar.SoapAction);
+    }
+
+    [Fact]
+    public async Task EnsureAsync_LiveOnly_ReconcilesPersistedModesWithoutChangingOperatorEndpointsOrEnablement()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        await SeedCatalogAsync(fixture.Context);
+        fixture.Context.SoapIntegrationSettings.Add(new SoapIntegrationSetting
+        {
+            WscfaachMappingsJson = JsonSerializer.Serialize(new[]
+            {
+                new SoapEndpointMethodMappingDto
+                {
+                    MethodName = "Proc_Contrapartidas",
+                    Endpoint = "https://bank.example.invalid/contrapartidas",
+                    SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
+                    OperatingMode = "DryRun",
+                    TimeoutSeconds = 40,
+                    Enabled = true
+                },
+                new SoapEndpointMethodMappingDto
+                {
+                    MethodName = "Proc_Transacciones",
+                    Endpoint = "https://bank.example.invalid/transacciones",
+                    SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
+                    OperatingMode = "Disabled",
+                    TimeoutSeconds = 35,
+                    Enabled = false
+                }
+            }, JsonOptions),
+            WsAxonRespuestaTransaccionesMappingsJson = JsonSerializer.Serialize(new[]
+            {
+                new SoapEndpointMethodMappingDto
+                {
+                    MethodName = "RegistrarRespuestaTransaccion",
+                    Endpoint = "https://bank.example.invalid/axon",
+                    SoapAction = "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion",
+                    OperatingMode = "DryRun",
+                    TimeoutSeconds = 20,
+                    Enabled = true
+                }
+            }, JsonOptions)
+        });
+        await fixture.Context.SaveChangesAsync();
+        var values = ConfigurationValues();
+        values["SoapIntegrationBootstrap:EnforceLiveOnly"] = "true";
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+        var sut = new SoapIntegrationSettingsBootstrapper(fixture.Context, configuration);
+
+        await sut.EnsureAsync();
+        var settings = await fixture.Context.SoapIntegrationSettings.AsNoTracking().SingleAsync();
+        var mappings = ReadMappings(settings.WscfaachMappingsJson);
+        var counterparties = Assert.Single(mappings, x => x.MethodName == "Proc_Contrapartidas");
+        Assert.Equal("Live", counterparties.OperatingMode);
+        Assert.Equal("https://bank.example.invalid/contrapartidas", counterparties.Endpoint);
+        Assert.Equal(40, counterparties.TimeoutSeconds);
+        Assert.True(counterparties.Enabled);
+
+        var transactions = Assert.Single(mappings, x => x.MethodName == "Proc_Transacciones");
+        Assert.Equal("Live", transactions.OperatingMode);
+        Assert.Equal("https://bank.example.invalid/transacciones", transactions.Endpoint);
+        Assert.Equal(35, transactions.TimeoutSeconds);
+        Assert.False(transactions.Enabled);
+
+        var axon = Assert.Single(ReadMappings(settings.WsAxonRespuestaTransaccionesMappingsJson),
+            x => x.MethodName == "RegistrarRespuestaTransaccion");
+        Assert.Equal("Live", axon.OperatingMode);
+        Assert.Equal("https://bank.example.invalid/axon", axon.Endpoint);
+        Assert.Equal(20, axon.TimeoutSeconds);
+        await sut.EnsureAsync();
+        Assert.Single(await fixture.Context.SoapIntegrationSettings.ToListAsync());
     }
 
     [Fact]
@@ -122,6 +194,42 @@ public sealed class SoapIntegrationSettingsBootstrapperTests
 
         Assert.Contains("Endpoint", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(await fixture.Context.SoapIntegrationSettings.ToListAsync());
+    }
+
+    [Fact]
+    public async Task EnsureAsync_ExplicitOperatorRecoverySwitch_CanReplacePersistedRuntimeSettings()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        await SeedCatalogAsync(fixture.Context);
+        fixture.Context.SoapIntegrationSettings.Add(new SoapIntegrationSetting
+        {
+            WscfaachMappingsJson = JsonSerializer.Serialize(new[]
+            {
+                new SoapEndpointMethodMappingDto
+                {
+                    MethodName = "Proc_Contrapartidas",
+                    Endpoint = "https://old.example.invalid/service",
+                    SoapAction = "old-action",
+                    OperatingMode = "Disabled",
+                    TimeoutSeconds = 45,
+                    Enabled = false
+                }
+            }, JsonOptions),
+            WsAxonRespuestaTransaccionesMappingsJson = "[]"
+        });
+        await fixture.Context.SaveChangesAsync();
+
+        var values = ConfigurationValues();
+        values["SoapIntegrationBootstrap:OverwriteExistingSettings"] = "true";
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+        await new SoapIntegrationSettingsBootstrapper(fixture.Context, configuration).EnsureAsync();
+
+        var row = await fixture.Context.SoapIntegrationSettings.AsNoTracking().SingleAsync();
+        var mapping = Assert.Single(ReadMappings(row.WscfaachMappingsJson), x =>
+            x.MethodName == "Proc_Contrapartidas");
+        Assert.Equal("Live", mapping.OperatingMode);
+        Assert.True(mapping.Enabled);
+        Assert.Equal("http://localhost:7083/WSCFAACH.svc", mapping.Endpoint);
     }
 
     private static SoapEndpointMethodMappingDto StaleRegistrar()

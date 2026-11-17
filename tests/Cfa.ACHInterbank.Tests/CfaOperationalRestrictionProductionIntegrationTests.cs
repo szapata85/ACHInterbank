@@ -41,9 +41,6 @@ public sealed class CfaOperationalRestrictionProductionIntegrationTests
             descriptor.ServiceType == typeof(IDbSeeder)
             && descriptor.ImplementationType == typeof(CfaOperationalTransactionRestrictionSeeder));
 
-        Assert.Contains(services, descriptor =>
-            descriptor.ServiceType == typeof(IDbSeeder)
-            && descriptor.ImplementationType == typeof(CfaOperationalTransactionRestrictionsPermissionSeeder));
     }
 
     [Fact]

@@ -25,7 +25,7 @@ public record SoapIntegrationSettingsChangePreviewRequestDto
     public string MethodName { get; init; } = string.Empty;
     public string Endpoint { get; init; } = string.Empty;
     public string SoapAction { get; init; } = string.Empty;
-    public string OperatingMode { get; init; } = "DryRun";
+    public string OperatingMode { get; init; } = "Live";
     public bool Enabled { get; init; }
     public string ExpectedRevision { get; init; } = string.Empty;
 }
@@ -51,7 +51,7 @@ public record ProcTransaccionesEffectiveSettingsDto
     public string Operation { get; init; } = "Proc_Transacciones";
 
     /// <summary>Modo efectivo normalizado por el servicio: Live, Disabled o DryRun.</summary>
-    public string EffectiveMode { get; init; } = "DryRun";
+    public string EffectiveMode { get; init; } = "Live";
 
     /// <summary>Endpoint configurado para el mapping de Proc_Transacciones, sanitizado para presentación.</summary>
     public string Endpoint { get; init; } = string.Empty;

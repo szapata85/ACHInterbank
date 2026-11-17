@@ -1,0 +1,306 @@
+{
+  "Proc_Contrapartidas": {
+    "seed_count": 22,
+    "wsdl_count": 22,
+    "coinciden_nombres_orden_tipos": true,
+    "diferencias": [],
+    "campos": [
+      {
+        "name": "OFNIT",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "OFEMP",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "OFCTA",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "OFDD",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "OFFECHEFEC",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "OFMONDEB",
+        "type": "decimal",
+        "required_functional": true
+      },
+      {
+        "name": "OFMONCRE",
+        "type": "decimal",
+        "required_functional": true
+      },
+      {
+        "name": "OFIDARCH",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "OFIDLOT",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "OFST",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "OFIDTX",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "OFIDREVER",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "OFIDEBAPLI",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "OFIDCAMCOMPE",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "OFDIRECCIONIP",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "OFLIBRE",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "OFLIBRE1",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "ANSIDLOTE",
+        "type": "int",
+        "required_functional": false
+      },
+      {
+        "name": "ANSST",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "ANCLC",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "ANSIDTX",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "ANSIDREVER",
+        "type": "int",
+        "required_functional": false
+      }
+    ]
+  },
+  "Proc_Transacciones": {
+    "seed_count": 27,
+    "wsdl_count": 27,
+    "coinciden_nombres_orden_tipos": true,
+    "diferencias": [],
+    "campos": [
+      {
+        "name": "TREG",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "TIPTRAN",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "BCORECEP",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "BCOORIG",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "NORIG",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "NCTAORIG",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "IDORIG",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "DESTRAN",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "FECEFEC",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "NCTARECEP",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "MONTO",
+        "type": "double",
+        "required_functional": true
+      },
+      {
+        "name": "NRECEP",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "IDRECEP",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "DISCRE",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "CONV",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "PROD",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "INFPAG",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "IDTRAN",
+        "type": "long",
+        "required_functional": true
+      },
+      {
+        "name": "IDLOTE",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "REGLOTE",
+        "type": "long",
+        "required_functional": false
+      },
+      {
+        "name": "IREVER",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "LIBRE",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "IDCAMCOMPE",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "DIRECCIONIP",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "LIBRE1",
+        "type": "int",
+        "required_functional": false
+      },
+      {
+        "name": "RTAACH",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "RTALOC",
+        "type": "string",
+        "required_functional": false
+      }
+    ]
+  },
+  "RegistrarRespuestaTransaccion": {
+    "seed_count": 7,
+    "wsdl_count": 7,
+    "coinciden_nombres_orden_tipos": true,
+    "diferencias": [],
+    "campos": [
+      {
+        "name": "idCanal",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "nombreCanal",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "idTransaccion",
+        "type": "string",
+        "required_functional": true
+      },
+      {
+        "name": "idEstado",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "causal",
+        "type": "string",
+        "required_functional": false
+      },
+      {
+        "name": "idTransaccionAxon",
+        "type": "int",
+        "required_functional": true
+      },
+      {
+        "name": "descripcionCausal",
+        "type": "string",
+        "required_functional": false
+      }
+    ]
+  }
+}

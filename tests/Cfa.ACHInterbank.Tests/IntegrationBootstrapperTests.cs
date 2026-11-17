@@ -38,6 +38,33 @@ public sealed class IntegrationBootstrapperTests
     }
 
     [Fact]
+    public async Task CatalogBootstrapper_DoesNotDisableOperatorSourceField()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var bootstrapper = new IntegrationCatalogBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x =>
+            x.Code == "WSCFAACH.Proc_Transacciones");
+        var custom = new IntegrationSourceCatalogField
+        {
+            MethodId = method.Id,
+            SourceKind = IntegrationSourceKindEnum.Transaction,
+            EntityName = "OperatorDefinedSource",
+            FieldPath = "operator.approvedReference",
+            DisplayName = "Origen aprobado manualmente",
+            DataType = "string",
+            IsActive = true
+        };
+        fixture.Context.IntegrationSourceCatalogFields.Add(custom);
+        await fixture.Context.SaveChangesAsync();
+
+        await bootstrapper.EnsureAsync();
+
+        Assert.True((await fixture.Context.IntegrationSourceCatalogFields.SingleAsync(x =>
+            x.Id == custom.Id)).IsActive);
+    }
+
+    [Fact]
     public async Task MappingBootstrapper_ShouldSeedPublishedBaseMappings_AndBeIdempotent()
     {
         await using var fixture = await ContextFixture.CreateAsync();
@@ -101,7 +128,8 @@ public sealed class IntegrationBootstrapperTests
                 Assert.Equal(baseline.Id, parameter.ContractVersionId);
                 Assert.Equal(parameter.ParameterPath, parameter.XmlElementName);
                 Assert.False(string.IsNullOrWhiteSpace(parameter.XsdType));
-                Assert.Equal(parameter.Required ? 1 : 0, parameter.MinOccurs);
+                Assert.Equal(0, parameter.MinOccurs);
+                Assert.Equal(parameter.DataType == "string" && !parameter.Required, parameter.Nillable);
                 Assert.Equal(1, parameter.MaxOccurs);
                 Assert.Equal("Supported", parameter.SupportStatus);
                 Assert.Equal(originalParameterIds[(parameter.MethodId, parameter.ParameterPath)], parameter.Id);
@@ -603,7 +631,7 @@ public sealed class IntegrationBootstrapperTests
     }
 
     [Fact]
-    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldArchiveManualNonWsdlMapping()
+    public async Task RegistrarRespuestaTransaccion_Bootstrapper_MustNotArchiveOperatorPublishedMapping()
     {
         await using var fixture = await ContextFixture.CreateAsync();
         var method = new IntegrationMethod
@@ -669,13 +697,12 @@ public sealed class IntegrationBootstrapperTests
             .Select(x => x.ParameterPath)
             .ToListAsync();
 
-        Assert.Equal(2, sets.Count);
-        Assert.Contains(sets, x => x.Id == manualSet.Id && x.Status == IntegrationMappingSetStatusEnum.Archived && !x.IsActive);
-        Assert.Contains(sets, x => x.Id != manualSet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        Assert.Single(sets);
+        Assert.Contains(sets, x => x.Id == manualSet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
         Assert.Equal(
             ["idCanal", "nombreCanal", "idTransaccion", "idEstado", "causal", "idTransaccionAxon", "descripcionCausal"],
             activeParameters);
-        Assert.Contains(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == manualSet.Id && x.Action == "ArchivedInvalidSeedContract");
+        Assert.DoesNotContain(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == manualSet.Id && x.Action == "ArchivedInvalidSeedContract");
     }
 
     private sealed record SeedCounts(

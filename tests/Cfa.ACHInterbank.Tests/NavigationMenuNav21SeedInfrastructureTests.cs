@@ -37,7 +37,6 @@ public sealed class NavigationMenuNav21SeedInfrastructureTests
         [
             new NachaSecurityMenuSeeder(null!),
             new NachaConfigMenuSeeder(null!),
-            new OperationalRestrictionsMenuSeeder(null!),
             new UsersMenuSeeder(null!),
             new CyclesMenuSeeder(null!),
             new IncomingNachaCommandCenterMenuSeeder(null!),

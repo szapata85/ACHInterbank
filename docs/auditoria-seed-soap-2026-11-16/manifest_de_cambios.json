@@ -1,0 +1,212 @@
+{
+  "source": "ACHInterbank.zip",
+  "description": "Seed + SOAP static audit, safe hash checked update",
+  "entries": [
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/DataBase/DbInitializer.cs",
+      "operation": "modify",
+      "originalSha256": "36cc517a4868183477d1a5f591e86176e1b57a5d98b675fa8d82909679e6d362",
+      "patchedSha256": "3313eb45e2f077415cab3c8613e90c56303168ca3ffd3791b9f89bce31b2290b"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/Integrations/Services/IntegrationCatalogBootstrapper.cs",
+      "operation": "modify",
+      "originalSha256": "bfb96bbb96bbd1bc6f5705c66aa7549f761aa012fda27734cacaed9c80f0c182",
+      "patchedSha256": "3c4cb413ca4b3d53006c9a246e531ce2a606e28e1ad1475304c23bec829cb7ac"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/Integrations/Services/IntegrationMappingBootstrapper.cs",
+      "operation": "modify",
+      "originalSha256": "7d8ae0dbb1fc7ffc014f9be76f6fe603dbefc456254b107271a70c3744b74611",
+      "patchedSha256": "797053b4a2207da8d07f062598705f8cbf600d852c734ef9f38b2bbe72f33e08"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/Navigation/Seeders/NavigationInformationArchitectureSeeder.cs",
+      "operation": "modify",
+      "originalSha256": "30958f2510841a25e51ee9343cbff7aa3e5956abdf0a53a5b1c9c4b266787b15",
+      "patchedSha256": "bcff0aca507ab87c1e886589274a8c70ebc1f219793100b1880700f247dc968b"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/Navigation/Seeders/OperationalRestrictionsMenuSeeder.cs",
+      "operation": "delete",
+      "originalSha256": "dcc3d0344d7c18ac0a9a17e4d759aba87bb35d8b78197433806b765940c82092"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/Security/Seeders/CfaOperationalTransactionRestrictionsPermissionSeeder.cs",
+      "operation": "delete",
+      "originalSha256": "2ab91e9589f941cb3b706bc789323b364c81ee87b5fed39551dacd4ffc249a22"
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/Security/Services/SoapIntegrationSettingsBootstrapper.cs",
+      "operation": "modify",
+      "originalSha256": "98ab9ae57800964390339b812215a5ffb2bb0bb7a188b05354679f222e293851",
+      "patchedSha256": "28a56a6241ace98affe687075bac4f6f4299b50b0968df44f47a7d41edf81c97"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/CfaOperationalRestrictionProductionIntegrationTests.cs",
+      "operation": "modify",
+      "originalSha256": "35c0c54400551020197ba3cf1fd67fe0eb00148902d8572bc279885a63bc1d46",
+      "patchedSha256": "f93b0a7fac17565ceb86777f426d9cf1e05b2ffbaeac2dd4ebe2b12da73188c8"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/CfaOperationalTransactionRestrictionsPermissionSeederTests.cs",
+      "operation": "delete",
+      "originalSha256": "5acc4ca3fe86c1f6bfcdb52c1b6b588a9cbea631940b24e5ef032d39c285973a"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/IntegrationBootstrapperTests.cs",
+      "operation": "modify",
+      "originalSha256": "d4e05f02a90abd8561be76d284c1eaf60c31d02449dcdceb829bf6993a93048d",
+      "patchedSha256": "8f51ddbbaf458cb180a5994a4b960c68abf19bdc39141d3148959195cabc130e"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav1BaselineTests.cs",
+      "operation": "modify",
+      "originalSha256": "b1d48d8a9fc59974eeb09b192b1a03234145a119d453c846089e632dd842e73b",
+      "patchedSha256": "01841c4a97e9cb18e4bf2b2bba0d41462ee197ec051bb2cdbc6597ba46acda8f"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav210AStructuralNormalizationTests.cs",
+      "operation": "modify",
+      "originalSha256": "13615e2eaa21b4b92d6ef5d78cb11418b4487cc59efb85fe81ae786eb31d38b9",
+      "patchedSha256": "ab2dc3c77f9b4e96351aeccf108df8c16fcc928f57d8012127e66b62072c6ef7"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav210BCatalogsCoverageTests.cs",
+      "operation": "modify",
+      "originalSha256": "bf024d8193b3c74dc74f181b760593a5f06ae2b4b8bc2bf9e5837cb70c5a3b7e",
+      "patchedSha256": "56142f8775a372e1a15361b1d408b0efb3c717a962e7a38e3c3719709e8726dc"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav21SeedInfrastructureTests.cs",
+      "operation": "modify",
+      "originalSha256": "acd41dc13f951a755620c82551820729e98372f47a1fa60998d9f35ac9cc8708",
+      "patchedSha256": "1283f332a7bb6311472b41f372b6218bbe44794e367f416ffad645c53e7fd59a"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav22ParametersInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "34458972f68b8d64e20f35bac84f36bc0c388913359895b4022677a43c136faa",
+      "patchedSha256": "161b33871d43148e0eaed14f6a3225e6e89c5109f5f06c1a1a5ba421bc0b4d15"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav23OperationInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "c45df62901820263daf13226fc6232a86fb46cb28c7cb709d9e76cbf51ddc0ce",
+      "patchedSha256": "1b2d8911b2e822d678529f01b3f87eae9d17ba72fd93a6ac336e27fb89047be7"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav24CustomersInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "da0d9a67ee95064ebb597ebc553c41bda1f6c5693556e42a9e7fb6ae3ad3a4c5",
+      "patchedSha256": "a447e98aca193eed10a8455f75bcae60d1007bb5931afb25786454f3a7dd203c"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav25AMonitoringInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "0ac599c3ba5ebddfb2df9786b880a2634542375480c4efc35807e853d7da1f7b",
+      "patchedSha256": "2c3ac8db99276a76f06f1d6432b06be7e3b19ed53d6cfa3794a4401cb6032fbb"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav25BResponsesReconciliationInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "08b0a9bcdb7d80bdfc95a78843306b1bbfff71ab97d516268eefe4c430e55f4e",
+      "patchedSha256": "6a2a96354f9f01300326b8236de8b54d2eacc9dca05f8f51b0c1d77102c8178b"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav26FileSecurityInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "7cd161f70f48d250288269952a4f5d46fb4410e92a9c76fd35d6940232163586",
+      "patchedSha256": "5f1702a9be15b9bf9f6610720d918b16e62e513f1d6282ba9b10e7ac01dc96b7"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav27ReportsInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "0ec584c235704da965b4e5606cee3cd2ccf3c1b4ccd6b7be2a9e22e2a35b9af6",
+      "patchedSha256": "28ef63a961e89a6c2af401de6c1d8ca37eae943374a1f2ae53464bc16abb0484"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav28AAdministrationUsersAccessInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "ef7b6d61b5d5e8e98f02ae39c5f9908be2d649ae80d196fa0e61912331574247",
+      "patchedSha256": "f4ff4643c0ec9149435c110fc3d4ed4b879dc9dc0120b1b22db206eda31353f8"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav28BAdministrationScheduledTasksInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "d019e1da14ea089efe16a847919131a1a03bfb294a96ead8346627c977beea34",
+      "patchedSha256": "fd543259cd027b444ab42c3c95eadded75626960776ee4f6118d2e887cac9b9e"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav28CAdministrationSystemRecordsInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "a9ebd42c47dc2ef0b91e03df02f6d250d2e39eeac49b53277a304a8f51e928ab",
+      "patchedSha256": "ad5b3b77afb4cb36dd9863367b3db3095d39a99c5311cd7b5abc529e274a0f16"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav28DAdministrationMenuOrganizationInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "2bfb960fd6f396e3648327a00fd72cb494e3042681f1ba4ad97b877a7fa00eeb",
+      "patchedSha256": "2de5f13708940b3de71bc0a1b393e8e5f9ea26233579cb66e4a43cc1ab422d50"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav28EAdministrationPlatformCapabilitiesInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "031dfe0a03a71ea09286f4479ed061124abcc81c3e75f5d829f0161e83cea58b",
+      "patchedSha256": "ef6803bcd83aeb71cdb1456f733c3acb2fdcfc440d124ff142ace756ea728cbf"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav29TestToolsInformationArchitectureTests.cs",
+      "operation": "modify",
+      "originalSha256": "8c685daf3b7880f011cb781c72530774a42df0155a2dc82c865114300cce5c84",
+      "patchedSha256": "a32c947eb8b09ec01eefad7dcc1c9efb1d7a37c64afeacb98340467fd2fccdda"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav34IPlatformCapabilitiesAuthorizationTests.cs",
+      "operation": "modify",
+      "originalSha256": "7ff56939d15f81ac1e7e44eec10feca8548c03859d9e351cf15007acc8d46de5",
+      "patchedSha256": "533dac087bbc3ab37935575b61a1041fd5de17b64ab4031576d10ae3bb09e18c"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav34JDigitalEnvelopeAuthorizationTests.cs",
+      "operation": "modify",
+      "originalSha256": "bcc97e6ac48224dbe57485f87c6fb76c641ceeae43a01e412cbb8435f6a82226",
+      "patchedSha256": "da7eafb510850ec49babf48fb9eebc4b786439e60ce90546ee2e39681914d2c3"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav34KReturnOfReturnAuthorizationTests.cs",
+      "operation": "modify",
+      "originalSha256": "77559a2d1126e012e4c68432f15cc48d446c062d8217737ef6fe94ac9f48d8e1",
+      "patchedSha256": "46adf422c24b709c43d69603123770456a2fdd1854270d6a98fef6b742450278"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav34MMftAdministrationAuthorizationTests.cs",
+      "operation": "modify",
+      "originalSha256": "b5a28b009c751aa8f72a3cf5ad751084167355f3ba4edf52adee048de011db77",
+      "patchedSha256": "ddc300e6a75a27ea775c998da7cba337b214e3155ae6073fb76d800d3fefb898"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav34NConnectionsNavigationTests.cs",
+      "operation": "modify",
+      "originalSha256": "eea3c10b5402a861cc1df085e6e6d31bd46113331fe8190699522d2adf8d1513",
+      "patchedSha256": "3b6b4657047b2a35c7d94a773ce8b16e67f9d96b4e420a73c574cd1b044a9528"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/NavigationMenuNav34RIntegrationsReadAudienceTests.cs",
+      "operation": "modify",
+      "originalSha256": "60fbef34ab02401bd6074389c1935c3fc1854858fb5a4f6e829fdad1eec9819b",
+      "patchedSha256": "4ba326f862756d55f6489a6b2e9ab6944337991951602da61cfec321982d22ef"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/OperationalRestrictionsMenuSeederTests.cs",
+      "operation": "delete",
+      "originalSha256": "b589492a5ef2d5b1f3a034c5743780cec899405c4b7938130d7a9f350353c8bf"
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/SoapIntegrationSettingsBootstrapperTests.cs",
+      "operation": "modify",
+      "originalSha256": "e4c20149a13c6b670b73f59f43c59c163f17e9b2b9b089cda197a38ccaa1e446",
+      "patchedSha256": "c60c35f06166541b71dcc77e93dfb8ee15243b9d2bf14c004a9e0a7583774278"
+    }
+  ]
+}

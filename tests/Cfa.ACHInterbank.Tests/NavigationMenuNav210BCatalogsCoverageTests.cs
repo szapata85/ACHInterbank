@@ -277,10 +277,8 @@ public sealed class NavigationMenuNav210BCatalogsCoverageTests
         IDbSeeder[] seeders =
         [
             new ClaimsPermissionSeeder(context),
-            new CfaOperationalTransactionRestrictionsPermissionSeeder(context),
             new NachaSecurityMenuSeeder(context),
             new NachaConfigMenuSeeder(context),
-            new OperationalRestrictionsMenuSeeder(context),
             new UsersMenuSeeder(context),
             new CyclesMenuSeeder(context),
             new IncomingNachaCommandCenterMenuSeeder(context),

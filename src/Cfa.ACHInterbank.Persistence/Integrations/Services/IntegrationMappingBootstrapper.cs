@@ -118,7 +118,7 @@ public sealed class IntegrationMappingBootstrapper
             .OrderBy(x => x.SortOrder)
             .ToListAsync(ct);
 
-        if (existingPublishedSets.Any(x => !IsSystemBootstrapMapping(x)))
+        if (await RespectOperatorPublishedMappingAsync(existingPublishedSets, ct))
         {
             return;
         }
@@ -205,6 +205,11 @@ public sealed class IntegrationMappingBootstrapper
         AddPathRule("OFLIBRE", IntegrationSourceKindEnum.Transaction, "transaction.reference", null);
         AddPathRule("OFLIBRE1", IntegrationSourceKindEnum.Transaction, "transaction.id", null);
 
+        // An unmapped mandatory parameter must stay unmapped, never receive a
+        // synthetic "SEED" or other placeholder value in a published monetary set.
+        rules.RemoveAll(rule => rule.SourceKind == IntegrationSourceKindEnum.Constant
+            && IsPlaceholder(rule.FixedValue));
+
         // No contractual equivalence for company code, outbound file ID or a real origin IP.
         // Remove bootstrap placeholders as well: mandatory mappings must fail closed until sourced.
         foreach (var missingSource in new[] { "OFEMP", "OFIDARCH", "OFDIRECCIONIP" })
@@ -285,6 +290,37 @@ public sealed class IntegrationMappingBootstrapper
     private static bool IsSystemBootstrapMapping(IntegrationMappingSet mappingSet)
         => string.Equals(mappingSet.PublishedBy, SystemBootstrapPublisher, StringComparison.OrdinalIgnoreCase);
 
+    private async Task<bool> RespectOperatorPublishedMappingAsync(
+        IReadOnlyCollection<IntegrationMappingSet> publishedSets,
+        CancellationToken ct)
+    {
+        if (!publishedSets.Any(set => !IsSystemBootstrapMapping(set)))
+        {
+            return false;
+        }
+
+        // Never demote an operator-owned published mapping. Any competing
+        // seed-owned published set is retired to make selection unambiguous.
+        var seedOwned = publishedSets.Where(IsSystemBootstrapMapping).ToList();
+        if (seedOwned.Count > 0)
+        {
+            foreach (var mapping in seedOwned)
+            {
+                mapping.Status = IntegrationMappingSetStatusEnum.Archived;
+                mapping.IsActive = false;
+            }
+            await _context.SaveChangesAsync(ct);
+            foreach (var mapping in seedOwned)
+            {
+                _context.IntegrationMappingSetHistory.Add(
+                    await BuildHistoryAsync(mapping, "ArchivedSeedForOperatorPublishedMapping", ct));
+            }
+            await _context.SaveChangesAsync(ct);
+        }
+
+        return true;
+    }
+
     private void SynchronizeSystemRules(
         IReadOnlyCollection<IntegrationMappingRule> existingRules,
         IReadOnlyCollection<IntegrationMappingRule> desiredRules)
@@ -361,21 +397,43 @@ public sealed class IntegrationMappingBootstrapper
             .OrderBy(x => x.SortOrder)
             .ToListAsync(ct);
 
-        if (existingPublishedSets.Any(x => !string.Equals(x.PublishedBy, "seed", StringComparison.OrdinalIgnoreCase)))
+        if (await RespectOperatorPublishedMappingAsync(existingPublishedSets, ct))
         {
             return;
         }
 
+        IntegrationMappingSet? compatiblePublishedSet = null;
         foreach (var existing in existingPublishedSets)
         {
             var existingRules = await _context.IntegrationMappingRules
                 .AsNoTracking()
                 .Where(x => x.MappingSetId == existing.Id && x.Enabled)
                 .ToListAsync(ct);
-            if (IsProcTransaccionesMappingCompatible(parameters, existingRules))
+            if (compatiblePublishedSet is null && IsProcTransaccionesMappingCompatible(parameters, existingRules))
             {
-                return;
+                compatiblePublishedSet = existing;
             }
+        }
+
+        if (compatiblePublishedSet is not null)
+        {
+            var duplicates = existingPublishedSets.Where(x => x.Id != compatiblePublishedSet.Id).ToList();
+            if (duplicates.Count > 0)
+            {
+                foreach (var duplicate in duplicates)
+                {
+                    duplicate.Status = IntegrationMappingSetStatusEnum.Archived;
+                    duplicate.IsActive = false;
+                }
+                await _context.SaveChangesAsync(ct);
+                foreach (var duplicate in duplicates)
+                {
+                    _context.IntegrationMappingSetHistory.Add(
+                        await BuildHistoryAsync(duplicate, "ArchivedDuplicateSeedMapping", ct));
+                }
+                await _context.SaveChangesAsync(ct);
+            }
+            return;
         }
 
         foreach (var invalid in existingPublishedSets)
@@ -499,6 +557,14 @@ public sealed class IntegrationMappingBootstrapper
                 && x.IsActive)
             .OrderByDescending(x => x.Version)
             .ToListAsync(ct);
+
+        // A user-published mapping is authoritative. Never archive or replace it
+        // from /Maintenance/seed, even when the baseline WSDL has changed.
+        // Readiness/validation must report contract drift to the operator.
+        if (await RespectOperatorPublishedMappingAsync(publishedSets, ct))
+        {
+            return;
+        }
 
         IntegrationMappingSet? compatiblePublishedSet = null;
         foreach (var published in publishedSets)

@@ -169,7 +169,7 @@ export class SoapIntegrationSettingsComponent {
   readonly editorForm = this.fb.group({
     endpoint: ['', [Validators.required]],
     soapAction: ['', [Validators.required]],
-    operatingMode: ['DryRun' as IntegrationConnectionMethodDto['operatingMode'], [Validators.required]],
+    operatingMode: ['Live' as IntegrationConnectionMethodDto['operatingMode'], [Validators.required]],
     enabled: [true]
   });
 
@@ -656,7 +656,7 @@ export class SoapIntegrationSettingsComponent {
       this.editorForm.reset({
         endpoint: '',
         soapAction: '',
-        operatingMode: 'DryRun',
+        operatingMode: 'Live',
         enabled: false
       }, { emitEvent: false });
       return;
@@ -706,7 +706,7 @@ export class SoapIntegrationSettingsComponent {
       methodName: [mapping.methodName, [Validators.required]],
       endpoint: [mapping.endpoint, [Validators.required]],
       soapAction: [mapping.soapAction, [Validators.required]],
-      operatingMode: [mapping.operatingMode ?? 'DryRun', [Validators.required]],
+      operatingMode: [mapping.operatingMode ?? 'Live', [Validators.required]],
       enabled: [mapping.enabled],
       sanitizedEndpoint: [mapping.sanitizedEndpoint],
       sanitizedSoapAction: [mapping.sanitizedSoapAction],

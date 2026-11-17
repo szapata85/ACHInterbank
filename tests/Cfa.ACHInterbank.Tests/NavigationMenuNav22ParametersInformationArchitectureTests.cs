@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Domain.Entities.Navigation;
 using Cfa.ACHInterbank.Persistence.Configuration;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Navigation.Seeders;
@@ -17,7 +18,6 @@ public sealed class NavigationMenuNav22ParametersInformationArchitectureTests
         "/catalogs/clearing-house-preferences",
         "/ach-cycles",
         "/catalogs/bank-holidays",
-        "/operational-restrictions",
         "/nacha-config-admin",
         "/catalogs",
         "/catalogs/financial-institutions",
@@ -40,6 +40,31 @@ public sealed class NavigationMenuNav22ParametersInformationArchitectureTests
         "/nacha-security/certificates",
         "/nacha-security/sobre-digital"
     };
+
+    [Fact]
+    public async Task CanonicalSeeder_RetiresLegacyOperationalRestrictionsNavigation()
+    {
+        await using var fixture = CreateFixture();
+        await SeedFunctionalNavigationAsync(fixture.Context);
+        var legacy = new MenuItem
+        {
+            MenuId = MenuConfiguration.MainMenuId,
+            ParentId = MenuItemConfiguration.CatalogsId,
+            Label = "Legacy operational restrictions",
+            Route = "/operational-restrictions",
+            IsActive = true,
+            Exact = true
+        };
+        fixture.Context.MenuItems.Add(legacy);
+        await fixture.Context.SaveChangesAsync();
+
+        await new NavigationInformationArchitectureSeeder(fixture.Context).SeedAsync();
+
+        Assert.False((await fixture.Context.MenuItems.SingleAsync(
+            item => item.Route == "/operational-restrictions")).IsActive);
+        Assert.Equal(1, await fixture.Context.MenuItems.CountAsync(item =>
+            item.IsActive && item.Route == "/integraciones/conexion"));
+    }
 
     [Fact]
     public async Task CanonicalSeeder_BuildsParametersAdministrationWithDeterministicChildren()
@@ -72,7 +97,6 @@ public sealed class NavigationMenuNav22ParametersInformationArchitectureTests
             ("/catalogs/clearing-house-preferences", "Prioridades por cámara", 20),
             ("/ach-cycles", "Ciclos de operación", 30),
             ("/catalogs/bank-holidays", "Días no hábiles", 40),
-            ("/operational-restrictions", "Restricciones operativas", 50),
             ("/nacha-config-admin", "Configuración de archivos NACHA-M", 60),
             ("/catalogs", "Catálogos", 70),
             ("/integraciones", "Conexiones", 80),
@@ -231,7 +255,6 @@ public sealed class NavigationMenuNav22ParametersInformationArchitectureTests
                 || item.Route == "/catalogs/clearing-house-preferences"
                 || item.Route == "/ach-cycles"
                 || item.Route == "/catalogs/bank-holidays"
-                || item.Route == "/operational-restrictions"
                 || item.Route == "/nacha-config-admin"
                 || item.Route == "/catalogs"
                 || item.Route == "/integraciones"
@@ -309,10 +332,8 @@ public sealed class NavigationMenuNav22ParametersInformationArchitectureTests
         IDbSeeder[] seeders =
         [
             new ClaimsPermissionSeeder(context),
-            new CfaOperationalTransactionRestrictionsPermissionSeeder(context),
             new NachaSecurityMenuSeeder(context),
             new NachaConfigMenuSeeder(context),
-            new OperationalRestrictionsMenuSeeder(context),
             new UsersMenuSeeder(context),
             new CyclesMenuSeeder(context),
             new IncomingNachaCommandCenterMenuSeeder(context),

@@ -52,6 +52,12 @@ public sealed class SoapIntegrationSettingsBootstrapper
             return;
         }
 
+        // Explicit recovery switch. A normal seed must not silently re-enable
+        // SOAP Live or overwrite an endpoint maintained by an operator.
+        var overwriteExistingSettings = section.GetValue<bool>("OverwriteExistingSettings");
+        // Live-only seeding is an explicit deployment choice. Preserve operator
+        // endpoints, timeouts and Enabled kill-switch, but reconcile old modes.
+        var enforceLiveOnly = section.GetValue<bool>("EnforceLiveOnly");
         var defaultTimeoutSeconds = ReadTimeout(section, "DefaultTimeoutSeconds");
         var contrapartidasSpec = ReadOperation(
             section.GetSection("ProcContrapartidas"),
@@ -65,6 +71,12 @@ public sealed class SoapIntegrationSettingsBootstrapper
             section.GetSection("RegistrarRespuestaTransaccion"),
             RegistrarRespuestaMethodName,
             defaultTimeoutSeconds);
+        if (enforceLiveOnly && (contrapartidasSpec.OperatingMode != "Live"
+            || procSpec.OperatingMode != "Live" || registrarSpec.OperatingMode != "Live"))
+        {
+            throw new InvalidOperationException(
+                "SOAP_LIVE_ONLY_REQUIRED: the three SOAP methods must use OperatingMode=Live.");
+        }
 
         var contrapartidasParameters = await ReadInputParametersAsync(ProcContrapartidasMethodCode, ct);
         var procParameters = await ReadInputParametersAsync(ProcTransaccionesMethodCode, ct);
@@ -88,13 +100,13 @@ public sealed class SoapIntegrationSettingsBootstrapper
         EnsureExistingTimeouts(wscfaach, defaultTimeoutSeconds);
         Upsert(
             wscfaach,
-            BuildMapping(contrapartidasSpec, contrapartidasParameters));
+            BuildMapping(contrapartidasSpec, contrapartidasParameters), overwriteExistingSettings, enforceLiveOnly);
         Upsert(
             wscfaach,
-            BuildMapping(procSpec, procParameters));
+            BuildMapping(procSpec, procParameters), overwriteExistingSettings, enforceLiveOnly);
         Upsert(
             wsAxon,
-            BuildMapping(registrarSpec, registrarParameters));
+            BuildMapping(registrarSpec, registrarParameters), overwriteExistingSettings, enforceLiveOnly);
 
         var wscfaachJson = JsonSerializer.Serialize(wscfaach, JsonOptions);
         var wsAxonJson = JsonSerializer.Serialize(wsAxon, JsonOptions);
@@ -219,7 +231,9 @@ public sealed class SoapIntegrationSettingsBootstrapper
 
     private static void Upsert(
         IList<SoapEndpointMethodMappingDto> mappings,
-        SoapEndpointMethodMappingDto desired)
+        SoapEndpointMethodMappingDto desired,
+        bool overwriteExistingSettings,
+        bool enforceLiveOnly)
     {
         var matchingIndexes = mappings
             .Select((mapping, index) => (mapping, index))
@@ -234,6 +248,22 @@ public sealed class SoapIntegrationSettingsBootstrapper
         {
             mappings.Add(desired);
             return;
+        }
+
+        if (!overwriteExistingSettings)
+        {
+            // WSDL action and argument list come from the canonical catalog,
+            // but runtime connectivity and enablement remain operator-owned.
+            var current = mappings[matchingIndexes[0]];
+            desired = desired with
+            {
+                Endpoint = current.Endpoint,
+                // An explicit Live-only deployment reconciles the persisted mode,
+                // including old disabled modes. Enabled remains operator-owned.
+                OperatingMode = enforceLiveOnly ? "Live" : current.OperatingMode,
+                TimeoutSeconds = current.TimeoutSeconds,
+                Enabled = current.Enabled
+            };
         }
 
         mappings[matchingIndexes[0]] = desired;
@@ -258,6 +288,19 @@ public sealed class SoapIntegrationSettingsBootstrapper
         }
 
         var soapAction = ReadRequired(section, "SoapAction", methodName);
+        var expectedSoapAction = methodName switch
+        {
+            ProcContrapartidasMethodName => "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
+            ProcTransaccionesMethodName => "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
+            RegistrarRespuestaMethodName => "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion",
+            _ => throw new ArgumentOutOfRangeException(nameof(methodName))
+        };
+        if (!string.Equals(soapAction, expectedSoapAction, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"SOAP_BOOTSTRAP_ACTION_MISMATCH: '{methodName}' must use the WSDL SOAPAction '{expectedSoapAction}'.");
+        }
+
         var operatingMode = ReadRequired(section, "OperatingMode", methodName);
         if (!string.Equals(operatingMode, "Live", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(operatingMode, "DryRun", StringComparison.OrdinalIgnoreCase)

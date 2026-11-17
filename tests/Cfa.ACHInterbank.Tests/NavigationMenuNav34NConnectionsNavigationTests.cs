@@ -210,11 +210,9 @@ public sealed class NavigationMenuNav34NConnectionsNavigationTests
         IDbSeeder[] functionalSeeders =
         [
             new ClaimsPermissionSeeder(context),
-            new CfaOperationalTransactionRestrictionsPermissionSeeder(context),
             new ConfigurationPermissionSeeder(context),
             new NachaSecurityMenuSeeder(context),
             new NachaConfigMenuSeeder(context),
-            new OperationalRestrictionsMenuSeeder(context),
             new UsersMenuSeeder(context),
             new CyclesMenuSeeder(context),
             new IncomingNachaCommandCenterMenuSeeder(context),

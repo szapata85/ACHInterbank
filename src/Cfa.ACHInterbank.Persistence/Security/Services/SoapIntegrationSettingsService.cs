@@ -11,6 +11,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Persistence.Security.Services;
@@ -30,6 +31,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
 
     private readonly AchDbContext _dbContext;
     private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
+    private readonly bool _enforceLiveOnly;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -40,12 +42,14 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
         AchDbContext dbContext,
         IOptions<ProcTransaccionesDispatchOptions> procTransaccionesDispatchOptions,
         IIntegrationMappingReadinessService? mappingReadinessService = null,
-        IOptions<ProcContrapartidasDispatchOptions>? procContrapartidasDispatchOptions = null)
+        IOptions<ProcContrapartidasDispatchOptions>? procContrapartidasDispatchOptions = null,
+        IConfiguration? configuration = null)
     {
         _dbContext = dbContext;
         _ = procTransaccionesDispatchOptions;
         _ = procContrapartidasDispatchOptions;
         _mappingReadinessService = mappingReadinessService;
+        _enforceLiveOnly = configuration?.GetValue<bool>("SoapIntegrationBootstrap:EnforceLiveOnly") == true;
     }
 
     public async Task<SoapIntegrationSettingsDto> GetAsync(CancellationToken ct = default)
@@ -97,7 +101,10 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
         var destinationKnown = IsSanitizedDestinationKnown(sanitizedEndpoint);
         var actionKnown = !string.IsNullOrWhiteSpace(sanitizedSoapAction)
             && !string.Equals(sanitizedSoapAction, InvalidSanitizedEndpoint, StringComparison.Ordinal);
-        var canApply = !targetRealSend || (destinationKnown && actionKnown);
+        var liveOnlyAllowed = !_enforceLiveOnly
+            || string.Equals(request.OperatingMode, "Live", StringComparison.OrdinalIgnoreCase)
+            || (!request.Enabled && string.Equals(request.OperatingMode, "Disabled", StringComparison.OrdinalIgnoreCase));
+        var canApply = liveOnlyAllowed && (!targetRealSend || (destinationKnown && actionKnown));
 
         return new SoapIntegrationSettingsChangePreviewDto
         {
@@ -111,6 +118,8 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             CanApply = canApply,
             BlockingReason = canApply
                 ? null
+                : !liveOnlyAllowed
+                    ? "SOAP_LIVE_ONLY_REQUIRED: para enviar use Live; para detener use Enabled=false."
                 : !destinationKnown
                     ? "Backend no pudo determinar un destino sanitizado para la comunicación externa."
                     : "Backend no pudo determinar la acción técnica vigente."
@@ -129,6 +138,19 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
         EnsureExpectedRevision(request.ExpectedRevision, persistedRaw.Revision);
 
         var normalizedRequest = Normalize(request);
+        if (_enforceLiveOnly)
+        {
+            foreach (var mapping in normalizedRequest.WscfaachMappings.Concat(normalizedRequest.WsAxonRespuestaTransaccionesMappings))
+            {
+                if (!string.Equals(mapping.OperatingMode, "Live", StringComparison.OrdinalIgnoreCase)
+                    && (mapping.Enabled || !string.Equals(mapping.OperatingMode, "Disabled", StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new ArgumentException(
+                        $"SOAP_LIVE_ONLY_REQUIRED: {mapping.MethodName} must use Live, or Disabled with Enabled=false.",
+                        nameof(request));
+                }
+            }
+        }
         var merged = PreservePersistedSensitiveValues(normalizedRequest, persistedRaw);
         merged = PreservePersistedTimeouts(merged, persistedRaw);
 
