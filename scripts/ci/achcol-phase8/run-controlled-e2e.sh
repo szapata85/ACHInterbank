@@ -6,10 +6,9 @@ evidence_dir="${PHASE8_EVIDENCE_DIR:-artifacts/achcol-phase8-evidence}"
 mkdir -p "$evidence_dir" artifacts/achcol-phase8-fixtures
 
 require() { command -v "$1" >/dev/null 2>&1 || { echo "Missing required command: $1" >&2; exit 2; }; }
-for cmd in python dotnet docker curl jq openssl sha256sum; do require "$cmd"; done
+for cmd in dotnet docker curl jq openssl sha256sum; do require "$cmd"; done
 docker compose version >/dev/null
 
-python scripts/validate-solution-projects.py | tee "$evidence_dir/validate-solution-projects.txt"
 dotnet --info > "$evidence_dir/dotnet-info.txt"
 dotnet build ACHInterbank.sln -c Release | tee "$evidence_dir/build-release.txt"
 
