@@ -1,52 +1,49 @@
-# ACH Interbank — Corrección permanente de Quartz SQL Server 4.7.1
+# ACHInterbank — Quartz.NET 4.7.1 desde migraciones EF Core (SQL Server)
 
-**Actualizado:** 2026-11-05. Corrige el fallo de arranque `Database schema validation failed under table prefix 'QRTZ_'` detectado en `/app/crash.log` tras 172 reinicios de la API.
+**Actualizado:** 2026-11-18.
 
-## Qué se corrigió
+## Implementación
 
-- `artifacts/sql/quartz/sqlserver-qrtz-schema.sql` se mantiene como **único script utilizado por el servicio `quartz-schema` de `docker-compose.yml`**.
-- El script anterior creaba 11 tablas Quartz 3.x y pasaba sus propias comprobaciones, pero no era compatible con la dependencia `Quartz` **4.7.1** de `src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj`.
-- Ahora crea/valida **12 tablas básicas** (incluida `QRTZ_PAUSED_JOB_GRPS`), 12 claves primarias, 4 claves foráneas y los 12 índices históricos; aplica además **26 ampliaciones de columnas obligatorias**, con tipos iguales a los de las migraciones oficiales de 4.0, 4.2, 4.3, 4.6 y 4.7.
-- Todas las operaciones de creación y ampliación están protegidas por comprobaciones de existencia (`OBJECT_ID` / `COL_LENGTH`). No se ejecutan `DROP TABLE`, `DROP DATABASE` ni limpiezas de volúmenes; los datos existentes no se eliminan.
-- Se añadieron comprobaciones explícitas que provocan error no cero en `quartz-schema` si falta cualquiera de esas tablas o columnas.
-- No se modificó el código de negocio ni el `Quartz__JobStore__PerformSchemaValidation=true`; la validación real de Quartz sigue activa.
+- `docker-compose.yml` **ya no define** el contenedor `quartz-schema`.
+- `20261118110000_QuartzSqlServer471Schema` incorpora el esquema `QRTZ_*` al historial de migraciones EF Core SQL Server, con un recurso SQL embebido en `Cfa.ACHInterbank.Persistence.Migrations.SqlServer.dll`.
+- El recurso es una copia inmutable del SQL no destructivo `artifacts/sql/quartz/sqlserver-qrtz-schema.sql`: 12 tablas, 12 PK, 4 FK, 12 índices y 26 ampliaciones verificadas para Quartz.NET 4.7.1.
+- Los lotes `GO` se separan antes de enviarlos a EF Core. No requiere `sqlcmd`, montaje de archivos ni ejecución de un contenedor adicional.
+- El script es idempotente sobre tablas ya existentes. Los jobs, triggers y datos de Quartz se conservan. El `Down` de la migración **no borra** las tablas QRTZ, incluso en caso de rollback.
+- `Quartz__JobStore__PerformSchemaValidation=true` sigue activo.
+- El perfil clúster **SQL Server** también utiliza la migración en el nodo 01, antes del arranque del nodo 02. Los perfiles PostgreSQL mantienen por ahora su estrategia independiente.
 
-**Fuente técnica:** [migraciones oficiales Quartz.NET v4.7.1](https://github.com/quartznet/quartznet/tree/v4.7.1/database/migrations) y [cambios del esquema](https://www.quartz-scheduler.net/documentation/database/schema-changes.html).
-Las tablas opcionales de historial (`QRTZ_EXECUTION_HISTORY`, `QRTZ_MISFIRE_HISTORY`, `QRTZ_JOB_STATUS`) no son necesarias: este proyecto no activa `UseExecutionHistory()`. Si se activa esa función en el futuro, deberán incluirse las migraciones opcionales correspondientes.
+## Primer arranque
 
-## Cómo aplicar en una instalación que YA tiene volúmenes e imágenes
-
-1. Respaldar `src/Cfa.ACHInterbank.Api/appsettings.Development.json` existente, ya que contiene la cadena de conexión local. **No sobrescribir esa contraseña con una de ejemplo.**
-2. Extraer el ZIP corregido. Si se copia sobre la carpeta anterior, asegurarse de reemplazar `artifacts/sql/quartz/sqlserver-qrtz-schema.sql` por la versión corregida.
-3. Antes de modificar una base con información valiosa, realizar un respaldo SQL Server verificado.
-4. Abrir CMD en la raíz del proyecto y ejecutar:
+Conservar el archivo de credenciales local y la contraseña del volumen SQL Server. Desde CMD y la raíz del proyecto:
 
 ```cmd
-docker-ach.cmd down
 docker-ach.cmd config
 docker-ach.cmd infra
-docker-ach.cmd up --no-seed --no-auto-migrations --no-build
+docker-ach.cmd migrate
+docker-ach.cmd up --no-seed
 docker-ach.cmd status
-curl.exe -i http://127.0.0.1:843/health/live
-curl.exe -i http://127.0.0.1:843/health/ready
 ```
 
-`down` **no** lleva `-v`: conserva el volumen y sus datos. `infra` ejecuta el script `quartz-schema` **antes** de la API, con las credenciales existentes y sin descargar SQL en tiempo de ejecución. `--no-build` reutiliza las imágenes compiladas; solo es apropiado si existen.
+`docker-ach.cmd migrate` ejecuta `dotnet ef database update`; requiere el SDK .NET 10 instalado en el host. Alternativamente, `docker-ach.cmd up` construye e inicia la API, que ejecuta `Database.MigrateAsync()` antes de inicializar Quartz cuando `Database__ApplyMigrations=true` (valor por defecto del Compose).
 
-Si las imágenes no existen, usar `docker-ach.cmd up --no-seed --no-auto-migrations` (sin `--no-build`). Si es una instalación totalmente nueva, aplicar primero las migraciones EF con `docker-ach.cmd migrate`, y decidir si se requiere el seed inicial **una sola vez**.
+`docker-ach.cmd infra` **solo levanta SQL Server**, sin crear otra instancia. Si se usa `up --no-auto-migrations` contra una base nueva, primero debe haberse completado `docker-ach.cmd migrate`; de lo contrario Quartz rechazará el arranque porque faltará `QRTZ_*`.
 
-El archivo `src/Scripts/tables_sqlServer.sql` es un script histórico que contiene capacidad destructiva; **no** ejecutarlo para reparar esta incidencia.
+## Instalaciones existentes
 
-## Comprobación de errores
+1. Realizar un respaldo verificado de SQL Server.
+2. Conservar el volumen existente (usar `docker-ach.cmd down` **sin** `-v`).
+3. Reconstruir la imagen de API y aplicar la nueva migración con `docker-ach.cmd up` o ejecutar `docker-ach.cmd migrate` desde el host.
+4. Verificar que el historial `__EFMigrationsHistory` tenga `20261118110000_QuartzSqlServer471Schema`, que existan las 12 tablas y que `/health/ready` esté disponible.
 
-```cmd
-docker logs --tail 100 achinterbank-quartz-schema-1
-docker logs --tail 100 achinterbank-achinterbank-api-1
-docker exec achinterbank-achinterbank-api-1 sh -c "tail -n 35 /app/crash.log"
+Consulta de verificación SQL Server:
+
+```sql
+SELECT MigrationId FROM dbo.__EFMigrationsHistory WHERE MigrationId = '20261118110000_QuartzSqlServer471Schema';
+SELECT COUNT(*) AS QuartzTables FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo') AND name LIKE 'QRTZ[_]%';
 ```
 
-No usar `docker compose down -v` ni `docker-ach.cmd reset --confirm-data-loss` para esta reparación.
+No ejecutar `docker compose down -v`, `docker-ach.cmd reset --confirm-data-loss` ni los scripts destructivos `src/Scripts/tables_sqlServer.sql` para esta transición.
 
-## Evidencia y límites
+## Validación
 
-Para repetir las comprobaciones: `python scripts/test/verify_quartz_4_7_1_sqlserver.py`. Se comprobó estáticamente la estructura SQL, la concordancia de nombres y tipos de las 26 columnas con la especificación de Quartz.NET 4.7.1, la ausencia de sentencias destructivas, las referencias de Docker Compose y la integridad del ZIP. **No se pudo ejecutar SQL Server/Docker ni validar `healthy` desde este entorno.** Es necesario verificar el arranque real en el equipo de destino.
+`python scripts/test/verify_quartz_4_7_1_sqlserver.py` permite comprobar estáticamente migración, recurso y Compose. La verificación funcional requiere ejecutar la API contra SQL Server con .NET/Docker disponibles.

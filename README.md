@@ -5,11 +5,11 @@ ACH Interbank es la solución para procesamiento operativo de transferencias int
 
 ## Docker SQL Server local sin PowerShell
 
-Para el stack Docker SQL Server, use `docker-ach.cmd` desde CMD (o `dotnet run --project tools/AchInterbank.DockerCli -- <accion>` desde cualquier terminal). La contraseña se define exclusivamente en `appsettings.Development.json`. Instrucciones completas en [README-Docker-Sin-PowerShell.md](README-Docker-Sin-PowerShell.md). Los scripts PowerShell históricos no son necesarios para este flujo.
+Para el stack Docker SQL Server, use `docker-ach.cmd` desde CMD (o `dotnet run --project tools/AchInterbank.DockerCli -- <accion>` desde cualquier terminal). La configuracion se centraliza en `appsettings.json`; para Docker SQL Server local configure alli la cadena SQL, sin versionar contraseñas. Instrucciones completas en [README-Docker-Sin-PowerShell.md](README-Docker-Sin-PowerShell.md). Los scripts PowerShell históricos no son necesarios para este flujo.
 
 ## Arranque local desde Visual Studio 2026
 
-La configuración de base de datos de Development se mantiene en `src/Cfa.ACHInterbank.Api/appsettings.Development.json`, en la sección solicitada:
+La configuracion de la API, tanto para Visual Studio como para IIS, esta centralizada en `src/Cfa.ACHInterbank.Api/appsettings.json`:
 
 ```json
 "ConnectionStrings": {
@@ -24,12 +24,12 @@ La configuración de base de datos de Development se mantiene en `src/Cfa.ACHInt
 powershell -ExecutionPolicy Bypass -File .\scripts\configure-visualstudio-development.ps1
 ```
 
-El helper escribe la cadena seleccionada directamente en `appsettings.Development.json`; no usa .NET User Secrets. Si desea que además levante el SQL Server Docker del proyecto, use `-StartDocker`. **No versionar contraseñas reales en Git.** Consulte `docs/BUILD_AND_TROUBLESHOOTING.md` para SQL Server, autenticación integrada y PostgreSQL.
+El helper escribe la cadena seleccionada directamente en el unico `appsettings.json`; no usa .NET User Secrets. Si desea que además levante el SQL Server Docker del proyecto, use `-StartDocker`. **No versionar contraseñas reales en Git.** Consulte `docs/BUILD_AND_TROUBLESHOOTING.md` para SQL Server, autenticación integrada y PostgreSQL.
 
 
 ## Estado actual
 
-**Entrega completa SOAP-MAP-SAFE-001 (I01–I06):** proyecto integrado sin parches. Leer `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/ENTREGA_PROYECTO_COMPLETO_I06.md`, `CIERRE_TECNICO_I06.md`, `INVENTARIO_CAMPOS_SOAP_I06.md`, `PLAN_INCREMENTAL.md` y `MEMORY_STATE.md`. I06 no cambia código: consolida verificaciones y deuda. Grafo de solución 7/7 y P8.1 estáticos PASS; .NET no disponible, P8.3 no terminó por timeout. **`next_increment=I07` sujeto a prerrequisitos**, sin UAT/Live ni cutover. Atención: `appsettings.Development.json` contiene `Live` para los dos SOAP monetarios aunque `appsettings.json` contiene `DryRun`; verificar entorno efectivo antes de cualquier ejecución.
+**Entrega completa SOAP-MAP-SAFE-001 (I01–I06):** proyecto integrado sin parches. Leer `docs/CFA_SOAP_MAPPING_HARDENING_2026-11-01/ENTREGA_PROYECTO_COMPLETO_I06.md`, `CIERRE_TECNICO_I06.md`, `INVENTARIO_CAMPOS_SOAP_I06.md`, `PLAN_INCREMENTAL.md` y `MEMORY_STATE.md`. I06 no cambia código: consolida verificaciones y deuda. Grafo de solución 7/7 y P8.1 estáticos PASS; .NET no disponible, P8.3 no terminó por timeout. **`next_increment=I07` sujeto a prerrequisitos**, sin UAT/Live ni cutover. **Atencion:** el unico `appsettings.json` contiene `Live` para los dos SOAP monetarios. No usar endpoints reales sin autorizacion; las integraciones requieren configuracion y validacion operativa.
 
 
 Para el frente ACH Colombia FASE 1–8, el estado del paquete actual es **IMPLEMENTACIÓN COMPLETADA / VALIDACIÓN EJECUTABLE FINAL PENDIENTE**. El harness integral controlado de FASE 8 está preparado, pero en el host de preparación no pudieron ejecutarse build/tests .NET, Docker E2E ni la validación frontend completa. Esto **no** significa producción lista, homologación con ACH Colombia, UAT aprobada, aceptación de usuario ni salida a producción.
@@ -66,6 +66,12 @@ Ver `docs/BUILD_AND_TROUBLESHOOTING.md` antes del primer restore.
 | `docs/uat` | Planes, evidencias y material UAT. |
 | `docs/operations` | Runbooks y evidencia operativa. |
 | `docs/go-live-readiness` | Material histórico/de readiness; contrastar siempre con el estado vigente. |
+
+## Despliegue opcional sin Docker (Windows Server + IIS)
+
+ACHInterbank puede publicar **Angular + API ASP.NET Core 10 + Quartz.NET** en un solo sitio IIS. El instalador de carpeta se genera desde Windows con `scripts\iis\publish-iis.cmd`; requiere .NET SDK 10 y Node/npm **solo en la maquina de build**. El publicador IIS habilita Angular desde `wwwroot` con `SpaHosting:Enabled=true` en el `appsettings.json` publicado, sin variables de entorno. En el codigo fuente la SPA continua desactivada por defecto para Docker; `Database:ApplyMigrations=true` se configura directamente en `appsettings.json`.
+
+Requisitos, publicacion, SQL Server/migraciones Quartz y pruebas de recuperacion: **`docs/deployment/IIS_WINDOWS_SERVER.md`**. Es una alternativa de infraestructura, no una afirmacion de recuperacion financiera exactly-once ni una certificacion de produccion.
 
 ## Validación previa al restore
 

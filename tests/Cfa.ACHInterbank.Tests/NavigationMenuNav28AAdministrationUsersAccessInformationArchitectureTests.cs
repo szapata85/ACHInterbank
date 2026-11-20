@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Navigation.Seeders;
 using Cfa.ACHInterbank.Persistence.Security.Seeders;
@@ -76,6 +77,43 @@ public sealed class NavigationMenuNav28AAdministrationUsersAccessInformationArch
 
         foreach (var option in children)
             Assert.Equal(idsBefore[option.Route], option.Id);
+    }
+
+    [Fact]
+    public async Task CanonicalSeeder_RecoversMissingUsersListRouteWithItsAuthorization()
+    {
+        await using var fixture = CreateFixture();
+        await SeedFunctionalNavigationAsync(fixture.Context);
+
+        // Reproduce una base que conserva el menu de usuarios, pero perdio /users/list.
+        var removed = await fixture.Context.MenuItems.SingleAsync(item => item.Route == "/users/list");
+        fixture.Context.MenuItemRoles.RemoveRange(
+            await fixture.Context.MenuItemRoles.Where(item => item.MenuItemId == removed.Id).ToListAsync());
+        fixture.Context.MenuItemPermissions.RemoveRange(
+            await fixture.Context.MenuItemPermissions.Where(item => item.MenuItemId == removed.Id).ToListAsync());
+        fixture.Context.MenuItems.Remove(removed);
+        await fixture.Context.SaveChangesAsync();
+        fixture.Context.ChangeTracker.Clear();
+
+        var reconciler = new NavigationInformationArchitectureSeeder(fixture.Context);
+        await reconciler.SeedAsync();
+        fixture.Context.ChangeTracker.Clear();
+
+        var usersAccess = await fixture.Context.MenuItems.SingleAsync(item => item.Route == "/users");
+        var manageUsers = await fixture.Context.MenuItems.SingleAsync(item => item.Route == "/users/list");
+        Assert.Equal(usersAccess.Id, manageUsers.ParentId);
+        Assert.True(manageUsers.IsActive);
+        Assert.Equal("Administrar usuarios", manageUsers.Label);
+        Assert.True(await fixture.Context.MenuItemRoles.AnyAsync(
+            item => item.MenuItemId == manageUsers.Id && item.RoleId == RoleConfiguration.AdminRoleId));
+        Assert.True(await fixture.Context.MenuItemPermissions.AnyAsync(
+            item => item.MenuItemId == manageUsers.Id && item.PermissionId == PermissionConfiguration.ManageUsersPermissionId));
+
+        // Un nuevo arranque no debe volver a crear la ruta ni sus permisos.
+        var recoveredId = manageUsers.Id;
+        await reconciler.SeedAsync();
+        fixture.Context.ChangeTracker.Clear();
+        Assert.Equal(recoveredId, (await fixture.Context.MenuItems.SingleAsync(item => item.Route == "/users/list")).Id);
     }
 
     [Fact]

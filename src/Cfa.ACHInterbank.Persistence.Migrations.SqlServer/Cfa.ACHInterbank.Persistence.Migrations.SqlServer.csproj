@@ -10,6 +10,11 @@
     <ProjectReference Include="..\Cfa.ACHInterbank.Persistence\Cfa.ACHInterbank.Persistence.csproj" />
   </ItemGroup>
 
+  <!-- Esquema Quartz congelado y empaquetado en la DLL de migraciones (sin contenedor SQL auxiliar). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Sql/QuartzSqlServer471.sql" LogicalName="ACHInterbank.Migrations.QuartzSqlServer471.sql" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
       <PrivateAssets>all</PrivateAssets>

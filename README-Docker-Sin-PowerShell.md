@@ -4,7 +4,7 @@
 
 ## 1. Configuración única de contraseña
 
-Edite **solo los apartados indicados** del archivo original `src/Cfa.ACHInterbank.Api/appsettings.Development.json`, **sin borrar las otras secciones**:
+Edite **solo los apartados indicados** del archivo original `src/Cfa.ACHInterbank.Api/appsettings.json`, **sin borrar las otras secciones**:
 
 ```json
 "Database": {
@@ -87,7 +87,7 @@ El ejecutor realiza las llamadas a Docker con el entorno de **cada proceso hijo*
 | Servidor | `127.0.0.1,1433` |
 | Autenticación | SQL Server Authentication |
 | Usuario | `sa` |
-| Contraseña | La contraseña del `appsettings.Development.json` |
+| Contraseña | La contraseña del `appsettings.json` |
 | Base de datos | `ACHInterbank` |
 | Trust Server Certificate | Activado solo para desarrollo |
 
@@ -103,10 +103,10 @@ API Docker `http://localhost:843`; Angular `http://localhost:743`. La API en Vis
 
 ## 5. Alcance, compatibilidad y seguridad
 
-- `docker-compose.yml` mantiene exactamente los servicios de desarrollo SQL Server: `sqlserver`, `quartz-schema`, `achinterbank-api`, `achinterbank-spa`. El archivo `docker-compose.sqlserver.yml` queda como shim de compatibilidad; no es necesario incluirlo en los comandos nuevos.
-- Los Compose especializados (Postgres, clúster, pruebas E2E, certificación) permanecen sin modificaciones, porque los usa infraestructura de pruebas distinta.
-- `.dockerignore` impide copiar `appsettings.Development.json` durante el build de la API; el contenedor lo recibe mediante bind mount en ejecución. La cadena de conexión del contenedor se cambia a `sqlserver,1433` por variable de entorno.
+- `docker-compose.yml` mantiene exactamente los servicios de desarrollo SQL Server: `sqlserver`, `achinterbank-api`, `achinterbank-spa`. El archivo `docker-compose.sqlserver.yml` queda como shim de compatibilidad; no es necesario incluirlo en los comandos nuevos.
+- El Compose de clúster **SQL Server** también se actualizó para prescindir de `quartz-schema`. Los perfiles de PostgreSQL y otras pruebas mantienen su infraestructura independiente.
+- El Docker Compose local monta `appsettings.json` directamente. **Aviso:** no realice `docker build` con secretos en este archivo, pues el contexto de build podria incluirlos; utilice una copia sin secretos para construir una imagen distribuible. La cadena de conexión del contenedor se cambia a `sqlserver,1433` por variable de entorno.
 - El valor de contraseña puede ser visible para quienes tengan acceso administrativo a Docker (por ejemplo, `docker inspect`). No es arquitectura de secretos de producción.
 - `down` conserva los datos; `reset --confirm-data-loss` borra el volumen del stack. Eliminar contenedores no equivale a eliminar volúmenes. Una contraseña nueva no reconfigura la contraseña del volumen SQL inicializado anteriormente.
-- El ejecutor no invoca PowerShell. Docker Compose incluye `/bin/bash` **dentro** del contenedor Linux `quartz-schema`, lo que no requiere Bash instalado en Windows.
+- El ejecutor no invoca PowerShell ni Bash para crear las tablas Quartz: la API ejecuta la migración EF Core al iniciar, cuando `Database:ApplyMigrations=true`.
 - **Validación realizada:** análisis estático del YAML, archivos incluidos, rutas y código de arranque. **Validación pendiente en equipo destino:** compilar el ejecutor con .NET SDK 10, verificar `docker-ach.cmd config`, levantar SQL Server y ejecutar migraciones/seed. En el entorno de preparación no se dispone de Docker ni `dotnet`.

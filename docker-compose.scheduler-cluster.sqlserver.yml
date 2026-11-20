@@ -62,26 +62,6 @@ services:
       start_period: 30s
     networks: [scheduler_cluster_sql]
 
-  quartz-schema:
-    image: mcr.microsoft.com/mssql/server:2025-latest
-    depends_on:
-      scheduler-sqlserver:
-        condition: service_healthy
-    environment:
-      MSSQL_SA_PASSWORD: ${SCHEDULER_SQL_PASSWORD:-Scheduler_Local_123!}
-    volumes:
-      - ./artifacts/sql/quartz/sqlserver-qrtz-schema.sql:/schema/quartz.sql:ro
-    command:
-      - /bin/bash
-      - -ec
-      - >-
-        /opt/mssql-tools18/bin/sqlcmd -S scheduler-sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C
-        -Q "IF DB_ID(N'ACHInterbankSchedulerCluster') IS NULL CREATE DATABASE [ACHInterbankSchedulerCluster]" &&
-        /opt/mssql-tools18/bin/sqlcmd -S scheduler-sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C
-        -d ACHInterbankSchedulerCluster -b -i /schema/quartz.sql
-    restart: "no"
-    networks: [scheduler_cluster_sql]
-
   achinterbank-api-01:
     <<: *api-common
     hostname: achinterbank-api-01
@@ -93,8 +73,8 @@ services:
     ports:
       - "127.0.0.1:${SCHEDULER_SQL_API_01_PORT:-8451}:8080"
     depends_on:
-      quartz-schema:
-        condition: service_completed_successfully
+      scheduler-sqlserver:
+        condition: service_healthy
     networks:
       scheduler_cluster_sql:
         aliases: [achinterbank-api]

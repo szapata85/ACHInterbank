@@ -3,6 +3,10 @@ Uso: python scripts/test/automatic_returns_i06_ach_static_check.py [raiz_del_pro
 """
 from pathlib import Path
 import json, sys
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from jsonc_settings import load_jsonc
+
 R=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else Path(__file__).resolve().parents[2]
 def s(p): return (R/p).read_text(encoding='utf-8')
 settings=s('src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchColombiaAutomaticReturnSettingsService.cs')
@@ -12,7 +16,7 @@ pipe=s('src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNac
 orch=s('src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostProcessingOrchestrator.cs')
 api=s('src/Cfa.ACHInterbank.Api/Controllers/AchColombiaReturnReviewController.cs')
 ui=s('web/ach-interbank-ui/src/app/features/transactions/components/ach-colombia-return-review/ach-colombia-return-review.component.html')
-config=json.loads(s('src/Cfa.ACHInterbank.Api/appsettings.json'))
+config=load_jsonc(R/'src/Cfa.ACHInterbank.Api/appsettings.json')
 tests=s('tests/Cfa.ACHInterbank.Tests/AchColombiaAutomaticReturnI06Tests.cs')
 checks={
  'Puerta técnica desactivada inicialmente': config['AchCol']['EnableAutomaticReturnFileGeneration'] is False,

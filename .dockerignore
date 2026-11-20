@@ -46,5 +46,5 @@ README.md
 !.git/packed-refs
 !.git/refs/heads/**
 
-# Nunca incluir contrasenas ni secretos locales en capas de imagen de la API.
-src/Cfa.ACHInterbank.Api/appsettings.Development.json
+# IMPORTANTE: el appsettings.json unico se incluye en Docker build.
+# NO agregar contrasenas locales antes de construir/distribuir imagenes; revise seguridad de CI.

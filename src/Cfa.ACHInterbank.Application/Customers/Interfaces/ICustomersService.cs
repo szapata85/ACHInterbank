@@ -6,6 +6,7 @@ public interface ICustomersService
 {
     Task<IEnumerable<CustomerSummaryDto>> GetAllAsync(CancellationToken ct = default);
     Task<CustomerDetailDto?> GetByIdAsync(int id, CancellationToken ct = default);
+    Task<CustomerDocumentLookupDto?> GetByDocumentAsync(string documentType, string documentNumber, CancellationToken ct = default);
     Task<CustomerDetailDto> CreateAsync(SaveCustomerRequest request, CancellationToken ct = default);
     Task<CustomerDetailDto?> UpdateAsync(int id, SaveCustomerRequest request, CancellationToken ct = default);
     Task<bool> DeleteAsync(int id, CancellationToken ct = default);

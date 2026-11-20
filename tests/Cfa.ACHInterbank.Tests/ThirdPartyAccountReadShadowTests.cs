@@ -261,11 +261,40 @@ public sealed class ThirdPartyAccountReadShadowTests
         var cenit = Assert.Single(item.Validations.Where(x => x.ClearingHouseId == 2));
         Assert.Equal(TransactionNature.Debit, ach.TransactionNature);
         Assert.Equal(ThirdPartyAccountValidationStatus.Accepted, ach.Status);
+        Assert.True(ach.IsVerified);
         Assert.Equal(PrenotificationValidationResolution.Accepted, ach.LatestAttempt?.Resolution);
         Assert.Equal("ACH-C1", ach.LatestAttempt?.SourceCycleId);
         Assert.Equal(ThirdPartyAccountValidationStatus.Rejected, cenit.Status);
+        Assert.False(cenit.IsVerified);
         Assert.Equal("R03", cenit.LatestAttempt?.ReturnCode);
         Assert.Equal(PrenotificationValidationResolution.Rejected, cenit.LatestAttempt?.Resolution);
+    }
+
+    [Fact]
+    public async Task CanonicalRead_IsVerifiedReflectsExpirationAndTacitAcceptanceWithoutGrantingEligibility()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedCanonicalGraphAsync(context);
+        seeded.AchValidation.ExpiresAtUtc = DateTimeOffset.UtcNow.AddDays(-1);
+
+        var cenit = await context.ThirdPartyAccountValidations
+            .SingleAsync(x => x.ThirdPartyAccountId == seeded.Account.Id && x.ClearingHouseId == 2);
+        cenit.Status = ThirdPartyAccountValidationStatus.TacitlyAccepted;
+        cenit.ExpiresAtUtc = DateTimeOffset.UtcNow.AddDays(2);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var service = new ThirdPartyAccountReadService(context, Mock.Of<IThirdPartyAccountEligibilityService>());
+        var item = await service.GetByAccountIdAsync(seeded.Account.Id);
+
+        Assert.NotNull(item);
+        var achValidation = Assert.Single(item.Validations.Where(x => x.ClearingHouseCode == "ACHCOL"));
+        Assert.Equal(ThirdPartyAccountValidationStatus.Accepted, achValidation.Status);
+        Assert.False(achValidation.IsVerified); // Aceptada históricamente, pero vencida.
+        var cenitValidation = Assert.Single(item.Validations.Where(x => x.ClearingHouseCode == "CENIT"));
+        Assert.Equal(ThirdPartyAccountValidationStatus.TacitlyAccepted, cenitValidation.Status);
+        Assert.True(cenitValidation.IsVerified);
+        Assert.Null(item.Eligibility); // No se inventa un permiso para transferir.
     }
 
     [Fact]

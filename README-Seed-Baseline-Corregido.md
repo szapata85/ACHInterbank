@@ -1,3 +1,5 @@
+> **Nota actual (2026-11-19):** Este documento describe un corte anterior. El archivo `appsettings.Development.json` ya no se distribuye. Configure el unico `src/Cfa.ACHInterbank.Api/appsettings.json` y consulte `docs/deployment/CONFIGURACION_UNIFICADA_AUDITORIA.md`. No copie credenciales de paquetes historicos.
+
 # ACHInterbank NAV6 — Corrección del seed de contratos baseline-v1
 
 ## Diagnóstico

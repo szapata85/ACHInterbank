@@ -21,7 +21,7 @@
 - Alternativa: SQL Server (si la plataforma decide centralizar Quartz ahí).
 
 ## 5) QRTZ_* y migraciones EF de dominio
-Las tablas `QRTZ_*` son infraestructura de Quartz y deben gestionarse por scripts operativos/DBA, no por migraciones EF del dominio ACH.
+Las tablas `QRTZ_*` son infraestructura de Quartz, no entidades del dominio ACH. En SQL Server se crean/actualizan con la migración EF Core `20261118110000_QuartzSqlServer471Schema`, que ejecuta SQL embebido idempotente; en PostgreSQL se mantiene la preparación operativa específica del motor.
 
 ## 6) Configuración (appsettings/env)
 Variables sugeridas:
@@ -34,7 +34,7 @@ Variables sugeridas:
 - `Quartz__JobStore__PerformSchemaValidation=true`
 
 ## 7) Preparación de BD
-1. Aplicar script oficial `QRTZ_*` según motor/version Quartz (3.18.0), ubicado y versionado en `artifacts/sql/quartz/`.
+1. En SQL Server ejecutar `Database.MigrateAsync()` (o `docker-ach.cmd migrate`) con `Database:ApplyMigrations=true`, usando la migración Quartz.NET 4.7.1. En PostgreSQL seguir el procedimiento oficial de esquema del motor.
 2. Verificar permisos del usuario DB para CRUD/locks sobre `QRTZ_*`.
 3. Activar `Mode=Persistent` por configuración.
 4. Iniciar API y validar logs de Quartz.
@@ -72,7 +72,7 @@ SELECT * FROM "QRTZ_LOCKS";
 |---|---|---|---|---|
 | Dev | RAM | N/A | N/A | No requiere |
 | UAT Postgres | Persistent | Postgres | PostgresConnection | script oficial PostgreSQL |
-| UAT SQL Server | Persistent | SqlServer | SqlConnection | sqlserver-qrtz-schema.sql / oficial |
+| UAT SQL Server | Persistent | SqlServer | SqlConnection | EF Core `20261118110000_QuartzSqlServer471Schema` |
 | Producción | Persistent | según motor | según motor | oficial/control DBA |
 
 > No ejecutar script SQL Server con `@DropDb=1` sin aprobación DBA.

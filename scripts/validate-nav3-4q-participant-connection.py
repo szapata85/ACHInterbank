@@ -49,7 +49,6 @@ wsaxon_client = read("src/Cfa.ACHInterbank.External/Connections/WsAxonRespuestaT
 endpoint_options = read("src/Cfa.ACHInterbank.Application/Security/Dtos/WsAxonEndpointSecurityOptions.cs")
 transport = read("src/Cfa.ACHInterbank.External/Connections/ControlledLocalSoapTransportResolver.cs")
 appsettings = read("src/Cfa.ACHInterbank.Api/appsettings.json")
-devsettings = read("src/Cfa.ACHInterbank.Api/appsettings.Development.json")
 focal_test = read("tests/Cfa.ACHInterbank.Tests/NavigationMenuNav34QParticipantConnectionAuthorizationTests.cs")
 
 # Canonical NAV2 structure.
@@ -174,10 +173,10 @@ require('WsAxonEndpointSecurityMode.Unconfigured' in endpoint_options, "WSAXON f
 require('SoapEndpointSecurity:WsAxonRespuestaTransacciones' in endpoint_options, "WSAXON endpoint policy section changed")
 require('SoapTransport:ControlledLocal' in endpoint_options, "controlled local transport section changed")
 require('authorized local hosts' in transport and 'localhost' in transport and 'host.docker.internal' in transport, "controlled local alias gate changed")
-require('"ProcContrapartidas"' in appsettings and '"Mode": "DryRun"' in appsettings, "base ProcContrapartidas DryRun option changed")
-require('"ProcTransacciones"' in appsettings and appsettings.count('"Mode": "DryRun"') >= 2, "base ProcTransacciones DryRun option changed")
-require('"SoapEndpointSecurity"' in devsettings and '"Mode": "ControlledLocal"' in devsettings, "development WSAXON ControlledLocal gate changed")
-require('"TransportHost": "host.docker.internal"' in devsettings, "development controlled-local transport changed")
+require('"ProcContrapartidas"' in appsettings and '"Mode": "Live"' in appsettings, "base ProcContrapartidas Live option changed")
+require('"ProcTransacciones"' in appsettings, "base ProcTransacciones option missing")
+require('"SoapEndpointSecurity"' in appsettings and '"Mode": "Unconfigured"' in appsettings, "unified WSAXON endpoint safety gate changed")
+require('"SoapTransport"' in appsettings and '"TransportHost": ""' in appsettings, "default SOAP transport must not redirect to Docker")
 # WSCFAACH has no equivalent ConfiguredAllowlist in this client; its guards are DB Live/enabled/timeout/safe URI plus optional controlled-local transport.
 require('Uri.TryCreate(mapping.Endpoint, UriKind.Absolute' in wsc_client, "WSCFAACH absolute URI validation missing")
 require('endpoint.UserInfo' in wsc_client and 'endpoint.Fragment' in wsc_client, "WSCFAACH embedded credential/fragment guards missing")

@@ -54,6 +54,8 @@ public sealed record ThirdPartyAccountValidationReadDto
     public string ServiceType { get; init; } = string.Empty;
     public ThirdPartyAccountValidationType ValidationType { get; init; }
     public ThirdPartyAccountValidationStatus Status { get; init; }
+    /// <summary>Estado de aceptación vigente de esta prenotificación; no implica elegibilidad para transferir.</summary>
+    public bool IsVerified { get; init; }
     public int? PolicyRuleId { get; init; }
     public DateTime? PolicyEffectiveFrom { get; init; }
     public DateTime EffectiveDate { get; init; }

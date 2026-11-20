@@ -1,50 +1,36 @@
-> **Actualización Quartz.NET 4.7.1 (2026-11-05):** además de los ajustes de este documento, el proyecto incluye la migración no destructiva del esquema SQL Server dentro de `artifacts/sql/quartz/sqlserver-qrtz-schema.sql`. La guía operativa vigente es **`CORRECCION_DOCKER_QUARTZ_SCHEMA.md`**; incluye instrucciones para una base SQL existente y para el primer arranque.
+# ACHInterbank — SQL Server y Quartz.NET sin contenedor de esquema
 
-# ACHInterbank NAV6 — corrección de Quartz y Docker CMD
+**Actualizado: 2026-11-18**
 
-## Cambios incluidos
+Quartz.NET 4.7.1 usa el esquema `QRTZ_*` instalado mediante la migración EF Core SQL Server `20261118110000_QuartzSqlServer471Schema`. No se levanta un contenedor `quartz-schema`.
 
-- Corrección de `tools/AchInterbank.DockerCli/Program.cs`: Quartz se consulta con `docker compose ps -a -q quartz-schema` para incluir el contenedor de inicialización aunque ya haya terminado (exit 0).
-- `docker-ach.cmd` y `docker-ach.bat` completos: lanzadores de CMD con comprobación de `dotnet`, sin PowerShell. Toda la lógica de Docker, configuración y EF Core permanece en el ejecutor `tools/AchInterbank.DockerCli` (.NET 10).
-- Conexión SQL Server en `appsettings.Development.json` con contraseña de ejemplo a reemplazar; no se incluye una contraseña real.
-- Dockerfile Angular: sincroniza el lock de npm en el paso de construcción antes de `npm ci` para evitar el error de lock incompleto en la versión empaquetada. **Recomendado:** una vez tengas el lock sincronizado en tu equipo, conserva y versiona el `package-lock.json` correcto y elimina el paso de autocorrección para compilaciones reproducibles.
+## Requisitos
 
-## Configuración previa
+- Docker Desktop (para SQL Server, API y SPA).
+- SDK .NET 10 si se usa `docker-ach.cmd migrate` desde el host. El comando `up` puede aplicar las migraciones desde la API, sin instalar `dotnet-ef` en el host.
+- Configuración SQL Server válida en `src/Cfa.ACHInterbank.Api/appsettings.json`; no sobrescribir las credenciales locales ni publicarlas.
 
-Abre `src/Cfa.ACHInterbank.Api/appsettings.Development.json` y cambia **solo la contraseña de ejemplo** en `ConnectionStrings.SqlConnection` por tu clave local de `sa` (no la publiques en Git):
+## Arranque recomendado en CMD
 
-```
-Server=127.0.0.1,1433;Database=ACHInterbank;User Id=sa;Password=REEMPLAZAR_POR_CLAVE_SEGURA;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true
-```
-
-Si estás reemplazando una carpeta NAV6 que ya habías configurado, **respalda y restaura tu propio `appsettings.Development.json`**, para no perder la contraseña. Al cambiar `appsettings` no se cambia la contraseña del volumen SQL ya existente.
-
-## Comandos desde CMD (en la raíz del proyecto)
-
-```bat
+```cmd
 docker-ach.cmd config
-docker-ach.cmd migrate
-docker-ach.cmd up --seed --no-auto-migrations --no-build
+docker-ach.cmd up --no-seed
 docker-ach.cmd status
 docker-ach.cmd logs
 ```
 
-Usa el comando `up` **sin** `--no-build` si todavía no has construido las imágenes para esta copia del proyecto:
+El servicio `achinterbank-api` espera que SQL Server esté healthy y ejecuta `Database.MigrateAsync()` antes del arranque de Quartz, dado que el Compose utiliza `Database__ApplyMigrations=true` por defecto. La API crea la base si no existe y aplica tanto migraciones de negocio como la de Quartz. No hace falta ejecutar ningún script con `sqlcmd` ni levantar otro contenedor.
 
-```bat
-docker-ach.cmd up --seed --no-auto-migrations
+Para aplicar explícitamente las migraciones antes de arrancar la API:
+
+```cmd
+docker-ach.cmd infra
+docker-ach.cmd migrate
+docker-ach.cmd up --no-seed
 ```
 
-También puedes usar `docker-ach.bat` en lugar de `.cmd` con los mismos argumentos. Necesitas Docker Desktop ejecutándose y .NET SDK 10; la migración manual necesita además `dotnet-ef` disponible. No se usa PowerShell en Windows.
+`--no-auto-migrations` únicamente es seguro si la base ya tiene las migraciones aplicadas, incluida `20261118110000_QuartzSqlServer471Schema`.
 
-Para ver los logs del contenedor directamente (sin interpolar Compose):
+Para mantener un volumen existente utilizar `docker-ach.cmd down` (sin `-v`). Evitar `docker-ach.cmd reset --confirm-data-loss` salvo que se requiera eliminar todos los datos. Antes de actualizar una base real se recomienda un respaldo verificado.
 
-```bat
-docker logs --tail 200 achinterbank-achinterbank-api-1
-```
-
-`docker-ach.cmd migrate` primero espera la finalización exitosa del inicializador de Quartz y después aplica las migraciones EF existentes. No uses `reset` a menos que quieras borrar **todos los datos del volumen de este stack**.
-
-## Alcance de validación
-
-El ZIP se ha comprobado estructuralmente (integridad de ZIP, presencia de archivos y corrección `ps -a`). No se han ejecutado Docker, .NET ni npm en el equipo del usuario; el Dockerfile realiza la sincronización de npm cuando se construye en Docker con acceso al registro npm.
+Consultar [CORRECCION_DOCKER_QUARTZ_SCHEMA.md](CORRECCION_DOCKER_QUARTZ_SCHEMA.md) para las verificaciones SQL y el detalle de migración.

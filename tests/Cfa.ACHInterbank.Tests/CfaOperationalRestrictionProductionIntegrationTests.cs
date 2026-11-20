@@ -64,13 +64,15 @@ public sealed class CfaOperationalRestrictionProductionIntegrationTests
         Assert.DoesNotContain(parameterTypes, IsOptionsType);
     }
 
-    [Theory]
-    [InlineData("appsettings.json")]
-    [InlineData("appsettings.Development.json")]
-    public void ApiAppSettings_DoNotContainFunctionalTransactionPolicies(string fileName)
+    [Fact]
+    public void ApiAppSettings_DoNotContainFunctionalTransactionPolicies()
     {
-        var path = ResolveRepoPath("src", "Cfa.ACHInterbank.Api", fileName);
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var path = ResolveRepoPath("src", "Cfa.ACHInterbank.Api", "appsettings.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(path), new JsonDocumentOptions
+        {
+            CommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true
+        });
 
         Assert.False(document.RootElement.TryGetProperty("TransactionPolicies", out _));
     }

@@ -169,6 +169,26 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
+        // El SPA es opcional: Docker conserva su frontend nginx, mientras que
+        // IIS puede servir Angular y la API desde el mismo proceso y host.
+        var spaHostingEnabled = app.Configuration.GetValue<bool>("SpaHosting:Enabled");
+        string? spaIndexPath = null;
+        if (spaHostingEnabled)
+        {
+            spaIndexPath = Path.Combine(
+                app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"),
+                "index.html");
+            if (!File.Exists(spaIndexPath))
+            {
+                throw new InvalidOperationException(
+                    "SpaHosting:Enabled=true requiere wwwroot/index.html. Publique Angular antes de iniciar IIS.");
+            }
+
+            // Antes de UseRouting: / debe resolverse como /index.html, no como
+            // un endpoint de API ni como un fallback ficticio.
+            app.UseDefaultFiles();
+        }
+
         // SECURITY SEC-I05: en entornos no Development, la documentación no se publica
         // salvo habilitación explícita del operador y control perimetral adicional.
         // No confundir esta opción con una autenticación para Scalar/OpenAPI.
@@ -247,17 +267,20 @@ public static class DependencyInjectionService
             }).AllowAnonymous().ExcludeFromDescription();
         }
 
-        app.MapGet("/", context =>
+        if (!spaHostingEnabled)
         {
-            context.Response.Redirect(documentationEnabled ? "/scalar" : "/health/live");
-            return Task.CompletedTask;
-        }).AllowAnonymous();
+            app.MapGet("/", context =>
+            {
+                context.Response.Redirect(documentationEnabled ? "/scalar" : "/health/live");
+                return Task.CompletedTask;
+            }).AllowAnonymous();
 
-        app.MapGet("/index.html", context =>
-        {
-            context.Response.Redirect(documentationEnabled ? "/scalar" : "/health/live");
-            return Task.CompletedTask;
-        }).AllowAnonymous();
+            app.MapGet("/index.html", context =>
+            {
+                context.Response.Redirect(documentationEnabled ? "/scalar" : "/health/live");
+                return Task.CompletedTask;
+            }).AllowAnonymous();
+        }
 
         app.MapPublicHealthEndpoints();
 
@@ -267,7 +290,8 @@ public static class DependencyInjectionService
         app.UseCors(CorsPolicyName);
 
         app.UseWhen(
-            context => !IsOpenApiOrScalarRequest(context.Request.Path),
+            context => !IsOpenApiOrScalarRequest(context.Request.Path)
+                && !(spaHostingEnabled && IsPublishedSpaAsset(app, context.Request.Path)),
             branch =>
             {
                 branch.UseMiddleware<WafMiddleware>();
@@ -282,6 +306,22 @@ public static class DependencyInjectionService
             app.UseHttpsRedirection();
         }
 
+        if (spaHostingEnabled)
+        {
+            // Los assets reales no pasan por el buffer de auditoría HTTP.
+            // index.html debe revalidarse tras cada actualización de la SPA.
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                OnPrepareResponse = context =>
+                {
+                    if (string.Equals(context.File.Name, "index.html", StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Context.Response.Headers.CacheControl = "no-store";
+                    }
+                }
+            });
+        }
+
         // Scalar and the generated OpenAPI document are documentation endpoints.
         // They must not compete with the API fixed-window limiter during page bootstrap/reloads.
         app.UseWhen(
@@ -290,8 +330,74 @@ public static class DependencyInjectionService
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
+
+        if (spaHostingEnabled)
+        {
+            // Un 404 de la API, un asset inexistente y los POST/PUT no deben
+            // transformarse accidentalmente en un 200 con index.html.
+            app.MapFallback(async context =>
+            {
+                var path = context.Request.Path;
+                if (!(HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))
+                    || IsMissingStaticAssetPath(path)
+                    || IsReservedServerPath(path)
+                    || !context.Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    return;
+                }
+
+                context.Response.ContentType = "text/html; charset=utf-8";
+                context.Response.Headers.CacheControl = "no-store";
+                if (!HttpMethods.IsHead(context.Request.Method))
+                {
+                    await using var indexStream = File.OpenRead(spaIndexPath!);
+                    await indexStream.CopyToAsync(context.Response.Body, context.RequestAborted);
+                }
+            }).AllowAnonymous().ExcludeFromDescription();
+        }
     }
 
+    private static bool IsPublishedSpaAsset(WebApplication app, PathString path)
+    {
+        var relative = path.Value?.TrimStart('/');
+        return !string.IsNullOrEmpty(relative)
+            && app.Environment.WebRootFileProvider.GetFileInfo(relative).Exists;
+    }
+
+    private static bool IsMissingStaticAssetPath(PathString path)
+    {
+        // Un token de /reset-password/{token} puede contener puntos: no usar
+        // Path.HasExtension para bloquear indiscriminadamente rutas Angular.
+        if (path.StartsWithSegments("/assets", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var value = path.Value ?? string.Empty;
+        if (value.Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Any(segment => segment.StartsWith(".", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        string[] assetExtensions =
+        [
+            ".js", ".css", ".map", ".ico", ".png", ".jpg", ".jpeg",
+            ".gif", ".svg", ".webp", ".woff", ".woff2", ".ttf",
+            ".eot", ".json", ".wasm", ".xml", ".txt", ".html"
+        ];
+        return assetExtensions.Contains(Path.GetExtension(value), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsReservedServerPath(PathString path)
+    {
+        // Estos prefijos pertenecen SOLO al servidor. Rutas como /customers,
+        // /transactions y /ach-cycles tambien son rutas Angular y deben
+        // funcionar con refresh/deep link (Accept: text/html).
+        string[] prefixes = ["/api", "/auth", "/health", "/openapi", "/scalar"];
+        return prefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
+    }
 
     public static void MapPublicHealthEndpoints(this WebApplication app)
     {

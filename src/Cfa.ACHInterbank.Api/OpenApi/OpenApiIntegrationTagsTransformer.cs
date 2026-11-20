@@ -35,6 +35,7 @@ public sealed class OpenApiIntegrationTagsTransformer : IOpenApiOperationTransfo
             ["ClearingHouseTransactionRules"] = "Políticas y reglas transaccionales",
             ["ClearingHouses"] = "Cámaras y ciclos",
             ["CompanyEntryDescriptions"] = "Administración y catálogos",
+            ["CustomerThirdPartyAccountsByDocument"] = "Administración y catálogos",
             ["CustomerThirdParties"] = "Administración y catálogos",
             ["Customers"] = "Administración y catálogos",
             ["DigitalEnvelopeCertificates"] = "Seguridad y certificados",

@@ -521,6 +521,14 @@ public sealed class NavigationInformationArchitectureSeeder(AchDbContext context
         // the menu. Existing identities, routes and authorization links are preserved;
         // the legacy /scheduler menu group remains
         // hidden because the SPA already redirects it to /scheduler/tasks.
+        // Recupera la ruta funcional /users/list si la base fue inicializada de forma parcial.
+        // El seeder dedicado establece tambien los permisos/roles de la opcion; no se
+        // recrean elementos existentes y la normalizacion canonica se ejecuta despues.
+        if (!await context.MenuItems.AnyAsync(item => item.Route == ManageUsersRoute))
+        {
+            await new UsersMenuSeeder(context).SeedAsync();
+        }
+
         var administration = await UpsertAsync(
             AdministrationRoute,
             AdministrationLabel,

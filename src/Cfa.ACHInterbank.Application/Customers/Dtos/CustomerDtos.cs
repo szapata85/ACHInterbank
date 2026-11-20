@@ -12,6 +12,18 @@ public record CustomerSummaryDto
     public string FullName { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// Identificación mínima de un cliente para resolver su customerId por documento.
+/// No expone cuentas bancarias.
+/// </summary>
+public record CustomerDocumentLookupDto
+{
+    public int Id { get; init; }
+    public string DocumentType { get; init; } = string.Empty;
+    public string DocumentNumber { get; init; } = string.Empty;
+    public string FullName { get; init; } = string.Empty;
+}
+
 public record CustomerDetailDto
 {
     public int Id { get; init; }

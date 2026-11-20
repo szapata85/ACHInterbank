@@ -1,3 +1,5 @@
+> **Nota actual (2026-11-19):** Este documento describe un corte anterior. El archivo `appsettings.Development.json` ya no se distribuye. Configure el unico `src/Cfa.ACHInterbank.Api/appsettings.json` y consulte `docs/deployment/CONFIGURACION_UNIFICADA_AUDITORIA.md`. No copie credenciales de paquetes historicos.
+
 # Documentación unificada — ACHInterbank
 
 **Corte de depuración:** 2026-11-16. **Perfil:** fuentes y documentos Markdown, sin PDF/Word ni capturas.

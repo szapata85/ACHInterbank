@@ -1,7 +1,7 @@
 name: achinterbank
 
 # Stack SQL Server local. Usar docker-ach.cmd (CMD) o dotnet run --project
-# tools/AchInterbank.DockerCli -- <accion>; contraseña solo en appsettings.Development.json.
+# tools/AchInterbank.DockerCli -- <accion>; configuracion desde appsettings.json; no distribuya secretos en imagenes.
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2025-latest
@@ -21,26 +21,6 @@ services:
       start_period: 45s
     restart: unless-stopped
 
-  quartz-schema:
-    image: mcr.microsoft.com/mssql/server:2025-latest
-    entrypoint: ["/bin/bash"]
-    command:
-      - -ec
-      - |
-        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C -b \
-          -Q "IF DB_ID(N'$${MSSQL_DB}') IS NULL CREATE DATABASE [$${MSSQL_DB}]" 
-        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C -b \
-          -d "$${MSSQL_DB}" -i /schema/quartz.sql
-    environment:
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Use docker-ach.cmd o el ejecutor dotnet de tools/AchInterbank.DockerCli}"
-      MSSQL_DB: "${MSSQL_DB:-ACHInterbank}"
-    volumes:
-      - ./artifacts/sql/quartz/sqlserver-qrtz-schema.sql:/schema/quartz.sql:ro
-    depends_on:
-      sqlserver:
-        condition: service_healthy
-    restart: "no"
-
   achinterbank-api:
     build:
       context: .
@@ -52,6 +32,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       EnableHttpsRedirection: "false"
       Database__Provider: SqlServer
+      # Necesario en el primer arranque para crear tambien las tablas QRTZ_ por EF Core.
       Database__ApplyMigrations: "${DATABASE_APPLY_MIGRATIONS:-true}"
       Database__ApplySeed: "${DATABASE_APPLY_SEED:-true}"
       ConnectionStrings__SqlConnection: "${ACH_DOCKER_SQL_CONNECTION:?Use docker-ach.cmd o el ejecutor dotnet de tools/AchInterbank.DockerCli}"
@@ -81,9 +62,9 @@ services:
       CenitLocalGateway__PollIntervalMilliseconds: "250"
       appSettings__tokenManager__secretKetJwt: "${ACH_JWT_SECRET:?Falta ACH_JWT_SECRET en .env}"
     volumes:
-      # No incluye secretos de appsettings.Development.json en la imagen Docker.
-      # Montaje solo para ejecución local; la conexión SQL se sobreescribe por ambiente.
-      - ./src/Cfa.ACHInterbank.Api/appsettings.Development.json:/app/appsettings.Development.json:ro
+      # Montaje local del único archivo; Compose sobreescribe conexión SQL y otros valores.
+      # No incorpore secretos reales al contexto de build ni publique la imagen sin revisión.
+      - ./src/Cfa.ACHInterbank.Api/appsettings.json:/app/appsettings.json:ro
       - ./.runtime/cenit:/var/ach/cenit
       # Registros NLog persistentes; no montar entre réplicas.
       - ./.runtime/logs:/app/logs
@@ -95,8 +76,8 @@ services:
     ports:
       - "127.0.0.1:${API_HOST_PORT:-843}:8080"
     depends_on:
-      quartz-schema:
-        condition: service_completed_successfully
+      sqlserver:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/live >/dev/null && curl -fsS http://localhost:8080/health/ready >/dev/null"]
       interval: 10s

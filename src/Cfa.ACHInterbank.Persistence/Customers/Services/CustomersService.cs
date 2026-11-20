@@ -56,6 +56,57 @@ public class CustomersService : ICustomersService
         });
     }
 
+    public async Task<CustomerDocumentLookupDto?> GetByDocumentAsync(
+        string documentType,
+        string documentNumber,
+        CancellationToken ct = default)
+    {
+        var normalizedType = documentType.Trim().ToUpperInvariant();
+        var normalizedNumber = documentNumber.Trim();
+
+        // Consultar solo los campos necesarios, sin cargar ni exponer las cuentas del cliente.
+        var customer = await _context.Customers
+            .AsNoTracking()
+            .Where(c => c.DocumentType == normalizedType && c.DocumentNumber == normalizedNumber)
+            .OrderBy(c => c.Id)
+            .Select(c => new
+            {
+                c.Id,
+                c.DocumentType,
+                c.DocumentNumber,
+                c.PersonType,
+                c.CompanyName,
+                c.FirstName,
+                c.MiddleName,
+                c.LastName,
+                c.SecondLastName
+            })
+            .FirstOrDefaultAsync(ct);
+
+        if (customer is null)
+        {
+            return null;
+        }
+
+        var personName = string.Join(" ", new[]
+        {
+            customer.FirstName,
+            customer.MiddleName,
+            customer.LastName,
+            customer.SecondLastName
+        }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+        return new CustomerDocumentLookupDto
+        {
+            Id = customer.Id,
+            DocumentType = customer.DocumentType,
+            DocumentNumber = customer.DocumentNumber,
+            FullName = customer.PersonType == "PJ" && !string.IsNullOrWhiteSpace(customer.CompanyName)
+                ? customer.CompanyName
+                : personName
+        };
+    }
+
     public async Task<CustomerDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
         var customer = await _context.Customers

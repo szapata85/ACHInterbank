@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Common;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -293,6 +294,10 @@ public sealed class ThirdPartyAccountReadService : IThirdPartyAccountReadService
             ServiceType = validation.ServiceType,
             ValidationType = validation.ValidationType,
             Status = validation.Status,
+            IsVerified = validation.ValidationType == ThirdPartyAccountValidationType.Prenotification
+                && (validation.Status is ThirdPartyAccountValidationStatus.Accepted
+                    or ThirdPartyAccountValidationStatus.TacitlyAccepted)
+                && (validation.ExpiresAtUtc is null || validation.ExpiresAtUtc > DateTimeOffset.UtcNow),
             PolicyRuleId = validation.PolicyRuleId,
             PolicyEffectiveFrom = validation.PolicyEffectiveFrom,
             EffectiveDate = validation.EffectiveDate,

@@ -111,7 +111,7 @@ foreach ($image in $imagesToSave) {
     Add-Content $manifestFile ("image=$image; id=$($item.Id); digest=$repoDigest; size=$($item.Size); created=$($item.Created); services=resolved-from-dist/portainer/docker-compose.yml")
 }
 
-Invoke-DockerChecked @('image', 'rm', '-f', 'achinterbank-api:2026.07.24', 'achinterbank-spa:2026.07.24', 'achinterbank-quartz-schema:2026.07.24')
+Invoke-DockerChecked @('image', 'rm', '-f', 'achinterbank-api:2026.07.24', 'achinterbank-spa:2026.07.24')
 Invoke-DockerChecked @('load', '--input', $exportTar)
 Invoke-DockerChecked @('compose', '--env-file', $envExample, '-f', $portainerFile, 'up', '-d', '--no-build', '--force-recreate')
 Invoke-DockerChecked @('compose', '--env-file', $envExample, '-f', $portainerFile, 'ps')

@@ -365,7 +365,7 @@ public static class DependencyInjectionService
         throw new InvalidOperationException(
             $"No configured connection string was found for provider '{provider}'. " +
             "Configure 'ConnectionStrings:PostgresConnection' or 'ConnectionStrings:SqlConnection' in the active appsettings file. " +
-            "Development ships with a non-secret SQL Server LocalDB connection in appsettings.Development.json; " +
-            "replace it only when using another local SQL Server/PostgreSQL instance.");
+            "The canonical appsettings.json intentionally has an empty connection string; " +
+            "configure the deployment-specific SQL Server/PostgreSQL connection before starting.");
     }
 }

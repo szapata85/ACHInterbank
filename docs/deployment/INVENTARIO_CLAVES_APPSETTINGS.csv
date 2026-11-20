@@ -1,0 +1,158 @@
+﻿Ruta de configuración;Grupo;Evidencia estática;Observación
+AchCol:EnableAutomaticReturnFileGeneration;AchCol;Referencia literal exacta;Lectura directa en orquestador/postprocesamiento ACH
+AchColombiaManagedMft:ArchivePath;AchColombiaManagedMft;Enlace por sección/modelo de opciones;Bind de AchColombiaManagedMftOptions (External)
+AchColombiaManagedMft:Enabled;AchColombiaManagedMft;Enlace por sección/modelo de opciones;Bind de AchColombiaManagedMftOptions (External)
+AchColombiaManagedMft:InboundPath;AchColombiaManagedMft;Enlace por sección/modelo de opciones;Bind de AchColombiaManagedMftOptions (External)
+AchColombiaManagedMft:MaximumFileBytes;AchColombiaManagedMft;Enlace por sección/modelo de opciones;Bind de AchColombiaManagedMftOptions (External)
+AchColombiaManagedMft:OutboundPath;AchColombiaManagedMft;Enlace por sección/modelo de opciones;Bind de AchColombiaManagedMftOptions (External)
+AchColombiaManagedMft:ProcessingPath;AchColombiaManagedMft;Enlace por sección/modelo de opciones;Bind de AchColombiaManagedMftOptions (External)
+AchOutboundReturnTransport:Enabled;AchOutboundReturnTransport;Enlace por sección/modelo de opciones;Bind de AchOutboundReturnTransportOptions (External)
+AchOutboundReturnTransport:HandoffDirectory;AchOutboundReturnTransport;Enlace por sección/modelo de opciones;Bind de AchOutboundReturnTransportOptions (External)
+AchOutboundReturnTransport:MaxFileBytes;AchOutboundReturnTransport;Enlace por sección/modelo de opciones;Bind de AchOutboundReturnTransportOptions (External)
+AchOutboundReturnTransport:Mode;AchOutboundReturnTransport;Enlace por sección/modelo de opciones;Bind de AchOutboundReturnTransportOptions (External)
+appSettings:address;appSettings;Referencia literal exacta;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:Certificates:CertCrypt;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:Certificates:CertSign;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:Integrations:Methods;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:Integrations:UrlAch;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:key;appSettings;Referencia literal exacta;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:prueba;appSettings;Referencia literal exacta;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:servers:services;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:servers:servicesWCF;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:tokenManager:accessExpiration;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:tokenManager:audienceJwt;appSettings;Referencia literal exacta;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:tokenManager:clientId;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:tokenManager:clientSecret;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:tokenManager:expirationType;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:tokenManager:issuerJwt;appSettings;Referencia literal exacta;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:tokenManager:secretKetJwt;appSettings;Referencia literal exacta;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+appSettings:tokenManager:x_api_key;appSettings;Enlace por sección/modelo de opciones;Bind/Configure de Token, ServesSettings, Integrations, Certificates, cifrado, WCF (External)
+CertificateManagement:ExpirationWarningDays;CertificateManagement;Enlace por sección/modelo de opciones;Configuración de servicios de gestión de certificados
+ConnectionStrings:PostgresConnection;ConnectionStrings;Referencia literal exacta;GetConnectionString en inicializador/DbContext
+ConnectionStrings:SqlConnection;ConnectionStrings;Referencia literal exacta;GetConnectionString en inicializador/DbContext
+Cors:Origins;Cors;Referencia literal exacta;Lectura directa desde DI de API
+Database:ApplyMigrations;Database;Referencia literal exacta;Lectura directa en inicializador y selección de proveedor (Persistence)
+Database:ApplySeed;Database;Referencia literal exacta;Lectura directa en inicializador y selección de proveedor (Persistence)
+Database:Provider;Database;Referencia literal exacta;Lectura directa en inicializador y selección de proveedor (Persistence)
+DigitalEnvelope:CertificateResolver:AllowHistoricalDecryptWhenExpired;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateResolver:AllowHistoricalDecryptWhenRevoked;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateResolver:AllowLegacyCertificateFallback;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateResolver:DefaultClearingHouseId;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateResolver:Environment;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateResolver:FailIfCertificateManagementUnavailable;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateResolver:LogCertificateSource;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateResolver:PreferActiveCertificateManagementVersion;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateResolver:UseCertificateManagement;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateSecretResolver:DisableInMemoryProviderInProduction;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateSecretResolver:EnableExternalSecretReferenceProvider;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateSecretResolver:EnableHsmProvider;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateSecretResolver:EnableInMemoryProvider;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateSecretResolver:EnableKeyVaultProvider;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateSecretResolver:FailIfSecretProviderUnavailable;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:CertificateSecretResolver:MaskSecretRefInLogs;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:EnabledClearingHouseIds;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:NachaExport:AllowDefaultClearingHouseFallback;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:NachaExport:DefaultClearingHouseId;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:NachaExport:Environment;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:NachaExport:RecipientHolderType;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:NachaExport:RecipientPurpose;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:AllowLegacyUnsignedEnvelope;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:AuditInvalidSignature;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:EnableSignatureValidation;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:Environment;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:FailCloseOnInvalidSignature;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:FailWhenSignerCertificateExpired;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:FailWhenSignerCertificateMissing;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:LogSignatureValidationDetails;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:ValidateSignerCertificateChain;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+DigitalEnvelope:SignatureValidation:ValidateSignerCertificateThumbprint;DigitalEnvelope;Enlace por sección/modelo de opciones;Bind/Configure de opciones de sobre digital (API/Persistence)
+IncomingNacha:DispatchResilience:BackoffMultiplier;IncomingNacha;Enlace por sección/modelo de opciones;Bind de opciones de resiliencia de despacho (Persistence)
+IncomingNacha:DispatchResilience:EnableJitter;IncomingNacha;Enlace por sección/modelo de opciones;Bind de opciones de resiliencia de despacho (Persistence)
+IncomingNacha:DispatchResilience:InitialBackoffSeconds;IncomingNacha;Enlace por sección/modelo de opciones;Bind de opciones de resiliencia de despacho (Persistence)
+IncomingNacha:DispatchResilience:JitterMaxSeconds;IncomingNacha;Enlace por sección/modelo de opciones;Bind de opciones de resiliencia de despacho (Persistence)
+IncomingNacha:DispatchResilience:MaxAttempts;IncomingNacha;Enlace por sección/modelo de opciones;Bind de opciones de resiliencia de despacho (Persistence)
+IncomingNacha:DispatchResilience:MaxBackoffSeconds;IncomingNacha;Enlace por sección/modelo de opciones;Bind de opciones de resiliencia de despacho (Persistence)
+NachaGeneration:AchColExternalNamingHomologated;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:AllowNonHomologatedCenitDevelopment;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:EnableType7TableDriven;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:ExecutionScope;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:FailOnResolverAmbiguity;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:Mode;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:Type7CriticalFieldCodes;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:Type7DisableFallbackEnvironments;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:Type7DisableLegacyFallbackForLayouts;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:Type7EnableTableDrivenForClearingHouses;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:Type7MinEquivalencePercent;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:Type7MinQualifiedRuns;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:Type7RequireShadowBeforeDisableFallback;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaGeneration:Type7RolloutPolicyEnabled;NachaGeneration;Enlace por sección/modelo de opciones;Bind de NachaGenerationOptions (Persistence)
+NachaInboundSimulator:AllowAutoImport;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+NachaInboundSimulator:AllowedClearingHouses;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+NachaInboundSimulator:AllowExternalTransmission;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+NachaInboundSimulator:DifferentialResponsesEnabled;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+NachaInboundSimulator:Enabled;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+NachaInboundSimulator:MaxEntriesPerSimulation;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+NachaInboundSimulator:Mode;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+NachaInboundSimulator:OutputDirectory;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+NachaInboundSimulator:RequirePublishedDifferentialProfile;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+NachaInboundSimulator:RequireSyntheticData;NachaInboundSimulator;Enlace por sección/modelo de opciones;Bind de NachaInboundSimulatorOptions (Persistence)
+ProcContrapartidas:Mode;ProcContrapartidas;Enlace por sección/modelo de opciones;Lecturas de modo de operación por integración SOAP
+ProcTransacciones:Mode;ProcTransacciones;Referencia literal exacta;Lecturas de modo de operación por integración SOAP
+Quartz:AcquireTriggersWithinLock;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:BatchFireAheadMilliseconds;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:InstanceHeartbeatSeconds;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:InstanceId;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:InstanceName;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:JobStore:ClusterCheckinIntervalSeconds;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:JobStore:Clustered;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:JobStore:MisfireThresholdMilliseconds;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:JobStore:Mode;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:JobStore:PerformSchemaValidation;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:JobStore:Provider;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:JobStore:TablePrefix;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:MaxBatchSize;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:MaxConcurrency;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:OfflineThresholdSeconds;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+Quartz:SchedulerName;Quartz;Enlace por sección/modelo de opciones;Lecturas/bind desde QuartzJobStoreOptionsFactory y scheduler (Persistence)
+RateLimiting:PermitLimit;RateLimiting;Enlace por sección/modelo de opciones;Lectura desde ApiRateLimitingOptions.FromConfiguration
+RateLimiting:QueueLimit;RateLimiting;Enlace por sección/modelo de opciones;Lectura desde ApiRateLimitingOptions.FromConfiguration
+RateLimiting:WindowSeconds;RateLimiting;Enlace por sección/modelo de opciones;Lectura desde ApiRateLimitingOptions.FromConfiguration
+Resilience:ExternalHttp:Generic:MaxRetryAttempts;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:Generic:TimeoutSeconds;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:HealthProbe:BulkheadPermitLimit;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:HealthProbe:BulkheadQueueLimit;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:HealthProbe:CircuitBreakerBreakDurationSeconds;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:HealthProbe:CircuitBreakerFailureRatio;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:HealthProbe:CircuitBreakerMinimumThroughput;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:HealthProbe:CircuitBreakerSamplingDurationSeconds;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:HealthProbe:MaxRetryAttempts;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:HealthProbe:RetryBaseDelayMilliseconds;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:HealthProbe:TimeoutSeconds;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:Soap:MaxRetryAttempts;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+Resilience:ExternalHttp:Soap:TimeoutSeconds;Resilience;Enlace por sección/modelo de opciones;Bind de ExternalHttpResilienceOptions (External)
+SoapEndpointSecurity:WsAxonRespuestaTransacciones:AllowedPorts;SoapEndpointSecurity;Enlace por sección/modelo de opciones;Bind de WsAxonEndpointSecurityOptions (External)
+SoapEndpointSecurity:WsAxonRespuestaTransacciones:HostHeader;SoapEndpointSecurity;Enlace por sección/modelo de opciones;Bind de WsAxonEndpointSecurityOptions (External)
+SoapEndpointSecurity:WsAxonRespuestaTransacciones:Mode;SoapEndpointSecurity;Enlace por sección/modelo de opciones;Bind de WsAxonEndpointSecurityOptions (External)
+SoapEnvelopeLogging:Enabled;SoapEnvelopeLogging;Enlace por sección/modelo de opciones;Bind de SoapEnvelopeLoggingOptions (External)
+SoapIntegrationBootstrap:DefaultTimeoutSeconds;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:Enabled;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:EnforceLiveOnly;SoapIntegrationBootstrap;Referencia literal exacta;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:OverwriteExistingSettings;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcContrapartidas:Enabled;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcContrapartidas:Endpoint;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcContrapartidas:OperatingMode;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcContrapartidas:SoapAction;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcContrapartidas:TimeoutSeconds;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcTransacciones:Enabled;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcTransacciones:Endpoint;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcTransacciones:OperatingMode;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcTransacciones:SoapAction;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:ProcTransacciones:TimeoutSeconds;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:Enabled;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:Endpoint;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:OperatingMode;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:SoapAction;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:TimeoutSeconds;SoapIntegrationBootstrap;Enlace por sección/modelo de opciones;Lectura por SoapIntegrationSettingsBootstrapper
+SoapTransport:ControlledLocal:HostHeader;SoapTransport;Enlace por sección/modelo de opciones;Bind de ControlledLocalSoapTransportOptions (External)
+SoapTransport:ControlledLocal:TransportHost;SoapTransport;Enlace por sección/modelo de opciones;Bind de ControlledLocalSoapTransportOptions (External)
+SpaHosting:Enabled;SpaHosting;Referencia literal exacta;Lectura directa desde ConfigureHandler (API)

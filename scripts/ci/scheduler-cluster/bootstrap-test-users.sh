@@ -9,7 +9,7 @@ api_failure_diagnostics() {
   echo "::error::API SQL Server did not become ready"
   docker compose -f "$compose_file" ps || true
   docker compose -f "$compose_file" logs --no-color --tail=250 \
-    scheduler-sqlserver quartz-schema achinterbank-api-01 || true
+    scheduler-sqlserver achinterbank-api-01 || true
 }
 
 api_login_failure_diagnostics() {

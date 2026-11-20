@@ -10,12 +10,8 @@ public sealed class AchDbContextFactory : IDesignTimeDbContextFactory<AchDbConte
     {
         var basePath = ResolveBasePath();
 
-        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
-            ?? "Development";
-
         var provider = Environment.GetEnvironmentVariable("Database__Provider")
-            ?? ReadSetting(basePath, environment, "Database", "Provider")
+            ?? ReadSetting(basePath, "Database", "Provider")
             ?? "SqlServer";
 
         var normalizedProvider = provider.Trim().ToLowerInvariant();
@@ -26,7 +22,7 @@ public sealed class AchDbContextFactory : IDesignTimeDbContextFactory<AchDbConte
         };
 
         var connectionString = Environment.GetEnvironmentVariable($"ConnectionStrings__{connectionStringName}")
-            ?? ReadSetting(basePath, environment, "ConnectionStrings", connectionStringName);
+            ?? ReadSetting(basePath, "ConnectionStrings", connectionStringName);
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -56,14 +52,8 @@ public sealed class AchDbContextFactory : IDesignTimeDbContextFactory<AchDbConte
         return new AchDbContext(optionsBuilder.Options);
     }
 
-    private static string? ReadSetting(string basePath, string environment, string section, string key)
-    {
-        var environmentFile = Path.Combine(basePath, $"appsettings.{environment}.json");
-        var defaultFile = Path.Combine(basePath, "appsettings.json");
-
-        return ReadSettingFromFile(environmentFile, section, key)
-            ?? ReadSettingFromFile(defaultFile, section, key);
-    }
+    private static string? ReadSetting(string basePath, string section, string key)
+        => ReadSettingFromFile(Path.Combine(basePath, "appsettings.json"), section, key);
 
     private static string? ReadSettingFromFile(string filePath, string section, string key)
     {

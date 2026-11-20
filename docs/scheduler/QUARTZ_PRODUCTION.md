@@ -35,7 +35,7 @@ El seed histórico outbound `EveryNMinutes=5` puede permanecer como metadata, pe
 
 ## Esquema y locks
 
-Los scripts versionados son `artifacts/sql/quartz/postgres-qrtz-schema.sql` y `artifacts/sql/quartz/sqlserver-qrtz-schema.sql`. Crean las 11 tablas internas de Quartz 3.18 de forma no destructiva, no borran datos, aceptan reaplicación y rechazan un esquema parcial. Estas tablas no forman parte del modelo EF funcional. Las migraciones EF agregan el historial, heartbeats, sonda técnica, índices, unicidad e información de programación.
+Para SQL Server, `20261118110000_QuartzSqlServer471Schema` incorpora mediante SQL embebido el esquema interno de Quartz.NET 4.7.1 (12 tablas, sin eliminar datos) al ciclo de migraciones EF Core. El script de referencia sigue en `artifacts/sql/quartz/sqlserver-qrtz-schema.sql`; no es necesario un contenedor `quartz-schema`. Las tablas internas no son entidades del modelo EF de dominio. PostgreSQL mantiene un proceso de preparación independiente en los perfiles de prueba.
 
 La exclusión distribuida proviene de `QRTZ_LOCKS` y `JobStoreTX`; `AcquireTriggersWithinLock` se mantiene configurable. Los handlers no concurrentes usan además `[DisallowConcurrentExecution]`, sin tratarlo como garantía de exactamente una vez.
 

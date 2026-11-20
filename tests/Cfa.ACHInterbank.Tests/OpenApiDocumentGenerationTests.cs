@@ -385,18 +385,28 @@ public sealed class OpenApiDocumentGenerationTests
         new("GET", "/api/ach-colombia/operational-schedules/administration", typeof(AchColombiaCycleOperationalSchedulesController), nameof(AchColombiaCycleOperationalSchedulesController.GetAdministration))
     ];
 
+    // Contratos públicos de consulta por documento: cliente mínimo y sus cuentas de terceros.
+    private static readonly Sc508PublicContractOperation[] CustomerLookupContractOperations =
+    [
+        new("GET", "/customers/by-document", typeof(CustomersController), nameof(CustomersController.GetByDocument)),
+        new("GET", "/api/third-party-accounts/by-customer-document",
+            typeof(CustomerThirdPartyAccountsByDocumentController), nameof(CustomerThirdPartyAccountsByDocumentController.Get))
+    ];
+
     private static readonly (string Method, string Path)[] Qg1Operations =
     [
         .. BaselineQgOperations,
         .. Sc508PublicContractOperations.Select(operation => (operation.Method, operation.Path)),
-        .. Phase5PublicContractOperations.Select(operation => (operation.Method, operation.Path))
+        .. Phase5PublicContractOperations.Select(operation => (operation.Method, operation.Path)),
+        .. CustomerLookupContractOperations.Select(operation => (operation.Method, operation.Path))
     ];
 
     private static readonly (string Method, string Path)[] Qg2Operations =
     [
         .. BaselineQgOperations,
         .. Sc508PublicContractOperations.Select(operation => (operation.Method, operation.Path)),
-        .. Phase5PublicContractOperations.Select(operation => (operation.Method, operation.Path))
+        .. Phase5PublicContractOperations.Select(operation => (operation.Method, operation.Path)),
+        .. CustomerLookupContractOperations.Select(operation => (operation.Method, operation.Path))
     ];
 
     private static readonly Sc508IntentionalExclusionOperation[] Sc508IntentionalExclusionOperations =
@@ -5201,9 +5211,9 @@ public sealed class OpenApiDocumentGenerationTests
 
         BaselineQgOperations.Should().HaveCount(245, "UX3 incorpora el GET contextual del editor de campo al baseline contractual existente");
         BaselineQgOperations.Distinct().Should().HaveCount(245, "el baseline QG no debe contener METHOD + PATH duplicados");
-        Qg1Operations.Should().HaveCount(327, "QG-1 = baseline 245 + SC-508 80 + FASE 5 2 operaciones administrativas ACH Colombia");
-        Qg1Operations.Distinct().Should().HaveCount(327, "QG-1 final no debe contener METHOD + PATH duplicados");
-        Qg2Operations.Should().HaveCount(327, "QG-2 final debe contener las mismas 327 operaciones que QG-1");
+        Qg1Operations.Should().HaveCount(329, "QG-1 = baseline 245 + SC-508 80 + FASE 5 2 + 2 consultas por documento");
+        Qg1Operations.Distinct().Should().HaveCount(329, "QG-1 final no debe contener METHOD + PATH duplicados");
+        Qg2Operations.Should().HaveCount(329, "QG-2 final debe contener las mismas 329 operaciones que QG-1");
         Qg2Operations.Should().BeEquivalentTo(Qg1Operations, "QG-1 y QG-2 finales deben compartir exactamente el mismo METHOD + PATH set");
         AssertQg2ParameterDocumentation(paths);
         AssertQg2ResponseStatusAudit(paths);
@@ -9394,10 +9404,10 @@ public sealed class OpenApiDocumentGenerationTests
         DocumentationRedirectExclusions.Should().HaveCount(2,
             "los redirects documentales raíz deben permanecer fuera de OpenAPI/QG");
 
-        contractual.Should().HaveCount(327,
-            "QG final = 245 baseline + 80 PUBLIC_CONTRACT SC-508 + 2 operaciones administrativas FASE 5");
-        qg2.Should().HaveCount(327,
-            "QG-2 final debe contener las mismas 327 METHOD + PATH que QG-1");
+        contractual.Should().HaveCount(329,
+            "QG final = 245 baseline + 80 PUBLIC_CONTRACT SC-508 + 2 operaciones administrativas FASE 5 + 2 consultas por documento");
+        qg2.Should().HaveCount(329,
+            "QG-2 final debe contener las mismas 329 METHOD + PATH que QG-1");
         qg2.Should().BeEquivalentTo(contractual,
             "QG-1 y QG-2 finales deben ser exactamente el mismo conjunto METHOD + PATH");
 
@@ -9416,8 +9426,8 @@ public sealed class OpenApiDocumentGenerationTests
             .Concat(pending)
             .Concat(visibleIntentionalExclusions)
             .ToHashSet();
-        expectedVisible.Should().HaveCount(408,
-            "la superficie visible por ApiExplorer/OpenAPI debe incluir las dos operaciones administrativas agregadas en FASE 5");
+        expectedVisible.Should().HaveCount(410,
+            "la superficie visible por ApiExplorer/OpenAPI incluye también las consultas por documento");
 
         var openApiKeys = httpOperations
             .Select(operation => (operation.Method.ToUpperInvariant(), operation.Path))
@@ -9426,10 +9436,10 @@ public sealed class OpenApiDocumentGenerationTests
             .Select(description => (description.HttpMethod!.ToUpperInvariant(), NormalizeApiExplorerPath(description.RelativePath!)))
             .ToHashSet();
 
-        openApiKeys.Should().HaveCount(408,
-            "OpenAPI debe incorporar las dos operaciones administrativas ACH Colombia agregadas en FASE 5");
-        apiExplorerKeys.Should().HaveCount(408,
-            "ApiExplorer debe incorporar las dos operaciones administrativas ACH Colombia agregadas en FASE 5");
+        openApiKeys.Should().HaveCount(410,
+            "OpenAPI debe incorporar la consulta de clientes por documento");
+        apiExplorerKeys.Should().HaveCount(410,
+            "ApiExplorer debe incorporar la consulta de clientes por documento");
         openApiKeys.Should().BeEquivalentTo(apiExplorerKeys,
             "OpenAPI debe reflejar exactamente la superficie visible de ApiExplorer");
         openApiKeys.Should().BeEquivalentTo(expectedVisible,
@@ -9458,8 +9468,8 @@ public sealed class OpenApiDocumentGenerationTests
                               + visibleIntentionalExclusions.Count
                               + ignoredKeys.Count
                               + redirectKeys.Count;
-        totalClassified.Should().Be(416,
-            "el gate final debe clasificar las 416 operaciones HTTP públicas inventariadas en r508");
+        totalClassified.Should().Be(418,
+            "el gate final debe clasificar las 416 operaciones históricas y las dos consultas por documento");
 
         openApiKeys.Except(expectedVisible).Should().BeEmpty(
             "UNEXPECTED_UNCOVERED_OPERATION debe terminar en cero");

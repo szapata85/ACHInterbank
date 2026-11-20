@@ -55,7 +55,7 @@ BenchmarkDotNet.Artifacts/
 project.lock.json
 project.fragment.lock.json
 artifacts/
-# SQL de inicializacion Quartz: indispensable para Docker (no es artefacto generado).
+# SQL Quartz de referencia; la migración EF Core usa una copia embebida versionada.
 !artifacts/
 artifacts/*
 !artifacts/sql/

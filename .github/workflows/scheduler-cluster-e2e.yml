@@ -109,7 +109,12 @@ jobs:
         run: docker compose -f "$COMPOSE_FILE" config --quiet
 
       - name: Start first scheduler node and SPA
-        run: docker compose -f "$COMPOSE_FILE" up -d --build quartz-schema achinterbank-api-01 achinterbank-spa
+        run: |
+          if [[ "${{ matrix.database }}" == "sqlserver" ]]; then
+            docker compose -f "$COMPOSE_FILE" up -d --build achinterbank-api-01 achinterbank-spa
+          else
+            docker compose -f "$COMPOSE_FILE" up -d --build quartz-schema achinterbank-api-01 achinterbank-spa
+          fi
 
       - name: Wait for first node and bootstrap ephemeral E2E identities
         run: bash scripts/ci/scheduler-cluster/bootstrap-test-users.sh "$COMPOSE_FILE" "${{ matrix.database }}" "http://localhost:${API_01_PORT}"

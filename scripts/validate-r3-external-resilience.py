@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from jsonc_settings import load_jsonc
+
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 EXTERNAL_DI = SRC / "Cfa.ACHInterbank.External" / "DependencyInjectionService.cs"
@@ -63,7 +65,7 @@ def main() -> int:
         and 'Helpers/DNS/Implemetations/CheckHealthAsync.cs' not in ratchet_text
     )
 
-    config = json.loads(APPSETTINGS.read_text(encoding="utf-8"))
+    config = load_jsonc(APPSETTINGS)
     policies = config["Resilience"]["ExternalHttp"]
     health_retry = int(policies["HealthProbe"]["MaxRetryAttempts"])
     generic_retry = int(policies["Generic"]["MaxRetryAttempts"])

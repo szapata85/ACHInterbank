@@ -30,6 +30,34 @@ public class CustomersController : ControllerBase
     }
 
     /// <summary>
+    /// Busca un cliente por tipo y número de documento y devuelve su identificador.
+    /// </summary>
+    [HttpGet("by-document")]
+    [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(typeof(CustomerDocumentLookupDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetByDocument(
+        [FromQuery] string? documentType,
+        [FromQuery] string? documentNumber,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(documentType))
+        {
+            return BadRequest("El tipo de documento es obligatorio.");
+        }
+
+        if (string.IsNullOrWhiteSpace(documentNumber))
+        {
+            return BadRequest("El número de documento es obligatorio.");
+        }
+
+        var customer = await _service.GetByDocumentAsync(
+            documentType.Trim().ToUpperInvariant(), documentNumber.Trim(), ct);
+        return customer is null ? NotFound() : Ok(customer);
+    }
+
+    /// <summary>
     /// Obtiene el detalle de un cliente por identificador.
     /// </summary>
     [HttpGet("{id:int}")]

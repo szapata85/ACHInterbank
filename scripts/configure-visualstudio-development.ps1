@@ -17,7 +17,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
-$appSettingsPath = Join-Path $root 'src/Cfa.ACHInterbank.Api/appsettings.Development.json'
+$appSettingsPath = Join-Path $root 'src/Cfa.ACHInterbank.Api/appsettings.json'
 
 function ConvertFrom-SecureStringPlainText {
     param([Parameter(Mandatory = $true)][Security.SecureString]$Value)
@@ -64,44 +64,21 @@ function Save-DevelopmentSettings {
     )
 
     if (-not (Test-Path -LiteralPath $appSettingsPath)) {
-        throw "Development appsettings not found: $appSettingsPath"
+        throw "Unified appsettings not found: $appSettingsPath"
     }
 
-    $config = Get-Content -LiteralPath $appSettingsPath -Raw | ConvertFrom-Json
+    # Actualizar campos concretos sin reserializar todo el JSON (conserva comentarios).
+    . (Join-Path $root 'scripts/jsonc-settings.ps1')
+    $config = Read-JsoncSettings -Path $appSettingsPath
+    if ($null -eq $config.Database -or $null -eq $config.ConnectionStrings) {
+        throw 'Faltan las secciones Database/ConnectionStrings del appsettings unico.'
+    }
+    Set-JsoncSetting -Path $appSettingsPath -Section 'Database' -Name 'Provider' -Value $ProviderValue
+    Set-JsoncSetting -Path $appSettingsPath -Section 'Database' -Name 'ApplyMigrations' -Value (-not $SkipMigrations)
+    Set-JsoncSetting -Path $appSettingsPath -Section 'Database' -Name 'ApplySeed' -Value $ApplySeed.IsPresent
+    Set-JsoncSetting -Path $appSettingsPath -Section 'ConnectionStrings' -Name $ConnectionKey -Value $ConnectionValue
+    # La cadena del otro proveedor se mantiene intacta.
 
-    if ($null -eq $config.Database) {
-        $config | Add-Member -NotePropertyName Database -NotePropertyValue ([pscustomobject]@{})
-    }
-    if ($null -eq $config.ConnectionStrings) {
-        $config | Add-Member -NotePropertyName ConnectionStrings -NotePropertyValue ([pscustomobject]@{})
-    }
-
-    $config.Database.Provider = $ProviderValue
-    if ($config.Database.PSObject.Properties.Name -contains 'ApplyMigrations') {
-        $config.Database.ApplyMigrations = -not $SkipMigrations
-    }
-    else {
-        $config.Database | Add-Member -NotePropertyName ApplyMigrations -NotePropertyValue (-not $SkipMigrations)
-    }
-    if ($config.Database.PSObject.Properties.Name -contains 'ApplySeed') {
-        $config.Database.ApplySeed = $ApplySeed.IsPresent
-    }
-    else {
-        $config.Database | Add-Member -NotePropertyName ApplySeed -NotePropertyValue $ApplySeed.IsPresent
-    }
-
-    if (-not ($config.ConnectionStrings.PSObject.Properties.Name -contains 'PostgresConnection')) {
-        $config.ConnectionStrings | Add-Member -NotePropertyName PostgresConnection -NotePropertyValue ''
-    }
-    if (-not ($config.ConnectionStrings.PSObject.Properties.Name -contains 'SqlConnection')) {
-        $config.ConnectionStrings | Add-Member -NotePropertyName SqlConnection -NotePropertyValue ''
-    }
-
-    $config.ConnectionStrings.$ConnectionKey = $ConnectionValue
-
-    # Keep the other provider value untouched so a developer may switch providers deliberately.
-    $json = $config | ConvertTo-Json -Depth 100
-    [System.IO.File]::WriteAllText($appSettingsPath, $json + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
 }
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
@@ -135,7 +112,7 @@ if ($providerNormalized -eq 'sqlserver') {
 
             Push-Location $root
             try {
-                & docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml up -d sqlserver quartz-schema
+                & docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml up -d sqlserver
                 if ($LASTEXITCODE -ne 0) { throw 'Unable to start the SQL Server development services.' }
             }
             finally { Pop-Location }
@@ -193,6 +170,6 @@ Write-Host "Migrate:  $(-not $SkipMigrations)"
 Write-Host "Seed:     $($ApplySeed.IsPresent)"
 Write-Host "File:     $appSettingsPath"
 Write-Host ''
-Write-Host 'ConnectionStrings are read from appsettings.Development.json as requested.' -ForegroundColor Yellow
+Write-Host 'El unico archivo de configuracion es appsettings.json. No confirme credenciales en Git.' -ForegroundColor Yellow
 Write-Host 'Do not commit real database passwords to Git.' -ForegroundColor Yellow
 Write-Host 'Restart the API profile in Visual Studio (https/http/IIS Express).'

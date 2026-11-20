@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 
 // Ejecutor local sin PowerShell, sin Bash en el host y sin archivo .env.
-// La única fuente de la contraseña de sa es appsettings.Development.json.
+// La configuracion local se lee del appsettings.json unico; no imprimir secretos.
 try
 {
     return Execute(args);
@@ -46,17 +46,21 @@ static int Execute(string[] args)
         throw new InvalidOperationException("'reset' destruye datos del volumen SQL Server. Repita con --confirm-data-loss.");
 
     string root = LocateRepository();
-    string settingsFile = Path.Combine(root, "src", "Cfa.ACHInterbank.Api", "appsettings.Development.json");
-    using JsonDocument settings = JsonDocument.Parse(File.ReadAllText(settingsFile));
+    string settingsFile = Path.Combine(root, "src", "Cfa.ACHInterbank.Api", "appsettings.json");
+    using JsonDocument settings = JsonDocument.Parse(File.ReadAllText(settingsFile), new JsonDocumentOptions
+    {
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    });
     JsonElement db = settings.RootElement.GetProperty("Database");
     string provider = db.GetProperty("Provider").GetString() ?? "";
     if (provider != "SqlServer")
-        throw new InvalidOperationException("Cambie Database:Provider a SqlServer en appsettings.Development.json.");
+        throw new InvalidOperationException("Cambie Database:Provider a SqlServer en appsettings.json.");
 
     string connection = settings.RootElement.GetProperty("ConnectionStrings")
         .GetProperty("SqlConnection").GetString() ?? "";
     if (string.IsNullOrWhiteSpace(connection))
-        throw new InvalidOperationException("ConnectionStrings:SqlConnection está vacío.");
+        throw new InvalidOperationException("ConnectionStrings:SqlConnection está vacío en appsettings.json; configúrelo localmente antes de usar docker-ach.");
 
     DbConnectionStringBuilder sqlHost = new() { ConnectionString = connection };
     string user = GetValue(sqlHost, "User Id", "User ID", "UID") ?? "";
@@ -77,7 +81,7 @@ static int Execute(string[] args)
 
     Match serverMatch = Regex.Match(address, @"^(?:localhost|127\.0\.0\.1)(?:,(\d{1,5}))?$", RegexOptions.IgnoreCase);
     if (!serverMatch.Success)
-        throw new InvalidOperationException("Use Server=127.0.0.1,1433 (o localhost,puerto) en la cadena de Development; no LocalDB.");
+        throw new InvalidOperationException("Use Server=127.0.0.1,1433 (o localhost,puerto) en la cadena local de appsettings.json; no LocalDB.");
     int port = serverMatch.Groups[1].Success ? int.Parse(serverMatch.Groups[1].Value) : 1433;
     if (port is < 1 or > 65535)
         throw new InvalidOperationException("Puerto SQL Server inválido.");
@@ -104,10 +108,10 @@ static int Execute(string[] args)
             Console.WriteLine("Compose validado. La contraseña no se imprimió.");
             break;
         case "infra":
-            EnsureQuartz(root, composeEnv);
+            EnsureSqlServer(root, composeEnv);
             break;
         case "migrate":
-            EnsureQuartz(root, composeEnv);
+            EnsureSqlServer(root, composeEnv);
             Dictionary<string, string> efEnv = new(composeEnv, StringComparer.OrdinalIgnoreCase)
             {
                 ["ASPNETCORE_ENVIRONMENT"] = "Development",
@@ -148,26 +152,17 @@ static int Execute(string[] args)
             Compose(root, composeEnv, "ps", "-a");
             break;
         case "logs":
-            Compose(root, composeEnv, "logs", "--tail", "100", "sqlserver", "quartz-schema", "achinterbank-api", "achinterbank-spa");
+            Compose(root, composeEnv, "logs", "--tail", "100", "sqlserver", "achinterbank-api", "achinterbank-spa");
             break;
     }
     return 0;
 }
 
-static void EnsureQuartz(string root, IReadOnlyDictionary<string, string> env)
+static void EnsureSqlServer(string root, IReadOnlyDictionary<string, string> env)
 {
-    // "up" puede reutilizar un contenedor quartz-schema Exited(0) anterior.
-    // Garantizar que el SQL montado actualizado se ejecute en cada "infra"/"migrate".
-    // --wait espera que SQL Server pase su healthcheck; --no-deps evita recrear SQL.
+    // EF Core instala Quartz desde la migracion QuartzSqlServer471Schema.
+    // Aqui solo se necesita SQL Server listo para recibir la conexion.
     Compose(root, env, "up", "-d", "--wait", "sqlserver");
-    Compose(root, env, "up", "-d", "--no-deps", "--force-recreate", "quartz-schema");
-    Compose(root, env, "wait", "quartz-schema");
-    string containerId = Capture(root, env, "docker", "compose", "-f", "docker-compose.yml", "ps", "-a", "-q", "quartz-schema").Trim();
-    if (string.IsNullOrEmpty(containerId))
-        throw new InvalidOperationException("El contenedor de Quartz no se encontró.");
-    string status = Capture(root, env, "docker", "inspect", "--format", "{{.State.ExitCode}}", containerId).Trim();
-    if (status != "0")
-        throw new InvalidOperationException($"Quartz terminó con código {status}. Revise los logs de quartz-schema.");
 }
 
 static string LocateRepository()
@@ -176,7 +171,7 @@ static string LocateRepository()
     while (candidate is not null)
     {
         if (File.Exists(Path.Combine(candidate.FullName, "docker-compose.yml")) &&
-            File.Exists(Path.Combine(candidate.FullName, "src", "Cfa.ACHInterbank.Api", "appsettings.Development.json")))
+            File.Exists(Path.Combine(candidate.FullName, "src", "Cfa.ACHInterbank.Api", "appsettings.json")))
             return candidate.FullName;
         candidate = candidate.Parent;
     }
@@ -236,8 +231,8 @@ static void PrintHelp()
         Uso: dotnet run --project tools/AchInterbank.DockerCli -- ACCION [opciones]
 
           config                         Valida YAML sin mostrar contraseña
-          infra                          Levanta SQL Server e inicializa Quartz
-          migrate                        Inicializa SQL Server y aplica migraciones EF
+          infra                          Levanta SQL Server (Quartz se prepara con EF Core)
+          migrate                        Levanta SQL Server y aplica EF Core, incluido Quartz
           up [--seed] [--no-auto-migrations] [--no-build] [--no-seed]
                                          Construye/levanta API, SPA y SQL Server
           status                         Lista contenedores del proyecto
@@ -245,7 +240,7 @@ static void PrintHelp()
           down                           Apaga el stack; conserva volumen SQL
           reset --confirm-data-loss      Elimina contenedores y volumen SQL (DESTRUCTIVO)
 
-        La contraseña se lee de src/Cfa.ACHInterbank.Api/appsettings.Development.json.
+        La contraseña se lee de src/Cfa.ACHInterbank.Api/appsettings.json.
         No se utiliza PowerShell, Bash en el host, ni un archivo .env adicional.
         """);
 }

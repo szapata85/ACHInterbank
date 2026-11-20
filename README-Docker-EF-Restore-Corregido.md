@@ -1,3 +1,5 @@
+> **Actualización 2026-11-18:** el inicializador Docker `quartz-schema` ya no se usa en SQL Server: el esquema de Quartz.NET 4.7.1 se incorpora mediante la migración EF Core `20261118110000_QuartzSqlServer471Schema`.
+
 # ACHInterbank NAV6 — corrección de migraciones EF SQL Server
 
 ## Causa del error
@@ -6,7 +8,7 @@ Quartz termina exitosamente (`Exited (0)`). A continuación `docker-ach.cmd migr
 
 ## Corrección incorporada
 
-`tools/AchInterbank.DockerCli/Program.cs` ahora ejecuta **`dotnet tool restore`** automáticamente antes de llamar a **`dotnet ef database update`** durante la acción `migrate`. Conserva la corrección previa de Quartz (`docker compose ps -a -q quartz-schema`). El BAT y CMD siguen lanzando el ejecutor .NET. No se requiere PowerShell.
+`tools/AchInterbank.DockerCli/Program.cs` ahora ejecuta **`dotnet tool restore`** automáticamente antes de llamar a **`dotnet ef database update`** durante la acción `migrate`. El ejecutor ahora solo espera a SQL Server; ya no consulta ni inicia un contenedor `quartz-schema`. El BAT y CMD siguen lanzando el ejecutor .NET. No se requiere PowerShell.
 
 ## Uso desde CMD en la raíz del proyecto
 
@@ -30,7 +32,7 @@ SELECT MigrationId FROM dbo.__EFMigrationsHistory ORDER BY MigrationId;
 
 ## Precauciones
 
-- Conserva tu `src/Cfa.ACHInterbank.Api/appsettings.Development.json` actual (con tu contraseña local de `sa`) al copiar archivos del ZIP. El proyecto distribuido contiene una contraseña de ejemplo, no tu contraseña real.
+- Conserva tu `src/Cfa.ACHInterbank.Api/appsettings.json` actual (con tu contraseña local de `sa`) al copiar archivos del ZIP. El ZIP distribuido no incluye una contraseña SQL real. Configúrala localmente sin versionarla.
 - No uses `reset` para corregir este error: eliminaría el volumen y los datos SQL Server.
 - El ZIP completo contiene el proyecto previamente entregado más esta corrección; el ZIP pequeño incluye solamente el ejecutor modificado y esta guía.
 - Se validaron el contenido del archivo ZIP y los cambios de código. No se pudo ejecutar Docker o .NET en este entorno.

@@ -127,13 +127,14 @@ public class QuartzPersistentStoreConfigurationTests
     }
 
     [Fact]
-    public void QuartzConfiguration_ShouldNotEnablePersistentStoreInDevelopmentByDefault()
+    public void QuartzConfiguration_ShouldUseSinglePersistentStoreConfiguration()
     {
-        var config = new ConfigurationBuilder().AddJsonFile(ResolveRepoPath("src","Cfa.ACHInterbank.Api","appsettings.Development.json")).Build();
+        var config = new ConfigurationBuilder().AddJsonFile(ResolveRepoPath("src","Cfa.ACHInterbank.Api","appsettings.json")).Build();
         var options = QuartzJobStoreOptionsFactory.Create(config);
 
-        options.Mode.Should().Be("RAM");
-        options.IsPersistentMode().Should().BeFalse();
+        options.Mode.Should().Be("Persistent");
+        options.IsPersistentMode().Should().BeTrue();
+        options.Provider.Should().Be("SqlServer");
     }
 
     [Fact]

@@ -111,7 +111,7 @@ El build/test final debe ejecutarse en tu estación con .NET SDK 10.0.402 / runt
 
 Este error ocurre **después de compilar** y es distinto de `NU1105`. La aplicación llegó a `AddPersistence`, pero el proveedor configurado no tiene una cadena de conexión no vacía.
 
-La configuración local se mantiene directamente en `src/Cfa.ACHInterbank.Api/appsettings.Development.json`:
+La configuracion local debe editarse en el unico archivo `src/Cfa.ACHInterbank.Api/appsettings.json`:
 
 ```json
 "Database": {
@@ -133,7 +133,7 @@ Puede editar la cadena manualmente o ejecutar desde la raíz:
 powershell -ExecutionPolicy Bypass -File .\scripts\configure-visualstudio-development.ps1
 ```
 
-El helper solicita la contraseña y escribe `Database:Provider`, `Database:ApplyMigrations`, `Database:ApplySeed` y la cadena elegida **directamente en `appsettings.Development.json`**.
+El helper solicita la contraseña y escribe `Database:Provider`, `Database:ApplyMigrations`, `Database:ApplySeed` y la cadena elegida **directamente en `appsettings.json`**.
 
 Para iniciar además el SQL Server Docker del proyecto:
 
