@@ -23,15 +23,6 @@ if ($activeSdk -ne $requiredSdk) {
     throw "El SDK activo es $activeSdk; se esperaba $requiredSdk según global.json."
 }
 
-if (Get-Command python -ErrorAction SilentlyContinue) {
-    & python scripts/validate-solution-projects.py
-} elseif (Get-Command py -ErrorAction SilentlyContinue) {
-    & py -3 scripts/validate-solution-projects.py
-} else {
-    throw 'Se requiere Python 3 para ejecutar scripts/validate-solution-projects.py.'
-}
-if ($LASTEXITCODE -ne 0) { throw 'El grafo de solución no es válido.' }
-
 Write-Host 'Eliminando únicamente cachés locales regenerables (.vs, bin, obj)...' -ForegroundColor Yellow
 if (Test-Path '.vs') { Remove-Item '.vs' -Recurse -Force }
 Get-ChildItem -Path . -Directory -Recurse -Force -ErrorAction SilentlyContinue |

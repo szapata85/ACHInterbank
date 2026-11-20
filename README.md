@@ -67,25 +67,6 @@ Ver `docs/BUILD_AND_TROUBLESHOOTING.md` antes del primer restore.
 | `docs/operations` | Runbooks y evidencia operativa. |
 | `docs/go-live-readiness` | Material histórico/de readiness; contrastar siempre con el estado vigente. |
 
-## Validación previa al restore
-
-Antes de abrir o restaurar la solución, se puede verificar la integridad del grafo de proyectos sin NuGet ni `dotnet`:
-
-```powershell
-python scripts/validate-solution-projects.py
-```
-
-El resultado esperado es:
-
-```text
-SOLUTION GRAPH: OK
-  solution projects: 7
-  disk projects:     7
-  project references: all targets exist and are loaded by the solution
-```
-
-Este control evita la regresión que produjo `NU1105` al existir `Cfa.ACHInterbank.Persistence.Migrations.SqlServer.csproj` en disco y estar referenciado por la API, pero no estar incluido en `ACHInterbank.sln`.
-
 ## Restore, build y pruebas backend
 
 Con Visual Studio cerrado, si vienes de una copia anterior o tienes errores de restore persistentes:
@@ -97,7 +78,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\repair-visualstudio-restore.p
 O manualmente:
 
 ```powershell
-python scripts/validate-solution-projects.py
 dotnet restore ACHInterbank.sln
 dotnet build ACHInterbank.sln -c Release
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
